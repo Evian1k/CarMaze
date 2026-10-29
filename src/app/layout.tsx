@@ -39,7 +39,11 @@ export const metadata: Metadata = {
     description:
       "Buy, sell, customise and care for vehicles on Kenya's connected automotive ecosystem.",
   },
-  icons: { icon: "/icon.svg" },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/manifest.webmanifest",
   robots: { index: true, follow: true },
 };
 
@@ -47,6 +51,7 @@ export const viewport: Viewport = {
   themeColor: "#315E4B",
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

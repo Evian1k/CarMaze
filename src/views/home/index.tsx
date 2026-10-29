@@ -1,16 +1,20 @@
 'use client'
 
 /* CARMAZE homepage — hero, search, module showcases. All sections link into
- * the connected platform views; recent/featured listings are real DB data. */
+ * the connected platform views; recent/featured listings are real DB data.
+ * Motion: parallax hero, scroll-reveal sections, animated counters and a
+ * trust marquee — all reduced-motion aware. */
 
-import { useEffect, useState } from 'react'
-import { Search, ShieldCheck, Wrench, LifeBuoy, Boxes, Users, Car, KeyRound, ArrowRight, Sparkles, GitCompareArrows, FolderKanban, MapPin } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
+import { Search, ShieldCheck, Wrench, LifeBuoy, Boxes, Users, Car, KeyRound, ArrowRight, Sparkles, GitCompareArrows, FolderKanban, BadgeCheck, Camera, Timer, HeartHandshake, Fuel } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
+import { CountUp, Reveal, Stagger, StaggerItem } from '@/components/motion/reveal'
 import { navigate, buildQuery, apiGet } from '@/lib/client'
 import { BODY_TYPES, KENYA_COUNTIES } from '@/lib/format'
 
@@ -31,11 +35,28 @@ const MODULES = [
   { icon: Car, title: 'My Garage', desc: 'Your ownership records, service history and maintenance reminders.', href: '/my-garage', cta: 'Open My Garage' },
 ]
 
+const TRUST_POINTS = [
+  { icon: BadgeCheck, label: 'Verification is earned, never bought' },
+  { icon: Camera, label: 'Real photos, real listings' },
+  { icon: ShieldCheck, label: 'Dealer & garage document review' },
+  { icon: HeartHandshake, label: 'Your contacts stay private' },
+  { icon: Timer, label: 'Follow-ups that never go quiet' },
+  { icon: Fuel, label: 'Honest prices in KES' },
+]
+
 export default function HomeView() {
   const [q, setQ] = useState('')
   const [bodyType, setBodyType] = useState('')
   const [county, setCounty] = useState('')
   const [data, setData] = useState<HomeData | null>(null)
+  const heroRef = useRef<HTMLElement>(null)
+  const reduce = useReducedMotion()
+
+  // Hero parallax — background drifts slower than content as you scroll.
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
+  const bgY = useTransform(scrollYProgress, [0, 1], ['0%', reduce ? '0%' : '18%'])
+  const fgY = useTransform(scrollYProgress, [0, 1], ['0%', reduce ? '0%' : '36%'])
+  const fgFade = useTransform(scrollYProgress, [0, 0.85], [1, 0.15])
 
   useEffect(() => {
     apiGet<HomeData>('/api/vehicles/home')
@@ -51,25 +72,49 @@ export default function HomeView() {
   return (
     <div>
       {/* ── Hero ── */}
-      <section className="relative isolate overflow-hidden bg-[#141613]">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-70"
-          style={{ backgroundImage: 'url(/images/hero.png)' }}
+      <section ref={heroRef} className="relative isolate overflow-hidden bg-[#141613]">
+        <motion.div
+          className="absolute inset-0 bg-cover bg-center opacity-70 will-change-transform"
+          style={{ backgroundImage: 'url(/images/hero.png)', y: bgY, scale: reduce ? 1 : 1.08 }}
           role="img"
           aria-label="Luxury SUV driving on a night road in Kenya"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#141613]/95 via-[#141613]/55 to-transparent" />
-        <div className="relative mx-auto flex w-full max-w-7xl flex-col justify-center px-4 py-16 sm:px-6 sm:py-24 lg:py-32">
-          <Badge className="w-fit border-none bg-accent/90 text-accent-foreground">Kenya&apos;s connected automotive ecosystem</Badge>
-          <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-tight text-white sm:text-5xl">
-            Find your next car with confidence.
-          </h1>
-          <p className="mt-3 max-w-xl text-sm text-white/70 sm:text-base">
+        {/* slow headlight sweep across the hero */}
+        {!reduce && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+            <div className="cmz-headlight absolute -top-1/4 left-0 h-[150%] w-48 bg-gradient-to-r from-transparent via-white/6 to-transparent blur-lg" />
+          </div>
+        )}
+        <motion.div style={{ y: fgY, opacity: fgFade }} className="relative mx-auto flex w-full max-w-7xl flex-col justify-center px-4 py-16 sm:px-6 sm:py-24 lg:py-32">
+          <Badge className="cmz-float w-fit border-none bg-accent/90 text-accent-foreground">Kenya&apos;s connected automotive ecosystem</Badge>
+          <motion.h1
+            className="mt-4 max-w-2xl text-3xl font-bold leading-tight text-white sm:text-5xl"
+            initial={reduce ? false : { opacity: 0, y: 26 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 0.61, 0.36, 1] }}
+          >
+            Find your next car with <span className="text-[#D9B878]">confidence.</span>
+          </motion.h1>
+          <motion.p
+            className="mt-3 max-w-xl text-sm text-white/70 sm:text-base"
+            initial={reduce ? false : { opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.25, ease: [0.22, 0.61, 0.36, 1] }}
+          >
             Verified dealers, honest listings, trusted garages and real ownership tools — one ecosystem, built for Kenya.
-          </p>
+          </motion.p>
 
           {/* Prominent search */}
-          <form onSubmit={search} className="mt-7 w-full max-w-3xl" role="search" aria-label="Vehicle search">
+          <motion.form
+            onSubmit={search}
+            className="mt-7 w-full max-w-3xl"
+            role="search"
+            aria-label="Vehicle search"
+            initial={reduce ? false : { opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4, ease: [0.22, 0.61, 0.36, 1] }}
+          >
             <div className="grid grid-cols-1 gap-2 rounded-xl border border-white/15 bg-black/45 p-2 backdrop-blur-md sm:grid-cols-[1fr_auto_auto_auto]">
               <label className="sr-only" htmlFor="hero-q">Search make or model</label>
               <Input
@@ -101,104 +146,156 @@ export default function HomeView() {
                 <option value="">Anywhere</option>
                 {KENYA_COUNTIES.slice(0, 12).map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-              <Button type="submit" size="lg" className="h-11 gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+              <Button type="submit" size="lg" className="h-11 gap-2 bg-primary text-primary-foreground transition-transform hover:bg-primary/90 active:scale-[0.97]">
                 <Search className="h-4 w-4" /> Search
               </Button>
             </div>
-          </form>
+          </motion.form>
 
           {data && (
-            <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/55">
-              <span className="flex items-center gap-1"><Car className="h-3.5 w-3.5" /> {data.stats.publishedListings} live listings</span>
-              <span className="flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> {data.stats.verifiedDealers} verified showrooms</span>
-              <span className="flex items-center gap-1"><Wrench className="h-3.5 w-3.5" /> {data.stats.garages} garages on board</span>
-            </p>
+            <motion.dl
+              className="mt-6 flex flex-wrap gap-x-8 gap-y-3"
+              initial={reduce ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.55, duration: 0.7 }}
+            >
+              {[
+                { label: 'live listings', value: data.stats.publishedListings, icon: Car },
+                { label: 'verified showrooms', value: data.stats.verifiedDealers, icon: ShieldCheck },
+                { label: 'garages on board', value: data.stats.garages, icon: Wrench },
+              ].map((s) => (
+                <div key={s.label} className="flex items-center gap-2 text-white/85">
+                  <s.icon className="h-4 w-4 text-[#D9B878]" aria-hidden />
+                  <span className="text-lg font-bold">
+                    <CountUp value={s.value} />
+                  </span>
+                  <span className="text-xs text-white/55">{s.label}</span>
+                </div>
+              ))}
+            </motion.dl>
           )}
+        </motion.div>
+      </section>
+
+      {/* ── Trust marquee ── */}
+      <section className="border-y border-border bg-card/80 py-3.5" aria-label="Our promises">
+        <div className="cmz-marquee-paused relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
+          <div className="cmz-marquee-track flex w-max items-center gap-10 pr-10">
+            {[0, 1].map((copy) => (
+              <div key={copy} className="flex items-center gap-10" aria-hidden={copy === 1}>
+                {TRUST_POINTS.map((t) => (
+                  <span key={t.label} className="flex items-center gap-2 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                    <t.icon className="h-4 w-4 text-primary" aria-hidden /> {t.label}
+                    <span className="ml-6 h-1 w-1 rounded-full bg-[#D9B878]" aria-hidden />
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── Featured ── */}
       <section className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6" aria-labelledby="featured-heading">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h2 id="featured-heading" className="text-xl font-bold sm:text-2xl">Featured vehicles</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Promoted listings are always clearly labelled.</p>
+        <Reveal>
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2 id="featured-heading" className="text-xl font-bold sm:text-2xl">Featured vehicles</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Promoted listings are always clearly labelled.</p>
+            </div>
+            <Button variant="ghost" onClick={() => navigate('cars')}>View all <ArrowRight className="ml-1 h-4 w-4" /></Button>
           </div>
-          <Button variant="ghost" onClick={() => navigate('cars')}>View all <ArrowRight className="ml-1 h-4 w-4" /></Button>
-        </div>
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        </Reveal>
+        {/* key forces a fresh mount once data lands — variants propagate to real cards */}
+        <Stagger key={data ? 'featured-loaded' : 'featured-loading'} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {!data
-            ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="aspect-[16/10] rounded-xl" />)
+            ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="cmz-shimmer aspect-[16/10] rounded-xl" />)
             : data.featured.length === 0
               ? <p className="col-span-full rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">No featured vehicles right now.</p>
-              : data.featured.slice(0, 4).map((v) => <VehicleCard key={v.id} v={v} />)}
-        </div>
+              : data.featured.slice(0, 4).map((v) => (
+                  <StaggerItem key={v.id}><VehicleCard v={v} /></StaggerItem>
+                ))}
+        </Stagger>
       </section>
 
       {/* ── Recently added ── */}
       <section className="bg-card/60 py-12" aria-labelledby="recent-heading">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 id="recent-heading" className="text-xl font-bold sm:text-2xl">Recently added</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Fresh listings from verified showrooms and private sellers.</p>
+          <Reveal>
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h2 id="recent-heading" className="text-xl font-bold sm:text-2xl">Recently added</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Fresh listings from verified showrooms and private sellers.</p>
+              </div>
+              <Button variant="ghost" onClick={() => navigate('cars')}>Browse all <ArrowRight className="ml-1 h-4 w-4" /></Button>
             </div>
-            <Button variant="ghost" onClick={() => navigate('cars')}>Browse all <ArrowRight className="ml-1 h-4 w-4" /></Button>
-          </div>
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          </Reveal>
+          <Stagger key={data ? 'recent-loaded' : 'recent-loading'} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {!data
-              ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="aspect-[16/10] rounded-xl" />)
-              : data.recent.slice(0, 8).map((v) => <VehicleCard key={v.id} v={v} />)}
-          </div>
+              ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="cmz-shimmer aspect-[16/10] rounded-xl" />)
+              : data.recent.slice(0, 8).map((v) => (
+                  <StaggerItem key={v.id}><VehicleCard v={v} /></StaggerItem>
+                ))}
+          </Stagger>
         </div>
       </section>
 
       {/* ── Modules ── */}
       <section className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6" aria-labelledby="modules-heading">
-        <h2 id="modules-heading" className="text-xl font-bold sm:text-2xl">More than a marketplace</h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Every CARMAZE module is connected — a configuration from the customizer can become a garage quote; a private listing can receive verified dealer offers.
-        </p>
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Reveal>
+          <h2 id="modules-heading" className="text-xl font-bold sm:text-2xl">More than a marketplace</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Every CARMAZE module is connected — a configuration from the customizer can become a garage quote; a private listing can receive verified dealer offers.
+          </p>
+        </Reveal>
+        <Stagger className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {MODULES.map((m) => (
-            <Card key={m.title} className="group flex flex-col border-border transition-shadow hover:shadow-md">
-              <CardContent className="flex flex-1 flex-col p-5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <m.icon className="h-5 w-5" />
-                </span>
-                <h3 className="mt-3 text-[15px] font-semibold">{m.title}</h3>
-                <p className="mt-1 flex-1 text-sm text-muted-foreground">{m.desc}</p>
-                <Button variant="link" className="mt-3 h-auto w-fit p-0 text-primary" onClick={() => navigate(m.href)}>
-                  {m.cta} <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Card>
+            <StaggerItem key={m.title}>
+              <Card className="cmz-gloss group flex h-full flex-col border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+                <CardContent className="flex flex-1 flex-col p-5">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors duration-300 group-hover:bg-primary group-hover:text-primary-foreground">
+                    <m.icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="mt-3 text-[15px] font-semibold">{m.title}</h3>
+                  <p className="mt-1 flex-1 text-sm text-muted-foreground">{m.desc}</p>
+                  <Button variant="link" className="mt-3 h-auto w-fit p-0 text-primary" onClick={() => navigate(m.href)}>
+                    {m.cta} <ArrowRight className="ml-1 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                  </Button>
+                </CardContent>
+              </Card>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       </section>
 
       {/* ── Sell / Dealer / Trust strips ── */}
       <section className="mx-auto w-full max-w-7xl px-4 pb-12 sm:px-6" aria-label="Key platform promises">
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl bg-[#202421] p-6 text-white">
-            <KeyRound className="h-6 w-6 text-accent" />
-            <h3 className="mt-3 font-semibold">Selling? Get dealer offers</h3>
-            <p className="mt-1 text-sm text-white/65">List free, opt into dealer matching, and compare real offers side by side. Your contacts stay private until you decide.</p>
-            <Button size="sm" className="mt-4 bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => navigate('sell')}>Start selling</Button>
-          </div>
-          <div className="rounded-xl bg-primary p-6 text-primary-foreground">
-            <ShieldCheck className="h-6 w-6" />
-            <h3 className="mt-3 font-semibold">Verification is earned</h3>
-            <p className="mt-1 text-sm text-primary-foreground/80">Dealers and garages pass document and premises review before any &quot;Verified&quot; badge appears. It is never a subscription perk.</p>
-            <Button size="sm" variant="outline" className="mt-4 border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground" onClick={() => navigate('info?view=safety')}>How trust works</Button>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-6">
-            <Boxes className="h-6 w-6 text-primary" />
-            <h3 className="mt-3 font-semibold">Run a dealership on DealerOS</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Inventory, enquiries, offers, staff permissions, subscriptions and follow-up automation — with real analytics from your data.</p>
-            <Button size="sm" variant="outline" className="mt-4" onClick={() => navigate('dealer')}>Apply as a dealer</Button>
-          </div>
-        </div>
+        <Stagger className="grid gap-4 md:grid-cols-3">
+          <StaggerItem>
+            <div className="cmz-gloss h-full rounded-xl bg-[#202421] p-6 text-white transition-transform duration-300 hover:-translate-y-1">
+              <KeyRound className="h-6 w-6 text-accent" />
+              <h3 className="mt-3 font-semibold">Selling? Get dealer offers</h3>
+              <p className="mt-1 text-sm text-white/65">List free, opt into dealer matching, and compare real offers side by side. Your contacts stay private until you decide.</p>
+              <Button size="sm" className="mt-4 bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => navigate('sell')}>Start selling</Button>
+            </div>
+          </StaggerItem>
+          <StaggerItem>
+            <div className="cmz-gloss h-full rounded-xl bg-primary p-6 text-primary-foreground transition-transform duration-300 hover:-translate-y-1">
+              <ShieldCheck className="h-6 w-6" />
+              <h3 className="mt-3 font-semibold">Verification is earned</h3>
+              <p className="mt-1 text-sm text-primary-foreground/80">Dealers and garages pass document and premises review before any &quot;Verified&quot; badge appears. It is never a subscription perk.</p>
+              <Button size="sm" variant="outline" className="mt-4 border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground" onClick={() => navigate('info?view=safety')}>How trust works</Button>
+            </div>
+          </StaggerItem>
+          <StaggerItem>
+            <div className="h-full rounded-xl border border-border bg-card p-6 transition-transform duration-300 hover:-translate-y-1">
+              <Boxes className="h-6 w-6 text-primary" />
+              <h3 className="mt-3 font-semibold">Run a dealership on DealerOS</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Inventory, enquiries, offers, staff permissions, subscriptions and follow-up automation — with real analytics from your data.</p>
+              <Button size="sm" variant="outline" className="mt-4" onClick={() => navigate('dealer')}>Apply as a dealer</Button>
+            </div>
+          </StaggerItem>
+        </Stagger>
       </section>
     </div>
   )

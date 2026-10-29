@@ -1,0 +1,21 @@
+{
+  "name": "CARMAZE — Find. Connect. Drive.",
+  "short_name": "CARMAZE",
+  "description": "Kenya's connected automotive ecosystem: buy and sell vehicles, verified dealerships, 3D customizer, trusted garages, roadside assistance and vehicle ownership records.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F7F5",
+  "theme_color": "#315E4B",
+  "orientation": "portrait-primary",
+  "categories": ["automotive", "shopping", "business"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Browse cars", "url": "/#/cars", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Sell a car", "url": "/#/sell", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Find a garage", "url": "/#/garages", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

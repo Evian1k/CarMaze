@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Bell, ChevronDown, LayoutDashboard, LogOut, Menu, Settings, User, Wrench } from 'lucide-react'
+import { Bell, ChevronDown, LayoutDashboard, LogOut, Menu, Search, Settings, User, Wrench } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -16,6 +16,8 @@ import { navigate, type RouteInfo } from '@/lib/client'
 import { useAuth, hasAnyRole, isStaffUser } from '@/stores/auth'
 import { timeAgo } from '@/lib/format'
 import { apiGet, apiSend } from '@/lib/client'
+import { CommandPalette, openCommandPalette } from '@/components/layout/command-palette'
+import { MobileTabBar, BackToTop } from '@/components/layout/mobile-tabbar'
 
 type NotificationItem = {
   id: string
@@ -66,7 +68,7 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground">
         Skip to content
       </a>
@@ -98,6 +100,15 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
           </nav>
 
           <div className="flex flex-1 items-center justify-end gap-1.5 lg:flex-none">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={openCommandPalette}
+              aria-label="Quick search (Command K)"
+              title="Quick search (⌘K)"
+            >
+              <Search className="h-5 w-5" />
+            </Button>
             {user ? (
               <>
                 <DropdownMenu open={bellOpen} onOpenChange={(o) => { if (o !== bellOpen) openBell() }}>
@@ -286,6 +297,10 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
           </div>
         </div>
       </footer>
+
+      <MobileTabBar route={route} />
+      <BackToTop />
+      <CommandPalette />
     </div>
   )
 }

@@ -148,7 +148,7 @@
   background: rgba(110, 110, 103, 0.55);
 }
 
-/* Cinematic intro */
+/* ── Cinematic intro ─────────────────────────────────────────────── */
 @keyframes cmz-streak {
   0% { transform: translateX(-120%) scaleX(0.2); opacity: 0; }
   15% { opacity: 1; }
@@ -163,8 +163,51 @@
   to { opacity: 1; }
 }
 @keyframes cmz-zoom-road {
-  from { transform: scale(1.12) translateY(2%); opacity: 0; }
-  to { transform: scale(1) translateY(0); opacity: 1; }
+  from { transform: scale(1.18) translateY(3%); opacity: 0; }
+  to { transform: scale(1.02) translateY(0); opacity: 1; }
+}
+/* slow continuous dolly push used behind the video/road layer */
+@keyframes cmz-dolly {
+  from { transform: scale(1.02) translateY(0); }
+  to { transform: scale(1.12) translateY(-1.5%); }
+}
+@keyframes cmz-headlight {
+  0% { transform: translateX(-140%) skewX(-18deg); opacity: 0; }
+  25% { opacity: 0.5; }
+  100% { transform: translateX(240%) skewX(-18deg); opacity: 0; }
+}
+@keyframes cmz-ember {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  12% { opacity: 0.85; }
+  100% { transform: translateY(-72vh) scale(0.2); opacity: 0; }
+}
+@keyframes cmz-converge-l {
+  0% { transform: translateX(-46vw) scaleX(0.3); opacity: 0; }
+  30% { opacity: 1; }
+  78% { transform: translateX(0) scaleX(1); opacity: 1; }
+  100% { transform: translateX(0) scaleX(0.02); opacity: 0; }
+}
+@keyframes cmz-converge-r {
+  0% { transform: translateX(46vw) scaleX(0.3); opacity: 0; }
+  30% { opacity: 1; }
+  78% { transform: translateX(0) scaleX(1); opacity: 1; }
+  100% { transform: translateX(0) scaleX(0.02); opacity: 0; }
+}
+@keyframes cmz-glow-pulse {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(217, 184, 120, 0.25)); }
+  50% { filter: drop-shadow(0 0 22px rgba(217, 184, 120, 0.6)); }
+}
+@keyframes cmz-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+@keyframes cmz-eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+@keyframes cmz-shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
 }
 
 .cmz-streak {
@@ -179,13 +222,111 @@
 .cmz-zoom-road {
   animation: cmz-zoom-road 3.2s cubic-bezier(0.16, 0.8, 0.3, 1) both;
 }
+.cmz-dolly {
+  animation: cmz-dolly 9s cubic-bezier(0.25, 0.6, 0.35, 1) both;
+}
+.cmz-headlight {
+  animation: cmz-headlight 4.5s ease-in-out infinite;
+}
+.cmz-ember {
+  animation: cmz-ember 5s linear infinite;
+}
+.cmz-converge-l {
+  animation: cmz-converge-l 2.1s cubic-bezier(0.3, 0.6, 0.2, 1) both;
+}
+.cmz-converge-r {
+  animation: cmz-converge-r 2.1s cubic-bezier(0.3, 0.6, 0.2, 1) both;
+}
+.cmz-glow-pulse {
+  animation: cmz-glow-pulse 2.4s ease-in-out infinite;
+}
+.cmz-progress {
+  animation: cmz-progress 7.4s linear both;
+}
+.cmz-eq span {
+  animation: cmz-eq 0.9s ease-in-out infinite;
+}
+.cmz-eq span:nth-child(2) { animation-delay: 0.18s; }
+.cmz-eq span:nth-child(3) { animation-delay: 0.36s; }
+.cmz-eq span:nth-child(4) { animation-delay: 0.54s; }
+
+/* ── Gloss sweep for premium cards ──────────────────────────────── */
+.cmz-gloss {
+  position: relative;
+  overflow: hidden;
+}
+.cmz-gloss::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.16) 48%, rgba(255, 255, 255, 0.05) 54%, transparent 62%);
+  transform: translateX(-130%);
+  transition: transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+  pointer-events: none;
+}
+.cmz-gloss:hover::after {
+  transform: translateX(130%);
+}
+
+/* ── Shimmer skeletons ──────────────────────────────────────────── */
+.cmz-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--muted) 40%,
+    color-mix(in srgb, var(--muted) 60%, #ffffff 40%) 50%,
+    var(--muted) 60%
+  );
+  background-size: 200% 100%;
+  animation: cmz-shimmer 1.6s linear infinite;
+}
+
+/* ── Marquee ────────────────────────────────────────────────────── */
+@keyframes cmz-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.cmz-marquee-track {
+  animation: cmz-marquee 30s linear infinite;
+}
+.cmz-marquee-paused:hover .cmz-marquee-track {
+  animation-play-state: paused;
+}
+
+/* ── Ambient float for hero badges ──────────────────────────────── */
+@keyframes cmz-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+.cmz-float {
+  animation: cmz-float 5s ease-in-out infinite;
+}
+
+/* ── Selection + focus polish ───────────────────────────────────── */
+::selection {
+  background: rgba(217, 184, 120, 0.35);
+  color: #202421;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .cmz-streak,
   .cmz-fade-up,
   .cmz-fade-in,
-  .cmz-zoom-road {
+  .cmz-zoom-road,
+  .cmz-dolly,
+  .cmz-headlight,
+  .cmz-ember,
+  .cmz-converge-l,
+  .cmz-converge-r,
+  .cmz-glow-pulse,
+  .cmz-progress,
+  .cmz-eq span,
+  .cmz-shimmer,
+  .cmz-marquee-track,
+  .cmz-float {
     animation-duration: 0.01s !important;
     animation-iteration-count: 1 !important;
+  }
+  .cmz-gloss::after {
+    display: none;
   }
 }

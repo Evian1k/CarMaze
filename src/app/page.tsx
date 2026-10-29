@@ -8,6 +8,7 @@
 
 import { useState, Suspense, useSyncExternalStore } from 'react'
 import dynamic from 'next/dynamic'
+import { motion } from 'framer-motion'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useAuth, useAuthInit } from '@/stores/auth'
 import { AppShell } from '@/components/layout/app-shell'
@@ -78,7 +79,15 @@ export default function Page() {
       {!introSeen && !introDismissed && <Intro onDone={() => setIntroDismissed(true)} />}
       <AppShell route={route}>
         <Suspense fallback={loading()}>
-          <View />
+          {/* key on view identity → subtle cinematic rise on every navigation */}
+          <motion.div
+            key={key}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.38, ease: [0.22, 0.61, 0.36, 1] }}
+          >
+            <View />
+          </motion.div>
         </Suspense>
       </AppShell>
       {/* key={key} hints view identity for debugging tools */}

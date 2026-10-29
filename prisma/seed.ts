@@ -127,7 +127,7 @@ async function main() {
     data: {
       type: 'GARAGE', name: 'Mombasa Road Tyres & Service', county: 'Nairobi', town: 'South C',
       location: 'Mombasa Road opposite Panari', phone: '+254720888777',
-      description: 'Tyres, alignment, batteries and quick servicing.',
+      description: 'Tyres, alignment, batteries, quick servicing and 24/7 roadside assistance & towing around Nairobi.',
     },
   })
 
@@ -329,6 +329,7 @@ async function main() {
       { orgId: garageOrg.id, category: 'ELECTRICAL', title: 'Auto-electrical diagnostics', description: 'ECU scanning, wiring repairs and battery systems.', priceFromMinor: 250000 },
       { orgId: garageOrg2.id, category: 'TYRES', title: 'Tyre fitting & balancing', description: 'All major brands, wheel alignment included.', priceFromMinor: 180000 },
       { orgId: garageOrg2.id, category: 'ELECTRICAL', title: 'Battery replacement & charging system', description: 'Free fitting with 12-month warranty batteries.', priceFromMinor: 950000 },
+      { orgId: garageOrg2.id, category: 'ROADSIDE', title: '24/7 roadside assistance & towing', description: 'Flat tyre, battery boost, fuel rescue and towing across Nairobi. Call-out from KES 3,500.', priceFromMinor: 350000 },
     ],
   })
 
