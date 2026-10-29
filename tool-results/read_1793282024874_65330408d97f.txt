@@ -1,0 +1,1274 @@
+     1→     1→# CARMAZE — ULTIMATE END-TO-END STARTUP BUILD PROMPT
+     2→     2→## Complete Automotive Marketplace, Dealer Management Platform, 3D Car Customizer, Garage Ecosystem, AI, Payments, Security and Production Deployment
+     3→     3→
+     4→     4→You are now the principal software architect, senior full-stack developer, UI/UX designer, 3D web engineer, database architect, AI engineer, cybersecurity engineer, QA engineer, DevOps engineer, and technical product partner for **CARMAZE**.
+     5→     5→
+     6→     6→Your mission is to build CARMAZE into a professional, reliable, commercially viable automotive technology platform, starting in Kenya and designed to expand throughout Africa and eventually internationally.
+     7→     7→
+     8→     8→This is not a landing-page-only project, design prototype, school assignment, or collection of disconnected dashboards. It must become a coherent automotive ecosystem with working frontend interfaces, backend business logic, persistent databases, secure permissions, real integrations, automated workflows, testing, and deployment documentation.
+     9→     9→
+    10→    10→**Do not merely give me another plan. Inspect the existing project, implement the actual features, test them, fix failures, and report what is genuinely working.**
+    11→    11→
+    12→    12→# PART 1 — NON-NEGOTIABLE IMPLEMENTATION RULES
+    13→    13→
+    14→    14→1. Inspect the complete existing repository before modifying it.
+    15→    15→2. Identify the framework, routes, components, APIs, database, authentication, integrations, environment variables, deployment configuration, tests, and current errors.
+    16→    16→3. Preserve working functionality and existing customer data.
+    17→    17→4. Do not create a separate disconnected application if the existing project can be extended safely.
+    18→    18→5. Establish a prioritised implementation plan, then begin implementing it immediately.
+    19→    19→6. Use real database records and real backend operations. Do not use mock data, fake payments, hardcoded dashboard statistics, pretend notifications, or simulated production success.
+    20→    20→7. Do not create buttons that do nothing, empty dashboards, dead links, decorative forms, fake charts, or features labelled “coming soon” as substitutes for implementation.
+    21→    21→8. If an integration requires credentials or an external service that is unavailable, implement the legitimate integration interface, document the missing dependency, and clearly mark it as unverified. Never fake success.
+    22→    22→9. Do not delete, overwrite, or expose existing data or secrets.
+    23→    23→10. Use database migrations and backups before risky schema changes.
+    24→    24→11. Implement backend validation and authorisation, not just frontend restrictions.
+    25→    25→12. Test every important workflow from beginning to end.
+    26→    26→13. Fix the bugs discovered during implementation rather than merely listing them.
+    27→    27→14. Keep the application maintainable, accessible, responsive, secure, and optimised for mobile devices and slower internet connections.
+    28→    28→15. Do not introduce microservices, Kubernetes, or unnecessary infrastructure before there is a demonstrated need.
+    29→    29→16. If a requirement is ambiguous, choose a sensible, secure default, document the assumption, and continue.
+    30→    30→17. Never claim that an implementation, payment, deployment, test, or integration succeeded unless you have verified it.
+    31→    31→18. Never expose secret keys, personal identification documents, private customer information, or internal administrative endpoints.
+    32→    32→19. Do not remove existing features just to make the build pass. Fix the underlying problem wherever possible.
+    33→    33→20. Continue working through the requirements in priority order, maintaining a list of completed, blocked, and outstanding work.
+    34→    34→
+    35→    35→# PART 2 — THE BUSINESS VISION
+    36→    36→
+    37→    37→CARMAZE is an automotive ecosystem connecting people who want to buy, sell, maintain, customise, and manage vehicles.
+    38→    38→
+    39→    39→The platform must serve:
+    40→    40→
+    41→    41→- People buying vehicles.
+    42→    42→- Private vehicle owners selling their cars.
+    43→    43→- Verified showrooms and dealerships.
+    44→    44→- Dealer owners and their employees.
+    45→    45→- Garages and automotive service providers.
+    46→    46→- Mechanics and specialists.
+    47→    47→- Vehicle modification and upgrade businesses.
+    48→    48→- Towing and roadside assistance providers.
+    49→    49→- Automotive enthusiasts and community members.
+    50→    50→- Platform support and moderation teams.
+    51→    51→- The founders and authorised administrators.
+    52→    52→
+    53→    53→The business begins in Kenya, supports Kenyan locations and mobile-first usage, and is architected for expansion into other African markets.
+    54→    54→
+    55→    55→Build one coherent platform with connected products:
+    56→    56→
+    57→    57→1. **CARMAZE Marketplace** — discover, compare, buy and sell vehicles.
+    58→    58→2. **CARMAZE DealerOS** — inventory, leads, staff, follow-ups and dealership analytics.
+    59→    59→3. **CARMAZE Customizer** — interactive 3D vehicle visualisation and configuration.
+    60→    60→4. **CARMAZE Garage** — repairs, servicing, modifications and quotes.
+    61→    61→5. **CARMAZE Roadside** — towing and emergency roadside service requests.
+    62→    62→6. **CARMAZE My Garage** — vehicle ownership records and maintenance reminders.
+    63→    63→7. **CARMAZE Community** — automotive discussions, advice, reviews and events.
+    64→    64→8. **CARMAZE Intelligence** — AI-powered assistance and operational insights.
+    65→    65→9. **CARMAZE Control Center** — secure platform administration and business analytics.
+    66→    66→
+    67→    67→These are connected modules, not separate products with unrelated accounts and databases.
+    68→    68→
+    69→    69→# PART 3 — BRAND IDENTITY AND VISUAL DESIGN
+    70→    70→
+    71→    71→Use the approved CARMAZE logo supplied by the founders as the primary brand reference.
+    72→    72→
+    73→    73→Preserve the correct spelling: CARMAZE.
+    74→    74→
+    75→    75→Use the brand tagline:
+    76→    76→
+    77→    77→**FIND. CONNECT. DRIVE.**
+    78→    78→
+    79→    79→## Visual direction
+    80→    80→
+    81→    81→Create a premium automotive brand that feels sophisticated, trustworthy, modern, and approachable.
+    82→    82→
+    83→    83→Use a restrained palette inspired by:
+    84→    84→
+    85→    85→- Warm off-white: approximately #F7F7F5.
+    86→    86→- Charcoal: approximately #202421.
+    87→    87→- Deep green: approximately #315E4B.
+    88→    88→- Muted champagne gold: approximately #D9B878.
+    89→    89→- Neutral greys for secondary information.
+    90→    90→
+    91→    91→Use high-quality vehicle photography, generous spacing, clear typography, elegant cards, subtle borders, refined shadows, and carefully controlled motion.
+    92→    92→
+    93→    93→Avoid excessive neon, cluttered layouts, cheap gradients, cartoon visuals, aggressive gaming aesthetics, and unnecessary futuristic effects.
+    94→    94→
+    95→    95→Use glass effects selectively for floating navigation or overlays where they genuinely improve the experience.
+    96→    96→
+    97→    97→## Mandatory logo correction
+    98→    98→
+    99→    99→The current logo is too large. Audit and correct its size across the entire platform.
+   100→   100→
+   101→   101→Create one reusable, responsive logo component and consistent size variants.
+   102→   102→
+   103→   103→Suggested starting widths:
+   104→   104→
+   105→   105→- Desktop header: 120–160px.
+   106→   106→- Tablet header: 110–135px.
+   107→   107→- Mobile header: 95–120px.
+   108→   108→
+   109→   109→Adapt these sizes to the actual artwork, available space, and navigation layout.
+   110→   110→
+   111→   111→Requirements:
+   112→   112→
+   113→   113→- Preserve aspect ratio.
+   114→   114→- Never stretch or crop the logo.
+   115→   115→- Use `height: auto` and appropriate maximum dimensions.
+   116→   116→- Keep the navigation compact.
+   117→   117→- Ensure the logo does not overlap buttons or account controls.
+   118→   118→- Correct oversized whitespace in the source asset where feasible.
+   119→   119→- Create suitable light-background and dark-background variants when necessary.
+   120→   120→- Use appropriate versions for the footer, login screens, portals, splash screen, PWA icons, receipts and email templates.
+   121→   121→- Keep the full logo and tagline legible where space permits.
+   122→   122→- Use a compact emblem or approved icon variant in very narrow spaces.
+   123→   123→
+   124→   124→Test the layout at widths of 320px, 360px, 390px, 768px, 1024px, 1440px, and larger desktop sizes.
+   125→   125→
+   126→   126→Do not replace the logo with a newly invented design.
+   127→   127→
+   128→   128→# PART 4 — CINEMATIC STARTUP INTRODUCTION
+   129→   129→
+   130→   130→Create a premium cinematic introduction for CARMAZE.
+   131→   131→
+   132→   132→The experience should resemble a luxury automotive commercial, not a generic animated website template.
+   133→   133→
+   134→   134→## Sequence
+   135→   135→
+   136→   136→1. Begin with darkness and a subtle cinematic engine rumble.
+   137→   137→2. Reveal an elegant road at night with realistic reflections and controlled silver and gold lighting.
+   138→   138→3. Show a photorealistic vehicle moving smoothly through the scene.
+   139→   139→4. Follow the car with deliberate cinematic camera movement.
+   140→   140→5. Transform subtle road-light trails into the approved CARMAZE emblem.
+   141→   141→6. Reveal the CARMAZE wordmark.
+   142→   142→7. Reveal “FIND. CONNECT. DRIVE.”
+   143→   143→8. Transition smoothly into the homepage.
+   144→   144→
+   145→   145→The normal intro should last approximately 6–10 seconds when enabled.
+   146→   146→
+   147→   147→## Mandatory user experience rules
+   148→   148→
+   149→   149→- Include a visible Skip Intro control.
+   150→   150→- Do not force users to replay the animation on every visit.
+   151→   151→- Allow users to disable or skip motion where appropriate.
+   152→   152→- Respect reduced-motion accessibility preferences.
+   153→   153→- Do not delay access to search, account controls, or important content.
+   154→   154→- Provide a static fallback.
+   155→   155→- Compress video for web delivery.
+   156→   156→- Lazy-load nonessential cinematic assets.
+   157→   157→- Keep the intro responsive on desktop and mobile.
+   158→   158→- Ensure the final logo is correctly sized and legible.
+   159→   159→- Use properly licensed audio and visual assets.
+   160→   160→
+   161→   161→The website must remain functional if the video fails to load.
+   162→   162→
+   163→   163→If video-generation software is unavailable, implement the website integration and provide the precise asset specifications. Do not pretend a video has been generated when it has not.
+   164→   164→
+   165→   165→# PART 5 — WEBSITE STRUCTURE AND HOMEPAGE
+   166→   166→
+   167→   167→Build a complete responsive homepage with:
+   168→   168→
+   169→   169→1. Compact branded navigation.
+   170→   170→2. Hero section with a cinematic vehicle image or lightweight video.
+   171→   171→3. Prominent vehicle search.
+   172→   172→4. Recently added vehicles.
+   173→   173→5. Featured vehicles.
+   174→   174→6. Verified dealerships.
+   175→   175→7. Compare vehicles.
+   176→   176→8. Sell your car.
+   177→   177→9. Find a trusted garage.
+   178→   178→10. Explore vehicle modifications.
+   179→   179→11. Roadside assistance.
+   180→   180→12. Interactive 3D customizer.
+   181→   181→13. Automotive community.
+   182→   182→14. My Garage.
+   183→   183→15. DealerOS introduction.
+   184→   184→16. Trust, verification and safety information.
+   185→   185→17. Frequently asked questions.
+   186→   186→18. Contact and support.
+   187→   187→19. Footer with legal and company information.
+   188→   188→
+   189→   189→Navigation should be simple and consistent:
+   190→   190→
+   191→   191→- Cars
+   192→   192→- Sell a Car
+   193→   193→- Showrooms
+   194→   194→- Customizer
+   195→   195→- Garages
+   196→   196→- Roadside Help
+   197→   197→- Community
+   198→   198→- Sign In / Account
+   199→   199→
+   200→   200→On mobile, use an accessible compact navigation pattern.
+   201→   201→
+   202→   202→Visitors must be able to browse public vehicle listings without being forced to create an account.
+   203→   203→
+   204→   204→# PART 6 — VEHICLE MARKETPLACE
+   205→   205→
+   206→   206→Implement a complete vehicle listing and discovery system.
+   207→   207→
+   208→   208→## Listing information
+   209→   209→
+   210→   210→Support fields appropriate to the vehicle type, including:
+   211→   211→
+   212→   212→- Make and model.
+   213→   213→- Model year.
+   214→   214→- Price and currency.
+   215→   215→- Mileage.
+   216→   216→- Fuel type.
+   217→   217→- Transmission.
+   218→   218→- Body style.
+   219→   219→- Engine capacity where applicable.
+   220→   220→- Condition.
+   221→   221→- Vehicle location.
+   222→   222→- Exterior colour.
+   223→   223→- Ownership and import details where applicable.
+   224→   224→- Registration or verification status where legally appropriate.
+   225→   225→- Seller type.
+   226→   226→- Description.
+   227→   227→- Photos.
+   228→   228→- Relevant specifications.
+   229→   229→- Availability status.
+   230→   230→- Listing creation and update dates.
+   231→   231→
+   232→   232→Do not display private registration documents or personal identification documents publicly.
+   233→   233→
+   234→   234→## Search and filtering
+   235→   235→
+   236→   236→Implement working filters for:
+   237→   237→
+   238→   238→- Make.
+   239→   239→- Model.
+   240→   240→- Price range.
+   241→   241→- Year range.
+   242→   242→- Mileage.
+   243→   243→- Location.
+   244→   244→- Fuel type.
+   245→   245→- Transmission.
+   246→   246→- Body type.
+   247→   247→- Condition.
+   248→   248→- Seller type.
+   249→   249→- Verified seller status.
+   250→   250→
+   251→   251→Support sorting by relevant criteria, pagination or efficient incremental loading, and shareable search URLs.
+   252→   252→
+   253→   253→Persist search preferences for signed-in users where useful.
+   254→   254→
+   255→   255→Use database indexes for frequently searched fields.
+   256→   256→
+   257→   257→Use geospatial search only when properly supported by the existing database and location data.
+   258→   258→
+   259→   259→## Listing details
+   260→   260→
+   261→   261→Every vehicle page must include:
+   262→   262→
+   263→   263→- Genuine vehicle information.
+   264→   264→- Photo gallery.
+   265→   265→- Price and availability.
+   266→   266→- Seller or dealership profile.
+   267→   267→- Verification status.
+   268→   268→- Enquiry form.
+   269→   269→- Save/favourite action.
+   270→   270→- Share link.
+   271→   271→- Report listing action.
+   272→   272→- Similar listings where appropriate.
+   273→   273→- Clear warnings against unsafe payments and fraudulent listings.
+   274→   274→
+   275→   275→Track listing views and genuine enquiries without exposing unnecessary personal information.
+   276→   276→
+   277→   277→Support drafts, pending review, published, reserved, sold, rejected, suspended and expired states where appropriate.
+   278→   278→
+   279→   279→Only authorised users may edit or remove a listing.
+   280→   280→
+   281→   281→# PART 7 — PRIVATE SELLER WORKFLOWS
+   282→   282→
+   283→   283→Private owners must be able to:
+   284→   284→
+   285→   285→1. Create an account.
+   286→   286→2. Verify their contact details.
+   287→   287→3. Submit vehicle information.
+   288→   288→4. Upload vehicle photographs.
+   289→   289→5. Provide required ownership or verification information through protected workflows.
+   290→   290→6. Preview the listing.
+   291→   291→7. Submit for review where required.
+   292→   292→8. Correct rejected or incomplete submissions.
+   293→   293→9. Publish when approved.
+   294→   294→10. Receive enquiries and eligible dealer offers.
+   295→   295→11. Track listing performance.
+   296→   296→12. Update availability.
+   297→   297→13. Mark the vehicle sold.
+   298→   298→14. Report suspicious buyers or messages.
+   299→   299→
+   300→   300→Give sellers control over when and how their contact details are shared.
+   301→   301→
+   302→   302→Never broadcast a private seller's phone number, documents or location details to third parties without appropriate authorisation and consent.
+   303→   303→
+   304→   304→# PART 8 — STRICT DEALER ONBOARDING AND FOLLOW-UP
+   305→   305→
+   306→   306→This is one of the most important parts of CARMAZE.
+   307→   307→
+   308→   308→Dealers must follow a formal, auditable onboarding process. A submitted application must never be treated as automatically verified.
+   309→   309→
+   310→   310→## Dealer registration
+   311→   311→
+   312→   312→Collect the appropriate information, including:
+   313→   313→
+   314→   314→- Business name.
+   315→   315→- Business registration information where applicable.
+   316→   316→- Physical or service location.
+   317→   317→- Business contact details.
+   318→   318→- Authorised representative.
+   319→   319→- Requested dealership account type.
+   320→   320→- Required verification documents.
+   321→   321→- Acceptance of dealer terms.
+   322→   322→- Consent and privacy acknowledgements.
+   323→   323→
+   324→   324→Collect only necessary information, store sensitive documents securely, and restrict access to authorised reviewers.
+   325→   325→
+   326→   326→## Application states
+   327→   327→
+   328→   328→Implement explicit states:
+   329→   329→
+   330→   330→- Draft.
+   331→   331→- Submitted.
+   332→   332→- Under review.
+   333→   333→- More information required.
+   334→   334→- Resubmitted.
+   335→   335→- Approved.
+   336→   336→- Rejected.
+   337→   337→- Suspended.
+   338→   338→- Revoked.
+   339→   339→
+   340→   340→Enforce permitted state transitions on the backend.
+   341→   341→
+   342→   342→## Automated follow-up engine
+   343→   343→
+   344→   344→When an application is submitted:
+   345→   345→
+   346→   346→1. Generate a unique application reference.
+   347→   347→2. Record the submission time.
+   348→   348→3. Validate required fields and attachments.
+   349→   349→4. Create a task in the authorised review queue.
+   350→   350→5. Notify the appropriate review team.
+   351→   351→6. Send the dealer a genuine receipt or status notification.
+   352→   352→7. Assign a review owner where applicable.
+   353→   353→8. Track the age of the application.
+   354→   354→9. Send reminders according to configurable service-level targets.
+   355→   355→10. Escalate overdue applications to the next authorised staff member.
+   356→   356→11. Record every action in an immutable or appropriately protected audit history.
+   357→   357→12. Notify the dealer when additional information is required.
+   358→   358→13. Track the deadline for corrections.
+   359→   359→14. Remind the dealer before a correction deadline.
+   360→   360→15. Escalate unresolved cases.
+   361→   361→16. Close, reject or suspend an application only according to documented rules and authorised decisions.
+   362→   362→
+   363→   363→Use configurable review targets rather than inventing a guaranteed approval time.
+   364→   364→
+   365→   365→A practical initial policy may target an initial review within one business day, subject to actual staffing and operating hours.
+   366→   366→
+   367→   367→If a reminder or notification fails, record the failure and retry according to a controlled policy. Do not mark a failed notification as delivered.
+   368→   368→
+   369→   369→## Dealer inventory rules
+   370→   370→
+   371→   371→Every vehicle submission must have:
+   372→   372→
+   373→   373→- A unique listing reference.
+   374→   374→- A submitting account and organisation.
+   375→   375→- Required fields and photographs.
+   376→   376→- Ownership or listing-authorisation checks appropriate to the process.
+   377→   377→- Duplicate detection.
+   378→   378→- Review status.
+   379→   379→- Reviewer identity when reviewed.
+   380→   380→- Rejection or correction reason.
+   381→   381→- Submission and update timestamps.
+   382→   382→- Complete status history.
+   383→   383→
+   384→   384→Prevent unapproved listings from appearing publicly.
+   385→   385→
+   386→   386→Flag suspicious pricing, duplicated photographs, repeated vehicle records, inconsistent specifications and potentially fraudulent claims for human review.
+   387→   387→
+   388→   388→Do not automatically accuse or ban a dealer solely because an AI model produces a risk score.
+   389→   389→
+   390→   390→## Dealer accountability
+   391→   391→
+   392→   392→Implement configurable rules for:
+   393→   393→
+   394→   394→- Unanswered customer enquiries.
+   395→   395→- Repeated inaccurate listings.
+   396→   396→- False availability claims.
+   397→   397→- Misleading prices.
+   398→   398→- Unauthorised listing content.
+   399→   399→- Repeated cancellations.
+   400→   400→- Customer complaints.
+   401→   401→- Suspected fraud.
+   402→   402→- Unpaid platform invoices.
+   403→   403→
+   404→   404→Use warnings, deadlines, review, restrictions and appeal processes where appropriate.
+   405→   405→
+   406→   406→Do not impose arbitrary fines or automatically deduct money without a clear contractual basis, lawful process and authorised billing workflow.
+   407→   407→
+   408→   408→Record warnings, decisions, evidence and appeals.
+   409→   409→
+   410→   410→## Dealer dashboard
+   411→   411→
+   412→   412→Dealers must be able to manage:
+   413→   413→
+   414→   414→- Business profile.
+   415→   415→- Verification status.
+   416→   416→- Inventory.
+   417→   417→- Listing approvals.
+   418→   418→- Enquiries.
+   419→   419→- Customer conversations.
+   420→   420→- Follow-up tasks.
+   421→   421→- Sales pipeline.
+   422→   422→- Staff accounts.
+   423→   423→- Branches where supported.
+   424→   424→- Subscriptions.
+   425→   425→- Promotion campaigns.
+   426→   426→- Billing and invoices.
+   427→   427→- Performance analytics.
+   428→   428→- Customer feedback.
+   429→   429→- Support cases.
+   430→   430→
+   431→   431→Provide a useful dashboard showing overdue tasks, unanswered enquiries, incomplete listings, expiring campaigns and account issues.
+   432→   432→
+   433→   433→## Dealer staff
+   434→   434→
+   435→   435→Dealer owners can invite staff and assign limited permissions.
+   436→   436→
+   437→   437→Implement role-based permissions for inventory managers, sales representatives, branch managers and finance staff where needed.
+   438→   438→
+   439→   439→Staff must only access the dealership data and actions authorised for them.
+   440→   440→
+   441→   441→# PART 9 — SELLER-TO-DEALER MATCHING
+   442→   442→
+   443→   443→Create a differentiated workflow that connects private sellers with relevant dealerships.
+   444→   444→
+   445→   445→When a private owner submits a vehicle, allow them to opt into matching with suitable dealerships.
+   446→   446→
+   447→   447→Match using:
+   448→   448→
+   449→   449→- Make and model.
+   450→   450→- Vehicle category.
+   451→   451→- Condition.
+   452→   452→- Price expectations.
+   453→   453→- Location and service area.
+   454→   454→- Dealer buying preferences.
+   455→   455→- Dealer eligibility.
+   456→   456→- Seller consent.
+   457→   457→
+   458→   458→Dealers may submit offers through the platform.
+   459→   459→
+   460→   460→The seller must be able to compare offers, reject them, request clarification and decide which dealer to contact.
+   461→   461→
+   462→   462→Build a dealer buying-request board where participating dealerships can specify the vehicles they are seeking.
+   463→   463→
+   464→   464→Use transparent offer statuses, timestamps, expiry and notification controls.
+   465→   465→
+   466→   466→Do not expose seller contact details until the applicable consent and workflow requirements are satisfied.
+   467→   467→
+   468→   468→Measure matching quality using actual outcomes, not invented analytics.
+   469→   469→
+   470→   470→# PART 10 — 3D CAR CUSTOMIZER
+   471→   471→
+   472→   472→Build a real browser-based interactive 3D customizer integrated into CARMAZE.
+   473→   473→
+   474→   474→Use Three.js or React Three Fiber, depending on the existing frontend.
+   475→   475→
+   476→   476→Do not use Unity or Unreal Engine for the browser implementation.
+   477→   477→
+   478→   478→## Rendering
+   479→   479→
+   480→   480→Support:
+   481→   481→
+   482→   482→- GLB/GLTF models.
+   483→   483→- Environment lighting.
+   484→   484→- Realistic materials.
+   485→   485→- Appropriate reflections and shadows.
+   486→   486→- Responsive camera controls.
+   487→   487→- Touch gestures.
+   488→   488→- Loading progress.
+   489→   489→- Reset-camera action.
+   490→   490→- Graceful errors.
+   491→   491→- Static fallback for unsupported devices.
+   492→   492→
+   493→   493→## Model hierarchy
+   494→   494→
+   495→   495→Inspect the real model files and identify their supported mesh names.
+   496→   496→
+   497→   497→Where available, separate:
+   498→   498→
+   499→   499→- Body shell.
+   500→   500→- Front and rear bumpers.
+   501→   501→- Wheels and rims.
+   502→   502→- Glass.
+   503→   503→- Lights.
+   504→   504→- Supported accessories.
+   505→   505→- Axle or suspension components.
+   506→   506→
+   507→   507→Do not assume example object names exist in every model.
+   508→   508→
+   509→   509→## Customisation controls
+   510→   510→
+   511→   511→Implement supported controls for:
+   512→   512→
+   513→   513→- Paint colour.
+   514→   514→- Paint finish.
+   515→   515→- Rim design.
+   516→   516→- Rim colour.
+   517→   517→- Glass tint.
+   518→   518→- Compatible accessories.
+   519→   519→- Supported body kits.
+   520→   520→- Supported ride-height visualisation.
+   521→   521→
+   522→   522→Every enabled control must modify the actual scene.
+   523→   523→
+   524→   524→Handle shared materials safely. Validate mesh existence, material types, configuration values and model compatibility.
+   525→   525→
+   526→   526→Do not show a working-looking control if it does not perform its advertised action.
+   527→   527→
+   528→   528→## Model performance
+   529→   529→
+   530→   530→Compress models where practical and aim for approximately 5 MB or less per model without unacceptable quality loss.
+   531→   531→
+   532→   532→Use geometry and texture compression when supported.
+   533→   533→
+   534→   534→Lazy-load models, cache assets appropriately, dispose of unused GPU resources and measure performance on representative mobile devices.
+   535→   535→
+   536→   536→Use legally licensed models and textures.
+   537→   537→
+   538→   538→## Configuration persistence
+   539→   539→
+   540→   540→Represent customisations using validated configuration data.
+   541→   541→
+   542→   542→When a user clicks Share:
+   543→   543→
+   544→   544→1. Validate the configuration.
+   545→   545→2. Save it through the backend.
+   546→   546→3. Generate a secure, unique identifier.
+   547→   547→4. Return a copyable CARMAZE link.
+   548→   548→5. Restore the saved configuration when the link is opened.
+   549→   549→6. Handle missing, expired, invalid and outdated configurations gracefully.
+   550→   550→
+   551→   551→Store configuration data rather than duplicating large model files.
+   552→   552→
+   553→   553→Protect private account information and enforce access rules.
+   554→   554→
+   555→   555→# PART 11 — GARAGE AND AUTOMOTIVE SERVICES
+   556→   556→
+   557→   557→Build a connected service marketplace.
+   558→   558→
+   559→   559→Support categories such as:
+   560→   560→
+   561→   561→- General servicing.
+   562→   562→- Mechanical repairs.
+   563→   563→- Electrical diagnostics.
+   564→   564→- Tyres and wheels.
+   565→   565→- Bodywork and accident repair.
+   566→   566→- Vehicle detailing.
+   567→   567→- Modifications and upgrades.
+   568→   568→- Audio and accessories.
+   569→   569→- Inspection services.
+   570→   570→- Towing.
+   571→   571→- Roadside assistance.
+   572→   572→- Other approved automotive services.
+   573→   573→
+   574→   574→## Garage onboarding
+   575→   575→
+   576→   576→Implement business registration, service categories, operating locations, contact verification, required documents, review status and approval.
+   577→   577→
+   578→   578→Verification must be earned through the actual review process, not purchased as a subscription benefit.
+   579→   579→
+   580→   580→## Garage dashboard
+   581→   581→
+   582→   582→Provide:
+   583→   583→
+   584→   584→- Business profile.
+   585→   585→- Services and pricing.
+   586→   586→- Service areas.
+   587→   587→- Availability.
+   588→   588→- Incoming requests.
+   589→   589→- Quotes.
+   590→   590→- Bookings.
+   591→   591→- Customer communications.
+   592→   592→- Staff permissions.
+   593→   593→- Reviews.
+   594→   594→- Subscription and billing.
+   595→   595→- Performance reporting.
+   596→   596→- Complaints and support.
+   597→   597→
+   598→   598→## Request-to-booking workflow
+   599→   599→
+   600→   600→Implement:
+   601→   601→
+   602→   602→Submitted → Matching → Quotes received → Customer selection → Booking confirmed → Work in progress → Completed.
+   603→   603→
+   604→   604→Support cancellation, expiry, disputes and rescheduling where appropriate.
+   605→   605→
+   606→   606→Every status transition must be validated and recorded.
+   607→   607→
+   608→   608→## Customizer-to-garage integration
+   609→   609→
+   610→   610→A customer who customises a vehicle must be able to request a quote for supported modifications.
+   611→   611→
+   612→   612→The garage receives only the authorised configuration and customer information necessary to respond.
+   613→   613→
+   614→   614→Include the selected vehicle, configuration reference, requested work, location and relevant notes.
+   615→   615→
+   616→   616→Let customers compare genuine quotes and choose a provider.
+   617→   617→
+   618→   618→## Roadside assistance
+   619→   619→
+   620→   620→Allow a customer to request towing or roadside help, provide a suitable location, describe the issue, and contact eligible providers.
+   621→   621→
+   622→   622→Clearly show the request status and provider contact details when authorised.
+   623→   623→
+   624→   624→Do not claim live GPS tracking, emergency dispatch, estimated arrival times or real-time vehicle tracking unless the relevant functionality is genuinely implemented.
+   625→   625→
+   626→   626→Do not present CARMAZE as an emergency authority.
+   627→   627→
+   628→   628→# PART 12 — MY GARAGE
+   629→   629→
+   630→   630→Build a digital vehicle ownership dashboard.
+   631→   631→
+   632→   632→Allow users to add vehicles they own or manage and record:
+   633→   633→
+   634→   634→- Vehicle details.
+   635→   635→- Purchase information.
+   636→   636→- Service history.
+   637→   637→- Repairs.
+   638→   638→- Mileage updates.
+   639→   639→- Receipts.
+   640→   640→- Warranties.
+   641→   641→- Inspection records.
+   642→   642→- Modifications.
+   643→   643→- Maintenance reminders.
+   644→   644→- Insurance renewal reminders.
+   645→   645→- Other relevant renewal dates.
+   646→   646→
+   647→   647→Keep records private by default.
+   648→   648→
+   649→   649→Allow users to control which records are shared with a garage or another authorised party.
+   650→   650→
+   651→   651→Provide maintenance reminders using real dates and configurable schedules.
+   652→   652→
+   653→   653→Where AI explains warning lights or maintenance symptoms, clearly state that its guidance is informational and does not replace a qualified mechanic or an urgent safety inspection.
+   654→   654→
+   655→   655→# PART 13 — COMMUNITY
+   656→   656→
+   657→   657→Create an automotive community with:
+   658→   658→
+   659→   659→- Posts.
+   660→   660→- Comments.
+   661→   661→- Reactions.
+   662→   662→- Follows.
+   663→   663→- Automotive questions and answers.
+   664→   664→- Owner experiences.
+   665→   665→- Vehicle showcases.
+   666→   666→- Garage showcases.
+   667→   667→- Polls.
+   668→   668→- Events.
+   669→   669→- Wanted vehicle posts.
+   670→   670→- Feature requests and voting.
+   671→   671→
+   672→   672→Implement reporting, blocking, spam prevention, rate limits and moderation queues.
+   673→   673→
+   674→   674→Prevent impersonation and misleading verification claims.
+   675→   675→
+   676→   676→Do not sell fake reviews, paid ratings or verification badges.
+   677→   677→
+   678→   678→Clearly label sponsored content and promoted listings.
+   679→   679→
+   680→   680→# PART 14 — AI FEATURES
+   681→   681→
+   682→   682→Implement AI as a practical assistant, not a decorative chatbot.
+   683→   683→
+   684→   684→Prioritise these features:
+   685→   685→
+   686→   686→### AI Car Finder
+   687→   687→Helps buyers describe their budget, intended use, preferences and location, then finds matching actual listings.
+   688→   688→
+   689→   689→### AI Listing Assistant
+   690→   690→Helps sellers produce clearer descriptions from supplied information and photographs, without inventing specifications or ownership claims.
+   691→   691→
+   692→   692→### Dealer Copilot
+   693→   693→Highlights overdue enquiries, incomplete listings, stale inventory and useful follow-up tasks using actual dealer data.
+   694→   694→
+   695→   695→### Garage Assistant
+   696→   696→Helps customers describe vehicle problems and identify relevant service categories. It must not claim to provide definitive mechanical diagnoses.
+   697→   697→
+   698→   698→### AI Vehicle Insights
+   699→   699→Summarises a user's actual saved listings, service records or ownership information where authorised.
+   700→   700→
+   701→   701→### Fraud Risk Assistance
+   702→   702→Flags suspicious patterns for authorised human review.
+   703→   703→
+   704→   704→AI must not invent vehicles, prices, providers, stock, quotes, payments, ratings or analytics.
+   705→   705→
+   706→   706→Protect customer data, control AI access to tenant-specific information, limit usage and record appropriate operational events.
+   707→   707→
+   708→   708→Never allow an AI assistant to bypass authorisation or directly perform sensitive actions without the necessary permissions and confirmation.
+   709→   709→
+   710→   710→If an AI provider requires an API key, keep it server-side. If the key is missing, clearly document the blocked integration instead of returning fabricated responses.
+   711→   711→
+   712→   712→# PART 15 — USERS, ROLES AND PERMISSIONS
+   713→   713→
+   714→   714→Implement clear roles and least-privilege access.
+   715→   715→
+   716→   716→Roles may include:
+   717→   717→
+   718→   718→- Visitor.
+   719→   719→- Customer.
+   720→   720→- Private Seller.
+   721→   721→- Dealer Owner.
+   722→   722→- Dealer Staff.
+   723→   723→- Garage Owner.
+   724→   724→- Garage Staff.
+   725→   725→- Support Agent.
+   726→   726→- Verification Reviewer.
+   727→   727→- Moderator.
+   728→   728→- Finance Officer.
+   729→   729→- Platform Administrator.
+   730→   730→- Founder/Owner.
+   731→   731→
+   732→   732→A user may hold more than one role where appropriate, but permissions must remain explicit.
+   733→   733→
+   734→   734→## Founder security
+   735→   735→
+   736→   736→Provide separate secure accounts for the two founders.
+   737→   737→
+   738→   738→Do not assume their identities or hardcode account credentials.
+   739→   739→
+   740→   740→Implement:
+   741→   741→
+   742→   742→- Strong authentication.
+   743→   743→- Multi-factor authentication where supported.
+   744→   744→- Recovery procedures.
+   745→   745→- Session management.
+   746→   746→- Login rate limits.
+   747→   747→- Audit logs.
+   748→   748→- Least-privilege staff access.
+   749→   749→- Secure handling of privileged actions.
+   750→   750→
+   751→   751→Do not expose a public super-admin option during ordinary customer registration.
+   752→   752→
+   753→   753→Founder privileges must be assigned through a controlled, documented administrative process.
+   754→   754→
+   755→   755→## Tenant isolation
+   756→   756→
+   757→   757→A dealership must not access another dealership's private data.
+   758→   758→
+   759→   759→A garage must not access another garage's private requests.
+   760→   760→
+   761→   761→Staff may access only records permitted by their assigned organisation and role.
+   762→   762→
+   763→   763→Enforce tenant isolation in backend queries and, where appropriate, database row-level security.
+   764→   764→
+   765→   765→Never rely solely on hiding frontend buttons.
+   766→   766→
+   767→   767→# PART 16 — PAYMENTS AND BUSINESS MODEL
+   768→   768→
+   769→   769→CARMAZE should support a hybrid business model:
+   770→   770→
+   771→   771→1. Dealer subscriptions.
+   772→   772→2. Paid vehicle promotions.
+   773→   773→3. Optional premium business tools.
+   774→   774→4. Garage subscriptions.
+   775→   775→5. Clearly agreed transaction or lead-related fees where appropriate.
+   776→   776→6. Future approved partnerships.
+   777→   777→
+   778→   778→Treat prices as configurable business settings. Do not hardcode unvalidated market prices across the application.
+   779→   779→
+   780→   780→Illustrative starting hypotheses for controlled testing could include:
+   781→   781→
+   782→   782→- Free private vehicle listings.
+   783→   783→- Paid promotional campaigns.
+   784→   784→- Tiered dealer subscriptions.
+   785→   785→- Optional garage business subscriptions.
+   786→   786→
+   787→   787→Validate willingness to pay through real pilot customers before committing to permanent prices.
+   788→   788→
+   789→   789→## Billing architecture
+   790→   790→
+   791→   791→Keep separate records for:
+   792→   792→
+   793→   793→- Subscription payments.
+   794→   794→- Promotional campaign payments.
+   795→   795→- Platform invoices.
+   796→   796→- Agreed transaction fees.
+   797→   797→- Refunds.
+   798→   798→- Payment attempts.
+   799→   799→- Payment callbacks.
+   800→   800→- Reconciliation events.
+   801→   801→
+   802→   802→Use immutable or appropriately protected financial histories, unique transaction references, idempotency and audit records.
+   803→   803→
+   804→   804→Support payment status, receipts, invoice history, failed payment recovery and cancellation.
+   805→   805→
+   806→   806→## M-Pesa
+   807→   807→
+   808→   808→Integrate Safaricom Daraja using the official developer portal:
+   809→   809→
+   810→   810→https://developer.safaricom.co.ke/
+   811→   811→
+   812→   812→Implement real server-side integration when valid credentials and required configuration are available.
+   813→   813→
+   814→   814→Verify callbacks and payment status. Never trust frontend confirmation or screenshots.
+   815→   815→
+   816→   816→Do not simulate successful production transactions.
+   817→   817→
+   818→   818→## Transaction fee rules
+   819→   819→
+   820→   820→Do not charge a dealer merely because it sells a similar vehicle.
+   821→   821→
+   822→   822→Any transaction or lead-related fee must follow a clearly accepted agreement defining:
+   823→   823→
+   824→   824→- What event triggers the fee.
+   825→   825→- Attribution rules.
+   826→   826→- Applicable fee or percentage.
+   827→   827→- Attribution window where relevant.
+   828→   828→- Reporting and evidence.
+   829→   829→- Dispute procedures.
+   830→   830→- Refund or cancellation treatment.
+   831→   831→- Invoice and payment deadlines.
+   832→   832→
+   833→   833→Record the evidence for fee assessments and provide an authorised dispute process.
+   834→   834→
+   835→   835→## Vehicle purchase funds
+   836→   836→
+   837→   837→Initially, CARMAZE should facilitate discovery and contact without holding buyer funds for vehicle purchases or pretending to provide escrow.
+   838→   838→
+   839→   839→Vehicle purchase funds should move through separately agreed arrangements until any required legal, financial and operational approvals are obtained.
+   840→   840→
+   841→   841→Do not promise buyer protection, insurance, financing or escrow services that are not actually provided.
+   842→   842→
+   843→   843→# PART 17 — DATABASE AND BACKEND ARCHITECTURE
+   844→   844→
+   845→   845→Inspect the existing stack and keep it where appropriate.
+   846→   846→
+   847→   847→If building missing foundations, prefer a maintainable modular architecture with a relational database such as PostgreSQL.
+   848→   848→
+   849→   849→Potential backend options include the project's existing framework, FastAPI/Python or a suitable TypeScript backend. Choose one primary approach rather than creating competing backends unnecessarily.
+   850→   850→
+   851→   851→Use the existing frontend framework where practical. For a new React-based frontend, use TypeScript.
+   852→   852→
+   853→   853→Design database structures for:
+   854→   854→
+   855→   855→- Users and profiles.
+   856→   856→- Roles and permissions.
+   857→   857→- Sessions and consent.
+   858→   858→- Organisations and members.
+   859→   859→- Branches and invitations.
+   860→   860→- Dealer and garage verification.
+   861→   861→- Vehicles and specifications.
+   862→   862→- Listings and photographs.
+   863→   863→- Listing status history.
+   864→   864→- Saved vehicles and searches.
+   865→   865→- Enquiries and messages.
+   866→   866→- Dealer buying requests.
+   867→   867→- Offers and sale attribution.
+   868→   868→- Customizer configurations.
+   869→   869→- Share links.
+   870→   870→- Garage services.
+   871→   871→- Quotes and bookings.
+   872→   872→- Roadside requests.
+   873→   873→- My Garage records.
+   874→   874→- Maintenance reminders.
+   875→   875→- Community posts and moderation.
+   876→   876→- Subscriptions and invoices.
+   877→   877→- Payment attempts and transactions.
+   878→   878→- Campaigns and campaign metrics.
+   879→   879→- Notifications and delivery attempts.
+   880→   880→- Support tickets and disputes.
+   881→   881→- AI usage and risk flags.
+   882→   882→- Audit logs.
+   883→   883→- Aggregated analytics.
+   884→   884→
+   885→   885→Use appropriate identifiers, foreign keys, unique constraints, indexes, timestamps, and validated status transitions.
+   886→   886→
+   887→   887→Store money in a consistent decimal or integer-minor-unit representation with an explicit currency.
+   888→   888→
+   889→   889→Use database migrations rather than manual production schema changes.
+   890→   890→
+   891→   891→Do not store passwords in plaintext.
+   892→   892→
+   893→   893→Do not store secret keys in source control.
+   894→   894→
+   895→   895→Store private documents in protected object storage and use time-limited authorised access when needed.
+   896→   896→
+   897→   897→# PART 18 — NOTIFICATIONS AND AUTOMATION
+   898→   898→
+   899→   899→Implement a reliable notification system with configurable channels, such as email and SMS, and other channels where genuinely integrated.
+   900→   900→
+   901→   901→Support:
+   902→   902→
+   903→   903→- Dealer application receipts.
+   904→   904→- Verification requests.
+   905→   905→- Listing approval and rejection.
+   906→   906→- Missing-information reminders.
+   907→   907→- Overdue review escalation.
+   908→   908→- Customer enquiries.
+   909→   909→- Offer notifications.
+   910→   910→- Garage quotes.
+   911→   911→- Booking updates.
+   912→   912→- Subscription renewals.
+   913→   913→- Payment receipts.
+   914→   914→- Failed payments.
+   915→   915→- Maintenance reminders.
+   916→   916→- Security alerts.
+   917→   917→- Support updates.
+   918→   918→
+   919→   919→Use a background-job system when necessary.
+   920→   920→
+   921→   921→Implement retry policies, idempotency, delivery status, failure tracking, rate limits and user notification preferences.
+   922→   922→
+   923→   923→Do not send duplicate messages indefinitely.
+   924→   924→
+   925→   925→Do not claim an email or SMS was delivered when only a request was queued.
+   926→   926→
+   927→   927→# PART 19 — PLATFORM ADMINISTRATION AND FOUNDER CONTROL CENTER
+   928→   928→
+   929→   929→Create a secure internal dashboard for authorised staff and founders.
+   930→   930→
+   931→   931→Include:
+   932→   932→
+   933→   933→### Business overview
+   934→   934→- Actual revenue by source.
+   935→   935→- Subscriptions.
+   936→   936→- Paid campaigns.
+   937→   937→- Platform invoices.
+   938→   938→- Refunds.
+   939→   939→- Payment fees where available.
+   940→   940→- Outstanding invoices.
+   941→   941→- Reconciled and unreconciled transactions.
+   942→   942→
+   943→   943→### Marketplace management
+   944→   944→- Listings pending review.
+   945→   945→- Published listings.
+   946→   946→- Rejected listings.
+   947→   947→- Reports and suspected duplicates.
+   948→   948→- Seller complaints.
+   949→   949→- Listing removals.
+   950→   950→
+   951→   951→### Dealer management
+   952→   952→- New applications.
+   953→   953→- Pending verification.
+   954→   954→- Missing documents.
+   955→   955→- Overdue reviews.
+   956→   956→- Staff and organisation management.
+   957→   957→- Suspensions and appeals.
+   958→   958→- Listing quality.
+   959→   959→- Enquiry response performance.
+   960→   960→
+   961→   961→### Garage management
+   962→   962→- Provider verification.
+   963→   963→- Services and service areas.
+   964→   964→- Customer requests.
+   965→   965→- Quotes and bookings.
+   966→   966→- Complaints.
+   967→   967→- Provider performance.
+   968→   968→
+   969→   969→### Trust and safety
+   970→   970→- User reports.
+   971→   971→- Suspicious activity.
+   972→   972→- Account security events.
+   973→   973→- Moderation queues.
+   974→   974→- Disputes.
+   975→   975→- Audit trails.
+   976→   976→
+   977→   977→### Operations
+   978→   978→- Failed notifications.
+   979→   979→- Payment callback errors.
+   980→   980→- Background-job failures.
+   981→   981→- Application errors.
+   982→   982→- Database and backup status where available.
+   983→   983→- Integration health.
+   984→   984→
+   985→   985→All analytics must come from real data and be labelled accurately.
+   986→   986→
+   987→   987→Restrict sensitive reports and financial actions to authorised roles.
+   988→   988→
+   989→   989→Require appropriate confirmation for high-impact actions such as suspensions, refunds and account privilege changes.
+   990→   990→
+   991→   991→# PART 20 — LEGAL, PRIVACY AND TRUST
+   992→   992→
+   993→   993→Prepare configurable legal and operational pages for:
+   994→   994→
+   995→   995→- Terms of Service.
+   996→   996→- Privacy Policy.
+   997→   997→- Cookie and tracking preferences where relevant.
+   998→   998→- Seller Terms.
+   999→   999→- Dealer Agreement.
+  1000→  1000→- Garage Provider Agreement.
+  1001→  1001→- Subscription Terms.
+  1002→  1002→- Promotional Listing Terms.
+  1003→  1003→- Community Guidelines.
+  1004→  1004→- Cancellation and dispute policies.
+  1005→  1005→- Contact and support.
+  1006→  1006→
+  1007→  1007→Obtain appropriate legal review before commercial launch.
+  1008→  1008→
+  1009→  1009→Consider Kenyan data protection, consumer protection, business registration, tax invoicing, payment provider requirements, intellectual property and applicable rules for advertising, vehicle transactions and automotive services.
+  1010→  1010→
+  1011→  1011→Do not claim that a user, vehicle, dealership, garage, payment or document has been independently verified unless the relevant verification actually occurred.
+  1012→  1012→
+  1013→  1013→Support privacy requests and appropriate data retention and deletion policies.
+  1014→  1014→
+  1015→  1015→Never publish private identity documents.
+  1016→  1016→
+  1017→  1017→# PART 21 — SEARCH ENGINE OPTIMISATION AND GROWTH
+  1018→  1018→
+  1019→  1019→Implement technical SEO for public pages:
+  1020→  1020→
+  1021→  1021→- Appropriate page titles.
+  1022→  1022→- Meta descriptions.
+  1023→  1023→- Canonical URLs.
+  1024→  1024→- Social sharing metadata.
+  1025→  1025→- XML sitemap.
+  1026→  1026→- Robots directives.
+  1027→  1027→- Clean listing URLs.
+  1028→  1028→- Appropriate structured data where valid.
+  1029→  1029→- Image optimisation.
+  1030→  1030→- Accessible page structure.
+  1031→  1031→- Useful error pages.
+  1032→  1032→
+  1033→  1033→Do not expose private or unpublished listings through public indexing.
+  1034→  1034→
+  1035→  1035→Build growth features around genuine customer value:
+  1036→  1036→
+  1037→  1037→- Shareable vehicle listings.
+  1038→  1038→- Referral tracking where lawful.
+  1039→  1039→- Dealer invitations.
+  1040→  1040→- Listing promotion.
+  1041→  1041→- Saved searches and alerts.
+  1042→  1042→- Helpful automotive content.
+  1043→  1043→- Community engagement.
+  1044→  1044→- Customer review collection with appropriate safeguards.
+  1045→  1045→- Dealer performance insights.
+  1046→  1046→- Return visits through My Garage.
+  1047→  1047→
+  1048→  1048→Clearly distinguish organic listings, paid promotions and sponsored content.
+  1049→  1049→
+  1050→  1050→Do not fabricate reviews, customer counts, inventory totals or popularity metrics.
+  1051→  1051→
+  1052→  1052→# PART 22 — UNIQUE COMPETITIVE ADVANTAGES
+  1053→  1053→
+  1054→  1054→Do not build only another vehicle classifieds website.
+  1055→  1055→
+  1056→  1056→Build differentiation through connected workflows:
+  1057→  1057→
+  1058→  1058→1. Private seller-to-dealer matching.
+  1059→  1059→2. Verified dealer inventory and accountability.
+  1060→  1060→3. Follow-up automation that reduces unanswered enquiries.
+  1061→  1061→4. DealerOS with real lead and inventory management.
+  1062→  1062→5. Shareable 3D vehicle configurations.
+  1063→  1063→6. Configuration-to-garage quote requests.
+  1064→  1064→7. Connected vehicle ownership and maintenance records.
+  1065→  1065→8. Automotive services and roadside support.
+  1066→  1066→9. AI-assisted car discovery and listing creation.
+  1067→  1067→10. Transparent promotions and measurable campaign performance.
+  1068→  1068→11. Low-bandwidth support and mobile-first design.
+  1069→  1069→12. Stronger listing quality and trust signals.
+  1070→  1070→
+  1071→  1071→Prioritise the features that deliver measurable value before attempting to launch every advanced feature simultaneously.
+  1072→  1072→
+  1073→  1073→# PART 23 — TESTING AND QUALITY ASSURANCE
+  1074→  1074→
+  1075→  1075→Build and run tests throughout development.
+  1076→  1076→
+  1077→  1077→## Automated checks
+  1078→  1078→- Type checking.
+  1079→  1079→- Linting.
+  1080→  1080→- Production build.
+  1081→  1081→- Unit tests.
+  1082→  1082→- API integration tests.
+  1083→  1083→- Database migration checks.
+  1084→  1084→- End-to-end workflow tests.
+  1085→  1085→- Permission tests.
+  1086→  1086→- Responsive UI checks where tooling permits.
+  1087→  1087→
+  1088→  1088→## Mandatory workflows to verify
+  1089→  1089→
+  1090→  1090→### Customer
+  1091→  1091→Register → verify contact details → search → open listing → save vehicle → enquire → receive status updates.
+  1092→  1092→
+  1093→  1093→### Private seller
+  1094→  1094→Register → submit vehicle → complete required fields → submit for review → receive correction request → resubmit → publish after approval → manage offers → mark sold.
+  1095→  1095→
+  1096→  1096→### Dealer
+  1097→  1097→Apply → receive reference → provide documents → track status → respond to correction request → obtain approval → create listing → receive enquiry → follow up → manage subscription.
+  1098→  1098→
+  1099→  1099→### Garage
+  1100→  1100→Register → submit verification → obtain approval → configure services → receive eligible request → quote → confirm booking → complete job → receive feedback.
+  1101→  1101→
+  1102→  1102→### Customizer
+  1103→  1103→Open model → change supported paint → change supported wheels → reset → save configuration → share link → open link elsewhere → restore settings → request garage quote.
+  1104→  1104→
+  1105→  1105→### Billing
+  1106→  1106→Create a valid payment request → receive a verified provider response → record status → handle duplicate callbacks → issue receipt → reconcile transaction.
+  1107→  1107→
+  1108→  1108→If real payment credentials are unavailable, test with an approved sandbox and clearly distinguish sandbox results from production verification.
+  1109→  1109→
+  1110→  1110→### Administration
+  1111→  1111→Review dealer application → request corrections → approve or reject → inspect audit history → resolve a report → restrict an account with correct permissions.
+  1112→  1112→
+  1113→  1113→### Security
+  1114→  1114→Test cross-organisation access, unauthorised actions, invalid inputs, rate limits, session handling, upload restrictions and sensitive-data exposure.
+  1115→  1115→
+  1116→  1116→Never expose actual production secrets in test reports.
+  1117→  1117→
+  1118→  1118→# PART 24 — PERFORMANCE AND DEPLOYMENT
+  1119→  1119→
+  1120→  1120→Optimise for users on mobile devices and slower networks.
+  1121→  1121→
+  1122→  1122→Implement:
+  1123→  1123→
+  1124→  1124→- Responsive layouts.
+  1125→  1125→- Image resizing and compression.
+  1126→  1126→- Lazy loading.
+  1127→  1127→- Code splitting where appropriate.
+  1128→  1128→- Efficient database queries.
+  1129→  1129→- Pagination.
+  1130→  1130→- Caching where appropriate.
+  1131→  1131→- Appropriate security headers.
+  1132→  1132→- Error monitoring.
+  1133→  1133→- Structured logs.
+  1134→  1134→- Health checks.
+  1135→  1135→- Database backup and restore procedures.
+  1136→  1136→- Safe migrations.
+  1137→  1137→- Environment-based configuration.
+  1138→  1138→
+  1139→  1139→Keep secrets in deployment environment variables or an appropriate secret manager.
+  1140→  1140→
+  1141→  1141→Use separate development, staging and production configuration.
+  1142→  1142→
+  1143→  1143→Do not hardcode credentials, expose private API keys in frontend bundles, or commit `.env` secrets.
+  1144→  1144→
+  1145→  1145→Provide deployment instructions compatible with the existing hosting setup.
+  1146→  1146→
+  1147→  1147→Do not deploy destructive changes or modify production infrastructure without the required access and approval.
+  1148→  1148→
+  1149→  1149→If the platform uses Vercel, Render, Supabase or another existing provider, inspect its current configuration and extend it carefully.
+  1150→  1150→
+  1151→  1151→Only add Docker or Kubernetes if it serves a demonstrated deployment need. If Docker is required, provide working Docker configuration and health checks. Do not introduce Kubernetes merely for appearance.
+  1152→  1152→
+  1153→  1153→# PART 25 — REQUIRED DELIVERY PHASES
+  1154→  1154→
+  1155→  1155→Work in the following order, while fixing critical dependencies and existing bugs as they arise.
+  1156→  1156→
+  1157→  1157→## Phase 1: Audit and foundations
+  1158→  1158→- Inspect repository and current implementation.
+  1159→  1159→- Identify broken features and security issues.
+  1160→  1160→- Correct responsive logo sizing.
+  1161→  1161→- Confirm architecture and environment configuration.
+  1162→  1162→- Ensure database migrations, authentication and role permissions work.
+  1163→  1163→- Establish build and test checks.
+  1164→  1164→
+  1165→  1165→## Phase 2: Marketplace and dealer workflows
+  1166→  1166→- Complete vehicle listings and search.
+  1167→  1167→- Complete private seller workflows.
+  1168→  1168→- Implement dealer applications and strict follow-ups.
+  1169→  1169→- Implement dealer inventory and enquiries.
+  1170→  1170→- Implement moderation and audit history.
+  1171→  1171→
+  1172→  1172→## Phase 3: Billing and operations
+  1173→  1173→- Implement subscription and campaign records.
+  1174→  1174→- Integrate available payment services.
+  1175→  1175→- Implement notification delivery tracking.
+  1176→  1176→- Build administration and reconciliation tools.
+  1177→  1177→
+  1178→  1178→## Phase 4: 3D customizer
+  1179→  1179→- Integrate a real optimised model.
+  1180→  1180→- Implement supported customisation controls.
+  1181→  1181→- Implement reset and saved configuration.
+  1182→  1182→- Build shareable links.
+  1183→  1183→- Test desktop and mobile performance.
+  1184→  1184→
+  1185→  1185→## Phase 5: Garage ecosystem
+  1186→  1186→- Implement garage onboarding.
+  1187→  1187→- Implement quote requests and matching.
+  1188→  1188→- Connect customizer configurations to garage requests.
+  1189→  1189→- Implement bookings, notifications and service history.
+  1190→  1190→
+  1191→  1191→## Phase 6: My Garage, community and AI
+  1192→  1192→- Implement vehicle ownership records.
+  1193→  1193→- Implement maintenance reminders.
+  1194→  1194→- Add community features and moderation.
+  1195→  1195→- Add AI capabilities using genuine data and secure integrations.
+  1196→  1196→
+  1197→  1197→## Phase 7: Production readiness
+  1198→  1198→- Execute tests.
+  1199→  1199→- Fix regressions.
+  1200→  1200→- Verify access control.
+  1201→  1201→- Check performance and responsive layouts.
+  1202→  1202→- Review deployment configuration.
+  1203→  1203→- Verify backup and recovery procedures.
+  1204→  1204→- Prepare release documentation.
+  1205→  1205→
+  1206→  1206→Do not mark a phase complete just because its interface has been created.
+  1207→  1207→
+  1208→  1208→# PART 26 — FINAL ACCEPTANCE CRITERIA
+  1209→  1209→
+  1210→  1210→CARMAZE is ready for a controlled pilot only when the implemented core workflows have been verified.
+  1211→  1211→
+  1212→  1212→The release must demonstrate:
+  1213→  1213→
+  1214→  1214→- Correctly sized responsive branding.
+  1215→  1215→- A functional, skippable cinematic intro where enabled.
+  1216→  1216→- Working public vehicle discovery.
+  1217→  1217→- Working private seller submissions.
+  1218→  1218→- Working dealer onboarding and follow-up.
+  1219→  1219→- Protected dealer and garage data.
+  1220→  1220→- Functional enquiry and offer workflows.
+  1221→  1221→- Realistic 3D customisation for the supported models.
+  1222→  1222→- Working configuration persistence and sharing.
+  1223→  1223→- Genuine garage quote requests.
+  1224→  1224→- Accurate billing states.
+  1225→  1225→- Secure role permissions.
+  1226→  1226→- Real notification tracking.
+  1227→  1227→- Useful administrative controls.
+  1228→  1228→- No known critical security vulnerabilities left unaddressed.
+  1229→  1229→- No knowingly broken critical customer workflow.
+  1230→  1230→- A documented list of any remaining limitations.
+  1231→  1231→
+  1232→  1232→If a third-party credential, approved model asset, provider contract, legal approval or external account is missing, identify the dependency clearly and finish all work that can legitimately be completed without it.
+  1233→  1233→
+  1234→  1234→# PART 27 — FINAL REPORT TO THE FOUNDERS
+  1235→  1235→
+  1236→  1236→At the end of the work, provide:
+  1237→  1237→
+  1238→  1238→1. A summary of the existing project you inspected.
+  1239→  1239→2. The architecture retained or changed.
+  1240→  1240→3. Every major feature implemented.
+  1241→  1241→4. The files and database migrations changed.
+  1242→  1242→5. Logo and responsive improvements.
+  1243→  1243→6. Startup intro status.
+  1244→  1244→7. 3D models and supported customisation options.
+  1245→  1245→8. Dealer follow-up rules and escalation behaviour.
+  1246→  1246→9. Garage request routing and booking status.
+  1247→  1247→10. Payment integration and verification status.
+  1248→  1248→11. Security and permission checks.
+  1249→  1249→12. Tests actually run and their results.
+  1250→  1250→13. Build, deployment and health-check results.
+  1251→  1251→14. Outstanding credentials, assets and external dependencies.
+  1252→  1252→15. Known limitations and risks.
+  1253→  1253→16. The next recommended actions before public launch.
+  1254→  1254→
+  1255→  1255→Classify every major requirement as:
+  1256→  1256→
+  1257→  1257→- COMPLETED AND VERIFIED.
+  1258→  1258→- IMPLEMENTED BUT NOT FULLY VERIFIED.
+  1259→  1259→- BLOCKED BY A DEPENDENCY.
+  1260→  1260→- NOT IMPLEMENTED.
+  1261→  1261→
+  1262→  1262→Do not inflate progress percentages or claim that the entire platform is production-ready without evidence.
+  1263→  1263→
+  1264→  1264→# FINAL INSTRUCTION
+  1265→  1265→
+  1266→  1266→You are building CARMAZE as a real business platform, not a demo.
+  1267→  1267→
+  1268→  1268→Think like an engineering team responsible for protecting customers, supporting dealers, earning revenue, preventing fraud, maintaining uptime and growing a trusted automotive brand.
+  1269→  1269→
+  1270→  1270→Inspect the existing code. Preserve what works. Build the missing pieces. Connect the workflows. Test the real behaviour. Fix failures. Document blockers honestly.
+  1271→  1271→
+  1272→  1272→Start by auditing the repository and reporting the current state briefly, then proceed directly into implementation. Do not stop after producing another plan or a beautiful homepage.
+  1273→  1273→
+  1274→  1274→**CARMAZE — FIND. CONNECT. DRIVE.**

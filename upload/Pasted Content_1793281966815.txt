@@ -1,0 +1,1274 @@
+# CARMAZE — ULTIMATE END-TO-END STARTUP BUILD PROMPT
+## Complete Automotive Marketplace, Dealer Management Platform, 3D Car Customizer, Garage Ecosystem, AI, Payments, Security and Production Deployment
+
+You are now the principal software architect, senior full-stack developer, UI/UX designer, 3D web engineer, database architect, AI engineer, cybersecurity engineer, QA engineer, DevOps engineer, and technical product partner for **CARMAZE**.
+
+Your mission is to build CARMAZE into a professional, reliable, commercially viable automotive technology platform, starting in Kenya and designed to expand throughout Africa and eventually internationally.
+
+This is not a landing-page-only project, design prototype, school assignment, or collection of disconnected dashboards. It must become a coherent automotive ecosystem with working frontend interfaces, backend business logic, persistent databases, secure permissions, real integrations, automated workflows, testing, and deployment documentation.
+
+**Do not merely give me another plan. Inspect the existing project, implement the actual features, test them, fix failures, and report what is genuinely working.**
+
+# PART 1 — NON-NEGOTIABLE IMPLEMENTATION RULES
+
+1. Inspect the complete existing repository before modifying it.
+2. Identify the framework, routes, components, APIs, database, authentication, integrations, environment variables, deployment configuration, tests, and current errors.
+3. Preserve working functionality and existing customer data.
+4. Do not create a separate disconnected application if the existing project can be extended safely.
+5. Establish a prioritised implementation plan, then begin implementing it immediately.
+6. Use real database records and real backend operations. Do not use mock data, fake payments, hardcoded dashboard statistics, pretend notifications, or simulated production success.
+7. Do not create buttons that do nothing, empty dashboards, dead links, decorative forms, fake charts, or features labelled “coming soon” as substitutes for implementation.
+8. If an integration requires credentials or an external service that is unavailable, implement the legitimate integration interface, document the missing dependency, and clearly mark it as unverified. Never fake success.
+9. Do not delete, overwrite, or expose existing data or secrets.
+10. Use database migrations and backups before risky schema changes.
+11. Implement backend validation and authorisation, not just frontend restrictions.
+12. Test every important workflow from beginning to end.
+13. Fix the bugs discovered during implementation rather than merely listing them.
+14. Keep the application maintainable, accessible, responsive, secure, and optimised for mobile devices and slower internet connections.
+15. Do not introduce microservices, Kubernetes, or unnecessary infrastructure before there is a demonstrated need.
+16. If a requirement is ambiguous, choose a sensible, secure default, document the assumption, and continue.
+17. Never claim that an implementation, payment, deployment, test, or integration succeeded unless you have verified it.
+18. Never expose secret keys, personal identification documents, private customer information, or internal administrative endpoints.
+19. Do not remove existing features just to make the build pass. Fix the underlying problem wherever possible.
+20. Continue working through the requirements in priority order, maintaining a list of completed, blocked, and outstanding work.
+
+# PART 2 — THE BUSINESS VISION
+
+CARMAZE is an automotive ecosystem connecting people who want to buy, sell, maintain, customise, and manage vehicles.
+
+The platform must serve:
+
+- People buying vehicles.
+- Private vehicle owners selling their cars.
+- Verified showrooms and dealerships.
+- Dealer owners and their employees.
+- Garages and automotive service providers.
+- Mechanics and specialists.
+- Vehicle modification and upgrade businesses.
+- Towing and roadside assistance providers.
+- Automotive enthusiasts and community members.
+- Platform support and moderation teams.
+- The founders and authorised administrators.
+
+The business begins in Kenya, supports Kenyan locations and mobile-first usage, and is architected for expansion into other African markets.
+
+Build one coherent platform with connected products:
+
+1. **CARMAZE Marketplace** — discover, compare, buy and sell vehicles.
+2. **CARMAZE DealerOS** — inventory, leads, staff, follow-ups and dealership analytics.
+3. **CARMAZE Customizer** — interactive 3D vehicle visualisation and configuration.
+4. **CARMAZE Garage** — repairs, servicing, modifications and quotes.
+5. **CARMAZE Roadside** — towing and emergency roadside service requests.
+6. **CARMAZE My Garage** — vehicle ownership records and maintenance reminders.
+7. **CARMAZE Community** — automotive discussions, advice, reviews and events.
+8. **CARMAZE Intelligence** — AI-powered assistance and operational insights.
+9. **CARMAZE Control Center** — secure platform administration and business analytics.
+
+These are connected modules, not separate products with unrelated accounts and databases.
+
+# PART 3 — BRAND IDENTITY AND VISUAL DESIGN
+
+Use the approved CARMAZE logo supplied by the founders as the primary brand reference.
+
+Preserve the correct spelling: CARMAZE.
+
+Use the brand tagline:
+
+**FIND. CONNECT. DRIVE.**
+
+## Visual direction
+
+Create a premium automotive brand that feels sophisticated, trustworthy, modern, and approachable.
+
+Use a restrained palette inspired by:
+
+- Warm off-white: approximately #F7F7F5.
+- Charcoal: approximately #202421.
+- Deep green: approximately #315E4B.
+- Muted champagne gold: approximately #D9B878.
+- Neutral greys for secondary information.
+
+Use high-quality vehicle photography, generous spacing, clear typography, elegant cards, subtle borders, refined shadows, and carefully controlled motion.
+
+Avoid excessive neon, cluttered layouts, cheap gradients, cartoon visuals, aggressive gaming aesthetics, and unnecessary futuristic effects.
+
+Use glass effects selectively for floating navigation or overlays where they genuinely improve the experience.
+
+## Mandatory logo correction
+
+The current logo is too large. Audit and correct its size across the entire platform.
+
+Create one reusable, responsive logo component and consistent size variants.
+
+Suggested starting widths:
+
+- Desktop header: 120–160px.
+- Tablet header: 110–135px.
+- Mobile header: 95–120px.
+
+Adapt these sizes to the actual artwork, available space, and navigation layout.
+
+Requirements:
+
+- Preserve aspect ratio.
+- Never stretch or crop the logo.
+- Use `height: auto` and appropriate maximum dimensions.
+- Keep the navigation compact.
+- Ensure the logo does not overlap buttons or account controls.
+- Correct oversized whitespace in the source asset where feasible.
+- Create suitable light-background and dark-background variants when necessary.
+- Use appropriate versions for the footer, login screens, portals, splash screen, PWA icons, receipts and email templates.
+- Keep the full logo and tagline legible where space permits.
+- Use a compact emblem or approved icon variant in very narrow spaces.
+
+Test the layout at widths of 320px, 360px, 390px, 768px, 1024px, 1440px, and larger desktop sizes.
+
+Do not replace the logo with a newly invented design.
+
+# PART 4 — CINEMATIC STARTUP INTRODUCTION
+
+Create a premium cinematic introduction for CARMAZE.
+
+The experience should resemble a luxury automotive commercial, not a generic animated website template.
+
+## Sequence
+
+1. Begin with darkness and a subtle cinematic engine rumble.
+2. Reveal an elegant road at night with realistic reflections and controlled silver and gold lighting.
+3. Show a photorealistic vehicle moving smoothly through the scene.
+4. Follow the car with deliberate cinematic camera movement.
+5. Transform subtle road-light trails into the approved CARMAZE emblem.
+6. Reveal the CARMAZE wordmark.
+7. Reveal “FIND. CONNECT. DRIVE.”
+8. Transition smoothly into the homepage.
+
+The normal intro should last approximately 6–10 seconds when enabled.
+
+## Mandatory user experience rules
+
+- Include a visible Skip Intro control.
+- Do not force users to replay the animation on every visit.
+- Allow users to disable or skip motion where appropriate.
+- Respect reduced-motion accessibility preferences.
+- Do not delay access to search, account controls, or important content.
+- Provide a static fallback.
+- Compress video for web delivery.
+- Lazy-load nonessential cinematic assets.
+- Keep the intro responsive on desktop and mobile.
+- Ensure the final logo is correctly sized and legible.
+- Use properly licensed audio and visual assets.
+
+The website must remain functional if the video fails to load.
+
+If video-generation software is unavailable, implement the website integration and provide the precise asset specifications. Do not pretend a video has been generated when it has not.
+
+# PART 5 — WEBSITE STRUCTURE AND HOMEPAGE
+
+Build a complete responsive homepage with:
+
+1. Compact branded navigation.
+2. Hero section with a cinematic vehicle image or lightweight video.
+3. Prominent vehicle search.
+4. Recently added vehicles.
+5. Featured vehicles.
+6. Verified dealerships.
+7. Compare vehicles.
+8. Sell your car.
+9. Find a trusted garage.
+10. Explore vehicle modifications.
+11. Roadside assistance.
+12. Interactive 3D customizer.
+13. Automotive community.
+14. My Garage.
+15. DealerOS introduction.
+16. Trust, verification and safety information.
+17. Frequently asked questions.
+18. Contact and support.
+19. Footer with legal and company information.
+
+Navigation should be simple and consistent:
+
+- Cars
+- Sell a Car
+- Showrooms
+- Customizer
+- Garages
+- Roadside Help
+- Community
+- Sign In / Account
+
+On mobile, use an accessible compact navigation pattern.
+
+Visitors must be able to browse public vehicle listings without being forced to create an account.
+
+# PART 6 — VEHICLE MARKETPLACE
+
+Implement a complete vehicle listing and discovery system.
+
+## Listing information
+
+Support fields appropriate to the vehicle type, including:
+
+- Make and model.
+- Model year.
+- Price and currency.
+- Mileage.
+- Fuel type.
+- Transmission.
+- Body style.
+- Engine capacity where applicable.
+- Condition.
+- Vehicle location.
+- Exterior colour.
+- Ownership and import details where applicable.
+- Registration or verification status where legally appropriate.
+- Seller type.
+- Description.
+- Photos.
+- Relevant specifications.
+- Availability status.
+- Listing creation and update dates.
+
+Do not display private registration documents or personal identification documents publicly.
+
+## Search and filtering
+
+Implement working filters for:
+
+- Make.
+- Model.
+- Price range.
+- Year range.
+- Mileage.
+- Location.
+- Fuel type.
+- Transmission.
+- Body type.
+- Condition.
+- Seller type.
+- Verified seller status.
+
+Support sorting by relevant criteria, pagination or efficient incremental loading, and shareable search URLs.
+
+Persist search preferences for signed-in users where useful.
+
+Use database indexes for frequently searched fields.
+
+Use geospatial search only when properly supported by the existing database and location data.
+
+## Listing details
+
+Every vehicle page must include:
+
+- Genuine vehicle information.
+- Photo gallery.
+- Price and availability.
+- Seller or dealership profile.
+- Verification status.
+- Enquiry form.
+- Save/favourite action.
+- Share link.
+- Report listing action.
+- Similar listings where appropriate.
+- Clear warnings against unsafe payments and fraudulent listings.
+
+Track listing views and genuine enquiries without exposing unnecessary personal information.
+
+Support drafts, pending review, published, reserved, sold, rejected, suspended and expired states where appropriate.
+
+Only authorised users may edit or remove a listing.
+
+# PART 7 — PRIVATE SELLER WORKFLOWS
+
+Private owners must be able to:
+
+1. Create an account.
+2. Verify their contact details.
+3. Submit vehicle information.
+4. Upload vehicle photographs.
+5. Provide required ownership or verification information through protected workflows.
+6. Preview the listing.
+7. Submit for review where required.
+8. Correct rejected or incomplete submissions.
+9. Publish when approved.
+10. Receive enquiries and eligible dealer offers.
+11. Track listing performance.
+12. Update availability.
+13. Mark the vehicle sold.
+14. Report suspicious buyers or messages.
+
+Give sellers control over when and how their contact details are shared.
+
+Never broadcast a private seller's phone number, documents or location details to third parties without appropriate authorisation and consent.
+
+# PART 8 — STRICT DEALER ONBOARDING AND FOLLOW-UP
+
+This is one of the most important parts of CARMAZE.
+
+Dealers must follow a formal, auditable onboarding process. A submitted application must never be treated as automatically verified.
+
+## Dealer registration
+
+Collect the appropriate information, including:
+
+- Business name.
+- Business registration information where applicable.
+- Physical or service location.
+- Business contact details.
+- Authorised representative.
+- Requested dealership account type.
+- Required verification documents.
+- Acceptance of dealer terms.
+- Consent and privacy acknowledgements.
+
+Collect only necessary information, store sensitive documents securely, and restrict access to authorised reviewers.
+
+## Application states
+
+Implement explicit states:
+
+- Draft.
+- Submitted.
+- Under review.
+- More information required.
+- Resubmitted.
+- Approved.
+- Rejected.
+- Suspended.
+- Revoked.
+
+Enforce permitted state transitions on the backend.
+
+## Automated follow-up engine
+
+When an application is submitted:
+
+1. Generate a unique application reference.
+2. Record the submission time.
+3. Validate required fields and attachments.
+4. Create a task in the authorised review queue.
+5. Notify the appropriate review team.
+6. Send the dealer a genuine receipt or status notification.
+7. Assign a review owner where applicable.
+8. Track the age of the application.
+9. Send reminders according to configurable service-level targets.
+10. Escalate overdue applications to the next authorised staff member.
+11. Record every action in an immutable or appropriately protected audit history.
+12. Notify the dealer when additional information is required.
+13. Track the deadline for corrections.
+14. Remind the dealer before a correction deadline.
+15. Escalate unresolved cases.
+16. Close, reject or suspend an application only according to documented rules and authorised decisions.
+
+Use configurable review targets rather than inventing a guaranteed approval time.
+
+A practical initial policy may target an initial review within one business day, subject to actual staffing and operating hours.
+
+If a reminder or notification fails, record the failure and retry according to a controlled policy. Do not mark a failed notification as delivered.
+
+## Dealer inventory rules
+
+Every vehicle submission must have:
+
+- A unique listing reference.
+- A submitting account and organisation.
+- Required fields and photographs.
+- Ownership or listing-authorisation checks appropriate to the process.
+- Duplicate detection.
+- Review status.
+- Reviewer identity when reviewed.
+- Rejection or correction reason.
+- Submission and update timestamps.
+- Complete status history.
+
+Prevent unapproved listings from appearing publicly.
+
+Flag suspicious pricing, duplicated photographs, repeated vehicle records, inconsistent specifications and potentially fraudulent claims for human review.
+
+Do not automatically accuse or ban a dealer solely because an AI model produces a risk score.
+
+## Dealer accountability
+
+Implement configurable rules for:
+
+- Unanswered customer enquiries.
+- Repeated inaccurate listings.
+- False availability claims.
+- Misleading prices.
+- Unauthorised listing content.
+- Repeated cancellations.
+- Customer complaints.
+- Suspected fraud.
+- Unpaid platform invoices.
+
+Use warnings, deadlines, review, restrictions and appeal processes where appropriate.
+
+Do not impose arbitrary fines or automatically deduct money without a clear contractual basis, lawful process and authorised billing workflow.
+
+Record warnings, decisions, evidence and appeals.
+
+## Dealer dashboard
+
+Dealers must be able to manage:
+
+- Business profile.
+- Verification status.
+- Inventory.
+- Listing approvals.
+- Enquiries.
+- Customer conversations.
+- Follow-up tasks.
+- Sales pipeline.
+- Staff accounts.
+- Branches where supported.
+- Subscriptions.
+- Promotion campaigns.
+- Billing and invoices.
+- Performance analytics.
+- Customer feedback.
+- Support cases.
+
+Provide a useful dashboard showing overdue tasks, unanswered enquiries, incomplete listings, expiring campaigns and account issues.
+
+## Dealer staff
+
+Dealer owners can invite staff and assign limited permissions.
+
+Implement role-based permissions for inventory managers, sales representatives, branch managers and finance staff where needed.
+
+Staff must only access the dealership data and actions authorised for them.
+
+# PART 9 — SELLER-TO-DEALER MATCHING
+
+Create a differentiated workflow that connects private sellers with relevant dealerships.
+
+When a private owner submits a vehicle, allow them to opt into matching with suitable dealerships.
+
+Match using:
+
+- Make and model.
+- Vehicle category.
+- Condition.
+- Price expectations.
+- Location and service area.
+- Dealer buying preferences.
+- Dealer eligibility.
+- Seller consent.
+
+Dealers may submit offers through the platform.
+
+The seller must be able to compare offers, reject them, request clarification and decide which dealer to contact.
+
+Build a dealer buying-request board where participating dealerships can specify the vehicles they are seeking.
+
+Use transparent offer statuses, timestamps, expiry and notification controls.
+
+Do not expose seller contact details until the applicable consent and workflow requirements are satisfied.
+
+Measure matching quality using actual outcomes, not invented analytics.
+
+# PART 10 — 3D CAR CUSTOMIZER
+
+Build a real browser-based interactive 3D customizer integrated into CARMAZE.
+
+Use Three.js or React Three Fiber, depending on the existing frontend.
+
+Do not use Unity or Unreal Engine for the browser implementation.
+
+## Rendering
+
+Support:
+
+- GLB/GLTF models.
+- Environment lighting.
+- Realistic materials.
+- Appropriate reflections and shadows.
+- Responsive camera controls.
+- Touch gestures.
+- Loading progress.
+- Reset-camera action.
+- Graceful errors.
+- Static fallback for unsupported devices.
+
+## Model hierarchy
+
+Inspect the real model files and identify their supported mesh names.
+
+Where available, separate:
+
+- Body shell.
+- Front and rear bumpers.
+- Wheels and rims.
+- Glass.
+- Lights.
+- Supported accessories.
+- Axle or suspension components.
+
+Do not assume example object names exist in every model.
+
+## Customisation controls
+
+Implement supported controls for:
+
+- Paint colour.
+- Paint finish.
+- Rim design.
+- Rim colour.
+- Glass tint.
+- Compatible accessories.
+- Supported body kits.
+- Supported ride-height visualisation.
+
+Every enabled control must modify the actual scene.
+
+Handle shared materials safely. Validate mesh existence, material types, configuration values and model compatibility.
+
+Do not show a working-looking control if it does not perform its advertised action.
+
+## Model performance
+
+Compress models where practical and aim for approximately 5 MB or less per model without unacceptable quality loss.
+
+Use geometry and texture compression when supported.
+
+Lazy-load models, cache assets appropriately, dispose of unused GPU resources and measure performance on representative mobile devices.
+
+Use legally licensed models and textures.
+
+## Configuration persistence
+
+Represent customisations using validated configuration data.
+
+When a user clicks Share:
+
+1. Validate the configuration.
+2. Save it through the backend.
+3. Generate a secure, unique identifier.
+4. Return a copyable CARMAZE link.
+5. Restore the saved configuration when the link is opened.
+6. Handle missing, expired, invalid and outdated configurations gracefully.
+
+Store configuration data rather than duplicating large model files.
+
+Protect private account information and enforce access rules.
+
+# PART 11 — GARAGE AND AUTOMOTIVE SERVICES
+
+Build a connected service marketplace.
+
+Support categories such as:
+
+- General servicing.
+- Mechanical repairs.
+- Electrical diagnostics.
+- Tyres and wheels.
+- Bodywork and accident repair.
+- Vehicle detailing.
+- Modifications and upgrades.
+- Audio and accessories.
+- Inspection services.
+- Towing.
+- Roadside assistance.
+- Other approved automotive services.
+
+## Garage onboarding
+
+Implement business registration, service categories, operating locations, contact verification, required documents, review status and approval.
+
+Verification must be earned through the actual review process, not purchased as a subscription benefit.
+
+## Garage dashboard
+
+Provide:
+
+- Business profile.
+- Services and pricing.
+- Service areas.
+- Availability.
+- Incoming requests.
+- Quotes.
+- Bookings.
+- Customer communications.
+- Staff permissions.
+- Reviews.
+- Subscription and billing.
+- Performance reporting.
+- Complaints and support.
+
+## Request-to-booking workflow
+
+Implement:
+
+Submitted → Matching → Quotes received → Customer selection → Booking confirmed → Work in progress → Completed.
+
+Support cancellation, expiry, disputes and rescheduling where appropriate.
+
+Every status transition must be validated and recorded.
+
+## Customizer-to-garage integration
+
+A customer who customises a vehicle must be able to request a quote for supported modifications.
+
+The garage receives only the authorised configuration and customer information necessary to respond.
+
+Include the selected vehicle, configuration reference, requested work, location and relevant notes.
+
+Let customers compare genuine quotes and choose a provider.
+
+## Roadside assistance
+
+Allow a customer to request towing or roadside help, provide a suitable location, describe the issue, and contact eligible providers.
+
+Clearly show the request status and provider contact details when authorised.
+
+Do not claim live GPS tracking, emergency dispatch, estimated arrival times or real-time vehicle tracking unless the relevant functionality is genuinely implemented.
+
+Do not present CARMAZE as an emergency authority.
+
+# PART 12 — MY GARAGE
+
+Build a digital vehicle ownership dashboard.
+
+Allow users to add vehicles they own or manage and record:
+
+- Vehicle details.
+- Purchase information.
+- Service history.
+- Repairs.
+- Mileage updates.
+- Receipts.
+- Warranties.
+- Inspection records.
+- Modifications.
+- Maintenance reminders.
+- Insurance renewal reminders.
+- Other relevant renewal dates.
+
+Keep records private by default.
+
+Allow users to control which records are shared with a garage or another authorised party.
+
+Provide maintenance reminders using real dates and configurable schedules.
+
+Where AI explains warning lights or maintenance symptoms, clearly state that its guidance is informational and does not replace a qualified mechanic or an urgent safety inspection.
+
+# PART 13 — COMMUNITY
+
+Create an automotive community with:
+
+- Posts.
+- Comments.
+- Reactions.
+- Follows.
+- Automotive questions and answers.
+- Owner experiences.
+- Vehicle showcases.
+- Garage showcases.
+- Polls.
+- Events.
+- Wanted vehicle posts.
+- Feature requests and voting.
+
+Implement reporting, blocking, spam prevention, rate limits and moderation queues.
+
+Prevent impersonation and misleading verification claims.
+
+Do not sell fake reviews, paid ratings or verification badges.
+
+Clearly label sponsored content and promoted listings.
+
+# PART 14 — AI FEATURES
+
+Implement AI as a practical assistant, not a decorative chatbot.
+
+Prioritise these features:
+
+### AI Car Finder
+Helps buyers describe their budget, intended use, preferences and location, then finds matching actual listings.
+
+### AI Listing Assistant
+Helps sellers produce clearer descriptions from supplied information and photographs, without inventing specifications or ownership claims.
+
+### Dealer Copilot
+Highlights overdue enquiries, incomplete listings, stale inventory and useful follow-up tasks using actual dealer data.
+
+### Garage Assistant
+Helps customers describe vehicle problems and identify relevant service categories. It must not claim to provide definitive mechanical diagnoses.
+
+### AI Vehicle Insights
+Summarises a user's actual saved listings, service records or ownership information where authorised.
+
+### Fraud Risk Assistance
+Flags suspicious patterns for authorised human review.
+
+AI must not invent vehicles, prices, providers, stock, quotes, payments, ratings or analytics.
+
+Protect customer data, control AI access to tenant-specific information, limit usage and record appropriate operational events.
+
+Never allow an AI assistant to bypass authorisation or directly perform sensitive actions without the necessary permissions and confirmation.
+
+If an AI provider requires an API key, keep it server-side. If the key is missing, clearly document the blocked integration instead of returning fabricated responses.
+
+# PART 15 — USERS, ROLES AND PERMISSIONS
+
+Implement clear roles and least-privilege access.
+
+Roles may include:
+
+- Visitor.
+- Customer.
+- Private Seller.
+- Dealer Owner.
+- Dealer Staff.
+- Garage Owner.
+- Garage Staff.
+- Support Agent.
+- Verification Reviewer.
+- Moderator.
+- Finance Officer.
+- Platform Administrator.
+- Founder/Owner.
+
+A user may hold more than one role where appropriate, but permissions must remain explicit.
+
+## Founder security
+
+Provide separate secure accounts for the two founders.
+
+Do not assume their identities or hardcode account credentials.
+
+Implement:
+
+- Strong authentication.
+- Multi-factor authentication where supported.
+- Recovery procedures.
+- Session management.
+- Login rate limits.
+- Audit logs.
+- Least-privilege staff access.
+- Secure handling of privileged actions.
+
+Do not expose a public super-admin option during ordinary customer registration.
+
+Founder privileges must be assigned through a controlled, documented administrative process.
+
+## Tenant isolation
+
+A dealership must not access another dealership's private data.
+
+A garage must not access another garage's private requests.
+
+Staff may access only records permitted by their assigned organisation and role.
+
+Enforce tenant isolation in backend queries and, where appropriate, database row-level security.
+
+Never rely solely on hiding frontend buttons.
+
+# PART 16 — PAYMENTS AND BUSINESS MODEL
+
+CARMAZE should support a hybrid business model:
+
+1. Dealer subscriptions.
+2. Paid vehicle promotions.
+3. Optional premium business tools.
+4. Garage subscriptions.
+5. Clearly agreed transaction or lead-related fees where appropriate.
+6. Future approved partnerships.
+
+Treat prices as configurable business settings. Do not hardcode unvalidated market prices across the application.
+
+Illustrative starting hypotheses for controlled testing could include:
+
+- Free private vehicle listings.
+- Paid promotional campaigns.
+- Tiered dealer subscriptions.
+- Optional garage business subscriptions.
+
+Validate willingness to pay through real pilot customers before committing to permanent prices.
+
+## Billing architecture
+
+Keep separate records for:
+
+- Subscription payments.
+- Promotional campaign payments.
+- Platform invoices.
+- Agreed transaction fees.
+- Refunds.
+- Payment attempts.
+- Payment callbacks.
+- Reconciliation events.
+
+Use immutable or appropriately protected financial histories, unique transaction references, idempotency and audit records.
+
+Support payment status, receipts, invoice history, failed payment recovery and cancellation.
+
+## M-Pesa
+
+Integrate Safaricom Daraja using the official developer portal:
+
+https://developer.safaricom.co.ke/
+
+Implement real server-side integration when valid credentials and required configuration are available.
+
+Verify callbacks and payment status. Never trust frontend confirmation or screenshots.
+
+Do not simulate successful production transactions.
+
+## Transaction fee rules
+
+Do not charge a dealer merely because it sells a similar vehicle.
+
+Any transaction or lead-related fee must follow a clearly accepted agreement defining:
+
+- What event triggers the fee.
+- Attribution rules.
+- Applicable fee or percentage.
+- Attribution window where relevant.
+- Reporting and evidence.
+- Dispute procedures.
+- Refund or cancellation treatment.
+- Invoice and payment deadlines.
+
+Record the evidence for fee assessments and provide an authorised dispute process.
+
+## Vehicle purchase funds
+
+Initially, CARMAZE should facilitate discovery and contact without holding buyer funds for vehicle purchases or pretending to provide escrow.
+
+Vehicle purchase funds should move through separately agreed arrangements until any required legal, financial and operational approvals are obtained.
+
+Do not promise buyer protection, insurance, financing or escrow services that are not actually provided.
+
+# PART 17 — DATABASE AND BACKEND ARCHITECTURE
+
+Inspect the existing stack and keep it where appropriate.
+
+If building missing foundations, prefer a maintainable modular architecture with a relational database such as PostgreSQL.
+
+Potential backend options include the project's existing framework, FastAPI/Python or a suitable TypeScript backend. Choose one primary approach rather than creating competing backends unnecessarily.
+
+Use the existing frontend framework where practical. For a new React-based frontend, use TypeScript.
+
+Design database structures for:
+
+- Users and profiles.
+- Roles and permissions.
+- Sessions and consent.
+- Organisations and members.
+- Branches and invitations.
+- Dealer and garage verification.
+- Vehicles and specifications.
+- Listings and photographs.
+- Listing status history.
+- Saved vehicles and searches.
+- Enquiries and messages.
+- Dealer buying requests.
+- Offers and sale attribution.
+- Customizer configurations.
+- Share links.
+- Garage services.
+- Quotes and bookings.
+- Roadside requests.
+- My Garage records.
+- Maintenance reminders.
+- Community posts and moderation.
+- Subscriptions and invoices.
+- Payment attempts and transactions.
+- Campaigns and campaign metrics.
+- Notifications and delivery attempts.
+- Support tickets and disputes.
+- AI usage and risk flags.
+- Audit logs.
+- Aggregated analytics.
+
+Use appropriate identifiers, foreign keys, unique constraints, indexes, timestamps, and validated status transitions.
+
+Store money in a consistent decimal or integer-minor-unit representation with an explicit currency.
+
+Use database migrations rather than manual production schema changes.
+
+Do not store passwords in plaintext.
+
+Do not store secret keys in source control.
+
+Store private documents in protected object storage and use time-limited authorised access when needed.
+
+# PART 18 — NOTIFICATIONS AND AUTOMATION
+
+Implement a reliable notification system with configurable channels, such as email and SMS, and other channels where genuinely integrated.
+
+Support:
+
+- Dealer application receipts.
+- Verification requests.
+- Listing approval and rejection.
+- Missing-information reminders.
+- Overdue review escalation.
+- Customer enquiries.
+- Offer notifications.
+- Garage quotes.
+- Booking updates.
+- Subscription renewals.
+- Payment receipts.
+- Failed payments.
+- Maintenance reminders.
+- Security alerts.
+- Support updates.
+
+Use a background-job system when necessary.
+
+Implement retry policies, idempotency, delivery status, failure tracking, rate limits and user notification preferences.
+
+Do not send duplicate messages indefinitely.
+
+Do not claim an email or SMS was delivered when only a request was queued.
+
+# PART 19 — PLATFORM ADMINISTRATION AND FOUNDER CONTROL CENTER
+
+Create a secure internal dashboard for authorised staff and founders.
+
+Include:
+
+### Business overview
+- Actual revenue by source.
+- Subscriptions.
+- Paid campaigns.
+- Platform invoices.
+- Refunds.
+- Payment fees where available.
+- Outstanding invoices.
+- Reconciled and unreconciled transactions.
+
+### Marketplace management
+- Listings pending review.
+- Published listings.
+- Rejected listings.
+- Reports and suspected duplicates.
+- Seller complaints.
+- Listing removals.
+
+### Dealer management
+- New applications.
+- Pending verification.
+- Missing documents.
+- Overdue reviews.
+- Staff and organisation management.
+- Suspensions and appeals.
+- Listing quality.
+- Enquiry response performance.
+
+### Garage management
+- Provider verification.
+- Services and service areas.
+- Customer requests.
+- Quotes and bookings.
+- Complaints.
+- Provider performance.
+
+### Trust and safety
+- User reports.
+- Suspicious activity.
+- Account security events.
+- Moderation queues.
+- Disputes.
+- Audit trails.
+
+### Operations
+- Failed notifications.
+- Payment callback errors.
+- Background-job failures.
+- Application errors.
+- Database and backup status where available.
+- Integration health.
+
+All analytics must come from real data and be labelled accurately.
+
+Restrict sensitive reports and financial actions to authorised roles.
+
+Require appropriate confirmation for high-impact actions such as suspensions, refunds and account privilege changes.
+
+# PART 20 — LEGAL, PRIVACY AND TRUST
+
+Prepare configurable legal and operational pages for:
+
+- Terms of Service.
+- Privacy Policy.
+- Cookie and tracking preferences where relevant.
+- Seller Terms.
+- Dealer Agreement.
+- Garage Provider Agreement.
+- Subscription Terms.
+- Promotional Listing Terms.
+- Community Guidelines.
+- Cancellation and dispute policies.
+- Contact and support.
+
+Obtain appropriate legal review before commercial launch.
+
+Consider Kenyan data protection, consumer protection, business registration, tax invoicing, payment provider requirements, intellectual property and applicable rules for advertising, vehicle transactions and automotive services.
+
+Do not claim that a user, vehicle, dealership, garage, payment or document has been independently verified unless the relevant verification actually occurred.
+
+Support privacy requests and appropriate data retention and deletion policies.
+
+Never publish private identity documents.
+
+# PART 21 — SEARCH ENGINE OPTIMISATION AND GROWTH
+
+Implement technical SEO for public pages:
+
+- Appropriate page titles.
+- Meta descriptions.
+- Canonical URLs.
+- Social sharing metadata.
+- XML sitemap.
+- Robots directives.
+- Clean listing URLs.
+- Appropriate structured data where valid.
+- Image optimisation.
+- Accessible page structure.
+- Useful error pages.
+
+Do not expose private or unpublished listings through public indexing.
+
+Build growth features around genuine customer value:
+
+- Shareable vehicle listings.
+- Referral tracking where lawful.
+- Dealer invitations.
+- Listing promotion.
+- Saved searches and alerts.
+- Helpful automotive content.
+- Community engagement.
+- Customer review collection with appropriate safeguards.
+- Dealer performance insights.
+- Return visits through My Garage.
+
+Clearly distinguish organic listings, paid promotions and sponsored content.
+
+Do not fabricate reviews, customer counts, inventory totals or popularity metrics.
+
+# PART 22 — UNIQUE COMPETITIVE ADVANTAGES
+
+Do not build only another vehicle classifieds website.
+
+Build differentiation through connected workflows:
+
+1. Private seller-to-dealer matching.
+2. Verified dealer inventory and accountability.
+3. Follow-up automation that reduces unanswered enquiries.
+4. DealerOS with real lead and inventory management.
+5. Shareable 3D vehicle configurations.
+6. Configuration-to-garage quote requests.
+7. Connected vehicle ownership and maintenance records.
+8. Automotive services and roadside support.
+9. AI-assisted car discovery and listing creation.
+10. Transparent promotions and measurable campaign performance.
+11. Low-bandwidth support and mobile-first design.
+12. Stronger listing quality and trust signals.
+
+Prioritise the features that deliver measurable value before attempting to launch every advanced feature simultaneously.
+
+# PART 23 — TESTING AND QUALITY ASSURANCE
+
+Build and run tests throughout development.
+
+## Automated checks
+- Type checking.
+- Linting.
+- Production build.
+- Unit tests.
+- API integration tests.
+- Database migration checks.
+- End-to-end workflow tests.
+- Permission tests.
+- Responsive UI checks where tooling permits.
+
+## Mandatory workflows to verify
+
+### Customer
+Register → verify contact details → search → open listing → save vehicle → enquire → receive status updates.
+
+### Private seller
+Register → submit vehicle → complete required fields → submit for review → receive correction request → resubmit → publish after approval → manage offers → mark sold.
+
+### Dealer
+Apply → receive reference → provide documents → track status → respond to correction request → obtain approval → create listing → receive enquiry → follow up → manage subscription.
+
+### Garage
+Register → submit verification → obtain approval → configure services → receive eligible request → quote → confirm booking → complete job → receive feedback.
+
+### Customizer
+Open model → change supported paint → change supported wheels → reset → save configuration → share link → open link elsewhere → restore settings → request garage quote.
+
+### Billing
+Create a valid payment request → receive a verified provider response → record status → handle duplicate callbacks → issue receipt → reconcile transaction.
+
+If real payment credentials are unavailable, test with an approved sandbox and clearly distinguish sandbox results from production verification.
+
+### Administration
+Review dealer application → request corrections → approve or reject → inspect audit history → resolve a report → restrict an account with correct permissions.
+
+### Security
+Test cross-organisation access, unauthorised actions, invalid inputs, rate limits, session handling, upload restrictions and sensitive-data exposure.
+
+Never expose actual production secrets in test reports.
+
+# PART 24 — PERFORMANCE AND DEPLOYMENT
+
+Optimise for users on mobile devices and slower networks.
+
+Implement:
+
+- Responsive layouts.
+- Image resizing and compression.
+- Lazy loading.
+- Code splitting where appropriate.
+- Efficient database queries.
+- Pagination.
+- Caching where appropriate.
+- Appropriate security headers.
+- Error monitoring.
+- Structured logs.
+- Health checks.
+- Database backup and restore procedures.
+- Safe migrations.
+- Environment-based configuration.
+
+Keep secrets in deployment environment variables or an appropriate secret manager.
+
+Use separate development, staging and production configuration.
+
+Do not hardcode credentials, expose private API keys in frontend bundles, or commit `.env` secrets.
+
+Provide deployment instructions compatible with the existing hosting setup.
+
+Do not deploy destructive changes or modify production infrastructure without the required access and approval.
+
+If the platform uses Vercel, Render, Supabase or another existing provider, inspect its current configuration and extend it carefully.
+
+Only add Docker or Kubernetes if it serves a demonstrated deployment need. If Docker is required, provide working Docker configuration and health checks. Do not introduce Kubernetes merely for appearance.
+
+# PART 25 — REQUIRED DELIVERY PHASES
+
+Work in the following order, while fixing critical dependencies and existing bugs as they arise.
+
+## Phase 1: Audit and foundations
+- Inspect repository and current implementation.
+- Identify broken features and security issues.
+- Correct responsive logo sizing.
+- Confirm architecture and environment configuration.
+- Ensure database migrations, authentication and role permissions work.
+- Establish build and test checks.
+
+## Phase 2: Marketplace and dealer workflows
+- Complete vehicle listings and search.
+- Complete private seller workflows.
+- Implement dealer applications and strict follow-ups.
+- Implement dealer inventory and enquiries.
+- Implement moderation and audit history.
+
+## Phase 3: Billing and operations
+- Implement subscription and campaign records.
+- Integrate available payment services.
+- Implement notification delivery tracking.
+- Build administration and reconciliation tools.
+
+## Phase 4: 3D customizer
+- Integrate a real optimised model.
+- Implement supported customisation controls.
+- Implement reset and saved configuration.
+- Build shareable links.
+- Test desktop and mobile performance.
+
+## Phase 5: Garage ecosystem
+- Implement garage onboarding.
+- Implement quote requests and matching.
+- Connect customizer configurations to garage requests.
+- Implement bookings, notifications and service history.
+
+## Phase 6: My Garage, community and AI
+- Implement vehicle ownership records.
+- Implement maintenance reminders.
+- Add community features and moderation.
+- Add AI capabilities using genuine data and secure integrations.
+
+## Phase 7: Production readiness
+- Execute tests.
+- Fix regressions.
+- Verify access control.
+- Check performance and responsive layouts.
+- Review deployment configuration.
+- Verify backup and recovery procedures.
+- Prepare release documentation.
+
+Do not mark a phase complete just because its interface has been created.
+
+# PART 26 — FINAL ACCEPTANCE CRITERIA
+
+CARMAZE is ready for a controlled pilot only when the implemented core workflows have been verified.
+
+The release must demonstrate:
+
+- Correctly sized responsive branding.
+- A functional, skippable cinematic intro where enabled.
+- Working public vehicle discovery.
+- Working private seller submissions.
+- Working dealer onboarding and follow-up.
+- Protected dealer and garage data.
+- Functional enquiry and offer workflows.
+- Realistic 3D customisation for the supported models.
+- Working configuration persistence and sharing.
+- Genuine garage quote requests.
+- Accurate billing states.
+- Secure role permissions.
+- Real notification tracking.
+- Useful administrative controls.
+- No known critical security vulnerabilities left unaddressed.
+- No knowingly broken critical customer workflow.
+- A documented list of any remaining limitations.
+
+If a third-party credential, approved model asset, provider contract, legal approval or external account is missing, identify the dependency clearly and finish all work that can legitimately be completed without it.
+
+# PART 27 — FINAL REPORT TO THE FOUNDERS
+
+At the end of the work, provide:
+
+1. A summary of the existing project you inspected.
+2. The architecture retained or changed.
+3. Every major feature implemented.
+4. The files and database migrations changed.
+5. Logo and responsive improvements.
+6. Startup intro status.
+7. 3D models and supported customisation options.
+8. Dealer follow-up rules and escalation behaviour.
+9. Garage request routing and booking status.
+10. Payment integration and verification status.
+11. Security and permission checks.
+12. Tests actually run and their results.
+13. Build, deployment and health-check results.
+14. Outstanding credentials, assets and external dependencies.
+15. Known limitations and risks.
+16. The next recommended actions before public launch.
+
+Classify every major requirement as:
+
+- COMPLETED AND VERIFIED.
+- IMPLEMENTED BUT NOT FULLY VERIFIED.
+- BLOCKED BY A DEPENDENCY.
+- NOT IMPLEMENTED.
+
+Do not inflate progress percentages or claim that the entire platform is production-ready without evidence.
+
+# FINAL INSTRUCTION
+
+You are building CARMAZE as a real business platform, not a demo.
+
+Think like an engineering team responsible for protecting customers, supporting dealers, earning revenue, preventing fraud, maintaining uptime and growing a trusted automotive brand.
+
+Inspect the existing code. Preserve what works. Build the missing pieces. Connect the workflows. Test the real behaviour. Fix failures. Document blockers honestly.
+
+Start by auditing the repository and reporting the current state briefly, then proceed directly into implementation. Do not stop after producing another plan or a beautiful homepage.
+
+**CARMAZE — FIND. CONNECT. DRIVE.**

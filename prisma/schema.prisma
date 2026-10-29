@@ -1,0 +1,676 @@
+// CARMAZE — Automotive ecosystem schema (SQLite / Prisma)
+// Money is stored as integer minor units (cents) with explicit currency (default KES).
+// SQLite has no enums/arrays/JSON: use String fields (JSON stored as strings).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Users & access ─────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  phone         String?
+  phoneVerified Boolean  @default(false)
+  phoneCode     String?
+  roles         String   @default("CUSTOMER") // comma separated: CUSTOMER,SELLER,DEALER_OWNER,DEALER_STAFF,GARAGE_OWNER,GARAGE_STAFF,SUPPORT,REVIEWER,MODERATOR,FINANCE,ADMIN,FOUNDER
+  status        String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vehicles         Vehicle[]        @relation("VehicleOwner")
+  enquiries        Enquiry[]
+  serviceRequests  ServiceRequest[]
+  roadsideRequests RoadsideRequest[]
+  myVehicles       MyVehicle[]
+  posts            CommunityPost[]
+  comments         PostComment[]
+  reactions        PostReaction[]
+  reports          Report[]         @relation("Reporter")
+  notifications    Notification[]
+  applications     Application[]
+  reviews          OrgReview[]
+  savedVehicles    SavedVehicle[]
+  savedSearches    SavedSearch[]
+  orgMemberships   OrgMember[]
+  follows          Follow[]         @relation("Follower")
+  followings       Follow[]         @relation("Following")
+}
+
+model Org {
+  id          String   @id @default(cuid())
+  type        String // DEALER | GARAGE
+  name        String
+  regNo       String?
+  county      String
+  town        String?
+  location    String?
+  phone       String?
+  email       String?
+  description String?
+  status      String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members    OrgMember[]
+  vehicles   Vehicle[]
+  offers     Offer[]
+  buyingReqs BuyingRequest[]
+  services   GarageService[]
+  quotes     Quote[]
+  bookings   Booking[]
+  reviews    OrgReview[]
+  invoices   Invoice[]
+  subscription Subscription?
+  campaigns  Campaign[]
+}
+
+model OrgMember {
+  id     String   @id @default(cuid())
+  orgId  String
+  userId String
+  role   String // OWNER | MANAGER | SALES | FINANCE | STAFF (dealer) / OWNER | MANAGER | MECHANIC | STAFF (garage)
+  org    Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, userId])
+  @@index([userId])
+}
+
+// ───────────────────────── Dealer / Garage onboarding ─────────────────────────
+
+model Application {
+  id               String    @id @default(cuid())
+  refCode          String    @unique
+  type             String // DEALER | GARAGE
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgName          String
+  regNo            String?
+  county           String
+  town             String?
+  physicalAddress  String?
+  phone            String
+  email            String?
+  representative   String
+  accountType      String? // dealer plan interest
+  categories       String? // garage: comma separated service categories
+  documents        String? // JSON [{name,url,uploadedAt}]
+  consent          Boolean   @default(false)
+  notes            String?
+  status           String    @default("DRAFT") // DRAFT|SUBMITTED|UNDER_REVIEW|MORE_INFO_REQUIRED|RESUBMITTED|APPROVED|REJECTED|SUSPENDED|REVOKED
+  reviewSlaHours   Int       @default(24)
+  submittedAt      DateTime?
+  reviewOwnerId    String?
+  reviewOwnerName  String?
+  decisionNote     String?
+  infoRequestedAt  DateTime?
+  correctionsDueAt DateTime?
+  lastReminderAt   DateTime?
+  reminderCount    Int       @default(0)
+  escalated        Boolean   @default(false)
+  escalatedAt      DateTime?
+  orgId            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  events ApplicationEvent[]
+
+  @@index([status, submittedAt])
+}
+
+model ApplicationEvent {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          String // SUBMITTED|REVIEW_ASSIGNED|INFO_REQUESTED|RESUBMITTED|REMINDER|ESCALATED|APPROVED|REJECTED|NOTE|STATUS_CHANGED
+  actorId       String?
+  actorName     String?
+  note          String?
+  createdAt     DateTime    @default(now())
+}
+
+// ─────────────────────────────── Marketplace ───────────────────────────────
+
+model Vehicle {
+  id               String   @id @default(cuid())
+  refCode          String   @unique
+  ownerId          String
+  owner            User     @relation("VehicleOwner", fields: [ownerId], references: [id])
+  orgId            String?
+  org              Org?     @relation(fields: [orgId], references: [id])
+  make             String
+  model            String
+  year             Int
+  priceMinor       Int
+  currency         String   @default("KES")
+  mileageKm        Int
+  fuel             String // PETROL|DIESEL|HYBRID|ELECTRIC
+  transmission     String // MANUAL|AUTOMATIC
+  bodyType         String // SUV|SEDAN|HATCHBACK|PICKUP|MINIVAN|COUPE|WAGON|MOTORBIKE|TRUCK
+  engineCc         Int?
+  condition        String // BRAND_NEW|FOREIGN_USED|LOCAL_USED
+  county           String
+  town             String?
+  color            String
+  description      String
+  sellerType       String   @default("PRIVATE") // PRIVATE|DEALER
+  status           String   @default("DRAFT") // DRAFT|PENDING_REVIEW|PUBLISHED|RESERVED|SOLD|REJECTED|SUSPENDED|EXPIRED
+  reviewNote       String?
+  matchWithDealers Boolean  @default(false)
+  featured         Boolean  @default(false)
+  views            Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  photos   VehiclePhoto[]
+  events   ListingEvent[]
+  savedBy  SavedVehicle[]
+  enquiries Enquiry[]
+  offers   Offer[]
+  campaigns Campaign[]
+
+  @@index([status, make])
+  @@index([status, bodyType])
+  @@index([status, priceMinor])
+  @@index([status, county])
+  @@index([status, createdAt])
+}
+
+model VehiclePhoto {
+  id        String  @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  url       String
+  order     Int     @default(0)
+}
+
+model ListingEvent {
+  id        String   @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  from      String?
+  to        String
+  actorId   String?
+  actorName String?
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model SavedVehicle {
+  id        String   @id @default(cuid())
+  userId    String
+  vehicleId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, vehicleId])
+}
+
+model SavedSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  query     String
+  alertsOn  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+}
+
+model Enquiry {
+  id         String   @id @default(cuid())
+  refCode    String   @unique
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  message    String
+  phoneShare Boolean  @default(true)
+  phone      String?
+  status     String   @default("OPEN") // OPEN|ANSWERED|CLOSED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  messages EnquiryMessage[]
+}
+
+model EnquiryMessage {
+  id        String   @id @default(cuid())
+  enquiryId String
+  enquiry   Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  senderId  String
+  senderName String
+  senderSide String // CUSTOMER|SELLER
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model Offer {
+  id          String    @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  orgId       String
+  org         Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  amountMinor Int
+  message     String?
+  status      String    @default("PENDING") // PENDING|ACCEPTED|REJECTED|EXPIRED|WITHDRAWN
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model BuyingRequest {
+  id          String    @id @default(cuid())
+  orgId       String
+  org         Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  make        String
+  model       String?
+  yearFrom    Int?
+  yearTo      Int?
+  budgetMinor Int?
+  notes       String?
+  status      String    @default("OPEN") // OPEN|CLOSED
+  createdAt   DateTime  @default(now())
+}
+
+// ───────────────────────────── Garage & services ─────────────────────────────
+
+model GarageService {
+  id             String   @id @default(cuid())
+  orgId          String
+  org            Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  category       String // GENERAL_SERVICE|MECHANICAL|ELECTRICAL|TYRES|BODYWORK|DETAILING|MODIFICATIONS|AUDIO|INSPECTION|TOWING|ROADSIDE|OTHER
+  title          String
+  description    String?
+  priceFromMinor Int?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+}
+
+model ServiceRequest {
+  id          String    @id @default(cuid())
+  refCode     String    @unique
+  customerId  String
+  customer    User      @relation(fields: [customerId], references: [id])
+  category    String
+  vehicleDesc String?
+  description String
+  county      String
+  town        String?
+  status      String    @default("OPEN") // OPEN|QUOTING|BOOKED|IN_PROGRESS|COMPLETED|CANCELLED|EXPIRED
+  configId    String? // customizer share id if originated from a 3D configuration
+  myVehicleId String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  quotes  Quote[]
+  booking Booking?
+}
+
+model Quote {
+  id          String    @id @default(cuid())
+  requestId   String
+  request     ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  orgId       String
+  org         Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  amountMinor Int
+  leadDays    Int?
+  message     String?
+  status      String    @default("PENDING") // PENDING|ACCEPTED|DECLINED|EXPIRED
+  createdAt   DateTime  @default(now())
+
+  @@unique([requestId, orgId])
+}
+
+model Booking {
+  id          String    @id @default(cuid())
+  requestId   String    @unique
+  request     ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  orgId       String
+  org         Org       @relation(fields: [orgId], references: [id])
+  scheduledAt DateTime?
+  status      String    @default("CONFIRMED") // CONFIRMED|IN_PROGRESS|COMPLETED|CANCELLED
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model OrgReview {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  rating    Int // 1..5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, authorId])
+}
+
+model RoadsideRequest {
+  id            String    @id @default(cuid())
+  refCode       String    @unique
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  name          String
+  phone         String
+  county        String
+  location      String
+  issue         String // TOW|FLAT_TYRE|BATTERY|FUEL|ENGINE|LOCKOUT|OTHER
+  details       String?
+  status        String    @default("REQUESTED") // REQUESTED|ACCEPTED|COMPLETED|CANCELLED
+  providerOrgId String?
+  providerNote  String?
+  acceptedAt    DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+// ───────────────────────────── My Garage (owner records) ─────────────────────────────
+
+model MyVehicle {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  make               String
+  model              String
+  year               Int?
+  plate              String?
+  color              String?
+  mileageKm          Int?
+  purchaseDate       DateTime?
+  purchasePriceMinor Int?
+  notes              String?
+  createdAt          DateTime  @default(now())
+
+  records ServiceRecord[]
+  reminders Reminder[]
+}
+
+model ServiceRecord {
+  id          String    @id @default(cuid())
+  myVehicleId String
+  myVehicle   MyVehicle @relation(fields: [myVehicleId], references: [id], onDelete: Cascade)
+  date        DateTime
+  type        String // SERVICE|REPAIR|INSPECTION|MODIFICATION|OTHER
+  description String?
+  costMinor   Int?
+  mileageKm   Int?
+  garageOrgId String?
+  receiptUrl  String?
+  createdAt   DateTime  @default(now())
+}
+
+model Reminder {
+  id           String    @id @default(cuid())
+  myVehicleId  String
+  myVehicle    MyVehicle @relation(fields: [myVehicleId], references: [id], onDelete: Cascade)
+  type         String // SERVICE|INSURANCE|INSPECTION|LICENSE|CUSTOM
+  title        String
+  dueDate      DateTime
+  intervalDays Int?
+  status       String    @default("ACTIVE") // ACTIVE|DONE|DISMISSED
+  createdAt    DateTime  @default(now())
+
+  @@index([status, dueDate])
+}
+
+// ───────────────────────────── 3D Customizer ─────────────────────────────
+
+model CustomizerConfig {
+  id        String   @id @default(cuid())
+  shareId   String   @unique
+  modelId   String
+  config    String // JSON of validated configuration
+  userId    String?
+  views     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+// ───────────────────────────── Community ─────────────────────────────
+
+model CommunityPost {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  title       String
+  body        String
+  category    String   @default("GENERAL") // GENERAL|QUESTION|SHOWCASE|EVENT|WANTED|FEATURE_REQUEST
+  linkRef     String? // vehicle ref or other link
+  pollOptions String? // JSON [{text, userIds:[]}]
+  status      String   @default("PUBLISHED") // PUBLISHED|HIDDEN|FLAGGED
+  isSponsored Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  comments  PostComment[]
+  reactions PostReaction[]
+}
+
+model PostComment {
+  id        String        @id @default(cuid())
+  postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+  body      String
+  status    String        @default("PUBLISHED") // PUBLISHED|HIDDEN
+  createdAt DateTime      @default(now())
+}
+
+model PostReaction {
+  id     String        @id @default(cuid())
+  postId String
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+  type   String        @default("LIKE")
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model Follow {
+  id          String @id @default(cuid())
+  followerId  String
+  follower    User   @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User   @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+}
+
+model Report {
+  id             String    @id @default(cuid())
+  reporterId     String
+  reporter       User      @relation("Reporter", fields: [reporterId], references: [id])
+  targetType     String // LISTING|POST|COMMENT|USER
+  targetId       String
+  reason         String
+  details        String?
+  status         String    @default("OPEN") // OPEN|RESOLVED|DISMISSED
+  resolvedBy     String?
+  resolutionNote String?
+  createdAt      DateTime  @default(now())
+}
+
+// ───────────────────────── Notifications ─────────────────────────
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  deliveries NotificationDelivery[]
+
+  @@index([userId, readAt])
+}
+
+model NotificationDelivery {
+  id             String       @id @default(cuid())
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  channel        String // IN_APP|EMAIL|SMS
+  status         String // SENT|QUEUED|FAILED
+  attempts       Int          @default(0)
+  lastError      String?
+  createdAt      DateTime     @default(now())
+}
+
+// ───────────────────────── Billing & growth ─────────────────────────
+
+model Plan {
+  code           String  @id
+  name           String
+  audience       String // DEALER|GARAGE
+  priceMinor     Int
+  currency       String  @default("KES")
+  intervalMonths Int     @default(1)
+  listingLimit   Int
+  featuredLimit  Int
+  staffLimit     Int
+  features       String? // JSON string array
+  active         Boolean @default(true)
+}
+
+model Subscription {
+  id               String   @id @default(cuid())
+  orgId            String   @unique
+  org              Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  planCode         String
+  status           String   @default("ACTIVE") // ACTIVE|CANCELLED|PAST_DUE
+  startedAt        DateTime @default(now())
+  currentPeriodEnd DateTime
+}
+
+model Invoice {
+  id          String    @id @default(cuid())
+  refCode     String    @unique
+  orgId       String?
+  org         Org?      @relation(fields: [orgId], references: [id])
+  userId      String?
+  type        String // SUBSCRIPTION|CAMPAIGN|LEAD_FEE
+  description String
+  amountMinor Int
+  currency    String    @default("KES")
+  status      String    @default("PENDING") // PENDING|PAID|OVERDUE|CANCELLED|REFUNDED
+  periodStart DateTime?
+  periodEnd   DateTime?
+  issuedAt    DateTime  @default(now())
+  dueDate     DateTime?
+  paidAt      DateTime?
+  paidVia     String? // MPESA|MANUAL
+  payments    PaymentAttempt[]
+}
+
+model PaymentAttempt {
+  id                String    @id @default(cuid())
+  invoiceId         String
+  invoice           Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  provider          String    @default("MPESA_DARAJA")
+  phone             String
+  amountMinor       Int
+  status            String    @default("INITIATED") // INITIATED|PENDING|SUCCESS|FAILED|CANCELLED
+  merchantRequestId String?
+  checkoutRequestId String?   @unique
+  resultCode        Int?
+  resultDesc        String?
+  callbackRaw       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model CampaignPackage {
+  code        String  @id
+  name        String
+  days        Int
+  priceMinor  Int
+  currency    String  @default("KES")
+  description String?
+  active      Boolean @default(true)
+}
+
+model Campaign {
+  id          String    @id @default(cuid())
+  refCode     String    @unique
+  orgId       String
+  org         Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vehicleId   String
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  packageCode String
+  status      String    @default("PENDING_PAYMENT") // PENDING_PAYMENT|ACTIVE|ENDED|CANCELLED
+  startsAt    DateTime?
+  endsAt      DateTime?
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
+  invoiceId   String?
+  createdAt   DateTime  @default(now())
+}
+
+model SupportTicket {
+  id        String    @id @default(cuid())
+  refCode   String    @unique
+  userId    String?
+  name      String
+  email     String
+  subject   String
+  message   String
+  status    String    @default("OPEN") // OPEN|IN_PROGRESS|RESOLVED
+  response  String?
+  createdAt DateTime  @default(now())
+}
+
+// ───────────────────────── Ops & auditing ─────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorName  String?
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([action])
+}
+
+model AiUsage {
+  id        String   @id @default(cuid())
+  userId    String?
+  feature   String
+  ok        Boolean
+  error     String?
+  createdAt DateTime @default(now())
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String // JSON
+  updatedAt DateTime @updatedAt
+}
+
+model ViewEvent {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  createdAt DateTime @default(now())
+}
