@@ -371,7 +371,7 @@ export default function View() {
             </CardContent>
           </Card>
 
-          <Alert className="mt-4 border-amber-600/30 bg-amber-50/60 text-amber-950 [&>svg]:text-amber-700">
+          <Alert className="mt-4 border-amber-600/30 bg-amber-50/60 text-amber-950 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-200 [&>svg]:text-amber-700 dark:[&>svg]:text-amber-300">
             <ShieldAlert className="h-4 w-4" />
             <AlertTitle>Stay safe when buying</AlertTitle>
             <AlertDescription>

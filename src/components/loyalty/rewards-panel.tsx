@@ -120,8 +120,9 @@ function RewardsContent({ onRetry }: { onRetry: () => void }) {
 
   return (
     <div className="space-y-4">
-      {/* Points balance — deep green hero with the gold balance */}
-      <Card className="overflow-hidden border-none bg-[#315E4B] text-white shadow-md">
+      {/* Points balance — deep green hero with the gold balance (brand-deep
+          keeps the band dark in dark mode too) */}
+      <Card className="overflow-hidden border-none bg-brand-deep text-brand-deep-foreground shadow-md">
         <CardContent className="flex flex-wrap items-center justify-between gap-6 p-6">
           <div className="flex items-center gap-4">
             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white/10">

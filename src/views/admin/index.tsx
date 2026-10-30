@@ -594,10 +594,10 @@ function OverviewTab() {
           {hasRevenue ? (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={revenueChartData} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e3dd" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6e6e67' }} axisLine={{ stroke: '#e5e3dd' }} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: '#6e6e67' }} tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}K` : String(v))} axisLine={false} tickLine={false} />
-                <Tooltip formatter={(value) => money(Number(value) * 100)} contentStyle={{ borderRadius: 10, borderColor: '#e5e3dd', fontSize: 13 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} axisLine={{ stroke: 'var(--border)' }} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}K` : String(v))} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(value) => money(Number(value) * 100)} contentStyle={{ borderRadius: 10, border: '1px solid var(--border)', background: 'var(--popover)', color: 'var(--popover-foreground)', fontSize: 13 }} itemStyle={{ color: 'var(--popover-foreground)' }} labelStyle={{ color: 'var(--muted-foreground)', marginBottom: 4 }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="Paid" fill={GREEN} radius={[4, 4, 0, 0]} maxBarSize={48} />
                 <Bar dataKey="Pending" fill={GOLD} radius={[4, 4, 0, 0]} maxBarSize={48} />
@@ -619,7 +619,7 @@ function OverviewTab() {
                     <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ borderRadius: 10, borderColor: '#e5e3dd', fontSize: 13 }} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid var(--border)', background: 'var(--popover)', color: 'var(--popover-foreground)', fontSize: 13 }} itemStyle={{ color: 'var(--popover-foreground)' }} labelStyle={{ color: 'var(--muted-foreground)', marginBottom: 4 }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>

@@ -187,7 +187,7 @@ function HandoverForm({
         <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
           {STEP_TITLES.map((t, i) => (
             <span key={t} className={`flex items-center gap-1.5 ${i === step ? 'text-foreground' : ''}`} aria-current={i === step ? 'step' : undefined}>
-              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${i < step ? 'bg-primary text-white' : i === step ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
+              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${i < step ? 'bg-primary text-primary-foreground' : i === step ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
                 {i < step ? <Check className="h-3 w-3" /> : i + 1}
               </span>
               {t}

@@ -559,7 +559,7 @@ function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[
                       <span className="font-medium">Your quote: <span className="font-bold text-primary">{money(r.myQuote.amountMinor)}</span>
                         {r.myQuote.leadDays !== null && <span className="ml-2 text-xs text-muted-foreground">· {r.myQuote.leadDays} day{r.myQuote.leadDays === 1 ? '' : 's'} lead</span>}
                       </span>
-                      <Badge variant={r.myQuote.status === 'ACCEPTED' ? 'default' : r.myQuote.status === 'PENDING' ? 'secondary' : 'outline'} className={r.myQuote.status === 'ACCEPTED' ? 'bg-primary text-white' : ''}>
+                      <Badge variant={r.myQuote.status === 'ACCEPTED' ? 'default' : r.myQuote.status === 'PENDING' ? 'secondary' : 'outline'} className={r.myQuote.status === 'ACCEPTED' ? 'bg-primary text-primary-foreground' : ''}>
                         {r.myQuote.status}
                       </Badge>
                     </div>
@@ -636,7 +636,7 @@ function QuotesTab({ orgId }: { orgId: string }) {
               </div>
               <div className="text-right">
                 <p className="font-bold text-primary">{money(r.myQuote!.amountMinor)}</p>
-                <Badge variant={statusBadge(r.myQuote!.status)} className={r.myQuote!.status === 'ACCEPTED' ? 'bg-primary text-white' : ''}>{r.myQuote!.status}</Badge>
+                <Badge variant={statusBadge(r.myQuote!.status)} className={r.myQuote!.status === 'ACCEPTED' ? 'bg-primary text-primary-foreground' : ''}>{r.myQuote!.status}</Badge>
               </div>
             </div>
             {r.myQuote!.message && <p className="mt-2 text-sm text-muted-foreground">{r.myQuote!.message}</p>}
@@ -709,7 +709,7 @@ function BookingsTab({ orgId, onChanged }: { orgId: string; onChanged: () => voi
                 <div className="flex flex-wrap items-center gap-2">
                   <h4 className="font-semibold">{b.request.refCode}</h4>
                   <Badge variant={b.status === 'COMPLETED' ? 'default' : b.status === 'CANCELLED' ? 'outline' : 'secondary'}
-                    className={b.status === 'COMPLETED' ? 'bg-primary text-white' : ''}>
+                    className={b.status === 'COMPLETED' ? 'bg-primary text-primary-foreground' : ''}>
                     {BOOKING_STATUS_LABELS[b.status] ?? b.status}
                   </Badge>
                   <Badge variant="outline">{SERVICE_CATEGORY_LABELS[b.request.category] ?? b.request.category}</Badge>

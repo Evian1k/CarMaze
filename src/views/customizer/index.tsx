@@ -12,6 +12,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
+import { useTheme } from 'next-themes'
 import Image from 'next/image'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -73,6 +74,7 @@ export default function View() {
   const route = useHashRoute()
   const cfgParam = route.query.get('cfg')
   const user = useAuth((s) => s.user)
+  const { resolvedTheme } = useTheme()
 
   const [webgl, setWebgl] = useState<WebGLState>('checking')
   const [config, setConfig] = useState<CarConfig>(DEFAULT_CONFIG)
@@ -311,7 +313,7 @@ export default function View() {
                     </Html>
                   }
                 >
-                  <CarScene config={config} controlsRef={controlsRef} />
+                  <CarScene config={config} controlsRef={controlsRef} dark={resolvedTheme === 'dark'} />
                 </Suspense>
               </Canvas>
             )}

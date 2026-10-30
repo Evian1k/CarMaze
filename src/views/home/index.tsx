@@ -317,11 +317,11 @@ export default function HomeView() {
             </div>
           </StaggerItem>
           <StaggerItem>
-            <div className="cmz-gloss h-full rounded-xl bg-primary p-6 text-primary-foreground transition-transform duration-300 hover:-translate-y-1">
+            <div className="cmz-gloss h-full rounded-xl bg-brand-deep p-6 text-brand-deep-foreground transition-transform duration-300 hover:-translate-y-1">
               <ShieldCheck className="h-6 w-6" />
               <h3 className="mt-3 font-semibold">Verification is earned</h3>
-              <p className="mt-1 text-sm text-primary-foreground/80">Dealers and garages pass document and premises review before any &quot;Verified&quot; badge appears. It is never a subscription perk.</p>
-              <Button size="sm" variant="outline" className="mt-4 border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground" onClick={() => navigate('info?view=safety')}>How trust works</Button>
+              <p className="mt-1 text-sm text-brand-deep-foreground/80">Dealers and garages pass document and premises review before any &quot;Verified&quot; badge appears. It is never a subscription perk.</p>
+              <Button size="sm" variant="outline" className="mt-4 border-brand-deep-foreground/30 bg-transparent text-brand-deep-foreground hover:bg-brand-deep-foreground/10 hover:text-brand-deep-foreground" onClick={() => navigate('info?view=safety')}>How trust works</Button>
             </div>
           </StaggerItem>
           <StaggerItem>

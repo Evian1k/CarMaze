@@ -40,6 +40,8 @@
   --color-gold: var(--gold);
   --color-gold-foreground: var(--gold-foreground);
   --color-gold-ink: var(--gold-ink);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-deep-foreground: var(--brand-deep-foreground);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -71,6 +73,10 @@
   --gold-foreground: #202421;
   /* Dark-gold ink for text sitting on gold tints — flips lighter in dark mode */
   --gold-ink: #8a6d1f;
+  /* Deep brand-green surface for large hero bands — stays dark in BOTH modes
+   * (unlike --primary, which lightens in dark mode for buttons/accents) */
+  --brand-deep: #315e4b;
+  --brand-deep-foreground: #f7f7f5;
   --chart-1: #315e4b;
   --chart-2: #d9b878;
   --chart-3: #6e6e67;
@@ -108,6 +114,8 @@
   --gold: #d9b878;
   --gold-foreground: #202421;
   --gold-ink: #e8c884;
+  --brand-deep: #28493b;
+  --brand-deep-foreground: #f7f7f5;
   --chart-1: #5c8a73;
   --chart-2: #d9b878;
   --chart-3: #a0a099;

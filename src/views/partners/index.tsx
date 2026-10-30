@@ -100,8 +100,9 @@ export default function PartnersView() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* ── Hero ── */}
-      <section className="bg-primary text-primary-foreground">
+      {/* ── Hero — deep brand green stays dark in both themes (bg-primary
+          would flip to light sage in dark mode) ── */}
+      <section className="bg-brand-deep text-brand-deep-foreground">
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
           <Reveal>
             <Badge variant="outline" className="gap-1.5 border-gold/60 bg-gold/10 text-gold">
@@ -109,7 +110,7 @@ export default function PartnersView() {
               Verified businesses only
             </Badge>
             <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">CARMAZE Partner Network</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-primary-foreground/80 sm:text-base">
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-brand-deep-foreground/80 sm:text-base">
               Verified inspection centres, insurers, vehicle finance providers, towing operators,
               parts suppliers and vehicle transporters across Kenya.{' '}
               <strong className="font-semibold text-gold">
@@ -125,7 +126,7 @@ export default function PartnersView() {
                 <Button
                   variant="outline"
                   onClick={() => document.getElementById('my-requests')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="h-11 border-primary-foreground/30 bg-transparent px-6 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                  className="h-11 border-brand-deep-foreground/30 bg-transparent px-6 text-brand-deep-foreground hover:bg-brand-deep-foreground/10 hover:text-brand-deep-foreground"
                 >
                   <ClipboardList className="h-4 w-4" aria-hidden="true" />
                   My requests
@@ -136,11 +137,11 @@ export default function PartnersView() {
           <Reveal delay={0.12}>
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
               {TRUST_POINTS.map((t) => (
-                <div key={t.title} className="rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-4">
+                <div key={t.title} className="rounded-xl border border-brand-deep-foreground/15 bg-brand-deep-foreground/5 p-4">
                   <p className="flex items-center gap-2 text-sm font-semibold">
                     <t.icon className="h-4 w-4 text-gold" aria-hidden="true" /> {t.title}
                   </p>
-                  <p className="mt-1.5 text-xs leading-relaxed text-primary-foreground/70">{t.body}</p>
+                  <p className="mt-1.5 text-xs leading-relaxed text-brand-deep-foreground/70">{t.body}</p>
                 </div>
               ))}
             </div>
@@ -271,9 +272,9 @@ export default function PartnersView() {
                   ))}
                 </ul>
               </CardContent>
-              <div className="bg-primary p-6 text-primary-foreground lg:col-span-2 lg:p-8">
+              <div className="bg-brand-deep p-6 text-brand-deep-foreground lg:col-span-2 lg:p-8">
                 <h3 className="text-lg font-semibold">How it works</h3>
-                <ol className="mt-4 space-y-3 text-sm text-primary-foreground/85">
+                <ol className="mt-4 space-y-3 text-sm text-brand-deep-foreground/85">
                   <li className="flex gap-2.5"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-gold-foreground">1</span> Apply with your business details — it takes two minutes.</li>
                   <li className="flex gap-2.5"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-gold-foreground">2</span> The CARMAZE team reviews and verifies your business by hand.</li>
                   <li className="flex gap-2.5"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-gold-foreground">3</span> Your verified listing goes live and requests start arriving.</li>
@@ -281,7 +282,7 @@ export default function PartnersView() {
                 <Button onClick={() => setApplyOpen(true)} className="mt-6 w-full bg-gold text-gold-foreground hover:bg-gold/90">
                   Apply now — it&apos;s free
                 </Button>
-                <p className="mt-3 text-center text-xs text-primary-foreground/60">
+                <p className="mt-3 text-center text-xs text-brand-deep-foreground/60">
                   Review is manual; listing follows verification.
                 </p>
               </div>
@@ -396,7 +397,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
       aria-pressed={active}
       className={`h-8 shrink-0 whitespace-nowrap rounded-full border px-3 text-xs font-medium transition-colors ${
         active
-          ? 'border-primary bg-primary text-white'
+          ? 'border-primary bg-primary text-primary-foreground'
           : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-primary'
       }`}
     >
@@ -438,7 +439,7 @@ function MyRequests({ tick }: { tick: number }) {
                 <Card key={r.id} className="p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <Badge variant={status.variant} className={status.variant === 'default' ? 'bg-primary text-white' : ''}>
+                      <Badge variant={status.variant} className={status.variant === 'default' ? 'bg-primary text-primary-foreground' : ''}>
                         {status.label}
                       </Badge>
                       <span className="truncate text-sm font-medium">{r.partner.name}</span>

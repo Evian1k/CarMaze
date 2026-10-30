@@ -160,7 +160,7 @@ export default function RoadsideView() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge variant={r.status === 'COMPLETED' ? 'default' : r.status === 'CANCELLED' ? 'outline' : 'secondary'}
-                              className={r.status === 'COMPLETED' ? 'bg-primary text-white' : r.status === 'ACCEPTED' ? 'border-primary/40 text-primary' : ''}>
+                              className={r.status === 'COMPLETED' ? 'bg-primary text-primary-foreground' : r.status === 'ACCEPTED' ? 'border-primary/40 text-primary' : ''}>
                               {STATUS_LABELS[r.status] ?? r.status}
                             </Badge>
                             <span className="text-sm font-medium">{ISSUE_LABELS[r.issue as (typeof ISSUES)[number]] ?? r.issue}</span>

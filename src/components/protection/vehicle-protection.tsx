@@ -378,7 +378,7 @@ export function VehicleProtection() {
           <AlertDialogFooter>
             <AlertDialogCancel>Not yet</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-primary text-white hover:bg-primary/90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={(e) => { e.preventDefault(); doCollectSelf(collectSelfId) }}
             >
               Yes, I&apos;m collecting it

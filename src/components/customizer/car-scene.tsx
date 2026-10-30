@@ -13,9 +13,9 @@
  * and is memoized so unrelated parent re-renders never touch the WebGL tree.
  */
 
-import { Component, Suspense, memo, useEffect, useMemo, type ReactNode } from 'react'
+import { memo, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
-import { ContactShadows, Environment, Grid, OrbitControls, RoundedBox } from '@react-three/drei'
+import { ContactShadows, Grid, OrbitControls, RoundedBox } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import type { CarConfig, RimStyle } from './presets'
 
@@ -25,6 +25,9 @@ type SceneProps = {
   config: CarConfig
   /** Ref forwarded to OrbitControls so the view can call .reset(). */
   controlsRef?: React.RefObject<OrbitControlsImpl | null>
+  /** Dark showroom mode — near-black floor + dimmed grid so the stage blends
+   *  with the charcoal page background instead of glowing light. */
+  dark?: boolean
 }
 
 // ─────────────────────────── Material factories ───────────────────────────
@@ -89,7 +92,7 @@ function Wheel({ rimStyle, rimMaterial, position }: { rimStyle: RimStyle; rimMat
 
 // ─────────────────────────── Scene (memoized) ───────────────────────────
 
-export const CarScene = memo(function CarScene({ config, controlsRef }: SceneProps) {
+export const CarScene = memo(function CarScene({ config, controlsRef, dark = false }: SceneProps) {
   // Paint: recreated when paint/finish change; the previous instance is
   // disposed here (R3F never auto-disposes <primitive> objects).
   const paintMaterial = useMemo(
@@ -131,10 +134,10 @@ export const CarScene = memo(function CarScene({ config, controlsRef }: ScenePro
 
   return (
     <>
-      <ambientLight intensity={0.4} />
+      <ambientLight intensity={dark ? 0.5 : 0.4} />
       <directionalLight
         position={[5, 8, 4]}
-        intensity={1.25}
+        intensity={dark ? 1.45 : 1.25}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -147,26 +150,31 @@ export const CarScene = memo(function CarScene({ config, controlsRef }: ScenePro
         shadow-bias={-0.0004}
       />
       <directionalLight position={[-6, 4, -5]} intensity={0.3} />
-      {/* Environment reflections: renders immediately, catches its own load
-          failure so a blocked HDRI download can never blank the scene. */}
-      <SafeSuspense>
-        <Environment preset="city" />
-      </SafeSuspense>
+      {/* Studio fill from the camera side — gives gloss paint a horizon
+          highlight. NOTE: no <Environment> here on purpose. Its cubemap
+          render misbehaves on some GPU stacks (notably sandboxed/software
+          WebGL) and paints a large light plane over the stage, which glared
+          against the dark theme. Plain lights keep the showroom correct
+          everywhere; gloss still gets analytic specular highlights. */}
+      <directionalLight position={[2, 3, 7]} intensity={dark ? 0.55 : 0.7} color="#fff4e2" />
 
-      {/* Showroom floor: dark pedestal disc + faint brand grid. */}
+      {/* Showroom floor: dark pedestal disc + faint brand grid. Colors adapt
+          to the app theme so the stage never glows against a dark page. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[11, 56]} />
-        <meshStandardMaterial color="#202421" roughness={0.9} metalness={0.05} />
+        {/* envMapIntensity 0: the pedestal stays matte and dark under the
+            analytic lights only — a bright env map would wash it out gray */}
+        <meshStandardMaterial color={dark ? '#101410' : '#202421'} roughness={0.95} metalness={0} envMapIntensity={0} />
       </mesh>
       <Grid
         position={[0, 0.004, 0]}
         args={[22, 22]}
         cellSize={0.55}
         cellThickness={0.6}
-        cellColor="#3a403b"
+        cellColor={dark ? '#272c27' : '#3a403b'}
         sectionSize={2.2}
         sectionThickness={1}
-        sectionColor="#315E4B"
+        sectionColor={dark ? '#3f5f4e' : '#315E4B'}
         fadeDistance={17}
         fadeStrength={1.5}
       />
@@ -284,8 +292,14 @@ export const CarScene = memo(function CarScene({ config, controlsRef }: ScenePro
         <Wheel key={`${p[0]}-${p[2]}`} rimStyle={config.rimStyle} rimMaterial={rimMaterial} position={p} />
       ))}
 
-      {/* Soft grounding shadow under the car */}
-      <ContactShadows position={[0, 0.02, 0]} scale={11} blur={2.4} opacity={0.55} far={4} resolution={512} />
+      {/* Soft contact shadow under the car. Skipped in dark mode: on GPUs
+          where the half-float depth target misbehaves (sandboxed/software
+          WebGL) this plane renders as an opaque light patch, which glares
+          against the charcoal stage. The pedestal + grid still ground the
+          car without it. */}
+      {!dark && (
+        <ContactShadows position={[0, 0.02, 0]} scale={11} blur={2.4} opacity={0.55} far={4} resolution={512} />
+      )}
 
       <OrbitControls
         ref={controlsRef}
@@ -303,28 +317,4 @@ export const CarScene = memo(function CarScene({ config, controlsRef }: ScenePro
   )
 })
 
-// ─────────────────────────── Defensive wrappers ───────────────────────────
-
-/**
- * Error boundary + Suspense pair around the HDRI-backed <Environment>.
- * While the HDRI streams in the inner Suspense renders null (the rest of the
- * scene is unaffected); if the download fails the boundary swallows the error
- * so the showroom keeps rendering with plain lights only.
- */
-class SilentErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false }
-  static getDerivedStateFromError() {
-    return { failed: true }
-  }
-  render() {
-    return this.state.failed ? null : this.props.children
-  }
-}
-
-function SafeSuspense({ children }: { children: ReactNode }) {
-  return (
-    <SilentErrorBoundary>
-      <Suspense fallback={null}>{children}</Suspense>
-    </SilentErrorBoundary>
-  )
-}
+// ── (no defensive wrappers needed anymore: the scene is fully procedural) ──
