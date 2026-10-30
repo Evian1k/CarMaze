@@ -39,6 +39,7 @@
   --color-card: var(--card);
   --color-gold: var(--gold);
   --color-gold-foreground: var(--gold-foreground);
+  --color-gold-ink: var(--gold-ink);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -68,6 +69,8 @@
   --ring: #315e4b;
   --gold: #d9b878;
   --gold-foreground: #202421;
+  /* Dark-gold ink for text sitting on gold tints — flips lighter in dark mode */
+  --gold-ink: #8a6d1f;
   --chart-1: #315e4b;
   --chart-2: #d9b878;
   --chart-3: #6e6e67;
@@ -104,6 +107,7 @@
   --ring: #5c8a73;
   --gold: #d9b878;
   --gold-foreground: #202421;
+  --gold-ink: #e8c884;
   --chart-1: #5c8a73;
   --chart-2: #d9b878;
   --chart-3: #a0a099;
@@ -146,6 +150,17 @@
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: rgba(110, 110, 103, 0.55);
+}
+
+/* Dark-mode scrollbar track/thumb — lighter ink so it stays visible */
+.dark .scrollbar-thin {
+  scrollbar-color: rgba(160, 160, 153, 0.45) transparent;
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(160, 160, 153, 0.4);
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(160, 160, 153, 0.6);
 }
 
 /* ── Cinematic intro ─────────────────────────────────────────────── */
@@ -289,6 +304,16 @@
   background-size: 200% 100%;
   animation: cmz-shimmer 1.6s linear infinite;
 }
+/* Softer highlight sweep in dark mode — a 40% white glare would look wrong */
+.dark .cmz-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--muted) 40%,
+    color-mix(in srgb, var(--muted) 88%, #ffffff 12%) 50%,
+    var(--muted) 60%
+  );
+  background-size: 200% 100%;
+}
 
 /* ── Marquee ────────────────────────────────────────────────────── */
 @keyframes cmz-marquee {
@@ -315,6 +340,10 @@
 ::selection {
   background: rgba(217, 184, 120, 0.35);
   color: #202421;
+}
+.dark ::selection {
+  background: rgba(217, 184, 120, 0.3);
+  color: #edece7;
 }
 
 /* ── Button sheen sweep on hover ─────────────────────────────────── */

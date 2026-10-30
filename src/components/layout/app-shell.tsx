@@ -17,6 +17,7 @@ import { useAuth, hasAnyRole, isStaffUser } from '@/stores/auth'
 import { timeAgo } from '@/lib/format'
 import { apiGet, apiSend } from '@/lib/client'
 import { CommandPalette, openCommandPalette } from '@/components/layout/command-palette'
+import { ThemeToggle } from '@/components/layout/theme-toggle'
 import { MobileTabBar, BackToTop } from '@/components/layout/mobile-tabbar'
 
 type NotificationItem = {
@@ -115,6 +116,7 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
           </nav>
 
           <div className="flex flex-1 items-center justify-end gap-1.5 lg:flex-none">
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="icon"
@@ -248,6 +250,10 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
                     </button>
                   ))}
                   <div className="my-2 border-t border-border" />
+                  <div className="flex items-center justify-between rounded-lg px-3 py-1">
+                    <span className="text-sm font-medium text-muted-foreground">Appearance</span>
+                    <ThemeToggle />
+                  </div>
                   <button onClick={() => go('my-garage')} className="rounded-lg px-3 py-2.5 text-left text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
                     My Garage
                   </button>

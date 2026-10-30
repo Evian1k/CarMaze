@@ -2603,7 +2603,7 @@ function TestDrivesTab({ orgId }: { orgId: string }) {
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <Badge variant="outline" className={cn('px-1.5 py-0 text-[10px]', meta.badge)}>{meta.label}</Badge>
                           {d.licenceConfirmed ? (
-                            <Badge variant="outline" className="border-[#315e4b]/40 px-1.5 py-0 text-[10px] text-[#315e4b] dark:text-[#9dc3ae]">
+                            <Badge variant="outline" className="border-primary/40 px-1.5 py-0 text-[10px] text-primary dark:text-[#9dc3ae]">
                               <IdCard className="h-3 w-3" /> Licence verified
                             </Badge>
                           ) : (

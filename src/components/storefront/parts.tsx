@@ -66,11 +66,11 @@ export function OpenNowChip({ hours, className }: { hours: OpeningHours; classNa
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
-        open ? 'border-[#315e4b]/30 bg-[#315e4b]/10 text-[#315e4b]' : 'border-border bg-muted text-muted-foreground',
+        open ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border bg-muted text-muted-foreground',
         className
       )}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', open ? 'animate-pulse bg-[#315e4b]' : 'bg-muted-foreground/60')} aria-hidden="true" />
+      <span className={cn('h-1.5 w-1.5 rounded-full', open ? 'animate-pulse bg-primary' : 'bg-muted-foreground/60')} aria-hidden="true" />
       {open ? 'Open now' : 'Closed now'}
     </span>
   )
@@ -222,7 +222,7 @@ export function OpeningHoursTable({ hours }: { hours: OpeningHours }) {
             <tr key={day} className={cn('border-b border-border/50 last:border-0', day === today && 'font-semibold text-foreground')} aria-current={day === today ? 'date' : undefined}>
               <td className="py-1.5 pr-2">
                 {DAY_LABELS[day]}
-                {day === today && <span className="ml-2 rounded-full bg-[#315e4b]/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#315e4b]">Today</span>}
+                {day === today && <span className="ml-2 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Today</span>}
               </td>
               <td className="py-1.5 text-right tabular-nums">
                 {range ? (

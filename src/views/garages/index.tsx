@@ -247,7 +247,7 @@ export default function GaragesView() {
                       {g.org.location ? ` · ${g.org.location}` : ''}
                     </p>
                   </div>
-                  <Badge variant="outline" className="shrink-0 gap-1 border-[#315e4b]/40 text-[#315e4b]">
+                  <Badge variant="outline" className="shrink-0 gap-1 border-primary/40 text-primary">
                     <ShieldCheck className="h-3 w-3" /> Approved
                   </Badge>
                 </div>
@@ -325,7 +325,7 @@ export default function GaragesView() {
           </DialogHeader>
           {createdRef ? (
             <div className="space-y-4 py-2 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#315e4b]/10 text-[#315e4b]">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <ShieldCheck className="h-6 w-6" />
               </div>
               <div>

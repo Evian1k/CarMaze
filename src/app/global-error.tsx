@@ -34,6 +34,20 @@ export default function GlobalError({
 
   return (
     <html lang="en">
+      {/* Inline-only stylesheet: global CSS may be absent when this fires.
+          Dark palette mirrors the app tokens via prefers-color-scheme. */}
+      <style>{`
+        body { background: #F7F7F5; }
+        .ge-card { background: #ffffff; border: 1px solid #e5e3de; box-shadow: 0 1px 12px rgba(0,0,0,0.06); }
+        .ge-title { color: #1c1c1a; }
+        .ge-text { color: #6b6b66; }
+        @media (prefers-color-scheme: dark) {
+          body { background: #141613; }
+          .ge-card { background: #1c1f1b; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 1px 12px rgba(0,0,0,0.4); }
+          .ge-title { color: #edece7; }
+          .ge-text { color: #a0a099; }
+        }
+      `}</style>
       <body
         style={{
           margin: 0,
@@ -41,22 +55,19 @@ export default function GlobalError({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#F7F7F5',
           fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
           padding: '1.5rem',
         }}
         role="alert"
       >
         <div
+          className="ge-card"
           style={{
             width: '100%',
             maxWidth: '26rem',
             textAlign: 'center',
-            background: '#ffffff',
-            border: '1px solid #e5e3de',
             borderRadius: '1rem',
             padding: '2rem',
-            boxShadow: '0 1px 12px rgba(0,0,0,0.06)',
           }}
         >
           {/* Official brand emblem — never redrawn or re-typed */}
@@ -67,10 +78,10 @@ export default function GlobalError({
             height={96}
             style={{ width: 96, height: 96, objectFit: 'contain', borderRadius: 12 }}
           />
-          <h1 style={{ margin: '1rem 0 0.35rem', fontSize: '1.1rem', color: '#1c1c1a' }}>
+          <h1 className="ge-title" style={{ margin: '1rem 0 0.35rem', fontSize: '1.1rem' }}>
             Something hit a bump
           </h1>
-          <p style={{ margin: 0, fontSize: '0.875rem', lineHeight: 1.6, color: '#6b6b66' }}>
+          <p className="ge-text" style={{ margin: 0, fontSize: '0.875rem', lineHeight: 1.6 }}>
             The application hit an unexpected error while starting. Reloading
             usually gets you back on the road.
           </p>

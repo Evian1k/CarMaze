@@ -248,7 +248,7 @@ export default function PartnersView() {
           <Card className="overflow-hidden border-0">
             <div className="grid lg:grid-cols-5">
               <CardContent className="p-6 lg:col-span-3 lg:p-8">
-                <Badge variant="secondary" className="gap-1 bg-[#315e4b]/10 text-[#315e4b]">
+                <Badge variant="secondary" className="gap-1 bg-primary/10 text-primary">
                   <Handshake className="h-3.5 w-3.5" aria-hidden="true" /> For businesses
                 </Badge>
                 <h2 className="mt-3 text-xl font-bold sm:text-2xl">Grow with the CARMAZE Partner Network</h2>
@@ -265,7 +265,7 @@ export default function PartnersView() {
                     'No payment is charged for applying',
                   ].map((point) => (
                     <li key={point} className="flex items-start gap-2 text-sm">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#315e4b]" aria-hidden="true" />
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                       <span>{point}</span>
                     </li>
                   ))}
@@ -320,7 +320,7 @@ function PartnerCard({ partner: p, onRequest }: { partner: PublicPartner; onRequ
             {p.logoUrl ? (
               <img src={p.logoUrl} alt={`${p.name} logo`} className="h-11 w-11 rounded-full border object-cover" />
             ) : (
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#315e4b]/10 text-lg font-bold text-[#315e4b]" aria-hidden="true">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary" aria-hidden="true">
                 {initial}
               </span>
             )}
@@ -339,7 +339,7 @@ function PartnerCard({ partner: p, onRequest }: { partner: PublicPartner; onRequ
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="bg-[#315e4b]/10 text-[#315e4b]">
+          <Badge variant="secondary" className="bg-primary/10 text-primary">
             {partnerCategoryLabel(p.category)}
           </Badge>
           {p.rating != null ? (
@@ -348,7 +348,7 @@ function PartnerCard({ partner: p, onRequest }: { partner: PublicPartner; onRequ
               <span className="text-xs font-medium tabular-nums">{p.rating.toFixed(1)}</span>
             </span>
           ) : (
-            <Badge variant="outline" className="border-gold/60 text-[10px] text-[#8a6d33]">New partner</Badge>
+            <Badge variant="outline" className="border-gold/60 text-[10px] text-gold-ink">New partner</Badge>
           )}
         </div>
 
@@ -396,8 +396,8 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
       aria-pressed={active}
       className={`h-8 shrink-0 whitespace-nowrap rounded-full border px-3 text-xs font-medium transition-colors ${
         active
-          ? 'border-[#315e4b] bg-[#315e4b] text-white'
-          : 'border-border bg-background text-muted-foreground hover:border-[#315e4b]/40 hover:text-[#315e4b]'
+          ? 'border-primary bg-primary text-white'
+          : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-primary'
       }`}
     >
       {children}
@@ -422,7 +422,7 @@ function MyRequests({ tick }: { tick: number }) {
     <section id="my-requests" className="mx-auto max-w-6xl px-4 pb-12 sm:px-6" aria-label="My partner requests">
       <Reveal>
         <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <ClipboardList className="h-5 w-5 text-[#315e4b]" aria-hidden="true" /> My partner requests
+          <ClipboardList className="h-5 w-5 text-primary" aria-hidden="true" /> My partner requests
         </h2>
         {requests === null ? (
           <div className="mt-3 space-y-3">{[0, 1].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
@@ -438,7 +438,7 @@ function MyRequests({ tick }: { tick: number }) {
                 <Card key={r.id} className="p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <Badge variant={status.variant} className={status.variant === 'default' ? 'bg-[#315e4b] text-white' : ''}>
+                      <Badge variant={status.variant} className={status.variant === 'default' ? 'bg-primary text-white' : ''}>
                         {status.label}
                       </Badge>
                       <span className="truncate text-sm font-medium">{r.partner.name}</span>

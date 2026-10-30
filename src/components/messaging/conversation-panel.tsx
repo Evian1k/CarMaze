@@ -525,7 +525,7 @@ export function ConversationPanel({ scope, conversations, unavailable, onChanged
                           variant="secondary"
                           className={cn(
                             'px-1.5 py-0 text-[10px] font-normal',
-                            !closed && 'border-transparent bg-[#315e4b]/15 text-[#315e4b] dark:text-[#9dc3ae]',
+                            !closed && 'border-transparent bg-primary/15 text-primary dark:text-[#9dc3ae]',
                           )}
                         >
                           {active.status.toLowerCase()}

@@ -110,7 +110,7 @@ function ReminderDueBadge({ dueDate }: { dueDate: string }) {
   }
   if (d <= 14) {
     return (
-      <Badge className="gap-1 border-gold/60 bg-gold/20 text-[#7a5f22] dark:text-gold">
+      <Badge className="gap-1 border-gold/60 bg-gold/20 text-gold-ink dark:text-gold">
         <CalendarClock className="h-3 w-3" /> Due soon · {d === 0 ? 'today' : `${d}d`}
       </Badge>
     )
@@ -251,7 +251,7 @@ export default function View() {
             </p>
           </div>
           <div className="flex items-start gap-2.5 rounded-lg border border-gold/40 bg-gold/10 p-3.5">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#7a5f22] dark:text-gold" />
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold-ink dark:text-gold" />
             <p className="text-xs leading-relaxed text-foreground/80">
               CARMAZE does not send SMS or email reminders in this deployment — check the Alerts tab.
             </p>

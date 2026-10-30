@@ -294,7 +294,7 @@ export default function View() {
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           {/* ── Showroom canvas ── */}
-          <div className="relative h-[52vh] overflow-hidden rounded-2xl border bg-[#EFEFEA] shadow-sm lg:h-[64vh]">
+          <div className="relative h-[52vh] overflow-hidden rounded-2xl border bg-[#EFEFEA] shadow-sm lg:h-[64vh] dark:bg-[#191c18]">
             {webgl === 'ok' && (
               <Canvas
                 dpr={[1, 1.75]}

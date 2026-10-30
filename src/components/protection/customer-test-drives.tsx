@@ -201,7 +201,7 @@ function DriveCard({ drive, onCancel }: { drive: CustomerTestDrive; onCancel: ()
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <Badge variant="outline" className={cn('px-1.5 py-0 text-[10px]', meta.badge)}>{meta.label}</Badge>
                 {drive.licenceConfirmed ? (
-                  <Badge variant="outline" className="px-1.5 py-0 text-[10px] border-[#315e4b]/40 text-[#315e4b] dark:text-[#9dc3ae]">
+                  <Badge variant="outline" className="px-1.5 py-0 text-[10px] border-primary/40 text-primary dark:text-[#9dc3ae]">
                     <IdCard className="h-3 w-3" /> Licence verified
                   </Badge>
                 ) : (

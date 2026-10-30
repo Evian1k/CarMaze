@@ -117,7 +117,7 @@ export default function RoadsideView() {
           <div className="space-y-6 lg:col-span-3">
             {created ? (
               <Card className="p-6 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#315e4b]/10 text-[#315e4b]"><CheckCircle2 className="h-6 w-6" /></div>
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"><CheckCircle2 className="h-6 w-6" /></div>
                 <h2 className="mt-3 text-lg font-semibold">Request sent</h2>
                 <p className="mt-1 font-mono text-sm text-muted-foreground">{created.refCode}</p>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -160,7 +160,7 @@ export default function RoadsideView() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge variant={r.status === 'COMPLETED' ? 'default' : r.status === 'CANCELLED' ? 'outline' : 'secondary'}
-                              className={r.status === 'COMPLETED' ? 'bg-[#315e4b] text-white' : r.status === 'ACCEPTED' ? 'border-[#315e4b]/40 text-[#315e4b]' : ''}>
+                              className={r.status === 'COMPLETED' ? 'bg-primary text-white' : r.status === 'ACCEPTED' ? 'border-primary/40 text-primary' : ''}>
                               {STATUS_LABELS[r.status] ?? r.status}
                             </Badge>
                             <span className="text-sm font-medium">{ISSUE_LABELS[r.issue as (typeof ISSUES)[number]] ?? r.issue}</span>
@@ -173,8 +173,8 @@ export default function RoadsideView() {
                         </p>
                         {r.details && <p className="mt-1 text-sm text-muted-foreground">{r.details}</p>}
                         {r.status === 'ACCEPTED' && r.provider && (
-                          <div className="mt-3 rounded-lg border border-[#315e4b]/40 bg-[#315e4b]/5 p-3 text-sm">
-                            <p className="flex items-center gap-1.5 font-medium text-[#315e4b]"><ShieldCheck className="h-4 w-4" /> {r.provider.name} accepted your request</p>
+                          <div className="mt-3 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
+                            <p className="flex items-center gap-1.5 font-medium text-primary"><ShieldCheck className="h-4 w-4" /> {r.provider.name} accepted your request</p>
                             {r.provider.phone && (
                               <p className="mt-1 flex items-center gap-1.5">
                                 <Phone className="h-3.5 w-3.5" /> <a className="underline" href={`tel:${r.provider.phone}`}>{r.provider.phone}</a> — call them directly.
@@ -235,14 +235,14 @@ export default function RoadsideView() {
                     <div key={p.id} className="rounded-lg border p-3">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="font-medium leading-tight">{p.name}</h3>
-                        <Badge variant="outline" className="shrink-0 gap-1 border-[#315e4b]/40 text-[#315e4b]"><ShieldCheck className="h-3 w-3" /> Approved</Badge>
+                        <Badge variant="outline" className="shrink-0 gap-1 border-primary/40 text-primary"><ShieldCheck className="h-3 w-3" /> Approved</Badge>
                       </div>
                       <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="h-3 w-3" /> {[p.location, p.town, p.county].filter(Boolean).join(', ')}
                       </p>
                       {p.phone && (
                         <p className="mt-1.5 flex items-center gap-1.5 text-sm">
-                          <Phone className="h-3.5 w-3.5 text-[#315e4b]" />
+                          <Phone className="h-3.5 w-3.5 text-primary" />
                           <a className="underline hover:no-underline" href={`tel:${p.phone}`}>{p.phone}</a>
                         </p>
                       )}

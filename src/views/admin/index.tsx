@@ -110,7 +110,7 @@ function toneFor(status: string): Tone {
 
 const TONE_CLASSES: Record<Tone, string> = {
   green: 'border-primary/30 bg-primary/10 text-primary',
-  gold: 'border-[#c9a94e]/50 bg-[#d9b878]/15 text-[#8a6d1f] dark:text-[#d9b878]',
+  gold: 'border-[#c9a94e]/50 bg-[#d9b878]/15 text-gold-ink dark:text-[#d9b878]',
   red: 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400',
   neutral: 'border-border bg-muted text-muted-foreground',
 }
@@ -127,7 +127,7 @@ function StatCard({ label, value, sub, tone }: { label: string; value: ReactNode
   return (
     <Card className="p-4">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone === 'gold' ? 'text-[#8a6d1f] dark:text-[#d9b878]' : tone === 'red' ? 'text-red-600 dark:text-red-400' : tone === 'green' ? 'text-primary' : ''}`}>{value}</p>
+      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone === 'gold' ? 'text-gold-ink dark:text-[#d9b878]' : tone === 'red' ? 'text-red-600 dark:text-red-400' : tone === 'green' ? 'text-primary' : ''}`}>{value}</p>
       {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
     </Card>
   )
@@ -520,7 +520,7 @@ function HealthChips({ health }: { health: Health | null }) {
           className={
             i.ok
               ? 'border-primary/30 bg-primary/10 text-primary'
-              : 'border-[#c9a94e]/50 bg-[#d9b878]/15 text-[#8a6d1f] dark:text-[#d9b878]'
+              : 'border-[#c9a94e]/50 bg-[#d9b878]/15 text-gold-ink dark:text-[#d9b878]'
           }
         >
           {i.ok ? <CheckCircle2 className="mr-1 h-3 w-3" aria-hidden /> : <AlertTriangle className="mr-1 h-3 w-3" aria-hidden />}
@@ -700,7 +700,7 @@ function OpsFlag({ label, count, tab }: { label: string; count: number; tab: Tab
       className={`rounded-xl border p-3 text-left transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05] ${count > 0 ? 'border-[#c9a94e]/60 bg-[#d9b878]/10' : 'border-border bg-card'}`}
     >
       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-0.5 text-xl font-semibold tabular-nums ${count > 0 ? 'text-[#8a6d1f] dark:text-[#d9b878]' : 'text-muted-foreground'}`}>{count}</p>
+      <p className={`mt-0.5 text-xl font-semibold tabular-nums ${count > 0 ? 'text-gold-ink dark:text-[#d9b878]' : 'text-muted-foreground'}`}>{count}</p>
     </button>
   )
 }
@@ -777,7 +777,7 @@ function ApplicationsTab({ user }: { user: CurrentUser }) {
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                   {ageH !== null ? (
-                    <span className={overSla ? 'font-semibold text-[#8a6d1f] dark:text-[#d9b878]' : 'text-muted-foreground'}>
+                    <span className={overSla ? 'font-semibold text-gold-ink dark:text-[#d9b878]' : 'text-muted-foreground'}>
                       Age {Math.round(ageH)}h · SLA {app.reviewSlaHours}h {overSla ? '— over target' : ''}
                     </span>
                   ) : (
@@ -2254,12 +2254,12 @@ function BillingTab({ user }: { user: CurrentUser }) {
                   The invoice becomes REFUNDED — refunded money is not counted as revenue. The payment date is kept as history, and the written reason below is stored in the audit trail with your name. The organisation owner is notified.
                 </p>
                 {refundTarget?.type === 'SUBSCRIPTION' ? (
-                  <p className="rounded-md bg-[#d9b878]/15 px-3 py-2 text-[#8a6d1f] dark:text-[#d9b878]">
+                  <p className="rounded-md bg-[#d9b878]/15 px-3 py-2 text-gold-ink dark:text-[#d9b878]">
                     Consequence: the organisation&apos;s ACTIVE subscription is CANCELLED immediately — the money is returned, so the paid entitlement ends now.
                   </p>
                 ) : null}
                 {refundTarget?.type === 'CAMPAIGN' ? (
-                  <p className="rounded-md bg-[#d9b878]/15 px-3 py-2 text-[#8a6d1f] dark:text-[#d9b878]">
+                  <p className="rounded-md bg-[#d9b878]/15 px-3 py-2 text-gold-ink dark:text-[#d9b878]">
                     Consequence: any ACTIVE campaign linked to this invoice is ENDED immediately (money returned, promotion stops).
                   </p>
                 ) : null}

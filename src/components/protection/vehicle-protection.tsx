@@ -124,8 +124,8 @@ const CUSTODY_STATUS_META: Record<string, { label: string; badge: string }> = {
   AWAITING_APPROVAL: { label: 'Awaiting your approval', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
   WORK_IN_PROGRESS: { label: 'Work in progress', badge: 'border-indigo-300 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' },
   ROAD_TEST_REQUESTED: { label: 'Road test requested', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
-  READY_FOR_COLLECTION: { label: 'Ready for collection', badge: 'border-[#315e4b]/50 bg-[#315e4b]/10 text-[#315e4b] dark:text-[#9dc3ae]' },
-  COLLECTION_PENDING: { label: 'Collection pending', badge: 'border-[#315e4b]/50 bg-[#315e4b]/10 text-[#315e4b] dark:text-[#9dc3ae]' },
+  READY_FOR_COLLECTION: { label: 'Ready for collection', badge: 'border-primary/50 bg-primary/10 text-primary dark:text-[#9dc3ae]' },
+  COLLECTION_PENDING: { label: 'Collection pending', badge: 'border-primary/50 bg-primary/10 text-primary dark:text-[#9dc3ae]' },
   RETURNED: { label: 'Returned to you', badge: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
   DISPUTED: { label: 'Disputed', badge: 'border-destructive/50 bg-destructive/10 text-destructive' },
   INCIDENT: { label: 'Incident opened', badge: 'border-destructive/50 bg-destructive/10 text-destructive' },
@@ -378,7 +378,7 @@ export function VehicleProtection() {
           <AlertDialogFooter>
             <AlertDialogCancel>Not yet</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-[#315e4b] text-white hover:bg-[#315e4b]/90"
+              className="bg-primary text-white hover:bg-primary/90"
               onClick={(e) => { e.preventDefault(); doCollectSelf(collectSelfId) }}
             >
               Yes, I&apos;m collecting it
@@ -670,8 +670,8 @@ function CustodyDetailBody({ detail, onChanged, onCollectSelf, onAuthoriseOther,
 
       {/* Completed work */}
       {detail.status === 'READY_FOR_COLLECTION' && detail.completedWork && (
-        <div className="rounded-xl border border-[#315e4b]/40 bg-[#315e4b]/5 p-4">
-          <h4 className="flex items-center gap-2 text-sm font-semibold text-[#315e4b] dark:text-[#9dc3ae]">
+        <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
+          <h4 className="flex items-center gap-2 text-sm font-semibold text-primary dark:text-[#9dc3ae]">
             <Wrench className="h-4 w-4" /> Work completed
           </h4>
           <p className="mt-1 text-sm">{detail.completedWork}</p>

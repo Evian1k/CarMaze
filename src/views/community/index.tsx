@@ -419,7 +419,7 @@ function PostCard({
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {post.isSponsored ? (
-              <Badge className="gap-1 border-gold/60 bg-gold/20 text-[#7a5f22] dark:text-gold">
+              <Badge className="gap-1 border-gold/60 bg-gold/20 text-gold-ink dark:text-gold">
                 <Megaphone className="h-3 w-3" /> Sponsored
               </Badge>
             ) : null}

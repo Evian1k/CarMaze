@@ -111,7 +111,7 @@ function RequestServiceForm({
   if (sentRef) {
     return (
       <div className="py-4 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#315e4b]/10 text-[#315e4b]">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
           <CheckCircle2 className="h-6 w-6" />
         </div>
         <h3 className="mt-3 text-lg font-semibold">Request sent</h3>
@@ -130,7 +130,7 @@ function RequestServiceForm({
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           Request service
-          <Badge variant="outline" className="gap-1 border-gold/60 text-[#8a6d33]">
+          <Badge variant="outline" className="gap-1 border-gold/60 text-gold-ink">
             <BadgeCheck className="h-3.5 w-3.5 text-gold" aria-hidden="true" />
             Verified
           </Badge>
@@ -260,7 +260,7 @@ function ApplyForm({ onApplied, onClose }: { onApplied: () => void; onClose: () 
   if (result) {
     return (
       <div className="py-4 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#315e4b]/10 text-[#315e4b]">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
           <CheckCircle2 className="h-6 w-6" />
         </div>
         <h3 className="mt-3 text-lg font-semibold">Application received</h3>
@@ -295,7 +295,7 @@ function ApplyForm({ onApplied, onClose }: { onApplied: () => void; onClose: () 
         </DialogDescription>
       </DialogHeader>
 
-      <div className="rounded-lg border border-gold/50 bg-gold/10 p-3 text-xs leading-relaxed text-[#6b5527]">
+      <div className="rounded-lg border border-gold/50 bg-gold/10 p-3 text-xs leading-relaxed text-gold-ink">
         <ul className="list-inside list-disc space-y-1">
           <li>Applications are reviewed by the CARMAZE team — we verify every business by hand.</li>
           <li>A listing appears in the public directory only after business verification is complete.</li>

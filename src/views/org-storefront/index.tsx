@@ -218,7 +218,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Service areas</p>
                   <div className="flex flex-wrap gap-1.5">
                     {org.serviceAreas.map((a) => (
-                      <Badge key={a} variant="outline" className="border-[#315e4b]/30 text-[#315e4b]">{a}</Badge>
+                      <Badge key={a} variant="outline" className="border-primary/30 text-primary">{a}</Badge>
                     ))}
                   </div>
                 </div>
@@ -397,7 +397,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
                       <StaggerItem key={r.id}>
                         <article className="rounded-xl border border-border bg-card p-4">
                           <div className="flex items-center gap-2.5">
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#315e4b]/10 text-sm font-bold text-[#315e4b]" aria-hidden="true">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary" aria-hidden="true">
                               {r.authorName.slice(0, 2).toUpperCase()}
                             </span>
                             <div className="min-w-0">
@@ -495,19 +495,19 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
 
         {/* ── i) Trust strip ── */}
         <Reveal className="mt-12">
-          <footer className="flex flex-col items-center gap-1.5 rounded-xl border border-[#315e4b]/20 bg-[#315e4b]/5 px-4 py-5 text-center" aria-label="Trust information">
-            <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm font-medium text-[#315e4b]">
+          <footer className="flex flex-col items-center gap-1.5 rounded-xl border border-primary/20 bg-primary/5 px-4 py-5 text-center" aria-label="Trust information">
+            <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm font-medium text-primary">
               <Award className="h-4 w-4" aria-hidden="true" />
               {data.verified ? 'Verified by CARMAZE' : 'Listed on CARMAZE'}
-              <span aria-hidden="true" className="text-[#315e4b]/40">·</span> Member since {year}
+              <span aria-hidden="true" className="text-primary/40">·</span> Member since {year}
               {isGarage && stats.completedJobs != null && (
                 <>
-                  <span aria-hidden="true" className="text-[#315e4b]/40">·</span> <CountUp value={stats.completedJobs} className="font-bold" /> completed {stats.completedJobs === 1 ? 'job' : 'jobs'}
+                  <span aria-hidden="true" className="text-primary/40">·</span> <CountUp value={stats.completedJobs} className="font-bold" /> completed {stats.completedJobs === 1 ? 'job' : 'jobs'}
                 </>
               )}
               {!isGarage && stats.listingCount != null && (
                 <>
-                  <span aria-hidden="true" className="text-[#315e4b]/40">·</span> <CountUp value={stats.listingCount} className="font-bold" /> live {stats.listingCount === 1 ? 'listing' : 'listings'}
+                  <span aria-hidden="true" className="text-primary/40">·</span> <CountUp value={stats.listingCount} className="font-bold" /> live {stats.listingCount === 1 ? 'listing' : 'listings'}
                 </>
               )}
             </p>

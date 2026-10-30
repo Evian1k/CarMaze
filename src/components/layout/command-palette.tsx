@@ -4,9 +4,11 @@
  * Opens with Cmd/Ctrl+K, the header search button, or "/" shortcut. */
 
 import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
 import {
   Car, Wrench, LifeBuoy, Users, Sparkles, Store, LayoutDashboard, User,
   Search, LogIn, LogOut, KeyRound, Settings, FolderKanban, Home, CircleHelp, Handshake,
+  SunMoon,
 } from 'lucide-react'
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty,
@@ -23,6 +25,7 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const { user, logout } = useAuth()
+  const { resolvedTheme, setTheme } = useTheme()
 
   useEffect(() => {
     const onOpen = () => setOpen(true)
@@ -116,6 +119,20 @@ export function CommandPalette() {
             </CommandGroup>
           </>
         )}
+
+        <CommandSeparator />
+        <CommandGroup heading="Appearance">
+          <CommandItem
+            value="toggle theme dark light mode appearance"
+            onSelect={() => {
+              setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+              setOpen(false)
+            }}
+          >
+            <SunMoon className="mr-2 h-4 w-4 text-muted-foreground" />
+            Switch to <span className="font-medium">{resolvedTheme === 'dark' ? 'light' : 'dark'}</span>&nbsp;mode
+          </CommandItem>
+        </CommandGroup>
 
         <CommandSeparator />
         <CommandGroup heading="Account">

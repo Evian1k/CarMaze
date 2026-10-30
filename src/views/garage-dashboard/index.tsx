@@ -122,7 +122,7 @@ export default function GarageDashboardView() {
   if (!loading && !user) {
     return (
       <div className="mx-auto max-w-md px-4 py-20 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#315e4b]/10 text-[#315e4b]"><Wrench className="h-7 w-7" /></div>
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary"><Wrench className="h-7 w-7" /></div>
         <h1 className="mt-4 text-2xl font-bold">Garage Dashboard</h1>
         <p className="mt-2 text-sm text-muted-foreground">Sign in with your garage account to manage services, quotes, bookings and reviews.</p>
         <Button className="mt-6" onClick={() => navigate('signin')}>Sign in</Button>
@@ -181,7 +181,7 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{activeGarage.org.name}</h1>
-            <Badge variant="outline" className="gap-1 border-[#315e4b]/40 text-[#315e4b]"><ShieldCheck className="h-3 w-3" /> Approved garage</Badge>
+            <Badge variant="outline" className="gap-1 border-primary/40 text-primary"><ShieldCheck className="h-3 w-3" /> Approved garage</Badge>
           </div>
           <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
             <MapPin className="h-3.5 w-3.5" />
@@ -534,7 +534,7 @@ function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[
                       <Badge variant="outline">{REQUEST_STATUS_LABELS[r.status] ?? r.status}</Badge>
                       {r.configId && (
                         <button
-                          className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-[#315e4b] hover:bg-muted"
+                          className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-primary hover:bg-muted"
                           onClick={() => navigate(`customizer?cfg=${r.configId}`)}
                         >
                           <Settings2 className="h-3 w-3" /> 3D configuration
@@ -554,12 +554,12 @@ function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[
                 <p className="mt-2 text-sm text-muted-foreground">{r.description}</p>
                 {r.vehicleDesc && <p className="mt-1 text-xs text-muted-foreground">Vehicle: {r.vehicleDesc}</p>}
                 {r.myQuote && (
-                  <div className={`mt-3 rounded-lg border p-3 text-sm ${r.myQuote.status === 'ACCEPTED' ? 'border-[#315e4b]/40 bg-[#315e4b]/5' : ''}`}>
+                  <div className={`mt-3 rounded-lg border p-3 text-sm ${r.myQuote.status === 'ACCEPTED' ? 'border-primary/40 bg-primary/5' : ''}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium">Your quote: <span className="font-bold text-[#315e4b]">{money(r.myQuote.amountMinor)}</span>
+                      <span className="font-medium">Your quote: <span className="font-bold text-primary">{money(r.myQuote.amountMinor)}</span>
                         {r.myQuote.leadDays !== null && <span className="ml-2 text-xs text-muted-foreground">· {r.myQuote.leadDays} day{r.myQuote.leadDays === 1 ? '' : 's'} lead</span>}
                       </span>
-                      <Badge variant={r.myQuote.status === 'ACCEPTED' ? 'default' : r.myQuote.status === 'PENDING' ? 'secondary' : 'outline'} className={r.myQuote.status === 'ACCEPTED' ? 'bg-[#315e4b] text-white' : ''}>
+                      <Badge variant={r.myQuote.status === 'ACCEPTED' ? 'default' : r.myQuote.status === 'PENDING' ? 'secondary' : 'outline'} className={r.myQuote.status === 'ACCEPTED' ? 'bg-primary text-white' : ''}>
                         {r.myQuote.status}
                       </Badge>
                     </div>
@@ -628,15 +628,15 @@ function QuotesTab({ orgId }: { orgId: string }) {
         <EmptyBlock icon={<Send className="h-6 w-6" />} title="No quotes sent yet" desc="Quotes you send from the Requests tab appear here with their live status." />
       ) : (
         quoted.map((r) => (
-          <Card key={r.id} className={`p-4 ${r.myQuote!.status === 'ACCEPTED' ? 'border-[#315e4b]/50 bg-[#315e4b]/5' : ''}`}>
+          <Card key={r.id} className={`p-4 ${r.myQuote!.status === 'ACCEPTED' ? 'border-primary/50 bg-primary/5' : ''}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="font-medium">{r.refCode} · {SERVICE_CATEGORY_LABELS[r.category] ?? r.category}</p>
                 <p className="text-xs text-muted-foreground">{r.county}{r.town ? ` · ${r.town}` : ''} · request is {REQUEST_STATUS_LABELS[r.status] ?? r.status}</p>
               </div>
               <div className="text-right">
-                <p className="font-bold text-[#315e4b]">{money(r.myQuote!.amountMinor)}</p>
-                <Badge variant={statusBadge(r.myQuote!.status)} className={r.myQuote!.status === 'ACCEPTED' ? 'bg-[#315e4b] text-white' : ''}>{r.myQuote!.status}</Badge>
+                <p className="font-bold text-primary">{money(r.myQuote!.amountMinor)}</p>
+                <Badge variant={statusBadge(r.myQuote!.status)} className={r.myQuote!.status === 'ACCEPTED' ? 'bg-primary text-white' : ''}>{r.myQuote!.status}</Badge>
               </div>
             </div>
             {r.myQuote!.message && <p className="mt-2 text-sm text-muted-foreground">{r.myQuote!.message}</p>}
@@ -709,7 +709,7 @@ function BookingsTab({ orgId, onChanged }: { orgId: string; onChanged: () => voi
                 <div className="flex flex-wrap items-center gap-2">
                   <h4 className="font-semibold">{b.request.refCode}</h4>
                   <Badge variant={b.status === 'COMPLETED' ? 'default' : b.status === 'CANCELLED' ? 'outline' : 'secondary'}
-                    className={b.status === 'COMPLETED' ? 'bg-[#315e4b] text-white' : ''}>
+                    className={b.status === 'COMPLETED' ? 'bg-primary text-white' : ''}>
                     {BOOKING_STATUS_LABELS[b.status] ?? b.status}
                   </Badge>
                   <Badge variant="outline">{SERVICE_CATEGORY_LABELS[b.request.category] ?? b.request.category}</Badge>
@@ -982,7 +982,7 @@ function ApplicationWizard({ user, onDone }: { user: NonNullable<ReturnType<type
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
       <div className="flex items-center gap-2">
-        <Wrench className="h-6 w-6 text-[#315e4b]" />
+        <Wrench className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">List your garage on CARMAZE</h1>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
@@ -991,7 +991,7 @@ function ApplicationWizard({ user, onDone }: { user: NonNullable<ReturnType<type
 
       <div className="mt-6 flex items-center gap-2" aria-hidden="true">
         {[1, 2, 3].map((s) => (
-          <div key={s} className={`h-1.5 flex-1 rounded-full ${s <= step ? 'bg-[#315e4b]' : 'bg-muted'}`} />
+          <div key={s} className={`h-1.5 flex-1 rounded-full ${s <= step ? 'bg-primary' : 'bg-muted'}`} />
         ))}
       </div>
       <p className="mt-2 text-xs text-muted-foreground">Step {step} of 3</p>
@@ -1312,8 +1312,8 @@ const CUSTODY_META: Record<string, { label: string; badge: string }> = {
   AWAITING_APPROVAL: { label: 'Awaiting customer approval', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
   WORK_IN_PROGRESS: { label: 'Work in progress', badge: 'border-indigo-300 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' },
   ROAD_TEST_REQUESTED: { label: 'Road test requested', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
-  READY_FOR_COLLECTION: { label: 'Ready for collection', badge: 'border-[#315e4b]/50 bg-[#315e4b]/10 text-[#315e4b] dark:text-[#9dc3ae]' },
-  COLLECTION_PENDING: { label: 'Collection pending', badge: 'border-[#315e4b]/50 bg-[#315e4b]/10 text-[#315e4b] dark:text-[#9dc3ae]' },
+  READY_FOR_COLLECTION: { label: 'Ready for collection', badge: 'border-primary/50 bg-primary/10 text-primary dark:text-[#9dc3ae]' },
+  COLLECTION_PENDING: { label: 'Collection pending', badge: 'border-primary/50 bg-primary/10 text-primary dark:text-[#9dc3ae]' },
   RETURNED: { label: 'Returned', badge: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
   DISPUTED: { label: 'Disputed', badge: 'border-destructive/50 bg-destructive/10 text-destructive' },
   INCIDENT: { label: 'Incident', badge: 'border-destructive/50 bg-destructive/10 text-destructive' },
@@ -1376,8 +1376,8 @@ function CustodyTab() {
           <p className="mt-1 text-sm font-medium">Awaiting customer</p>
           <p className="text-xs text-muted-foreground">Approvals &amp; road tests</p>
         </div>
-        <div className="rounded-xl border border-[#315e4b]/40 bg-[#315e4b]/5 p-4">
-          <p className="text-3xl font-bold text-[#315e4b] dark:text-[#9dc3ae]"><CountUp value={readyForCollection} /></p>
+        <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
+          <p className="text-3xl font-bold text-primary dark:text-[#9dc3ae]"><CountUp value={readyForCollection} /></p>
           <p className="mt-1 text-sm font-medium">Ready for collection</p>
           <p className="text-xs text-muted-foreground">Verify the code at release</p>
         </div>
@@ -1437,7 +1437,7 @@ function CustodyTab() {
                       </p>
                     )}
                     {status === 'READY_FOR_COLLECTION' && (
-                      <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#315e4b] dark:text-[#9dc3ae]">
+                      <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-primary dark:text-[#9dc3ae]">
                         <KeyRound className="h-3.5 w-3.5" /> Verify collection code to release
                       </p>
                     )}
@@ -1625,8 +1625,8 @@ function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
                   </Button>
                 </div>
                 {detail.completedWork && (
-                  <div className="mt-3 rounded-lg border border-[#315e4b]/40 bg-[#315e4b]/5 p-3 text-sm">
-                    <p className="font-medium text-[#315e4b] dark:text-[#9dc3ae]">Recorded completion</p>
+                  <div className="mt-3 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
+                    <p className="font-medium text-primary dark:text-[#9dc3ae]">Recorded completion</p>
                     <p className="mt-1">{detail.completedWork}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {detail.costMinor != null && `Final cost ${money(detail.costMinor)} · `}
@@ -1706,8 +1706,8 @@ function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
 
             {/* Release verification */}
             {canVerify && !disputed && (
-              <div className="rounded-xl border border-[#315e4b]/50 bg-[#315e4b]/5 p-4">
-                <h4 className="flex items-center gap-2 text-sm font-semibold text-[#315e4b] dark:text-[#9dc3ae]">
+              <div className="rounded-xl border border-primary/50 bg-primary/5 p-4">
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-primary dark:text-[#9dc3ae]">
                   <KeyRound className="h-4 w-4" /> Release verification
                 </h4>
                 {authActive && detail.collectionAuth && (

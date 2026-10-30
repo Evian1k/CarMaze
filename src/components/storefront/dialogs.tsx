@@ -43,7 +43,7 @@ export function SuccessPanel({ refCode, title, body, children }: { refCode?: str
       transition={{ duration: 0.35, ease: [0.22, 0.61, 0.36, 1] }}
       className="space-y-4 py-2 text-center"
     >
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#315e4b]/10 text-[#315e4b]">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
         <PartyPopper className="h-6 w-6" aria-hidden="true" />
       </div>
       <div>
@@ -325,7 +325,7 @@ function QuoteForm({
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Describe the work — symptoms, parts, preferences. Minimum 15 characters."
           />
-          <p className={`text-xs ${description.trim().length < 15 ? 'text-muted-foreground' : 'text-[#315e4b]'}`}>
+          <p className={`text-xs ${description.trim().length < 15 ? 'text-muted-foreground' : 'text-primary'}`}>
             {description.trim().length}/15 characters minimum
           </p>
         </div>

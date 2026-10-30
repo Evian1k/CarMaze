@@ -2,7 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  /* config options here */
+  /* Allow the sandbox preview domain to fetch dev assets cross-origin
+   * (silences the allowedDevOrigins warning and fixes blank previews). */
+  allowedDevOrigins: ["**.space-z.ai"],
   typescript: {
     ignoreBuildErrors: true,
   },
