@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MapPin, ShieldCheck, Star, Wrench, Sparkles, ClipboardList, Search, ArrowRight, Store } from 'lucide-react'
 import { toast } from 'sonner'
+import { Reveal, Stagger, StaggerItem } from '@/components/motion/reveal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -133,13 +134,15 @@ export default function GaragesView() {
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#10130f]/90 via-[#10130f]/70 to-[#10130f]/30" aria-hidden="true" />
         <div className="relative mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-          <Badge className="mb-3 gap-1 bg-[#c9a45c] text-[#10130f] hover:bg-[#c9a45c]">
-            <ShieldCheck className="h-3.5 w-3.5" /> Verified garages
-          </Badge>
-          <h1 className="max-w-xl text-3xl font-bold text-white sm:text-4xl">Trusted garages &amp; specialists</h1>
-          <p className="mt-2 max-w-xl text-sm text-white/80 sm:text-base">
-            Compare approved garages by service and county, then request quotes — real workshops, honest pricing, no obligation.
-          </p>
+          <Reveal>
+            <Badge className="mb-3 gap-1 bg-[#c9a45c] text-[#10130f] hover:bg-[#c9a45c]">
+              <ShieldCheck className="h-3.5 w-3.5" /> Verified garages
+            </Badge>
+            <h1 className="max-w-xl text-3xl font-bold text-white sm:text-4xl">Trusted garages &amp; specialists</h1>
+            <p className="mt-2 max-w-xl text-sm text-white/80 sm:text-base">
+              Compare approved garages by service and county, then request quotes — real workshops, honest pricing, no obligation.
+            </p>
+          </Reveal>
           {user ? (
             <Button className="mt-5 gap-2" onClick={() => navigate('account?tab=requests')}>
               <ClipboardList className="h-4 w-4" /> My quote requests
@@ -199,16 +202,18 @@ export default function GaragesView() {
         </div>
 
         {/* Garage cards */}
-        <div id="garage-list" className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <Stagger id="garage-list" key={filtered === null ? 'loading' : 'loaded'} className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered === null ? (
             [0, 1, 2].map((i) => (
-              <Card key={i} className="p-4">
-                <Skeleton className="h-5 w-2/3" />
-                <Skeleton className="mt-2 h-4 w-1/3" />
-                <Skeleton className="mt-4 h-4 w-full" />
-                <Skeleton className="mt-2 h-4 w-4/5" />
-                <Skeleton className="mt-4 h-9 w-full" />
-              </Card>
+              <StaggerItem key={i}>
+                <Card className="p-4">
+                  <Skeleton className="h-5 w-2/3" />
+                  <Skeleton className="mt-2 h-4 w-1/3" />
+                  <Skeleton className="mt-4 h-4 w-full" />
+                  <Skeleton className="mt-2 h-4 w-4/5" />
+                  <Skeleton className="mt-4 h-9 w-full" />
+                </Card>
+              </StaggerItem>
             ))
           ) : filtered.length === 0 ? (
             <div className="col-span-full">
@@ -223,9 +228,9 @@ export default function GaragesView() {
             </div>
           ) : (
             filtered.slice(0, visible).map((g) => (
+              <StaggerItem key={g.org.id}>
               <Card
-                key={g.org.id}
-                className="flex cursor-pointer flex-col p-4 transition-shadow hover:shadow-md sm:p-6"
+                className="flex h-full cursor-pointer flex-col p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg sm:p-6"
                 onClick={() => navigate(`garages/${g.org.id}`)}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -290,9 +295,10 @@ export default function GaragesView() {
                   </Button>
                 </div>
               </Card>
+              </StaggerItem>
             ))
           )}
-        </div>
+        </Stagger>
 
         {filtered && filtered.length > visible && (
           <div className="mt-6 text-center">

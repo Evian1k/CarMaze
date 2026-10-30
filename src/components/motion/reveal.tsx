@@ -9,29 +9,32 @@ import { cn } from '@/lib/utils'
 
 const EASE = [0.22, 0.61, 0.36, 1] as const
 
-/** Fade-and-rise reveal when the element scrolls into view. */
+/** Fade-and-rise reveal with a soft focus pull (de-blur) when the element
+ * scrolls into view — the premium "rack focus" feel. */
 export function Reveal({
   children,
   delay = 0,
   y = 22,
   className,
   once = true,
+  blur = true,
 }: {
   children: React.ReactNode
   delay?: number
   y?: number
   className?: string
   once?: boolean
+  blur?: boolean
 }) {
   const reduce = useReducedMotion()
   if (reduce) return <div className={className}>{children}</div>
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y, ...(blur ? { filter: 'blur(7px)' } : {}) }}
+      whileInView={{ opacity: 1, y: 0, ...(blur ? { filter: 'blur(0px)' } : {}) }}
       viewport={{ once, margin: '-60px' }}
-      transition={{ duration: 0.6, delay, ease: EASE }}
+      transition={{ duration: 0.65, delay, ease: EASE }}
     >
       {children}
     </motion.div>
@@ -43,16 +46,19 @@ export function Stagger({
   children,
   className,
   gap = 0.07,
+  id,
 }: {
   children: React.ReactNode
   className?: string
   gap?: number
+  id?: string
 }) {
   const reduce = useReducedMotion()
-  if (reduce) return <div className={className}>{children}</div>
+  if (reduce) return <div className={className} id={id}>{children}</div>
   return (
     <motion.div
       className={className}
+      id={id}
       initial="hidden"
       whileInView="show"
       viewport={{ once: true, margin: '-60px' }}
@@ -64,8 +70,11 @@ export function Stagger({
 }
 
 export const staggerItem = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE } },
+  hidden: { opacity: 0, y: 24, scale: 0.965, filter: 'blur(5px)' },
+  show: {
+    opacity: 1, y: 0, scale: 1, filter: 'blur(0px)',
+    transition: { duration: 0.6, ease: EASE },
+  },
 }
 
 export function StaggerItem({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -214,6 +223,35 @@ export function Pressable({
   if (reduce) return <div className={className}>{children}</div>
   return (
     <motion.div className={className} whileTap={{ scale: 0.96 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }}>
+      {children}
+    </motion.div>
+  )
+}
+
+/** Scroll-triggered cascade for hero-adjacent rows: children slide in from
+ * alternating sides — for trust strips and module grids. */
+export function SlideIn({
+  children,
+  className,
+  from = 'left',
+  delay = 0,
+}: {
+  children: React.ReactNode
+  className?: string
+  from?: 'left' | 'right'
+  delay?: number
+}) {
+  const reduce = useReducedMotion()
+  if (reduce) return <div className={className}>{children}</div>
+  const x = from === 'left' ? -36 : 36
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, x, filter: 'blur(6px)' }}
+      whileInView={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+      viewport={{ once: true, margin: '-60px' }}
+      transition={{ duration: 0.7, delay, ease: EASE }}
+    >
       {children}
     </motion.div>
   )

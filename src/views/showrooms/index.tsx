@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
 import OrgStorefront from '@/views/org-storefront'
+import { Reveal, Stagger, StaggerItem } from '@/components/motion/reveal'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { apiGet, navigate } from '@/lib/client'
 import { timeAgo, money } from '@/lib/format'
@@ -70,13 +71,15 @@ export default function View() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Verified dealer showrooms</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Every showroom below is a registered, vetted Kenyan dealership. Buy with confidence — inspect,
-          enquire and trade with businesses that are accountable to CARMAZE standards.
-        </p>
-      </header>
+      <Reveal>
+        <header className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Verified dealer showrooms</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Every showroom below is a registered, vetted Kenyan dealership. Buy with confidence — inspect,
+            enquire and trade with businesses that are accountable to CARMAZE standards.
+          </p>
+        </header>
+      </Reveal>
 
       {!showrooms ? (
         <div className="grid gap-4 lg:grid-cols-2" aria-busy="true">
@@ -107,15 +110,15 @@ export default function View() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <Stagger className="grid gap-4 lg:grid-cols-2">
           {showrooms.map((s) => {
             const place = [s.location, s.town, s.county].filter(Boolean).join(', ')
             return (
-              <Card
-                key={s.id}
-                className="flex cursor-pointer flex-col transition-shadow hover:shadow-md"
-                onClick={() => navigate(`showrooms/${s.id}`)}
-              >
+              <StaggerItem key={s.id}>
+                <Card
+                  className="cmz-gloss flex h-full cursor-pointer flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                  onClick={() => navigate(`showrooms/${s.id}`)}
+                >
                 <CardContent className="flex flex-1 flex-col gap-4 p-6">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -194,9 +197,10 @@ export default function View() {
                   </div>
                 </CardContent>
               </Card>
+              </StaggerItem>
             )
           })}
-        </div>
+        </Stagger>
       )}
     </div>
   )

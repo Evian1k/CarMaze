@@ -44,6 +44,15 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
   const [mobileOpen, setMobileOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [scrolled, setScrolled] = useState(false)
+
+  // Header gains elevation once the page scrolls — depth cue for the blur bar.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   const active = (href: string) => route.view === href.replace(/^\//, '').split('?')[0]
 
@@ -72,7 +81,12 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground">
         Skip to content
       </a>
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md">
+      <header
+        className={cn(
+          'sticky top-0 z-40 border-b border-transparent bg-background/85 backdrop-blur-md transition-[border-color,box-shadow] duration-300',
+          scrolled && 'border-border/70 shadow-[0_1px_12px_rgba(0,0,0,0.06)]'
+        )}
+      >
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-3 sm:px-6">
           <button
             onClick={() => navigate('/')}

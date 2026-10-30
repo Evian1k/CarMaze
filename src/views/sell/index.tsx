@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Reveal } from '@/components/motion/reveal'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -295,16 +296,18 @@ export default function View() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          {editId ? 'Edit your listing' : 'Sell your car'}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {editId
-            ? `Editing ${editStatus === 'REJECTED' ? 'a rejected listing' : 'your listing'} — changes go live after re-review.`
-            : 'Free to list. Reviewed within 24 business hours. Your phone stays private until you accept an enquiry.'}
-        </p>
-      </header>
+      <Reveal>
+        <header className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            {editId ? 'Edit your listing' : 'Sell your car'}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {editId
+              ? `Editing ${editStatus === 'REJECTED' ? 'a rejected listing' : 'your listing'} — changes go live after re-review.`
+              : 'Free to list. Reviewed within 24 business hours. Your phone stays private until you accept an enquiry.'}
+          </p>
+        </header>
+      </Reveal>
 
       {editError && (
         <Alert className="mb-6">

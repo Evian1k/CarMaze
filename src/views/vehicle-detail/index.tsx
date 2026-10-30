@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import {
   Heart, Share2, Flag, Mail, BadgeCheck, MapPin, Gauge, Fuel, Cog, Car,
   Palette, CalendarDays, Eye, Hash, ShieldAlert, ArrowLeft, MessageSquareText, Phone,
@@ -24,6 +25,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
+import { Reveal, Stagger, StaggerItem } from '@/components/motion/reveal'
 import { MessageDialog, TestDriveDialog } from '@/components/storefront/dialogs'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useAuth } from '@/stores/auth'
@@ -319,13 +321,17 @@ export default function View() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Gallery */}
-        <div className="lg:col-span-2">
+        <Reveal className="lg:col-span-2" blur={false}>
           <div className="overflow-hidden rounded-xl border border-border bg-muted">
             {photos.length > 0 ? (
-              <img
+              <motion.img
+                key={activePhoto}
                 src={photos[activePhoto]?.url ?? photos[0].url}
                 alt={`${title} — photo ${activePhoto + 1} of ${photos.length}`}
                 className="aspect-[16/10] w-full object-cover"
+                initial={{ opacity: 0.35, scale: 1.035 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.45, ease: [0.22, 0.61, 0.36, 1] }}
               />
             ) : (
               <div className="flex aspect-[16/10] w-full items-center justify-center text-sm text-muted-foreground">
@@ -336,18 +342,21 @@ export default function View() {
           {photos.length > 1 && (
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-thin" role="tablist" aria-label="Vehicle photos">
               {photos.map((p, i) => (
-                <button
+                <motion.button
                   key={p.url}
                   role="tab"
                   aria-selected={i === activePhoto}
                   aria-label={`Show photo ${i + 1}`}
                   onClick={() => setActivePhoto(i)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 22 }}
                   className={`h-16 w-24 shrink-0 overflow-hidden rounded-lg border-2 transition-colors ${
                     i === activePhoto ? 'border-accent' : 'border-transparent hover:border-border'
                   }`}
                 >
                   <img src={p.url} alt="" className="h-full w-full object-cover" />
-                </button>
+                </motion.button>
               ))}
             </div>
           )}
@@ -370,7 +379,7 @@ export default function View() {
               person (or via a trusted agent) before paying. Report suspicious listings using the Report button.
             </AlertDescription>
           </Alert>
-        </div>
+        </Reveal>
 
         {/* Summary sidebar */}
         <div className="space-y-4">
@@ -510,10 +519,16 @@ export default function View() {
       {similar.length > 0 && (
         <section className="mt-10">
           <Separator className="mb-6" />
-          <h2 className="mb-4 text-xl font-bold">Similar vehicles</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {similar.map((v) => <VehicleCard key={v.id} v={v} />)}
-          </div>
+          <Reveal>
+            <h2 className="mb-4 text-xl font-bold">Similar vehicles</h2>
+          </Reveal>
+          <Stagger className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {similar.map((v) => (
+              <StaggerItem key={v.id}>
+                <VehicleCard v={v} />
+              </StaggerItem>
+            ))}
+          </Stagger>
         </section>
       )}
 

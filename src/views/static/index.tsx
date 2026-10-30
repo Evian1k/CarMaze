@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { toast } from 'sonner'
+import { Reveal } from '@/components/motion/reveal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -107,14 +108,16 @@ function About({ contact }: { contact: ContactInfo | null }) {
 
   return (
     <div className="space-y-6">
-      <section>
-        <h1 className="text-2xl font-bold">About CARMAZE</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          CARMAZE is a Kenyan automotive ecosystem connecting buyers, private sellers, verified dealerships, garages and roadside
-          providers. We combine a trusted marketplace with real operational tools — dealer onboarding with follow-up, a 3D
-          customizer connected to garage quoting, and ownership records that stay with the car.
-        </p>
-      </section>
+      <Reveal>
+        <section>
+          <h1 className="text-2xl font-bold">About CARMAZE</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            CARMAZE is a Kenyan automotive ecosystem connecting buyers, private sellers, verified dealerships, garages and roadside
+            providers. We combine a trusted marketplace with real operational tools — dealer onboarding with follow-up, a 3D
+            customizer connected to garage quoting, and ownership records that stay with the car.
+          </p>
+        </section>
+      </Reveal>
       <div className="grid gap-4 sm:grid-cols-3">
         <Card><CardContent className="flex items-start gap-3 p-4">
           <Mail className="mt-0.5 h-4 w-4 text-primary" /><div>

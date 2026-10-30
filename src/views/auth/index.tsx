@@ -3,6 +3,7 @@
 /* Sign in / Register — credential auth with httpOnly JWT session cookies. */
 
 import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,10 +52,20 @@ export default function AuthView() {
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex justify-center">
+      <motion.div
+        className="w-full max-w-md"
+        initial={{ opacity: 0, y: 26, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.6, ease: [0.22, 0.61, 0.36, 1] }}
+      >
+        <motion.div
+          className="mb-6 flex justify-center"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
+        >
           <Logo size="xl" showTagline />
-        </div>
+        </motion.div>
         <Card>
           <CardHeader>
             <CardTitle>{mode === 'signin' ? 'Welcome back' : 'Create your account'}</CardTitle>
@@ -117,7 +128,7 @@ export default function AuthView() {
           <ShieldCheck className="h-3.5 w-3.5 text-primary" />
           Passwords are hashed; sessions use secure httpOnly cookies.
         </p>
-      </div>
+      </motion.div>
     </div>
   )
 }

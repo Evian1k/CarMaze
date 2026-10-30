@@ -1,0 +1,736 @@
+     1→'use client'
+     2→
+     3→/* CARMAZE — Marketplace (#/cars)
+     4→ * Public listing search with shareable filter URLs, save-search, compare
+     5→ * (up to 3 vehicles) and AI Car Finder results section.
+     6→ */
+     7→
+     8→import { useEffect, useMemo, useState } from 'react'
+     9→import { SlidersHorizontal, SearchX, BookmarkPlus, Scale, X, Sparkles } from 'lucide-react'
+    10→import { Button } from '@/components/ui/button'
+    11→import { Card, CardContent } from '@/components/ui/card'
+    12→import { Input } from '@/components/ui/input'
+    13→import { Label } from '@/components/ui/label'
+    14→import { Badge } from '@/components/ui/badge'
+    15→import { Checkbox } from '@/components/ui/checkbox'
+    16→import { Separator } from '@/components/ui/separator'
+    17→import { Skeleton } from '@/components/ui/skeleton'
+    18→import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+    19→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    20→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    21→import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
+    22→import { AiCarFinder } from '@/components/ai/car-finder'
+    23→import { useHashRoute } from '@/hooks/use-hash-route'
+    24→import { useAuth } from '@/stores/auth'
+    25→import { apiGet, apiSend, navigate, buildQuery } from '@/lib/client'
+    26→import { KENYA_COUNTIES, VEHICLE_MAKES, BODY_TYPES, FUEL_TYPES, TRANSMISSIONS, CONDITIONS, CONDITION_LABELS, money } from '@/lib/format'
+    27→import { toast } from 'sonner'
+    28→
+    29→type SearchResponse = { vehicles: VehicleCardData[]; total: number; page: number; perPage: number }
+    30→
+    31→type FilterDraft = {
+    32→  q: string
+    33→  make: string
+    34→  model: string
+    35→  bodyType: string
+    36→  county: string
+    37→  fuel: string
+    38→  transmission: string
+    39→  condition: string
+    40→  sellerType: string
+    41→  verified: boolean
+    42→  minPrice: string // major KES for inputs; stored minor in URL
+    43→  maxPrice: string
+    44→  minYear: string
+    45→  maxYear: string
+    46→  maxMileage: string
+    47→  sort: string
+    48→  page: string
+    49→  org: string
+    50→}
+    51→
+    52→const EMPTY_DRAFT: FilterDraft = {
+    53→  q: '', make: '', model: '', bodyType: '', county: '', fuel: '', transmission: '',
+    54→  condition: '', sellerType: '', verified: false, minPrice: '', maxPrice: '',
+    55→  minYear: '', maxYear: '', maxMileage: '', sort: 'newest', page: '1', org: '',
+    56→}
+    57→
+    58→const SORT_OPTIONS = [
+    59→  { value: 'newest', label: 'Newest first' },
+    60→  { value: 'price_asc', label: 'Price: low to high' },
+    61→  { value: 'price_desc', label: 'Price: high to low' },
+    62→  { value: 'mileage_asc', label: 'Mileage: lowest' },
+    63→  { value: 'views', label: 'Most viewed' },
+    64→]
+    65→
+    66→const COMPARE_ROWS: { label: string; get: (v: VehicleCardData) => string }[] = [
+    67→  { label: 'Price', get: (v) => money(v.priceMinor, v.currency) },
+    68→  { label: 'Year', get: (v) => String(v.year) },
+    69→  { label: 'Mileage', get: (v) => `${v.mileageKm.toLocaleString()} km` },
+    70→  { label: 'Fuel', get: (v) => v.fuel.charAt(0) + v.fuel.slice(1).toLowerCase() },
+    71→  { label: 'Transmission', get: (v) => (v.transmission === 'AUTOMATIC' ? 'Automatic' : 'Manual') },
+    72→  { label: 'Body type', get: (v) => v.bodyType.charAt(0) + v.bodyType.slice(1).toLowerCase() },
+    73→  { label: 'Condition', get: (v) => CONDITION_LABELS[v.condition] ?? v.condition },
+    74→  { label: 'County', get: (v) => v.county },
+    75→  { label: 'Seller', get: (v) => (v.sellerType === 'DEALER' ? v.orgName || 'Dealer' : 'Private') },
+    76→]
+    77→
+    78→function draftFromQuery(query: URLSearchParams): FilterDraft {
+    79→  const minor = (key: string) => {
+    80→    const raw = query.get(key)
+    81→    if (!raw) return ''
+    82→    const n = Number(raw)
+    83→    return Number.isFinite(n) && n > 0 ? String(Math.round(n / 100)) : ''
+    84→  }
+    85→  return {
+    86→    q: query.get('q') ?? '',
+    87→    make: query.get('make') ?? '',
+    88→    model: query.get('model') ?? '',
+    89→    bodyType: query.get('bodyType') ?? '',
+    90→    county: query.get('county') ?? '',
+    91→    fuel: query.get('fuel') ?? '',
+    92→    transmission: query.get('transmission') ?? '',
+    93→    condition: query.get('condition') ?? '',
+    94→    sellerType: query.get('sellerType') ?? '',
+    95→    verified: query.get('verified') === '1',
+    96→    minPrice: minor('minPrice'),
+    97→    maxPrice: minor('maxPrice'),
+    98→    minYear: query.get('minYear') ?? '',
+    99→    maxYear: query.get('maxYear') ?? '',
+   100→    maxMileage: query.get('maxMileage') ?? '',
+   101→    sort: query.get('sort') || 'newest',
+   102→    page: query.get('page') || '1',
+   103→    org: query.get('org') ?? '',
+   104→  }
+   105→}
+   106→
+   107→/** Convert the editable draft into URL query params (prices back to minor units). */
+   108→function draftToParams(d: FilterDraft): Record<string, string | number | undefined> {
+   109→  const num = (s: string) => {
+   110→    const n = Number(s)
+   111→    return s !== '' && Number.isFinite(n) && n > 0 ? n : undefined
+   112→  }
+   113→  return {
+   114→    q: d.q.trim() || undefined,
+   115→    make: d.make || undefined,
+   116→    model: d.model.trim() || undefined,
+   117→    bodyType: d.bodyType || undefined,
+   118→    county: d.county || undefined,
+   119→    fuel: d.fuel || undefined,
+   120→    transmission: d.transmission || undefined,
+   121→    condition: d.condition || undefined,
+   122→    sellerType: d.sellerType || undefined,
+   123→    verified: d.verified ? '1' : undefined,
+   124→    minPrice: num(d.minPrice) ? Math.round(Number(d.minPrice) * 100) : undefined,
+   125→    maxPrice: num(d.maxPrice) ? Math.round(Number(d.maxPrice) * 100) : undefined,
+   126→    minYear: num(d.minYear),
+   127→    maxYear: num(d.maxYear),
+   128→    maxMileage: num(d.maxMileage),
+   129→    sort: d.sort && d.sort !== 'newest' ? d.sort : undefined,
+   130→    org: d.org || undefined,
+   131→    // page intentionally omitted → resets to 1 whenever filters change
+   132→  }
+   133→}
+   134→
+   135→export default function View() {
+   136→  const route = useHashRoute()
+   137→  const { user, loading: authLoading } = useAuth()
+   138→
+   139→  const [data, setData] = useState<SearchResponse | null>(null)
+   140→  const [error, setError] = useState<string | null>(null)
+   141→  const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
+   142→  const [compareIds, setCompareIds] = useState<string[]>([])
+   143→  const [compareOpen, setCompareOpen] = useState(false)
+   144→  const [aiResults, setAiResults] = useState<VehicleCardData[] | null>(null)
+   145→  const [aiMessage, setAiMessage] = useState<string>('')
+   146→  const [saveSearchOpen, setSaveSearchOpen] = useState(false)
+   147→  const [searchName, setSearchName] = useState('')
+   148→  const [filtersOpen, setFiltersOpen] = useState(false)
+   149→  const [draft, setDraft] = useState<FilterDraft>(() => draftFromQuery(route.query))
+   150→
+   151→  // ── Sync draft when the URL changes (back/forward, external nav) ──
+   152→  useEffect(() => {
+   153→    const t = setTimeout(() => setDraft(draftFromQuery(route.query)), 0)
+   154→    return () => clearTimeout(t)
+   155→  }, [route.query])
+   156→
+   157→  // ── Debounced push of draft → shareable URL (400ms) ──
+   158→  // Only navigates when a filter actually differs from the current URL, so
+   159→  // deep links that carry ?page= are not rewritten back to page 1.
+   160→  useEffect(() => {
+   161→    const t = setTimeout(() => {
+   162→      const clean = (o: Record<string, string | number | undefined>) => {
+   163→        const r: Record<string, string> = {}
+   164→        for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== '') r[k] = String(v)
+   165→        return r
+   166→      }
+   167→      const hash = window.location.hash
+   168→      const currentQ = new URLSearchParams(hash.split('?')[1] ?? '')
+   169→      const currentParams: Record<string, string> = {}
+   170→      currentQ.forEach((v, k) => { if (k !== 'page') currentParams[k] = v })
+   171→      const nextParams = clean(draftToParams(draft))
+   172→      if (JSON.stringify(nextParams) !== JSON.stringify(currentParams)) {
+   173→        navigate(buildQuery('cars', nextParams), { replace: true })
+   174→      }
+   175→    }, 400)
+   176→    return () => clearTimeout(t)
+   177→  }, [draft])
+   178→
+   179→  // ── Fetch results whenever the URL query changes ──
+   180→  const qs = route.query.toString()
+   181→  useEffect(() => {
+   182→    let active = true
+   183→    Promise.resolve().then(() => { if (active) setError(null) })
+   184→    apiGet<SearchResponse>(`/api/vehicles${qs ? `?${qs}` : ''}`)
+   185→      .then((d) => { if (active) { setData(d); setError(null) } })
+   186→      .catch((e: Error) => { if (active) setError(e.message) })
+   187→    return () => { active = false }
+   188→  }, [qs])
+   189→
+   190→  // ── Saved vehicle ids for hearts ──
+   191→  useEffect(() => {
+   192→    if (!user) {
+   193→      const t = setTimeout(() => setSavedIds(new Set()), 0)
+   194→      return () => clearTimeout(t)
+   195→    }
+   196→    let active = true
+   197→    apiGet<{ saved: { vehicle: VehicleCardData }[] }>('/api/saved-vehicles')
+   198→      .then((d) => { if (active) setSavedIds(new Set(d.saved.map((s) => s.vehicle.id))) })
+   199→      .catch(() => {})
+   200→    return () => { active = false }
+   201→  }, [user])
+   202→
+   203→  const vehicles = data?.vehicles ?? []
+   204→  const total = data?.total ?? 0
+   205→  const page = data?.page ?? 1
+   206→  const perPage = data?.perPage ?? 12
+   207→  const totalPages = Math.max(1, Math.ceil(total / perPage))
+   208→  const loading = !data && !error
+   209→  const hasFilters = useMemo(() => Object.entries(draftToParams(draft)).length > 0, [draft])
+   210→  const activeFilterCount = useMemo(() => Object.keys(draftToParams(draft)).length, [draft])
+   211→
+   212→  const compareVehicles = compareIds
+   213→    .map((id) => vehicles.find((v) => v.id === id))
+   214→    .filter((v): v is VehicleCardData => Boolean(v))
+   215→
+   216→  function patchDraft(patch: Partial<FilterDraft>) {
+   217→    setDraft((d) => ({ ...d, ...patch }))
+   218→  }
+   219→
+   220→  function goToPage(p: number) {
+   221→    const params: Record<string, string | number | undefined> = {}
+   222→    route.query.forEach((v, k) => { params[k] = v })
+   223→    params.page = p
+   224→    navigate(buildQuery('cars', params))
+   225→  }
+   226→
+   227→  function clearFilters() {
+   228→    setDraft({ ...EMPTY_DRAFT })
+   229→  }
+   230→
+   231→  function toggleCompare(v: VehicleCardData) {
+   232→    setCompareIds((ids) => {
+   233→      if (ids.includes(v.id)) return ids.filter((i) => i !== v.id)
+   234→      if (ids.length >= 3) { toast.warning('You can compare up to 3 vehicles'); return ids }
+   235→      return [...ids, v.id]
+   236→    })
+   237→  }
+   238→
+   239→  function toggleSaved(v: VehicleCardData) {
+   240→    if (!user) {
+   241→      toast.info('Sign in to save vehicles', { description: 'Your shortlist syncs across devices.' })
+   242→      navigate('signin')
+   243→      return
+   244→    }
+   245→    const saved = savedIds.has(v.id)
+   246→    // optimistic
+   247→    setSavedIds((prev) => {
+   248→      const next = new Set(prev)
+   249→      if (saved) next.delete(v.id)
+   250→      else next.add(v.id)
+   251→      return next
+   252→    })
+   253→    const done = saved
+   254→      ? apiSend(`/api/saved-vehicles?vehicleId=${v.id}`, 'DELETE')
+   255→      : apiSend('/api/saved-vehicles', 'POST', { vehicleId: v.id })
+   256→    done
+   257→      .then(() => toast.success(saved ? 'Removed from your shortlist' : 'Saved to your shortlist'))
+   258→      .catch((e: Error) => {
+   259→        setSavedIds((prev) => {
+   260→          const next = new Set(prev)
+   261→          if (saved) next.add(v.id)
+   262→          else next.delete(v.id)
+   263→          return next
+   264→        })
+   265→        toast.error(e.message)
+   266→      })
+   267→  }
+   268→
+   269→  function saveSearch() {
+   270→    const name = searchName.trim()
+   271→    if (!name) { toast.error('Give this search a name'); return }
+   272→    apiSend('/api/saved-searches', 'POST', { name, query: route.query.toString() })
+   273→      .then(() => {
+   274→        toast.success('Search saved', { description: 'You can find it under Account → Saved searches.' })
+   275→        setSaveSearchOpen(false)
+   276→        setSearchName('')
+   277→      })
+   278→      .catch((e: Error) => toast.error(e.message))
+   279→  }
+   280→
+   281→  const filterFields = (
+   282→    <div className="space-y-4">
+   283→      <div className="space-y-1.5">
+   284→        <Label htmlFor="f-q">Keyword</Label>
+   285→        <Input id="f-q" placeholder="e.g. Prado or Demio" value={draft.q} onChange={(e) => patchDraft({ q: e.target.value })} />
+   286→      </div>
+   287→
+   288→      <div className="grid grid-cols-2 gap-3">
+   289→        <div className="space-y-1.5">
+   290→          <Label>Make</Label>
+   291→          <Select value={draft.make || 'any'} onValueChange={(v) => patchDraft({ make: v === 'any' ? '' : v })}>
+   292→            <SelectTrigger className="w-full"><SelectValue placeholder="Any make" /></SelectTrigger>
+   293→            <SelectContent>
+   294→              <SelectItem value="any">Any make</SelectItem>
+   295→              {VEHICLE_MAKES.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+   296→            </SelectContent>
+   297→          </Select>
+   298→        </div>
+   299→        <div className="space-y-1.5">
+   300→          <Label htmlFor="f-model">Model</Label>
+   301→          <Input id="f-model" placeholder="Any model" value={draft.model} onChange={(e) => patchDraft({ model: e.target.value })} />
+   302→        </div>
+   303→      </div>
+   304→
+   305→      <div className="grid grid-cols-2 gap-3">
+   306→        <div className="space-y-1.5">
+   307→          <Label>Body type</Label>
+   308→          <Select value={draft.bodyType || 'any'} onValueChange={(v) => patchDraft({ bodyType: v === 'any' ? '' : v })}>
+   309→            <SelectTrigger className="w-full"><SelectValue placeholder="Any" /></SelectTrigger>
+   310→            <SelectContent>
+   311→              <SelectItem value="any">Any body</SelectItem>
+   312→              {BODY_TYPES.map((b) => <SelectItem key={b} value={b}>{b.charAt(0) + b.slice(1).toLowerCase()}</SelectItem>)}
+   313→            </SelectContent>
+   314→          </Select>
+   315→        </div>
+   316→        <div className="space-y-1.5">
+   317→          <Label>County</Label>
+   318→          <Select value={draft.county || 'any'} onValueChange={(v) => patchDraft({ county: v === 'any' ? '' : v })}>
+   319→            <SelectTrigger className="w-full"><SelectValue placeholder="Anywhere" /></SelectTrigger>
+   320→            <SelectContent>
+   321→              <SelectItem value="any">Anywhere</SelectItem>
+   322→              {KENYA_COUNTIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+   323→            </SelectContent>
+   324→          </Select>
+   325→        </div>
+   326→      </div>
+   327→
+   328→      <div className="grid grid-cols-2 gap-3">
+   329→        <div className="space-y-1.5">
+   330→          <Label>Fuel</Label>
+   331→          <Select value={draft.fuel || 'any'} onValueChange={(v) => patchDraft({ fuel: v === 'any' ? '' : v })}>
+   332→            <SelectTrigger className="w-full"><SelectValue placeholder="Any" /></SelectTrigger>
+   333→            <SelectContent>
+   334→              <SelectItem value="any">Any fuel</SelectItem>
+   335→              {FUEL_TYPES.map((f) => <SelectItem key={f} value={f}>{f.charAt(0) + f.slice(1).toLowerCase()}</SelectItem>)}
+   336→            </SelectContent>
+   337→          </Select>
+   338→        </div>
+   339→        <div className="space-y-1.5">
+   340→          <Label>Transmission</Label>
+   341→          <Select value={draft.transmission || 'any'} onValueChange={(v) => patchDraft({ transmission: v === 'any' ? '' : v })}>
+   342→            <SelectTrigger className="w-full"><SelectValue placeholder="Any" /></SelectTrigger>
+   343→            <SelectContent>
+   344→              <SelectItem value="any">Any</SelectItem>
+   345→              {TRANSMISSIONS.map((t) => <SelectItem key={t} value={t}>{t === 'AUTOMATIC' ? 'Automatic' : 'Manual'}</SelectItem>)}
+   346→            </SelectContent>
+   347→          </Select>
+   348→        </div>
+   349→      </div>
+   350→
+   351→      <div className="grid grid-cols-2 gap-3">
+   352→        <div className="space-y-1.5">
+   353→          <Label>Condition</Label>
+   354→          <Select value={draft.condition || 'any'} onValueChange={(v) => patchDraft({ condition: v === 'any' ? '' : v })}>
+   355→            <SelectTrigger className="w-full"><SelectValue placeholder="Any" /></SelectTrigger>
+   356→            <SelectContent>
+   357→              <SelectItem value="any">Any condition</SelectItem>
+   358→              {CONDITIONS.map((c) => <SelectItem key={c} value={c}>{CONDITION_LABELS[c]}</SelectItem>)}
+   359→            </SelectContent>
+   360→          </Select>
+   361→        </div>
+   362→        <div className="space-y-1.5">
+   363→          <Label>Seller</Label>
+   364→          <Select value={draft.sellerType || 'any'} onValueChange={(v) => patchDraft({ sellerType: v === 'any' ? '' : v })}>
+   365→            <SelectTrigger className="w-full"><SelectValue placeholder="Anyone" /></SelectTrigger>
+   366→            <SelectContent>
+   367→              <SelectItem value="any">Anyone</SelectItem>
+   368→              <SelectItem value="DEALER">Verified dealers</SelectItem>
+   369→              <SelectItem value="PRIVATE">Private sellers</SelectItem>
+   370→            </SelectContent>
+   371→          </Select>
+   372→        </div>
+   373→      </div>
+   374→
+   375→      <div className="grid grid-cols-2 gap-3">
+   376→        <div className="space-y-1.5">
+   377→          <Label htmlFor="f-minp">Min price (KES)</Label>
+   378→          <Input id="f-minp" inputMode="numeric" placeholder="e.g. 500,000" value={draft.minPrice} onChange={(e) => patchDraft({ minPrice: e.target.value.replace(/[^\d]/g, '') })} />
+   379→        </div>
+   380→        <div className="space-y-1.5">
+   381→          <Label htmlFor="f-maxp">Max price (KES)</Label>
+   382→          <Input id="f-maxp" inputMode="numeric" placeholder="e.g. 4,000,000" value={draft.maxPrice} onChange={(e) => patchDraft({ maxPrice: e.target.value.replace(/[^\d]/g, '') })} />
+   383→        </div>
+   384→        <div className="space-y-1.5">
+   385→          <Label htmlFor="f-miny">Year from</Label>
+   386→          <Input id="f-miny" inputMode="numeric" placeholder="2005" value={draft.minYear} onChange={(e) => patchDraft({ minYear: e.target.value.replace(/[^\d]/g, '') })} />
+   387→        </div>
+   388→        <div className="space-y-1.5">
+   389→          <Label htmlFor="f-maxy">Year to</Label>
+   390→          <Input id="f-maxy" inputMode="numeric" placeholder="2025" value={draft.maxYear} onChange={(e) => patchDraft({ maxYear: e.target.value.replace(/[^\d]/g, '') })} />
+   391→        </div>
+   392→      </div>
+   393→
+   394→      <div className="space-y-1.5">
+   395→        <Label htmlFor="f-mileage">Max mileage (km)</Label>
+   396→        <Input id="f-mileage" inputMode="numeric" placeholder="e.g. 100,000" value={draft.maxMileage} onChange={(e) => patchDraft({ maxMileage: e.target.value.replace(/[^\d]/g, '') })} />
+   397→      </div>
+   398→
+   399→      <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-muted/40 p-3">
+   400→        <Checkbox checked={draft.verified} onCheckedChange={(c) => patchDraft({ verified: c === true })} />
+   401→        <span className="text-sm">Verified dealers only</span>
+   402→      </label>
+   403→
+   404→      {hasFilters && (
+   405→        <>
+   406→          <Separator />
+   407→          <Button variant="ghost" className="h-11 w-full" onClick={clearFilters}>
+   408→            <X className="h-4 w-4" /> Clear all filters
+   409→          </Button>
+   410→        </>
+   411→      )}
+   412→    </div>
+   413→  )
+   414→
+   415→  const pageNumbers = useMemo(() => {
+   416→    const window = 2
+   417→    const out: (number | '…')[] = []
+   418→    for (let p = 1; p <= totalPages; p++) {
+   419→      if (p === 1 || p === totalPages || Math.abs(p - page) <= window) out.push(p)
+   420→      else if (out[out.length - 1] !== '…') out.push('…')
+   421→    }
+   422→    return out
+   423→  }, [page, totalPages])
+   424→
+   425→  return (
+   426→    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+   427→      <header className="mb-6">
+   428→        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Browse cars for sale</h1>
+   429→        <p className="mt-1 text-sm text-muted-foreground">
+   430→          {loading ? 'Loading listings…' : `${total.toLocaleString()} ${total === 1 ? 'vehicle' : 'vehicles'} found`}
+   431→          {draft.org && ' — filtered by showroom'}
+   432→        </p>
+   433→      </header>
+   434→
+   435→      {/* AI Car Finder */}
+   436→      {!authLoading && (
+   437→        <div className="mb-6">
+   438→          <AiCarFinder
+   439→            onResults={(results, message) => {
+   440→              setAiResults(results)
+   441→              setAiMessage(message)
+   442→            }}
+   443→          />
+   444→        </div>
+   445→      )}
+   446→
+   447→      {aiResults && (
+   448→        <section className="mb-8 rounded-xl border-2 border-accent/60 bg-accent/10 p-4 sm:p-6" aria-label="AI matches">
+   449→          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+   450→            <div className="flex items-center gap-2">
+   451→              <Sparkles className="h-5 w-5 text-accent-foreground" />
+   452→              <div>
+   453→                <h2 className="text-lg font-semibold">AI matches</h2>
+   454→                {aiMessage && <p className="text-sm text-muted-foreground">{aiMessage}</p>}
+   455→              </div>
+   456→              <Badge className="ml-1 border-none bg-accent text-accent-foreground">{aiResults.length}</Badge>
+   457→            </div>
+   458→            <Button
+   459→              variant="ghost"
+   460→              size="sm"
+   461→              className="h-11 px-4"
+   462→              onClick={() => { setAiResults(null); setAiMessage('') }}
+   463→            >
+   464→              Clear AI results
+   465→            </Button>
+   466→          </div>
+   467→          {aiResults.length === 0 ? (
+   468→            <p className="text-sm text-muted-foreground">No matches found for that description — try being more specific.</p>
+   469→          ) : (
+   470→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+   471→              {aiResults.map((v) => (
+   472→                <VehicleCard key={v.id} v={v} saved={savedIds.has(v.id)} onToggleSave={toggleSaved} />
+   473→              ))}
+   474→            </div>
+   475→          )}
+   476→        </section>
+   477→      )}
+   478→
+   479→      <div className="flex gap-6">
+   480→        {/* Desktop filter sidebar */}
+   481→        <aside className="hidden w-72 shrink-0 lg:block" aria-label="Search filters">
+   482→          <Card>
+   483→            <CardContent className="p-6">
+   484→              <div className="mb-4 flex items-center justify-between">
+   485→                <h2 className="font-semibold">Filters</h2>
+   486→                {activeFilterCount > 0 && <Badge variant="secondary">{activeFilterCount}</Badge>}
+   487→              </div>
+   488→              {filterFields}
+   489→            </CardContent>
+   490→          </Card>
+   491→        </aside>
+   492→
+   493→        <div className="min-w-0 flex-1">
+   494→          {/* Toolbar */}
+   495→          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+   496→            <div className="flex items-center gap-2">
+   497→              <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+   498→                <SheetTrigger asChild>
+   499→                  <Button variant="outline" className="h-11 px-4 lg:hidden">
+   500→                    <SlidersHorizontal className="h-4 w-4" /> Filters
+   501→                    {activeFilterCount > 0 && <Badge variant="secondary" className="ml-1">{activeFilterCount}</Badge>}
+   502→                  </Button>
+   503→                </SheetTrigger>
+   504→                <SheetContent side="left" className="w-80 overflow-y-auto scrollbar-thin">
+   505→                  <SheetHeader>
+   506→                    <SheetTitle>Filters</SheetTitle>
+   507→                  </SheetHeader>
+   508→                  <div className="px-4 pb-6">{filterFields}</div>
+   509→                </SheetContent>
+   510→              </Sheet>
+   511→              <span className="text-sm text-muted-foreground">
+   512→                {loading ? 'Searching…' : `${total.toLocaleString()} results`}
+   513→              </span>
+   514→            </div>
+   515→            <div className="flex items-center gap-2">
+   516→              <Button
+   517→                variant="outline"
+   518→                className="h-11 px-4"
+   519→                onClick={() => {
+   520→                  if (!user) {
+   521→                    toast.info('Sign in to save this search')
+   522→                    navigate('signin')
+   523→                    return
+   524→                  }
+   525→                  setSaveSearchOpen(true)
+   526→                }}
+   527→              >
+   528→                <BookmarkPlus className="h-4 w-4" /> <span className="hidden sm:inline">Save search</span>
+   529→              </Button>
+   530→              <Select value={draft.sort} onValueChange={(v) => patchDraft({ sort: v })}>
+   531→                <SelectTrigger className="h-11 w-[170px]" aria-label="Sort results">
+   532→                  <SelectValue />
+   533→                </SelectTrigger>
+   534→                <SelectContent>
+   535→                  {SORT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+   536→                </SelectContent>
+   537→              </Select>
+   538→            </div>
+   539→          </div>
+   540→
+   541→          {/* Results */}
+   542→          {loading ? (
+   543→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-busy="true">
+   544→              {Array.from({ length: 8 }).map((_, i) => (
+   545→                <Card key={i} className="overflow-hidden">
+   546→                  <Skeleton className="aspect-[16/10] w-full rounded-none" />
+   547→                  <CardContent className="space-y-2 p-4">
+   548→                    <Skeleton className="h-4 w-3/4" />
+   549→                    <Skeleton className="h-5 w-1/2" />
+   550→                    <Skeleton className="h-3 w-2/3" />
+   551→                  </CardContent>
+   552→                </Card>
+   553→              ))}
+   554→            </div>
+   555→          ) : error ? (
+   556→            <Card>
+   557→              <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+   558→                <SearchX className="h-10 w-10 text-muted-foreground" />
+   559→                <p className="font-medium">Could not load listings</p>
+   560→                <p className="text-sm text-muted-foreground">{error}</p>
+   561→                <Button className="h-11 px-5" onClick={() => navigate('cars')}>Retry</Button>
+   562→              </CardContent>
+   563→            </Card>
+   564→          ) : vehicles.length === 0 ? (
+   565→            <Card>
+   566→              <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+   567→                <SearchX className="h-10 w-10 text-muted-foreground" />
+   568→                <p className="font-medium">No vehicles match your search</p>
+   569→                <p className="max-w-sm text-sm text-muted-foreground">
+   570→                  Try widening your price range, removing a filter, or searching a different make.
+   571→                </p>
+   572→                <Button className="h-11 px-5" onClick={clearFilters}>Clear all filters</Button>
+   573→              </CardContent>
+   574→            </Card>
+   575→          ) : (
+   576→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+   577→              {vehicles.map((v) => (
+   578→                <div key={v.id} className={`relative rounded-xl ${compareIds.includes(v.id) ? 'ring-2 ring-accent ring-offset-2 ring-offset-background' : ''}`}>
+   579→                  <VehicleCard v={v} saved={savedIds.has(v.id)} onToggleSave={toggleSaved} />
+   580→                  <button
+   581→                    onClick={() => toggleCompare(v)}
+   582→                    aria-pressed={compareIds.includes(v.id)}
+   583→                    aria-label={compareIds.includes(v.id) ? `Remove ${v.make} ${v.model} from compare` : `Add ${v.make} ${v.model} to compare`}
+   584→                    className={`absolute right-12 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm transition-colors ${
+   585→                      compareIds.includes(v.id) ? 'bg-accent text-accent-foreground' : 'bg-black/35 text-white hover:bg-black/55'
+   586→                    }`}
+   587→                  >
+   588→                    <Scale className="h-4 w-4" />
+   589→                  </button>
+   590→                </div>
+   591→              ))}
+   592→            </div>
+   593→          )}
+   594→
+   595→          {/* Pagination */}
+   596→          {!loading && !error && totalPages > 1 && (
+   597→            <nav className="mt-8 flex flex-wrap items-center justify-center gap-2" aria-label="Pagination">
+   598→              <Button
+   599→                variant="outline"
+   600→                className="h-11 w-11 p-0"
+   601→                disabled={page <= 1}
+   602→                onClick={() => goToPage(page - 1)}
+   603→                aria-label="Previous page"
+   604→              >
+   605→                ‹
+   606→              </Button>
+   607→              {pageNumbers.map((p, i) =>
+   608→                p === '…' ? (
+   609→                  <span key={`gap-${i}`} className="px-1 text-muted-foreground">…</span>
+   610→                ) : (
+   611→                  <Button
+   612→                    key={p}
+   613→                    variant={p === page ? 'default' : 'outline'}
+   614→                    className="h-11 w-11 p-0"
+   615→                    onClick={() => goToPage(p)}
+   616→                    aria-current={p === page ? 'page' : undefined}
+   617→                  >
+   618→                    {p}
+   619→                  </Button>
+   620→                )
+   621→              )}
+   622→              <Button
+   623→                variant="outline"
+   624→                className="h-11 w-11 p-0"
+   625→                disabled={page >= totalPages}
+   626→                onClick={() => goToPage(page + 1)}
+   627→                aria-label="Next page"
+   628→              >
+   629→                ›
+   630→              </Button>
+   631→            </nav>
+   632→          )}
+   633→        </div>
+   634→      </div>
+   635→
+   636→      {/* Compare bar */}
+   637→      {compareIds.length > 0 && (
+   638→        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur">
+   639→          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+   640→            <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin">
+   641→              <Scale className="h-5 w-5 shrink-0 text-primary" />
+   642→              <span className="shrink-0 text-sm font-medium">
+   643→                {compareIds.length} of 3 selected
+   644→              </span>
+   645→              <div className="hidden items-center gap-1 sm:flex">
+   646→                {compareVehicles.map((v) => (
+   647→                  <Badge key={v.id} variant="secondary" className="max-w-44 gap-1 truncate">
+   648→                    <span className="truncate">{v.make} {v.model}</span>
+   649→                    <button onClick={() => toggleCompare(v)} aria-label={`Remove ${v.make} ${v.model} from compare`} className="rounded-full p-0.5 hover:bg-foreground/10">
+   650→                      <X className="h-3 w-3" />
+   651→                    </button>
+   652→                  </Badge>
+   653→                ))}
+   654→              </div>
+   655→            </div>
+   656→            <div className="flex shrink-0 items-center gap-2">
+   657→              <Button variant="ghost" className="h-11 px-3" onClick={() => setCompareIds([])}>Clear</Button>
+   658→              <Button className="h-11 px-5" disabled={compareVehicles.length < 2} onClick={() => setCompareOpen(true)}>
+   659→                Compare {compareVehicles.length >= 2 ? `(${compareVehicles.length})` : ''}
+   660→              </Button>
+   661→            </div>
+   662→          </div>
+   663→        </div>
+   664→      )}
+   665→
+   666→      {/* Compare dialog */}
+   667→      <Dialog open={compareOpen} onOpenChange={setCompareOpen}>
+   668→        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto scrollbar-thin">
+   669→          <DialogHeader>
+   670→            <DialogTitle>Compare vehicles</DialogTitle>
+   671→            <DialogDescription>Side-by-side specification comparison.</DialogDescription>
+   672→          </DialogHeader>
+   673→          {compareVehicles.length >= 2 ? (
+   674→            <div className="overflow-x-auto">
+   675→              <table className="w-full min-w-[480px] text-sm">
+   676→                <thead>
+   677→                  <tr>
+   678→                    <th className="w-28 p-2 text-left font-medium text-muted-foreground">Spec</th>
+   679→                    {compareVehicles.map((v) => (
+   680→                      <th key={v.id} className="p-2 text-left font-semibold">
+   681→                        {v.make} {v.model}
+   682→                        <div className="text-xs font-normal text-muted-foreground">{v.year}</div>
+   683→                      </th>
+   684→                    ))}
+   685→                  </tr>
+   686→                </thead>
+   687→                <tbody>
+   688→                  {COMPARE_ROWS.map((row) => (
+   689→                    <tr key={row.label} className="border-t border-border">
+   690→                      <td className="p-2 align-top text-muted-foreground">{row.label}</td>
+   691→                      {compareVehicles.map((v) => (
+   692→                        <td key={v.id} className="p-2 align-top font-medium">{row.get(v)}</td>
+   693→                      ))}
+   694→                    </tr>
+   695→                  ))}
+   696→                </tbody>
+   697→              </table>
+   698→            </div>
+   699→          ) : (
+   700→            <p className="text-sm text-muted-foreground">Select at least 2 vehicles to compare.</p>
+   701→          )}
+   702→        </DialogContent>
+   703→      </Dialog>
+   704→
+   705→      {/* Save search dialog */}
+   706→      <Dialog open={saveSearchOpen} onOpenChange={setSaveSearchOpen}>
+   707→        <DialogContent className="max-w-md">
+   708→          <DialogHeader>
+   709→            <DialogTitle>Save this search</DialogTitle>
+   710→            <DialogDescription>
+   711→              We&apos;ll keep these filters so you can rerun them anytime from your account.
+   712→            </DialogDescription>
+   713→          </DialogHeader>
+   714→          <div className="space-y-1.5">
+   715→            <Label htmlFor="search-name">Search name</Label>
+   716→            <Input
+   717→              id="search-name"
+   718→              placeholder="e.g. SUVs under 4M in Nairobi"
+   719→              value={searchName}
+   720→              onChange={(e) => setSearchName(e.target.value)}
+   721→              onKeyDown={(e) => { if (e.key === 'Enter') saveSearch() }}
+   722→            />
+   723→            {route.query.toString() && (
+   724→              <p className="truncate text-xs text-muted-foreground">Filters: {route.query.toString()}</p>
+   725→            )}
+   726→          </div>
+   727→          <DialogFooter>
+   728→            <Button variant="ghost" className="h-11" onClick={() => setSaveSearchOpen(false)}>Cancel</Button>
+   729→            <Button className="h-11 px-5" onClick={saveSearch}>Save search</Button>
+   730→          </DialogFooter>
+   731→        </DialogContent>
+   732→      </Dialog>
+   733→    </div>
+   734→  )
+   735→}
+   736→

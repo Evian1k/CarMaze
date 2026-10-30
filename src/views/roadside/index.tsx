@@ -9,6 +9,7 @@ import {
   LifeBuoy, Phone, MapPin, ShieldCheck, Clock, CheckCircle2, Wrench, AlertTriangle,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Reveal } from '@/components/motion/reveal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -92,13 +93,15 @@ export default function RoadsideView() {
       {/* Header + honest disclaimer */}
       <section className="border-b bg-[#10130f]">
         <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#c9a45c]/15 text-[#c9a45c]"><LifeBuoy className="h-6 w-6" /></span>
-            <div>
-              <h1 className="text-2xl font-bold text-white sm:text-3xl">Roadside assistance</h1>
-              <p className="text-sm text-white/70">Stuck on the road? Request help from independent garages near you.</p>
+          <Reveal>
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#c9a45c]/15 text-[#c9a45c]"><LifeBuoy className="h-6 w-6" /></span>
+              <div>
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">Roadside assistance</h1>
+                <p className="text-sm text-white/70">Stuck on the road? Request help from independent garages near you.</p>
+              </div>
             </div>
-          </div>
+          </Reveal>
           <div className="mt-5 rounded-xl border border-[#c9a45c]/40 bg-[#c9a45c]/10 p-4">
             <p className="flex items-start gap-2 text-sm text-[#e8c884]">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
 import { AiCarFinder } from '@/components/ai/car-finder'
+import { Reveal, Stagger, StaggerItem } from '@/components/motion/reveal'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useAuth } from '@/stores/auth'
 import { apiGet, apiSend, navigate, buildQuery } from '@/lib/client'
@@ -424,13 +425,15 @@ export default function View() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Browse cars for sale</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {loading ? 'Loading listings…' : `${total.toLocaleString()} ${total === 1 ? 'vehicle' : 'vehicles'} found`}
-          {draft.org && ' — filtered by showroom'}
-        </p>
-      </header>
+      <Reveal>
+        <header className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Browse cars for sale</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {loading ? 'Loading listings…' : `${total.toLocaleString()} ${total === 1 ? 'vehicle' : 'vehicles'} found`}
+            {draft.org && ' — filtered by showroom'}
+          </p>
+        </header>
+      </Reveal>
 
       {/* AI Car Finder */}
       {!authLoading && (
@@ -467,11 +470,13 @@ export default function View() {
           {aiResults.length === 0 ? (
             <p className="text-sm text-muted-foreground">No matches found for that description — try being more specific.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Stagger key={aiResults.map((r) => r.id).join(',')} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {aiResults.map((v) => (
-                <VehicleCard key={v.id} v={v} saved={savedIds.has(v.id)} onToggleSave={toggleSaved} />
+                <StaggerItem key={v.id}>
+                  <VehicleCard v={v} saved={savedIds.has(v.id)} onToggleSave={toggleSaved} />
+                </StaggerItem>
               ))}
-            </div>
+            </Stagger>
           )}
         </section>
       )}
@@ -573,9 +578,9 @@ export default function View() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Stagger className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {vehicles.map((v) => (
-                <div key={v.id} className={`relative rounded-xl ${compareIds.includes(v.id) ? 'ring-2 ring-accent ring-offset-2 ring-offset-background' : ''}`}>
+                <StaggerItem key={v.id} className={`relative rounded-xl ${compareIds.includes(v.id) ? 'ring-2 ring-accent ring-offset-2 ring-offset-background' : ''}`}>
                   <VehicleCard v={v} saved={savedIds.has(v.id)} onToggleSave={toggleSaved} />
                   <button
                     onClick={() => toggleCompare(v)}
@@ -587,9 +592,9 @@ export default function View() {
                   >
                     <Scale className="h-4 w-4" />
                   </button>
-                </div>
+                </StaggerItem>
               ))}
-            </div>
+            </Stagger>
           )}
 
           {/* Pagination */}

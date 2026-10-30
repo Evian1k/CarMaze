@@ -6,6 +6,7 @@ import {
   Users, ChevronDown, ChevronUp, X, PenLine,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Reveal } from '@/components/motion/reveal'
 import { apiGet, apiSend, buildQuery, navigate } from '@/lib/client'
 import { useAuth } from '@/stores/auth'
 import { timeAgo } from '@/lib/format'
@@ -205,17 +206,19 @@ export default function View() {
     <div className="min-h-screen bg-background pb-24 sm:pb-10">
       <div className="mx-auto max-w-3xl px-4 py-8 sm:py-10">
         {/* Header */}
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Community</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {total > 0 ? `${total} post${total === 1 ? '' : 's'} from Kenyan motorists` : 'Conversations from Kenyan motorists'}
-            </p>
-          </div>
+        <Reveal>
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Community</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {total > 0 ? `${total} post${total === 1 ? '' : 's'} from Kenyan motorists` : 'Conversations from Kenyan motorists'}
+              </p>
+            </div>
           <Button className="hidden sm:inline-flex" onClick={() => (user ? setCreateOpen(true) : navigate('signin'))}>
             <Plus className="mr-1.5 h-4 w-4" /> Create post
           </Button>
-        </header>
+          </header>
+        </Reveal>
 
         {/* Search */}
         <div className="relative mt-6">
