@@ -142,7 +142,10 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
   }
 
   function onReviewSubmitted(review: StorefrontReview) {
-    setLiveReviews([review, ...(liveReviews ?? data?.reviews ?? [])])
+    // Upsert semantics: the API may return an existing review (same org+author).
+    // De-duplicate by id so the optimistic list never renders it twice.
+    const base = liveReviews ?? data?.reviews ?? []
+    setLiveReviews([review, ...base.filter((r) => r.id !== review.id)])
   }
 
   function refetch() {
@@ -372,13 +375,14 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
                   <Users className="h-3.5 w-3.5" aria-hidden="true" /> {rating.count} {rating.count === 1 ? 'review' : 'reviews'}
                 </p>
                 <div className="mt-4">
-                  {isGarage ? (
-                    <Button variant="outline" className="h-10 w-full gap-1.5" onClick={() => setReviewOpen(true)}>
-                      <Star className="h-4 w-4" aria-hidden="true" /> Write a review
-                    </Button>
-                  ) : (
-                    <p className="text-center text-xs text-muted-foreground lg:text-left">Showroom reviews are coming soon.</p>
-                  )}
+                  <Button variant="outline" className="h-10 w-full gap-1.5" onClick={() => setReviewOpen(true)}>
+                    <Star className="h-4 w-4" aria-hidden="true" /> Write a review
+                  </Button>
+                  <p className="mt-2 text-center text-[11px] leading-relaxed text-muted-foreground lg:text-left">
+                    {isGarage
+                      ? 'Earned by completing a booked service here.'
+                      : 'Earned by completing a test drive here.'}
+                  </p>
                 </div>
               </div>
               <div>

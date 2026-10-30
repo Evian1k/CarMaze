@@ -641,7 +641,7 @@ export function ReviewDialog({
             <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" /> Review {org.name}
           </DialogTitle>
           <DialogDescription>
-            Reviews are earned: you can post after completing a booked service with this business. Be honest and specific.
+            Reviews are earned: post after a completed engagement with this business — a booked service for garages, a completed test drive for showrooms. Be honest and specific.
           </DialogDescription>
         </DialogHeader>
         <ReviewForm onOpenChange={onOpenChange} org={org} onSubmitted={onSubmitted} />

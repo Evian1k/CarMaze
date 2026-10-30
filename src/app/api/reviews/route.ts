@@ -5,14 +5,20 @@ import { route, ok, fail, ApiError, requireUser, parseBody, getIp } from '@/lib/
 import { rateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/audit'
 
+// Reviews are earned, never bought: a customer may review a business only
+// after a real, completed engagement with it.
+//   GARAGE → at least one COMPLETED service Booking with that garage.
+//   DEALER → at least one COMPLETED test-drive appointment at that showroom.
+// One review per (org, author); authors may update their own rating.
+
 // ─────────────────────────── GET (public, per org) ───────────────────────────
 
 export const GET = route(async (req: NextRequest) => {
   const orgId = new URL(req.url).searchParams.get('orgId')
   if (!orgId) return fail(400, 'VALIDATION_ERROR', 'Missing ?orgId=.')
 
-  const org = await db.org.findFirst({ where: { id: orgId, type: 'GARAGE' } })
-  if (!org) throw new ApiError(404, 'NOT_FOUND', 'Garage not found.')
+  const org = await db.org.findFirst({ where: { id: orgId } })
+  if (!org) throw new ApiError(404, 'NOT_FOUND', 'Business not found.')
 
   const reviews = await db.orgReview.findMany({
     where: { orgId },
@@ -40,7 +46,7 @@ export const GET = route(async (req: NextRequest) => {
   })
 })
 
-// ─────────────────────────── POST (auth, earned via completed booking) ───────────────────────────
+// ─────────────────────────── POST (auth, earned via completed engagement) ───────────────────────────
 
 const reviewSchema = z.object({
   orgId: z.string().min(1),
@@ -55,20 +61,29 @@ export const POST = route(async (req: NextRequest) => {
 
   const body = await parseBody(req, reviewSchema)
 
-  const org = await db.org.findFirst({ where: { id: body.orgId, type: 'GARAGE' } })
-  if (!org) throw new ApiError(404, 'NOT_FOUND', 'Garage not found.')
+  const org = await db.org.findFirst({ where: { id: body.orgId } })
+  if (!org) throw new ApiError(404, 'NOT_FOUND', 'Business not found.')
 
-  // Earned reviews only: at least one COMPLETED booking with this garage.
-  const completedBooking = await db.booking.findFirst({
-    where: { orgId: body.orgId, status: 'COMPLETED', request: { customerId: user.id } },
-  })
-  if (!completedBooking) {
-    throw new ApiError(403, 'NOT_EARNED', 'You can review a garage after completing a booked service with it.')
+  // Earned reviews only — the qualifying engagement depends on the org type.
+  if (org.type === 'GARAGE') {
+    const completedBooking = await db.booking.findFirst({
+      where: { orgId: org.id, status: 'COMPLETED', request: { customerId: user.id } },
+    })
+    if (!completedBooking) {
+      throw new ApiError(403, 'NOT_EARNED', 'You can review a garage after completing a booked service with it.')
+    }
+  } else {
+    const completedTestDrive = await db.testDrive.findFirst({
+      where: { orgId: org.id, customerId: user.id, status: 'COMPLETED' },
+    })
+    if (!completedTestDrive) {
+      throw new ApiError(403, 'NOT_EARNED', 'You can review a showroom after completing a test drive with it.')
+    }
   }
 
   // Upsert on (orgId, authorId) — authors may update their own rating.
   const existing = await db.orgReview.findUnique({
-    where: { orgId_authorId: { orgId: body.orgId, authorId: user.id } },
+    where: { orgId_authorId: { orgId: org.id, authorId: user.id } },
   })
 
   const review = existing
@@ -77,7 +92,7 @@ export const POST = route(async (req: NextRequest) => {
         data: { rating: body.rating, comment: body.comment || null },
       })
     : await db.orgReview.create({
-        data: { orgId: body.orgId, authorId: user.id, rating: body.rating, comment: body.comment || null },
+        data: { orgId: org.id, authorId: user.id, rating: body.rating, comment: body.comment || null },
       })
 
   // Loyalty: first publication of a review earns +100 points. Updates never
@@ -109,7 +124,7 @@ export const POST = route(async (req: NextRequest) => {
     actorId: user.id, actorName: user.name,
     action: existing ? 'REVIEW_UPDATED' : 'REVIEW_CREATED',
     targetType: 'ORG_REVIEW', targetId: review.id,
-    metadata: { orgId: body.orgId, rating: body.rating },
+    metadata: { orgId: org.id, orgType: org.type, rating: body.rating },
   })
 
   return ok({

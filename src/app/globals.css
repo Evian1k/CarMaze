@@ -201,6 +201,13 @@
   from { width: 0%; }
   to { width: 100%; }
 }
+/* One-shot gold shine sweep across the official emblem during the intro. */
+@keyframes cmz-logo-shine {
+  0% { transform: translateX(-140%) rotate(18deg); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateX(140%) rotate(18deg); opacity: 0; }
+}
 @keyframes cmz-eq {
   0%, 100% { transform: scaleY(0.35); }
   50% { transform: scaleY(1); }
@@ -242,6 +249,9 @@
 }
 .cmz-progress {
   animation: cmz-progress 7.4s linear both;
+}
+.cmz-logo-shine {
+  animation: cmz-logo-shine 1.5s cubic-bezier(0.4, 0, 0.2, 1) 1.05s both;
 }
 .cmz-eq span {
   animation: cmz-eq 0.9s ease-in-out infinite;
@@ -438,6 +448,7 @@
   .cmz-converge-r,
   .cmz-glow-pulse,
   .cmz-progress,
+  .cmz-logo-shine,
   .cmz-eq span,
   .cmz-shimmer,
   .cmz-marquee-track,

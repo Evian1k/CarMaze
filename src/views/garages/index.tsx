@@ -273,7 +273,7 @@ export default function GaragesView() {
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-3 text-xs text-muted-foreground">Service menu coming soon — you can still request a quote.</p>
+                  <p className="mt-3 text-xs text-muted-foreground">No services listed yet — you can still request a quote.</p>
                 )}
 
                 <div className="mt-auto flex gap-2 pt-4">

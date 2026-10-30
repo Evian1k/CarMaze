@@ -14,9 +14,10 @@ import { sessionSet } from '@/lib/safe-storage'
  *         (uses the AI-generated intro video when available, with a
  *          graceful image + CSS fallback so the site never breaks)
  *   1.4s  headlight sweeps + converging gold light trails
- *   2.6s  trails form the emblem (SVG road path draws in)
- *   3.5s  CARMAZE wordmark — letter-by-letter reveal
- *   4.5s  FIND. CONNECT. DRIVE. with expanding tracking
+ *   2.6s  official CARMAZE brand emblem reveal — bloom flash, drop-in and
+ *         a one-shot gold shine sweep. The emblem is the approved asset
+ *         (public/brand/carmaze-logo-512.png); it is never redrawn or
+ *         re-typed, and it already carries the wordmark + tagline.
  *   7.6s  automatic hand-off to the homepage
  *
  * Skippable at any moment, session-scoped, synthesised engine rumble via
@@ -24,7 +25,6 @@ import { sessionSet } from '@/lib/safe-storage'
  * prefers-reduced-motion users (page.tsx handles that).
  */
 
-const WORD = 'CARMAZE'
 const EASE_OUT = [0.22, 0.61, 0.36, 1] as const
 
 /** Synthesised low engine rumble — no audio asset required. */
@@ -234,45 +234,33 @@ export function Intro({ onDone }: { onDone: () => void }) {
           )}
         </div>
 
-        {/* ── Layer 4: emblem — road path draws itself in ── */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+        {/* ── Layer 4: official brand emblem — cinematic reveal ── */}
+        <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
           <motion.div
-            initial={{ opacity: 0, scale: 0.72 }}
-            animate={stage >= 2 ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.72 }}
-            transition={{ delay: stage >= 2 ? 0.35 : 0, duration: 0.7, ease: EASE_OUT }}
+            initial={{ opacity: 0, scale: 0.82, y: 16 }}
+            animate={stage >= 2 ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.82, y: 16 }}
+            transition={{ delay: stage >= 2 ? 0.35 : 0, duration: 0.85, ease: EASE_OUT }}
             className="relative"
           >
-            <span className="cmz-glow-pulse absolute inset-0" aria-hidden>
-              <EmblemGlyph />
+            {/* warm bloom + pulsing halo behind the emblem */}
+            <span className="absolute -inset-10 rounded-full bg-[#D9B878]/20 blur-3xl" aria-hidden />
+            <span className="cmz-glow-pulse absolute -inset-3 rounded-full" aria-hidden />
+            {/* one-shot gold shine, clipped to the circular emblem */}
+            <span className="absolute inset-0 overflow-hidden rounded-full" aria-hidden>
+              {stage >= 2 && (
+                <span className="cmz-logo-shine absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+              )}
             </span>
-            <EmblemGlyph animated={stage >= 2} />
+            {/* The official asset — wordmark and tagline live inside it. */}
+            <img
+              src="/brand/carmaze-logo-512.png"
+              alt="CARMAZE — Find. Connect. Drive."
+              width={512}
+              height={512}
+              className="relative h-44 w-44 select-none object-contain drop-shadow-[0_18px_50px_rgba(0,0,0,0.7)] sm:h-60 sm:w-60"
+              draggable={false}
+            />
           </motion.div>
-
-          {/* wordmark — letters cascade in */}
-          <div className="mt-5 flex overflow-hidden" aria-label="CARMAZE">
-            {WORD.split('').map((ch, i) => (
-              <motion.span
-                key={i}
-                aria-hidden
-                className={`text-3xl font-bold tracking-[0.12em] sm:text-5xl ${i >= 3 ? 'text-[#D9B878]' : 'text-[#F7F7F5]'}`}
-                initial={{ y: '110%', opacity: 0 }}
-                animate={stage >= 2 ? { y: 0, opacity: 1 } : { y: '110%', opacity: 0 }}
-                transition={{ delay: stage >= 2 ? 0.55 + i * 0.055 : 0, duration: 0.55, ease: EASE_OUT }}
-              >
-                {ch}
-              </motion.span>
-            ))}
-          </div>
-
-          {/* tagline with expanding tracking */}
-          <motion.p
-            className="mt-3 text-[11px] font-medium tracking-[0.42em] text-white/65 sm:text-sm"
-            initial={{ opacity: 0, letterSpacing: '0.18em' }}
-            animate={stage >= 2 ? { opacity: 1, letterSpacing: '0.42em' } : { opacity: 0 }}
-            transition={{ delay: stage >= 2 ? 1.35 : 0, duration: 0.9, ease: EASE_OUT }}
-          >
-            FIND. CONNECT. DRIVE.
-          </motion.p>
         </div>
       </div>
 
@@ -311,37 +299,5 @@ export function Intro({ onDone }: { onDone: () => void }) {
         <div className="cmz-progress h-full bg-gradient-to-r from-[#D9B878]/60 via-[#D9B878] to-[#D9B878]/60" />
       </div>
     </motion.div>
-  )
-}
-
-/** CARMAZE road emblem as inline SVG so the road stroke can draw itself. */
-function EmblemGlyph({ animated = false }: { animated?: boolean }) {
-  return (
-    <svg viewBox="0 0 40 40" className="h-16 w-16 sm:h-20 sm:w-20" role="img" aria-label="CARMAZE emblem">
-      <circle cx="20" cy="20" r="19" fill="#12241B" />
-      <circle cx="20" cy="20" r="19" fill="none" stroke="#D9B878" strokeOpacity="0.55" strokeWidth="1.4" />
-      <motion.path
-        d="M11 31 C 17 26, 15 20, 20 15 C 24 11, 26 10, 29 8"
-        fill="none"
-        stroke="#D9B878"
-        strokeWidth="3.4"
-        strokeLinecap="round"
-        initial={animated ? { pathLength: 0 } : { pathLength: 1 }}
-        animate={{ pathLength: 1 }}
-        transition={{ delay: animated ? 0.45 : 0, duration: 1.1, ease: 'easeInOut' }}
-      />
-      <motion.path
-        d="M11 31 C 17 26, 15 20, 20 15 C 24 11, 26 10, 29 8"
-        fill="none"
-        stroke="#F7F7F5"
-        strokeOpacity="0.85"
-        strokeWidth="1.1"
-        strokeLinecap="round"
-        strokeDasharray="2.6 3.4"
-        initial={animated ? { opacity: 0 } : { opacity: 1 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: animated ? 1.15 : 0, duration: 0.5 }}
-      />
-    </svg>
   )
 }
