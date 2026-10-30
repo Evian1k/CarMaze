@@ -307,6 +307,125 @@
   color: #202421;
 }
 
+/* ── Button sheen sweep on hover ─────────────────────────────────── */
+.cmz-sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.cmz-sheen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.28) 50%, transparent 60%);
+  transform: translateX(-120%) skewX(-12deg);
+  transition: transform 0.75s cubic-bezier(0.22, 0.61, 0.36, 1);
+  pointer-events: none;
+}
+.cmz-sheen:hover::before {
+  transform: translateX(120%) skewX(-12deg);
+}
+
+/* ── Animated aurora backdrop for hero sections ──────────────────── */
+@keyframes cmz-aurora {
+  0%, 100% { transform: translate(-8%, -4%) rotate(-2deg) scale(1); opacity: 0.55; }
+  33% { transform: translate(6%, 4%) rotate(2deg) scale(1.08); opacity: 0.75; }
+  66% { transform: translate(-4%, 8%) rotate(-1deg) scale(1.04); opacity: 0.6; }
+}
+.cmz-aurora::before,
+.cmz-aurora::after {
+  content: "";
+  position: absolute;
+  width: 60vw;
+  height: 60vw;
+  max-width: 720px;
+  max-height: 720px;
+  border-radius: 9999px;
+  filter: blur(90px);
+  pointer-events: none;
+}
+.cmz-aurora::before {
+  top: -30%;
+  right: -12%;
+  background: radial-gradient(closest-side, rgba(49, 94, 75, 0.35), transparent 70%);
+  animation: cmz-aurora 16s ease-in-out infinite;
+}
+.cmz-aurora::after {
+  bottom: -35%;
+  left: -10%;
+  background: radial-gradient(closest-side, rgba(217, 184, 120, 0.3), transparent 70%);
+  animation: cmz-aurora 19s ease-in-out infinite reverse;
+}
+
+/* ── Verified/featured gradient border ───────────────────────────── */
+@keyframes cmz-border-flow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.cmz-gradient-border {
+  position: relative;
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    linear-gradient(120deg, #315e4b, #d9b878, #7fa08e, #315e4b) border-box;
+  background-size: 100% 100%, 300% 100%;
+  border: 1.5px solid transparent;
+  animation: cmz-border-flow 8s ease infinite;
+}
+
+/* ── Unread / live pulse dot ─────────────────────────────────────── */
+@keyframes cmz-ping-soft {
+  0% { transform: scale(1); opacity: 0.7; }
+  80%, 100% { transform: scale(2.4); opacity: 0; }
+}
+.cmz-pulse-dot {
+  position: relative;
+}
+.cmz-pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: cmz-ping-soft 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ── Success checkmark draw ──────────────────────────────────────── */
+@keyframes cmz-check-draw {
+  to { stroke-dashoffset: 0; }
+}
+.cmz-check path {
+  stroke-dasharray: 32;
+  stroke-dashoffset: 32;
+  animation: cmz-check-draw 0.6s cubic-bezier(0.65, 0, 0.45, 1) 0.15s forwards;
+}
+.cmz-check circle {
+  stroke-dasharray: 76;
+  stroke-dashoffset: 76;
+  animation: cmz-check-draw 0.7s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+/* ── Cinematic image reveal (clip-path wipe) ─────────────────────── */
+@keyframes cmz-img-reveal {
+  from { clip-path: inset(0 100% 0 0); transform: scale(1.08); }
+  to { clip-path: inset(0 0 0 0); transform: scale(1); }
+}
+.cmz-img-reveal {
+  animation: cmz-img-reveal 1.1s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* ── Underline draw for inline links ─────────────────────────────── */
+.cmz-underline-draw {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1.5px;
+  background-repeat: no-repeat;
+  background-position: left 100%;
+  transition: background-size 0.4s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.cmz-underline-draw:hover {
+  background-size: 100% 1.5px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cmz-streak,
   .cmz-fade-up,
@@ -322,11 +441,26 @@
   .cmz-eq span,
   .cmz-shimmer,
   .cmz-marquee-track,
-  .cmz-float {
+  .cmz-float,
+  .cmz-aurora::before,
+  .cmz-aurora::after,
+  .cmz-pulse-dot::after,
+  .cmz-check path,
+  .cmz-check circle,
+  .cmz-img-reveal,
+  .cmz-gradient-border {
     animation-duration: 0.01s !important;
     animation-iteration-count: 1 !important;
   }
-  .cmz-gloss::after {
+  .cmz-gloss::after,
+  .cmz-sheen::before {
     display: none;
+  }
+  .cmz-img-reveal {
+    clip-path: none;
+  }
+  .cmz-check path,
+  .cmz-check circle {
+    stroke-dashoffset: 0;
   }
 }

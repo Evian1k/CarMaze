@@ -22,6 +22,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
+import { VehicleProtection } from '@/components/protection/vehicle-protection'
+import { useHashRoute } from '@/hooks/use-hash-route'
 
 // ─────────────────────────────── Types ───────────────────────────────
 
@@ -128,6 +130,13 @@ function totalSpent(v: GarageVehicle): number {
 
 export default function View() {
   const { user, loading: authLoading } = useAuth()
+  const route = useHashRoute()
+
+  const SECTIONS = ['garage', 'protection'] as const
+  const [section, setSection] = useState<string>(() => {
+    const t = route.query.get('tab')
+    return SECTIONS.includes(t as (typeof SECTIONS)[number]) ? t! : 'garage'
+  })
 
   const [vehicles, setVehicles] = useState<GarageVehicle[]>([])
   const [dataLoading, setDataLoading] = useState(true)
@@ -222,6 +231,17 @@ export default function View() {
           </Button>
         </header>
 
+        <Tabs value={section} onValueChange={setSection} className="mt-6">
+          <TabsList className="h-auto w-full justify-start overflow-x-auto py-0.5">
+            <TabsTrigger value="garage" className="min-h-11 gap-1.5">
+              <Car className="h-4 w-4" /> My vehicles
+            </TabsTrigger>
+            <TabsTrigger value="protection" className="min-h-11 gap-1.5">
+              <ShieldCheck className="h-4 w-4" /> Vehicle protection
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="garage" className="mt-0">
         <div className="mt-4 space-y-3">
           <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 p-3.5">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -354,6 +374,12 @@ export default function View() {
             ) : null}
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="protection" className="mt-2">
+            <VehicleProtection />
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Dialogs */}

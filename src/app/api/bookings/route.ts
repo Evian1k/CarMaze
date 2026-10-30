@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, requireUser, parseBody } from '@/lib/api'
-import { notify, notifyMany, audit } from '@/lib/notify'
+import { notify, notifyMany } from '@/lib/notify'
 import { audit as writeAudit } from '@/lib/audit'
 
 // NOTE: audit is imported once below (see `recordAudit`) to keep call sites uniform.

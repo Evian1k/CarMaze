@@ -463,8 +463,8 @@ export default function View() {
                   facts={{
                     make: form.make,
                     model: form.model,
-                    year: form.year,
-                    mileageKm: form.mileage,
+                    year: Number(form.year) || undefined,
+                    mileageKm: Number(form.mileage) || undefined,
                     condition: form.condition,
                     features,
                     notes: form.color ? `Colour: ${form.color}${form.town ? ` · Located in ${form.town}` : ''}` : '',

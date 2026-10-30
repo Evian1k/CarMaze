@@ -1,0 +1,1561 @@
+     1→# CRITICAL ADDITION — INDIVIDUAL GARAGE AND SHOWROOM STOREFRONTS
+     2→
+     3→This is a mandatory core feature of CARMAZE. Do not implement garages and showrooms merely as entries in a directory. Every approved garage and showroom must have its own dedicated public business storefront inside CARMAZE, together with a separate private business management portal.
+     4→
+     5→## 1. GARAGE STOREFRONTS
+     6→
+     7→Create a dedicated CARMAZE Garages section.
+     8→
+     9→Customers should be able to:
+    10→- Browse all approved garages.
+    11→- Search by garage name, service, location and speciality.
+    12→- Filter by ratings, availability and services.
+    13→- View nearby or relevant providers.
+    14→- Compare garages.
+    15→- View verified business information.
+    16→- Open an individual garage's dedicated public profile.
+    17→- Contact the garage directly through CARMAZE.
+    18→- Request a quote.
+    19→- Book an available service.
+    20→- Follow the status of their request or booking.
+    21→- Review the garage after a completed service.
+    22→
+    23→Every garage must have its own public page with:
+    24→
+    25→- Garage name and logo.
+    26→- Cover image and photo gallery.
+    27→- Verification status.
+    28→- Description and specialities.
+    29→- Physical location and service areas.
+    30→- Opening hours.
+    31→- Services offered.
+    32→- Published pricing or quote-based pricing.
+    33→- Available service packages.
+    34→- Customer reviews and ratings.
+    35→- Portfolio of previous work, with appropriate permission.
+    36→- Contact and support options.
+    37→- Booking and quote-request options.
+    38→- Frequently asked questions.
+    39→
+    40→Examples of garage categories:
+    41→- Accident and collision repair.
+    42→- Bodywork and painting.
+    43→- Mechanical repairs.
+    44→- Electrical diagnostics.
+    45→- Vehicle servicing.
+    46→- Vehicle customisation.
+    47→- Performance upgrades.
+    48→- Wheels and tyres.
+    49→- Car detailing.
+    50→- Towing and roadside assistance.
+    51→- Vehicle inspection.
+    52→
+    53→## 2. GARAGE CUSTOMER SUPPORT SYSTEM
+    54→
+    55→When a customer opens a garage profile, provide a prominent **Contact Garage** action.
+    56→
+    57→This must open an in-app conversation with that specific garage.
+    58→
+    59→Implement:
+    60→- Real-time messaging where supported.
+    61→- Persistent conversation history.
+    62→- Text messages.
+    63→- Image attachments for accident damage or vehicle issues.
+    64→- Quote requests.
+    65→- Booking references.
+    66→- Read and delivery status where supported.
+    67→- Push, email or in-app notifications where configured.
+    68→- Unread message indicators.
+    69→- Support request creation.
+    70→- Conversation history for the customer and authorised garage staff.
+    71→
+    72→Customers must be able to describe their problem, attach photographs, ask questions and receive responses from the garage's authorised support staff.
+    73→
+    74→For example:
+    75→
+    76→A customer has an accident, enters CARMAZE, opens Garages, searches for accident repair, selects a garage in their area, opens its profile, uploads photographs of the damaged vehicle, explains the accident damage and contacts the garage. The garage reviews the request and responds with questions, a quotation or an inspection appointment.
+    77→
+    78→The same process must work for customisation, servicing, mechanical repairs and other supported services.
+    79→
+    80→Every conversation must belong to the correct customer and garage. Other garages must never be able to see it.
+    81→
+    82→## 3. SHOWROOM STOREFRONTS
+    83→
+    84→Create a dedicated CARMAZE Showrooms section.
+    85→
+    86→Customers should be able to:
+    87→- Browse approved showrooms.
+    88→- Search by name, location, vehicle make and inventory.
+    89→- Filter showrooms by available stock and relevant vehicle categories.
+    90→- Compare dealerships.
+    91→- Open an individual showroom's dedicated page.
+    92→- Explore its current vehicle inventory.
+    93→- View showroom details and business information.
+    94→- Contact its sales team.
+    95→- Ask about a specific vehicle.
+    96→- Request a viewing appointment.
+    97→- Submit a purchase enquiry.
+    98→- Receive follow-up messages.
+    99→- Track their enquiries and appointments.
+   100→
+   101→Every showroom must have its own public storefront containing:
+   102→
+   103→- Showroom name and logo.
+   104→- Cover photograph and gallery.
+   105→- Verification status.
+   106→- Business description.
+   107→- Location and opening hours.
+   108→- Available inventory.
+   109→- Vehicle categories and brands.
+   110→- Sales team contact options.
+   111→- Customer reviews.
+   112→- Special offers and clearly labelled promotions.
+   113→- Enquiry and viewing appointment options.
+   114→- Business support and frequently asked questions.
+   115→
+   116→Each vehicle displayed in a showroom must link to its actual CARMAZE vehicle listing.
+   117→
+   118→If a vehicle is sold, reserved or unavailable, the public storefront must reflect the genuine listing status.
+   119→
+   120→## 4. SHOWROOM SALES SUPPORT
+   121→
+   122→Every showroom must have an in-app sales and support inbox.
+   123→
+   124→Customers must be able to:
+   125→- Start a conversation with a showroom.
+   126→- Ask about a particular vehicle.
+   127→- Share a vehicle listing.
+   128→- Ask about availability and specifications.
+   129→- Request more photographs where available.
+   130→- Request a viewing appointment.
+   131→- Ask about purchase procedures.
+   132→- Receive follow-up messages.
+   133→
+   134→Every enquiry must reference the relevant showroom and, where applicable, the specific vehicle listing.
+   135→
+   136→The showroom's authorised sales representatives must be able to manage conversations, assign enquiries to staff, record follow-up tasks, and update enquiry statuses.
+   137→
+   138→Example statuses:
+   139→- New enquiry.
+   140→- Assigned.
+   141→- Contacted.
+   142→- Follow-up required.
+   143→- Viewing requested.
+   144→- Viewing confirmed.
+   145→- Negotiation.
+   146→- Converted.
+   147→- Closed.
+   148→- Cancelled.
+   149→
+   150→## 5. SEPARATE PUBLIC STOREFRONTS AND PRIVATE BUSINESS PORTALS
+   151→
+   152→Do not confuse a business's public page with its private dashboard.
+   153→
+   154→Every garage and showroom needs two distinct experiences:
+   155→
+   156→**PUBLIC STOREFRONT**
+   157→Visible to CARMAZE customers. It presents the business, its services or inventory, contact options, reviews and offers.
+   158→
+   159→**PRIVATE BUSINESS PORTAL**
+   160→Accessible only to the business owner and authorised employees. It manages inventory or services, customer enquiries, conversations, bookings, staff, analytics, billing and business settings.
+   161→
+   162→The public storefront must be automatically connected to the actual data managed through the private portal.
+   163→
+   164→When a garage changes its services, the public page must reflect the approved changes.
+   165→
+   166→When a showroom adds or updates an approved vehicle listing, its public inventory must update accordingly.
+   167→
+   168→Do not create two separate data sources for the same business.
+   169→
+   170→## 6. MULTI-STAFF SUPPORT AND PERMISSIONS
+   171→
+   172→Allow business owners to invite authorised employees.
+   173→
+   174→For showrooms, support:
+   175→- Owner.
+   176→- Sales manager.
+   177→- Sales representative.
+   178→- Inventory manager.
+   179→- Customer support.
+   180→- Finance staff where needed.
+   181→
+   182→For garages, support:
+   183→- Owner.
+   184→- Manager.
+   185→- Service advisor.
+   186→- Mechanic or technician.
+   187→- Customer support.
+   188→- Finance staff where needed.
+   189→
+   190→Each role must have explicit permissions.
+   191→
+   192→For example, a mechanic should not automatically have permission to modify garage billing, and a sales representative should not automatically have permission to change dealership ownership.
+   193→
+   194→Business owners must be able to revoke employee access.
+   195→
+   196→## 7. CUSTOMER EXPERIENCE AND NAVIGATION
+   197→
+   198→Make Garages and Showrooms first-class destinations in the CARMAZE navigation.
+   199→
+   200→The customer experience should be:
+   201→
+   202→CARMAZE HOME → GARAGES → SEARCH/FILTER → SELECT GARAGE → VIEW GARAGE STOREFRONT → CONTACT GARAGE → CHAT/QUOTE/BOOKING → TRACK REQUEST.
+   203→
+   204→For dealerships:
+   205→
+   206→CARMAZE HOME → SHOWROOMS → SEARCH/FILTER → SELECT SHOWROOM → VIEW SHOWROOM STOREFRONT → EXPLORE INVENTORY → SELECT VEHICLE → CONTACT SALES → CHAT/ENQUIRY/VIEWING → FOLLOW UP.
+   207→
+   208→Ensure customers can access their messages, enquiries, appointments and bookings from one unified account dashboard.
+   209→
+   210→## 8. BACKEND, DATABASE AND SECURITY
+   211→
+   212→Create the required persistent data models and API workflows for:
+   213→
+   214→- Business storefronts.
+   215→- Garage profiles.
+   216→- Showroom profiles.
+   217→- Business locations.
+   218→- Services and service categories.
+   219→- Vehicle inventory.
+   220→- Business staff and permissions.
+   221→- Conversations.
+   222→- Conversation participants.
+   223→- Messages.
+   224→- Attachments.
+   225→- Read states.
+   226→- Enquiries.
+   227→- Quote requests.
+   228→- Quotes.
+   229→- Appointments.
+   230→- Bookings.
+   231→- Notifications.
+   232→- Reviews.
+   233→- Support tickets.
+   234→- Audit events.
+   235→
+   236→Enforce organisation-level isolation on every business-specific operation.
+   237→
+   238→Only approved businesses should be publicly discoverable, unless a clearly defined limited-preview state is implemented.
+   239→
+   240→Only authorised employees may access business conversations and customer requests.
+   241→
+   242→Validate file attachments, restrict their size and type, and store them securely.
+   243→
+   244→Do not expose customer phone numbers, private attachments or conversations publicly.
+   245→
+   246→Implement rate limiting, reporting, blocking, spam controls and appropriate message retention policies.
+   247→
+   248→## 9. ACCEPTANCE TESTS
+   249→
+   250→Do not consider this feature complete until these workflows work:
+   251→
+   252→1. A garage registers and submits its business information.
+   253→2. The garage is reviewed and approved.
+   254→3. Its public storefront becomes visible.
+   255→4. The garage owner adds services through the private portal.
+   256→5. Approved services appear on the public storefront.
+   257→6. A customer finds the garage through search.
+   258→7. The customer opens its profile and sends a message.
+   259→8. The garage receives and responds to the message.
+   260→9. The customer receives the response.
+   261→10. The customer submits a quote or booking request.
+   262→11. The garage processes that request.
+   263→12. The customer can track the outcome.
+   264→
+   265→Repeat the same complete verification process for a showroom, including adding inventory, publishing approved vehicles, receiving enquiries, responding to customers and arranging viewing appointments.
+   266→
+   267→Test that one business cannot access another business's conversations, inventory management, customer information or private dashboard.
+   268→
+   269→These are core CARMAZE requirements, not optional future enhancements.           # CARMAZE — CUSTOMER COMMUNICATION, BUSINESS AUTOMATION AND REVENUE ENGINE IMPLEMENTATION
+   270→
+   271→You are continuing development of CARMAZE. Act as the lead engineer, business systems architect, payment integration engineer and product strategist.
+   272→
+   273→Implement the following requirements directly into the existing project. Inspect the current codebase first, preserve working functionality, connect all features to the actual backend and database, and test the complete workflows.
+   274→
+   275→These are mandatory product and business requirements.
+   276→
+   277→# 1. CUSTOMER COMMUNICATION SYSTEM
+   278→
+   279→Implement a unified CARMAZE messaging and communication system connecting customers with individual garages and showrooms.
+   280→
+   281→Our chosen model is:
+   282→
+   283→**In-app communication first, with external phone and WhatsApp contact available only when the business enables it.**
+   284→
+   285→Every approved showroom and garage must have its own communication inbox.
+   286→
+   287→### Customer experience
+   288→
+   289→When a customer opens a business storefront, they should see:
+   290→- Message Business.
+   291→- Request a Quote, where applicable.
+   292→- Book a Service, where applicable.
+   293→- Call Business, if enabled.
+   294→- WhatsApp Business, if enabled.
+   295→- Business opening hours.
+   296→- Expected response information where reliable.
+   297→
+   298→Customers must be able to initiate conversations without unnecessarily exposing their personal phone numbers.
+   299→
+   300→Implement:
+   301→- Persistent conversations.
+   302→- Real-time messaging where supported.
+   303→- Text messages.
+   304→- Image attachments.
+   305→- Vehicle listing references.
+   306→- Garage service request references.
+   307→- Quote and booking references.
+   308→- Message timestamps.
+   309→- Unread indicators.
+   310→- Read and delivery states where supported.
+   311→- Notifications.
+   312→- Conversation history.
+   313→- Report and block functions.
+   314→- Spam prevention and rate limiting.
+   315→
+   316→### External contact controls
+   317→
+   318→Business owners must be able to configure whether customers can:
+   319→- Call their business.
+   320→- Open their WhatsApp contact.
+   321→- Use in-app messaging only.
+   322→- Access contact options during business hours or at all times.
+   323→
+   324→External contact must never be falsely presented as an in-app conversation.
+   325→
+   326→Record external contact actions as contact events where appropriate and permitted. Do not claim to know what happened inside WhatsApp or an ordinary phone call.
+   327→
+   328→### Important commercial rule
+   329→
+   330→CARMAZE must not artificially block legitimate customer communication to force payments.
+   331→
+   332→Our paid features should offer additional value, not make the basic platform unusable.
+   333→
+   334→# 2. GARAGE BOOKINGS AND QUOTATION ENGINE
+   335→
+   336→Implement our chosen hybrid service model:
+   337→
+   338→**Fixed-price services support direct booking. Complex or variable-price services use quotation requests.**
+   339→
+   340→### Direct booking
+   341→
+   342→For services with a confirmed price, scope and availability, allow customers to:
+   343→1. Select the garage.
+   344→2. Select a service.
+   345→3. Review its description and price.
+   346→4. Select an available appointment.
+   347→5. Submit a booking.
+   348→6. Receive confirmation or a pending-confirmation status.
+   349→7. Receive reminders.
+   350→8. Track booking progress.
+   351→9. Complete the service.
+   352→10. Leave a review after completion.
+   353→
+   354→Examples include:
+   355→- Car washing.
+   356→- Basic servicing packages.
+   357→- Certain tyre services.
+   358→- Detailing packages.
+   359→- Other services with clear fixed pricing.
+   360→
+   361→Prevent double booking and ensure that actual availability is respected.
+   362→
+   363→### Quotation requests
+   364→
+   365→For complex work, allow customers to:
+   366→1. Select a garage.
+   367→2. Describe the problem.
+   368→3. Upload photographs.
+   369→4. Provide vehicle information.
+   370→5. Select the service location.
+   371→6. Submit the request.
+   372→7. Receive an acknowledgement.
+   373→8. Receive a genuine garage quotation.
+   374→9. Ask questions.
+   375→10. Accept or decline the quote.
+   376→11. Convert an accepted quote into a booking where appropriate.
+   377→
+   378→Examples include:
+   379→- Accident repairs.
+   380→- Engine repairs.
+   381→- Bodywork.
+   382→- Customisation.
+   383→- Performance modifications.
+   384→- Electrical diagnostics.
+   385→- Complex mechanical work.
+   386→
+   387→Every quote must include:
+   388→- Description of work.
+   389→- Price or price range where appropriate.
+   390→- Currency.
+   391→- Included and excluded work.
+   392→- Validity period.
+   393→- Estimated completion time where the garage can reasonably provide one.
+   394→- Additional terms.
+   395→
+   396→Do not present an estimate as a guaranteed final price.
+   397→
+   398→### Garage business controls
+   399→
+   400→Garage owners and authorised staff must be able to:
+   401→- Configure services.
+   402→- Choose fixed-price or quotation-based pricing.
+   403→- Set available hours.
+   404→- Manage appointment slots.
+   405→- Accept or decline bookings.
+   406→- Submit quotations.
+   407→- Assign technicians or service advisors.
+   408→- Update job statuses.
+   409→- Track completed jobs.
+   410→- Record cancellations.
+   411→- Manage customer conversations.
+   412→
+   413→Create a full audit history for important changes.
+   414→
+   415→# 3. SHOWROOM CENTRAL INBOX AND AUTOMATIC SALES ASSIGNMENT
+   416→
+   417→Our chosen model is:
+   418→
+   419→**One central showroom inbox with automatic assignment to authorised sales representatives and follow-up automation.**
+   420→
+   421→### Customer workflow
+   422→
+   423→1. A customer opens a showroom storefront.
+   424→2. Selects a vehicle.
+   425→3. Clicks Enquire About This Vehicle.
+   426→4. Sends a message or requests a viewing.
+   427→5. CARMAZE creates a unique enquiry.
+   428→6. The enquiry enters the showroom's central inbox.
+   429→7. The assignment engine selects an eligible sales representative.
+   430→8. The representative receives a notification.
+   431→9. The representative responds.
+   432→10. The customer follows the conversation in CARMAZE.
+   433→
+   434→### Assignment engine
+   435→
+   436→Support configurable assignment methods:
+   437→- Round-robin.
+   438→- Available representative.
+   439→- Product or vehicle category.
+   440→- Branch or location.
+   441→- Manual assignment by a manager.
+   442→
+   443→Respect employee permissions, workloads and availability.
+   444→
+   445→If assignment fails, retain the enquiry in the central inbox and alert an authorised manager.
+   446→
+   447→### Automatic follow-ups
+   448→
+   449→Implement configurable reminders and escalation.
+   450→
+   451→For example:
+   452→- New enquiry notification immediately.
+   453→- Reminder if no response within the configured target.
+   454→- Escalation to a manager if the enquiry remains unanswered.
+   455→- Follow-up task after a viewing.
+   456→- Follow-up task after a quotation or negotiation.
+   457→- Closure tracking.
+   458→
+   459→The actual timing must be configurable by the platform and business. Do not promise guaranteed response times unless the business has explicitly agreed to them.
+   460→
+   461→### Showroom analytics
+   462→
+   463→Showroom owners should see:
+   464→- Total enquiries.
+   465→- New enquiries.
+   466→- Assigned enquiries.
+   467→- Unanswered enquiries.
+   468→- Overdue enquiries.
+   469→- Average response time.
+   470→- Viewing requests.
+   471→- Confirmed viewings.
+   472→- Successful conversions where recorded.
+   473→- Enquiry performance by employee.
+   474→- Enquiry performance by vehicle.
+   475→- Lost or closed enquiries.
+   476→
+   477→Employees should see only the information permitted by their roles.
+   478→
+   479→# 4. CARMAZE REVENUE ENGINE — CRITICAL BUSINESS REQUIREMENT
+   480→
+   481→CARMAZE must be designed to generate sustainable income.
+   482→
+   483→Do not treat monetisation as a future feature.
+   484→
+   485→Create a central revenue and billing architecture that supports multiple legitimate revenue streams.
+   486→
+   487→## Revenue stream A: Dealer subscriptions
+   488→
+   489→Create configurable dealer subscription plans.
+   490→
+   491→Possible structure:
+   492→
+   493→**Starter**
+   494→- Limited inventory.
+   495→- Basic showroom storefront.
+   496→- Basic enquiry inbox.
+   497→- Standard performance reporting.
+   498→
+   499→**Growth**
+   500→- Higher inventory limits.
+   501→- More staff accounts.
+   502→- Advanced enquiry management.
+   503→- Follow-up automation.
+   504→- Additional analytics.
+   505→
+   506→**Professional**
+   507→- Larger or configurable inventory limits.
+   508→- Multiple staff.
+   509→- Advanced sales reporting.
+   510→- Priority business support where available.
+   511→- Additional promotional capabilities.
+   512→
+   513→**Enterprise**
+   514→- Custom commercial terms.
+   515→- Multiple branches.
+   516→- Advanced permissions.
+   517→- Custom integrations.
+   518→- Organisation-level reporting.
+   519→
+   520→These are proposed packages. Make the features and prices configurable through authorised administration.
+   521→
+   522→## Revenue stream B: Garage subscriptions
+   523→
+   524→Create garage plans with configurable benefits.
+   525→
+   526→Possible benefits:
+   527→- Business storefront.
+   528→- Service catalogue.
+   529→- Quote management.
+   530→- Booking management.
+   531→- Staff accounts.
+   532→- Customer management.
+   533→- Business analytics.
+   534→- Additional promotional visibility.
+   535→- Advanced reporting.
+   536→
+   537→Do not sell verification badges. Verification must remain an earned trust status.
+   538→
+   539→## Revenue stream C: Featured listings and promotions
+   540→
+   541→Allow dealers and private sellers to pay for legitimate promotional visibility.
+   542→
+   543→Support:
+   544→- Featured vehicle listings.
+   545→- Homepage promotion.
+   546→- Search placement campaigns where clearly labelled.
+   547→- Showroom promotions.
+   548→- Special offers.
+   549→- Sponsored campaigns.
+   550→
+   551→Campaign configuration must include:
+   552→- Start and end dates.
+   553→- Budget or fixed price.
+   554→- Target audience or location where supported.
+   555→- Campaign status.
+   556→- Actual impressions.
+   557→- Clicks.
+   558→- Enquiries.
+   559→- Conversion events where measurable.
+   560→- Receipts and billing records.
+   561→
+   562→Clearly label paid promotions as sponsored or promoted.
+   563→
+   564→Never guarantee sales or leads from a promotion.
+   565→
+   566→Do not manipulate organic search results secretly.
+   567→
+   568→## Revenue stream D: Garage lead and booking tools
+   569→
+   570→Create optional paid garage business features.
+   571→
+   572→Possible monetisation:
+   573→- Garage subscriptions.
+   574→- Premium booking-management tools.
+   575→- Advanced analytics.
+   576→- Additional staff capacity.
+   577→- Optional promoted storefront placement.
+   578→
+   579→For quote requests, use transparent commercial arrangements.
+   580→
+   581→Do not charge a garage for a lead merely because a customer viewed its profile.
+   582→
+   583→If we introduce a lead fee, clearly define what qualifies as a billable lead, prevent duplicate charges, record evidence, and provide dispute handling.
+   584→
+   585→## Revenue stream E: Transaction and referral fees
+   586→
+   587→Allow configurable commercial fees for eligible completed services or attributable transactions where an agreement exists.
+   588→
+   589→Examples:
+   590→- Agreed garage booking fees.
+   591→- Agreed service marketplace commissions.
+   592→- Contracted dealer transaction fees.
+   593→- Approved partner referral commissions.
+   594→
+   595→Never charge businesses arbitrarily.
+   596→
+   597→Each commercial agreement must define:
+   598→- Fee basis.
+   599→- Triggering event.
+   600→- Applicable rate.
+   601→- Attribution period where relevant.
+   602→- Evidence.
+   603→- Refund and cancellation rules.
+   604→- Dispute procedure.
+   605→- Invoice and payment deadline.
+   606→
+   607→Vehicle purchase payments should initially happen directly between buyer and seller under their own arrangements. CARMAZE must not pretend to provide escrow or hold vehicle purchase funds without the necessary approvals and infrastructure.
+   608→
+   609→## Revenue stream F: Inspection and verification services
+   610→
+   611→Create opportunities for customers to request independent vehicle inspections through approved inspection partners.
+   612→
+   613→CARMAZE may earn a clearly disclosed booking or referral fee under an appropriate partner agreement.
+   614→
+   615→Do not claim an inspection has occurred unless a genuine report has been submitted by an authorised inspector.
+   616→
+   617→## Revenue stream G: Future partnerships
+   618→
+   619→Architect future partner integrations for:
+   620→- Vehicle financing referrals.
+   621→- Insurance referrals.
+   622→- Roadside assistance partnerships.
+   623→- Automotive events.
+   624→- Fleet services.
+   625→
+   626→Only offer products through appropriately authorised partners.
+   627→
+   628→# 5. REVENUE AND BILLING MANAGEMENT
+   629→
+   630→Build a real financial management module.
+   631→
+   632→Track revenue separately by source:
+   633→- Dealer subscriptions.
+   634→- Garage subscriptions.
+   635→- Promotions.
+   636→- Agreed transaction fees.
+   637→- Service marketplace commissions.
+   638→- Inspection referrals.
+   639→- Other approved partner income.
+   640→
+   641→Track:
+   642→- Gross amounts.
+   643→- Discounts.
+   644→- Tax where applicable.
+   645→- Payment processing fees where known.
+   646→- Refunds.
+   647→- Net collected amounts.
+   648→- Outstanding invoices.
+   649→- Failed payments.
+   650→- Pending payments.
+   651→- Subscription renewals.
+   652→- Cancellations.
+   653→- Payment reconciliation.
+   654→
+   655→Use the correct currency for each market. Support KES initially and design for other African currencies.
+   656→
+   657→Never mix customer vehicle purchase prices with CARMAZE revenue.
+   658→
+   659→Do not report invoiced amounts as collected cash.
+   660→
+   661→Do not report pending payments as confirmed income.
+   662→
+   663→Do not fabricate revenue statistics.
+   664→
+   665→# 6. M-PESA AND OTHER PAYMENT METHODS
+   666→
+   667→Integrate Safaricom Daraja where valid credentials are available.
+   668→
+   669→Official developer portal:
+   670→https://developer.safaricom.co.ke/
+   671→
+   672→Support suitable payment methods for:
+   673→- Dealer subscriptions.
+   674→- Garage subscriptions.
+   675→- Promoted campaigns.
+   676→- Platform invoices.
+   677→- Other approved premium services.
+   678→
+   679→Implement:
+   680→- Server-side payment initiation.
+   681→- Secure credentials.
+   682→- Verified payment callbacks.
+   683→- Idempotency.
+   684→- Transaction records.
+   685→- Receipts.
+   686→- Payment-status validation.
+   687→- Reconciliation.
+   688→- Refund workflows where supported.
+   689→- Failed-payment recovery.
+   690→- Subscription renewal handling.
+   691→
+   692→Do not trust frontend success messages or screenshots.
+   693→
+   694→A failed or pending payment must never activate a paid entitlement.
+   695→
+   696→If credentials are unavailable, implement the integration structure and document the missing credentials. Do not simulate successful production transactions.
+   697→
+   698→# 7. BUSINESS OWNERSHIP AND ACCESS CONTROL
+   699→
+   700→Every garage and showroom must have:
+   701→- Its own public storefront.
+   702→- Its own private business portal.
+   703→- Its own central communication inbox.
+   704→- Its own staff.
+   705→- Its own services or vehicle inventory.
+   706→- Its own bookings or sales enquiries.
+   707→- Its own billing.
+   708→- Its own performance reporting.
+   709→
+   710→A business must only see its own customers' private conversations and records.
+   711→
+   712→The platform must enforce organisation-level isolation on the backend and, where suitable, through database-level security.
+   713→
+   714→Only authorised owners can manage billing, subscriptions, employees and sensitive business settings.
+   715→
+   716→# 8. CUSTOMER DASHBOARD
+   717→
+   718→Create one unified customer dashboard containing:
+   719→
+   720→- My conversations.
+   721→- My vehicle enquiries.
+   722→- My showroom viewing appointments.
+   723→- My garage quote requests.
+   724→- My service bookings.
+   725→- My saved vehicles.
+   726→- My saved garages.
+   727→- My saved showrooms.
+   728→- My payment receipts.
+   729→- My Garage ownership records.
+   730→- My notifications.
+   731→- My support requests.
+   732→
+   733→Customers must not have to create separate accounts for showrooms, garages and the customizer.
+   734→
+   735→# 9. RESPONSE QUALITY AND BUSINESS PERFORMANCE
+   736→
+   737→Build genuine performance measurement.
+   738→
+   739→For showrooms:
+   740→- Enquiry response times.
+   741→- Overdue follow-ups.
+   742→- Sales representative workload.
+   743→- Viewing conversion.
+   744→- Enquiry outcomes.
+   745→
+   746→For garages:
+   747→- Quote response times.
+   748→- Booking acceptance.
+   749→- Booking completion.
+   750→- Cancellation rates.
+   751→- Customer satisfaction.
+   752→- Repeat customer activity.
+   753→
+   754→For CARMAZE:
+   755→- Active paying businesses.
+   756→- Monthly recurring revenue.
+   757→- Subscription churn.
+   758→- Campaign revenue.
+   759→- Actual collected fees.
+   760→- Refunds.
+   761→- Payment failures.
+   762→- Customer acquisition.
+   763→- Retention.
+   764→- Revenue by business category.
+   765→- Operational costs where recorded.
+   766→
+   767→Only calculate metrics from actual records. Clearly explain any metric that cannot yet be measured.
+   768→
+   769→# 10. PRICING AND REVENUE EXPERIMENTS
+   770→
+   771→Make pricing configurable.
+   772→
+   773→Do not hardcode prices or assume that every business will pay the same amount.
+   774→
+   775→Create authorised administrative tools to:
+   776→- Create plans.
+   777→- Edit plan benefits.
+   778→- Configure prices.
+   779→- Set billing intervals.
+   780→- Set inventory limits.
+   781→- Configure promotional packages.
+   782→- Define fees.
+   783→- Create discounts.
+   784→- Manage trials where offered.
+   785→- Suspend or cancel subscriptions according to policy.
+   786→
+   787→Treat any initial prices as hypotheses that require market validation.
+   788→
+   789→The free tier should be useful enough to attract legitimate businesses, while paid tiers should provide clear commercial value.
+   790→
+   791→Do not use hidden fees, forced upgrades or misleading promotions.
+   792→
+   793→# 11. REQUIRED END-TO-END TESTS
+   794→
+   795→Verify these actual workflows:
+   796→
+   797→### Customer communication
+   798→- Customer contacts a garage.
+   799→- Garage receives the conversation.
+   800→- Garage replies.
+   801→- Customer receives the reply.
+   802→- Conversation history persists.
+   803→- An unauthorised garage cannot access the conversation.
+   804→
+   805→### External contact
+   806→- A garage enables WhatsApp.
+   807→- Customer sees the correct option.
+   808→- A garage disables WhatsApp.
+   809→- Customer no longer sees the option.
+   810→- The same applies to showroom phone and WhatsApp controls.
+   811→
+   812→### Garage booking
+   813→- Fixed-price service is available.
+   814→- Customer selects a valid slot.
+   815→- Booking is created.
+   816→- Slot cannot be double-booked.
+   817→- Garage confirms or declines.
+   818→- Customer receives the actual status.
+   819→
+   820→### Garage quotation
+   821→- Customer submits a repair request.
+   822→- Garage receives it.
+   823→- Garage sends a quote.
+   824→- Customer accepts or rejects.
+   825→- Accepted quote can create an appropriate booking.
+   826→
+   827→### Showroom enquiry
+   828→- Customer enquires about a vehicle.
+   829→- Enquiry enters the central inbox.
+   830→- Assignment occurs according to configured rules.
+   831→- Staff receives a notification.
+   832→- Overdue enquiries escalate.
+   833→- Customer sees the conversation and response.
+   834→
+   835→### Revenue
+   836→- Business selects a paid plan.
+   837→- A payment request is created.
+   838→- Payment is verified.
+   839→- Entitlements activate only after confirmation.
+   840→- An invoice or receipt is generated.
+   841→- Duplicate callbacks do not create duplicate revenue.
+   842→- Cancellation and failed payments update the subscription correctly.
+   843→- Admin reports reflect actual financial records.
+   844→
+   845→### Security
+   846→- A garage cannot access another garage's data.
+   847→- A showroom cannot access another showroom's private records.
+   848→- Staff cannot access unauthorised billing or ownership controls.
+   849→- Customers cannot access other customers' conversations.
+   850→
+   851→# 12. IMPLEMENTATION AND FINAL REPORT
+   852→
+   853→Inspect the existing CARMAZE application and implement these capabilities in its existing architecture.
+   854→
+   855→Prioritise working end-to-end workflows rather than merely creating screens.
+   856→
+   857→Run available type checks, linting, builds, database migration checks, unit tests, integration tests and end-to-end tests.
+   858→
+   859→Fix failures and regressions.
+   860→
+   861→At the end, report:
+   862→1. What was already implemented.
+   863→2. What was added.
+   864→3. Database changes.
+   865→4. Communication and notification workflows.
+   866→5. Garage booking and quote functionality.
+   867→6. Showroom enquiry assignment and follow-ups.
+   868→7. Revenue streams implemented.
+   869→8. Payment integration status.
+   870→9. Security and permission tests.
+   871→10. Actual test results.
+   872→11. Missing credentials or external dependencies.
+   873→12. Remaining work before commercial launch.
+   874→
+   875→Classify each requirement as completed and verified, implemented but unverified, blocked, or not implemented.
+   876→
+   877→# FINAL BUSINESS DIRECTIVE
+   878→
+   879→CARMAZE must create value for customers and businesses while generating sustainable revenue for the platform.
+   880→
+   881→Do not build a platform where businesses receive free leads forever without a clear monetisation strategy.
+   882→
+   883→Do not build a platform where customers are charged for every basic interaction.
+   884→
+   885→Our commercial strategy is to earn through business subscriptions, paid promotion, useful premium tools, and transparent agreed fees on eligible services or referrals.
+   886→
+   887→Every paid feature must have clear value. Every charge must have an auditable basis. Every payment must be verified.
+   888→
+   889→Build a platform that customers want to use, businesses are willing to pay for, and the founding team can operate sustainably.
+   890→
+   891→Implement, test and document the real functionality. Do not stop at a plan or attractive interface.           # CARMAZE — VEHICLE TRUST, ANTI-THEFT, FRAUD PREVENTION & PROPERTY PROTECTION SYSTEM
+   892→
+   893→You are extending CARMAZE, a Kenya-first automotive marketplace and vehicle services ecosystem. Implement a complete, production-oriented security and trust system that protects customers, private sellers, showrooms, garages, staff, vehicles and other property.
+   894→
+   895→This is a core platform requirement, not an optional feature.
+   896→
+   897→**The central rule: CARMAZE must never treat a vehicle as legitimate simply because someone has uploaded photos, entered a registration number, or claimed to own it.**
+   898→
+   899→The platform must reduce opportunities for stolen vehicles to be listed, fraudsters to impersonate owners, test drives to become theft opportunities, garages to misuse customer vehicles, and customers to falsely accuse legitimate businesses.
+   900→
+   901→Do not promise that any system can eliminate all theft or fraud. Build layered controls, traceable evidence, clear accountability, alerts, incident handling and escalation procedures.
+   902→
+   903→---
+   904→
+   905→## 1. Vehicle identity and ownership verification
+   906→
+   907→Build a vehicle verification workflow before a vehicle can be publicly advertised or accepted into sensitive transactions.
+   908→
+   909→Collect and validate, where legally appropriate:
+   910→
+   911→- Registration number.
+   912→- Make, model, year, colour and body type.
+   913→- Chassis/VIN number.
+   914→- Engine number where appropriate.
+   915→- Current registered owner details, handled securely.
+   916→- Seller identity and verified contact information.
+   917→- Proof of ownership or lawful authority to sell.
+   918→- Relevant import, clearance or registration documentation where applicable.
+   919→- Vehicle photographs from multiple angles.
+   920→- Additional identifying features and modifications.
+   921→
+   922→Implement the following controls:
+   923→
+   924→1. Detect duplicate registration numbers, VINs and chassis identifiers across listings.
+   925→2. Detect conflicting vehicle descriptions and suspiciously reused photographs.
+   926→3. Flag changes to important vehicle identity fields.
+   927→4. Keep an immutable history of identity changes and verification decisions.
+   928→5. Require additional review when ownership documents and seller details do not match.
+   929→6. Prevent publication when mandatory checks remain incomplete.
+   930→7. Allow a legitimate authorised representative to submit a vehicle with verifiable authority.
+   931→8. Provide a secure process for reporting suspected stolen vehicles.
+   932→9. Never expose private identity documents publicly.
+   933→10. Use authorised verification sources and integrations only.
+   934→
+   935→**Kenya-specific requirement:** Design an integration-ready verification process for authorised vehicle ownership and registration checks, including relevant NTSA processes and other legally authorised sources. Do not scrape restricted systems, bypass access controls or pretend that a government check has been completed when it has not.
+   936→
+   937→Verification statuses:
+   938→
+   939→- Not submitted
+   940→- Pending verification
+   941→- Additional information required
+   942→- Under manual review
+   943→- Verified
+   944→- Rejected
+   945→- Suspicious — restricted
+   946→- Reported stolen — restricted
+   947→- Verification expired, where applicable
+   948→
+   949→A verified badge must represent actual completed checks, not payment or subscription status.
+   950→
+   951→## 2. Stolen vehicle prevention and response
+   952→
+   953→Create a restricted vehicle security reporting system.
+   954→
+   955→Allow authorised users to report:
+   956→
+   957→- Suspected stolen vehicles.
+   958→- Vehicles advertised without the owner's permission.
+   959→- Altered registration or VIN details.
+   960→- Suspicious ownership documents.
+   961→- Vehicles being sold by someone who may not be the lawful owner.
+   962→- Possible cloned registration plates.
+   963→- Fraudulent vehicle transfers.
+   964→- A vehicle that has disappeared during a garage visit or test drive.
+   965→
+   966→When a credible report is submitted:
+   967→
+   968→1. Create a unique incident reference.
+   969→2. Record the reporter, time, vehicle identifiers and available evidence.
+   970→3. Preserve relevant listing and account activity.
+   971→4. Restrict the affected listing or transaction while a review takes place, proportionate to the risk.
+   972→5. Notify authorised security reviewers.
+   973→6. Prevent the vehicle from being relisted under the same identifiers while the investigation is unresolved.
+   974→7. Allow the affected user to submit evidence and appeal.
+   975→8. Record every reviewer action and decision.
+   976→9. Escalate credible suspected criminal activity to the appropriate authorities through lawful procedures.
+   977→
+   978→Do not automatically declare someone a criminal based only on an allegation or an AI risk score.
+   979→
+   980→Keep sensitive incident information restricted to authorised personnel. Never publicly expose an alleged victim's identity, personal documents or investigation details.
+   981→
+   982→## 3. Secure vehicle viewing and test drives
+   983→
+   984→A showroom viewing or test drive is a high-risk point.
+   985→
+   986→Create a controlled process for vehicle viewing and test-drive appointments.
+   987→
+   988→Before a test drive:
+   989→
+   990→- Verify the customer account and contact information.
+   991→- Require additional identity verification according to risk and applicable law.
+   992→- Confirm the customer has the legally required driving licence and that it is valid for the vehicle.
+   993→- Record the selected vehicle and its current listing status.
+   994→- Record the showroom, responsible staff member and appointment time.
+   995→- Require the showroom to confirm the appointment.
+   996→- Record the vehicle's pre-test-drive condition.
+   997→- Record the odometer reading, fuel level and visible damage where appropriate.
+   998→- Require acknowledgement of clear test-drive terms and responsibilities.
+   999→- Record who authorised the vehicle release.
+  1000→
+  1001→During and after the test drive:
+  1002→
+  1003→- Record departure and return times.
+  1004→- Record the staff member responsible.
+  1005→- Record any change in the vehicle's condition.
+  1006→- Require the showroom to confirm the vehicle's return.
+  1007→- Escalate overdue returns.
+  1008→- Notify the appropriate manager if a vehicle has not been returned within the configured period.
+  1009→- Preserve appointment, communication and incident records.
+  1010→
+  1011→Do not make continuous GPS tracking mandatory or claim it is active unless a lawful, functioning tracking integration exists.
+  1012→
+  1013→A customer must never be permitted to bypass the showroom's authorised vehicle-release process simply because an appointment exists.
+  1014→
+  1015→## 4. CARMAZE Garage Vehicle Protection
+  1016→
+  1017→This is one of the most important modules.
+  1018→
+  1019→A customer may hand over a valuable vehicle to a garage for repair, servicing, detailing, modification or inspection. CARMAZE must provide a traceable vehicle handover and return process.
+  1020→
+  1021→Build a complete **Digital Vehicle Handover Record**.
+  1022→
+  1023→### A. Before vehicle drop-off
+  1024→
+  1025→The customer must be able to:
+  1026→
+  1027→- Select the garage.
+  1028→- Select the vehicle from My Garage or register a new vehicle.
+  1029→- Describe the requested work.
+  1030→- Upload photographs and videos of the vehicle.
+  1031→- Record existing scratches, dents, broken parts and other visible damage.
+  1032→- Record the odometer reading.
+  1033→- Record fuel level.
+  1034→- List valuables or personal property inside the vehicle, if relevant.
+  1035→- Identify existing accessories and modifications.
+  1036→- Record any known mechanical issues.
+  1037→- Declare whether the garage is permitted to move or road-test the vehicle.
+  1038→- Specify authorised work and any spending limit where agreed.
+  1039→
+  1040→The garage must:
+  1041→
+  1042→- Confirm that it has received the vehicle.
+  1043→- Identify the employee receiving it.
+  1044→- Confirm the date and time.
+  1045→- Review and acknowledge the condition report.
+  1046→- Record any disagreement about the vehicle's condition.
+  1047→- Provide a digital handover receipt to the customer.
+  1048→
+  1049→The customer must be able to review the record and confirm the handover.
+  1050→
+  1051→### B. Garage custody and vehicle movement
+  1052→
+  1053→Every vehicle accepted by a garage must have a custody record.
+  1054→
+  1055→Track:
+  1056→
+  1057→- Customer and vehicle references.
+  1058→- Garage organisation and branch.
+  1059→- Receiving employee.
+  1060→- Responsible technician.
+  1061→- Vehicle location or custody status.
+  1062→- Arrival and expected collection dates.
+  1063→- Approved repair or service scope.
+  1064→- Authorised additional work.
+  1065→- Vehicle movement events.
+  1066→- Road-test authorisations.
+  1067→- Staff handovers.
+  1068→- Changes in vehicle condition.
+  1069→- Customer approvals and communications.
+  1070→
+  1071→Use explicit vehicle custody statuses:
+  1072→
+  1073→- Handover requested
+  1074→- Appointment confirmed
+  1075→- Awaiting vehicle
+  1076→- Received by garage
+  1077→- Inspection in progress
+  1078→- Awaiting customer approval
+  1079→- Work authorised
+  1080→- Work in progress
+  1081→- Road test requested
+  1082→- Road test authorised
+  1083→- Ready for collection
+  1084→- Collection verification pending
+  1085→- Returned to customer
+  1086→- Disputed
+  1087→- Security incident opened
+  1088→
+  1089→**Important restrictions:**
+  1090→
+  1091→- A garage employee must not be able to mark a vehicle as returned without the required collection confirmation.
+  1092→- A garage must not be able to authorise extra repairs or charges without the customer's approval where approval is required.
+  1093→- Staff must not be able to delete or rewrite historical custody events.
+  1094→- Any correction must create a new audit entry.
+  1095→- Only authorised staff may update vehicle custody.
+  1096→- A customer must be notified of significant custody changes.
+  1097→
+  1098→### C. Vehicle movement and road tests
+  1099→
+  1100→A garage must not drive a customer's vehicle without the relevant permission.
+  1101→
+  1102→Build:
+  1103→
+  1104→- Road-test request.
+  1105→- Customer approval or recorded prior authorisation within agreed terms.
+  1106→- Purpose of road test.
+  1107→- Authorised driver.
+  1108→- Start time.
+  1109→- Starting odometer reading.
+  1110→- Return time.
+  1111→- Ending odometer reading.
+  1112→- Reported route or distance, only where reliably and lawfully recorded.
+  1113→- Vehicle condition before and after.
+  1114→- Any accident, damage or incident report.
+  1115→
+  1116→If a garage wants to move the vehicle for any other reason, it must record the reason and obtain the required authorisation.
+  1117→
+  1118→Do not assume permission to repair also means permission for unrelated personal use.
+  1119→
+  1120→### D. Secure collection and vehicle return
+  1121→
+  1122→Before the customer collects the vehicle:
+  1123→
+  1124→- Garage records completed work.
+  1125→- Garage records the final odometer and vehicle condition.
+  1126→- Garage uploads relevant completion photographs.
+  1127→- Garage provides an itemised invoice.
+  1128→- Customer receives a notification.
+  1129→- Customer can review the work and report discrepancies.
+  1130→- The authorised person returning the vehicle is recorded.
+  1131→- The customer confirms collection through their authenticated account or an approved alternative verification process.
+  1132→- Both parties receive a final digital custody receipt.
+  1133→
+  1134→If a customer disputes damage, missing property, unauthorised use or a missing vehicle, allow them to open a security incident without being forced to mark the job as successfully completed.
+  1135→
+  1136→Never let the garage close a disputed custody incident unilaterally.
+  1137→
+  1138→## 5. Garage business verification and staff accountability
+  1139→
+  1140→A garage must not receive access to customer vehicles merely by registering an account.
+  1141→
+  1142→Create a garage verification process that can collect, where legally appropriate:
+  1143→
+  1144→- Business registration information.
+  1145→- Physical business location.
+  1146→- Authorised business representative.
+  1147→- Verified business phone and email.
+  1148→- Business licence or relevant permits where applicable.
+  1149→- Ownership or authority to represent the business.
+  1150→- Branch information.
+  1151→- Staff records.
+  1152→- Insurance information where relevant and verifiable.
+  1153→- Security and customer property handling policies.
+  1154→
+  1155→Create staff-level accounts.
+  1156→
+  1157→Each employee must have:
+  1158→
+  1159→- A unique account.
+  1160→- A verified contact method.
+  1161→- An assigned organisation and branch.
+  1162→- A defined role.
+  1163→- Explicit permissions.
+  1164→- An employment/active status.
+  1165→- An auditable activity history.
+  1166→
+  1167→Example roles:
+  1168→
+  1169→- Garage Owner
+  1170→- Branch Manager
+  1171→- Service Advisor
+  1172→- Technician
+  1173→- Vehicle Receiving Officer
+  1174→- Cashier
+  1175→- Customer Support
+  1176→
+  1177→Apply least-privilege access.
+  1178→
+  1179→For example:
+  1180→
+  1181→- A technician may see assigned work but should not change business ownership or billing settings.
+  1182→- A receiving officer may record vehicle handovers but should not approve their own exceptional access requests.
+  1183→- A manager may approve operational actions but cannot erase audit history.
+  1184→- A former employee must immediately lose access when deactivated.
+  1185→
+  1186→Support multi-person approval for sensitive actions, such as vehicle release to someone other than the registered customer.
+  1187→
+  1188→## 6. Customer vehicle release protection
+  1189→
+  1190→A garage must not hand over a customer's vehicle to an unauthorised person.
+  1191→
+  1192→Build an authorised collection process.
+  1193→
+  1194→The customer may:
+  1195→
+  1196→- Collect personally.
+  1197→- Authorise another person to collect.
+  1198→- Set an expiry time for collection permission.
+  1199→- Revoke an unused authorisation.
+  1200→- Confirm the identity of the authorised collector through a secure process.
+  1201→
+  1202→For collection by another person:
+  1203→
+  1204→- Record the customer's explicit authorisation.
+  1205→- Record the authorised person's details securely.
+  1206→- Generate a single-use collection reference or equivalent secure verification.
+  1207→- Expire the authorisation after the configured time.
+  1208→- Record the receiving employee and collection time.
+  1209→- Notify the customer after collection.
+  1210→- Provide a dispute process if the customer did not authorise the release.
+  1211→
+  1212→Do not rely on a screenshot of an OTP or a simple vehicle registration number as sufficient proof of authority.
+  1213→
+  1214→Do not store collection secrets in plaintext.
+  1215→
+  1216→## 7. Customer property and valuables protection
+  1217→
+  1218→Allow customers to record personal property left inside a vehicle.
+  1219→
+  1220→Provide clear warnings that customers should remove valuables before handing over a vehicle wherever practical.
+  1221→
+  1222→Where property remains:
+  1223→
+  1224→- Record the customer's declaration.
+  1225→- Record relevant condition evidence.
+  1226→- Record any garage acknowledgement.
+  1227→- Restrict access to the record.
+  1228→- Record any missing-property complaint.
+  1229→- Preserve relevant handover and communication records.
+  1230→
+  1231→Do not imply CARMAZE insures or guarantees the value of property unless an actual insurance arrangement exists.
+  1232→
+  1233→## 8. Dealer and private seller protection
+  1234→
+  1235→Protect legitimate sellers from fraudulent buyers and protect buyers from stolen or misrepresented vehicles.
+  1236→
+  1237→Implement:
+  1238→
+  1239→- Seller identity and ownership-authority verification.
+  1240→- Secure listing approval.
+  1241→- Vehicle identity checks.
+  1242→- Suspicious account and listing detection.
+  1243→- Appointment and viewing records.
+  1244→- Secure enquiry and offer history.
+  1245→- Vehicle reservation history.
+  1246→- Evidence of customer and seller agreement.
+  1247→- Clear vehicle condition disclosures.
+  1248→- Fraud reporting.
+  1249→- Dispute handling.
+  1250→
+  1251→Do not allow a seller to change important vehicle identity details after verification without triggering a review.
+  1252→
+  1253→A seller must not be allowed to claim a vehicle has been verified if the verification has expired or been revoked.
+  1254→
+  1255→## 9. Fraud detection and suspicious behaviour
+  1256→
+  1257→Build a CARMAZE Risk Engine that identifies suspicious patterns using actual platform data.
+  1258→
+  1259→Potential indicators include:
+  1260→
+  1261→- Multiple accounts listing the same vehicle.
+  1262→- Repeated VIN or registration conflicts.
+  1263→- Reused identity or vehicle documents.
+  1264→- Suspiciously frequent account changes.
+  1265→- Repeated failed ownership checks.
+  1266→- Multiple businesses connected to suspicious activity.
+  1267→- Repeated customer complaints involving a specific employee.
+  1268→- Unauthorised vehicle movements.
+  1269→- Unusual road-test patterns.
+  1270→- Repeated vehicle collection disputes.
+  1271→- Attempts to bypass platform communication or verification controls.
+  1272→- Unusual changes to vehicle price or ownership information.
+  1273→- Repeated failed collection authorisations.
+  1274→
+  1275→Risk levels:
+  1276→
+  1277→- Low
+  1278→- Moderate
+  1279→- High
+  1280→- Critical
+  1281→
+  1282→For each flag, record:
+  1283→
+  1284→- Triggering evidence.
+  1285→- Date and time.
+  1286→- Relevant account, organisation, vehicle or incident.
+  1287→- Risk explanation.
+  1288→- Reviewer.
+  1289→- Review outcome.
+  1290→- Actions taken.
+  1291→- Appeal or resolution.
+  1292→
+  1293→AI can assist with prioritisation and evidence summarisation, but it must not independently declare someone guilty, fabricate evidence or automatically impose severe penalties without an appropriate review process.
+  1294→
+  1295→## 10. CARMAZE Security Control Center
+  1296→
+  1297→Create a dedicated restricted security dashboard for authorised platform personnel.
+  1298→
+  1299→Include:
+  1300→
+  1301→- Vehicle verification queue.
+  1302→- Suspected stolen vehicle reports.
+  1303→- Suspicious listings.
+  1304→- Garage security incidents.
+  1305→- Test-drive incidents.
+  1306→- Vehicle custody disputes.
+  1307→- Unauthorised collection reports.
+  1308→- Employee-related complaints.
+  1309→- Suspicious business activity.
+  1310→- Evidence records.
+  1311→- Review assignments.
+  1312→- Escalation deadlines.
+  1313→- Appeals.
+  1314→- Security analytics.
+  1315→
+  1316→Allow authorised reviewers to:
+  1317→
+  1318→- Restrict suspicious listings.
+  1319→- Temporarily restrict relevant accounts or business workflows where justified.
+  1320→- Request further evidence.
+  1321→- Record investigation notes.
+  1322→- Contact affected parties.
+  1323→- Escalate to the appropriate authorities where lawful.
+  1324→- Resolve or close incidents with documented reasons.
+  1325→
+  1326→Sensitive records must be protected by strict role-based permissions and access logs.
+  1327→
+  1328→Platform administrators must not be able to silently erase security evidence.
+  1329→
+  1330→## 11. Incident management and evidence preservation
+  1331→
+  1332→Build a formal incident workflow.
+  1333→
+  1334→Incident types:
+  1335→
+  1336→- Suspected stolen vehicle.
+  1337→- Vehicle missing from garage.
+  1338→- Vehicle not returned after test drive.
+  1339→- Unauthorised vehicle use.
+  1340→- Unauthorised vehicle release.
+  1341→- Vehicle damage during garage custody.
+  1342→- Missing property.
+  1343→- Ownership fraud.
+  1344→- Fake documentation.
+  1345→- Dealer or garage misconduct.
+  1346→- Customer fraud.
+  1347→- Other safety or security incidents.
+  1348→
+  1349→Every incident should have:
+  1350→
+  1351→- Unique incident ID.
+  1352→- Incident category.
+  1353→- Reporting party.
+  1354→- Affected vehicle.
+  1355→- Relevant customer and business references.
+  1356→- Timeline.
+  1357→- Evidence attachments.
+  1358→- Related messages and approved records.
+  1359→- Assigned reviewer.
+  1360→- Status.
+  1361→- Actions and decisions.
+  1362→- Resolution.
+  1363→- Appeal history.
+  1364→
+  1365→Preserve original uploaded evidence and its metadata where technically and legally appropriate. Record file hashes, upload time, uploader and access history. Restrict evidence access.
+  1366→
+  1367→Do not alter original evidence when generating previews or compressed copies.
+  1368→
+  1369→Use retention periods that comply with applicable law and documented business requirements. Support lawful preservation requests and authorised deletion where required.
+  1370→
+  1371→## 12. Customer security dashboard
+  1372→
+  1373→Create a section inside My Garage called **Vehicle Protection**.
+  1374→
+  1375→Customers should be able to see:
+  1376→
+  1377→- Their verified vehicles.
+  1378→- Vehicle ownership verification status.
+  1379→- Active garage jobs.
+  1380→- Current custody status.
+  1381→- Previous garage handovers.
+  1382→- Road-test permissions.
+  1383→- Collection authorisations.
+  1384→- Service and repair history.
+  1385→- Security alerts.
+  1386→- Open disputes and incidents.
+  1387→- Digital receipts and evidence.
+  1388→- Authorised businesses that have handled their vehicles.
+  1389→
+  1390→Customers should receive notifications for:
+  1391→
+  1392→- Vehicle accepted by a garage.
+  1393→- Vehicle custody transferred to a staff member.
+  1394→- Road test requested.
+  1395→- Road test authorised.
+  1396→- Vehicle marked ready.
+  1397→- Collection authorised.
+  1398→- Vehicle collected.
+  1399→- Suspicious activity involving their account or vehicle.
+  1400→
+  1401→Keep customer vehicle history private by default.
+  1402→
+  1403→## 13. Notifications and emergency escalation
+  1404→
+  1405→Create reliable notifications through supported channels.
+  1406→
+  1407→Support in-app notifications, email and SMS where configured.
+  1408→
+  1409→Examples:
+  1410→
+  1411→- A garage has accepted your vehicle.
+  1412→- Your vehicle has been marked ready for collection.
+  1413→- A road test requires your approval.
+  1414→- Your vehicle has been collected by an authorised person.
+  1415→- A suspicious listing involving your vehicle has been reported.
+  1416→- An incident has been opened.
+  1417→- Additional evidence is required.
+  1418→
+  1419→Track notification attempts, delivery results and retries.
+  1420→
+  1421→Never mark an SMS or email as delivered when the provider has not confirmed it.
+  1422→
+  1423→For urgent vehicle theft or safety incidents, clearly instruct users to contact the appropriate local authorities immediately. CARMAZE is not an emergency-response authority and must not present its internal reporting feature as a replacement for police reporting.
+  1424→
+  1425→## 14. Legal, privacy and operational safeguards
+  1426→
+  1427→Design the system with Kenyan law and applicable data-protection requirements in mind.
+  1428→
+  1429→Include:
+  1430→
+  1431→- Data minimisation.
+  1432→- Explicit consent where required.
+  1433→- Secure storage of identity and ownership documents.
+  1434→- Encryption in transit and at rest where supported.
+  1435→- Access logging.
+  1436→- Retention and deletion rules.
+  1437→- Privacy notices.
+  1438→- Incident response policies.
+  1439→- Lawful authority disclosure procedures.
+  1440→- Clear business and customer responsibilities.
+  1441→- Fair complaint and appeal procedures.
+  1442→
+  1443→Do not publicly label a person or business as a thief or criminal based on an unverified complaint.
+  1444→
+  1445→Do not allow businesses to secretly monitor customers.
+  1446→
+  1447→Do not implement hidden GPS tracking, covert recording or unlawful surveillance.
+  1448→
+  1449→Any location or tracking integration must have a legitimate purpose, appropriate legal basis, clear disclosure and appropriate access controls.
+  1450→
+  1451→## 15. Database and backend requirements
+  1452→
+  1453→Inspect the existing CARMAZE database before making changes.
+  1454→
+  1455→Extend the actual database with appropriate entities, relationships, constraints and migrations. Suggested entities include:
+  1456→
+  1457→- vehicle_identity_records
+  1458→- vehicle_verification_checks
+  1459→- vehicle_ownership_evidence
+  1460→- vehicle_security_reports
+  1461→- vehicle_risk_flags
+  1462→- garage_vehicle_custody
+  1463→- garage_handover_records
+  1464→- garage_handover_photos
+  1465→- garage_custody_events
+  1466→- garage_road_test_requests
+  1467→- garage_road_test_records
+  1468→- vehicle_collection_authorisations
+  1469→- vehicle_collection_records
+  1470→- garage_staff
+  1471→- garage_staff_permissions
+  1472→- showroom_test_drive_appointments
+  1473→- showroom_test_drive_records
+  1474→- security_incidents
+  1475→- security_incident_evidence
+  1476→- security_incident_actions
+  1477→- security_review_assignments
+  1478→- security_appeals
+  1479→- notification_delivery_attempts
+  1480→- security_audit_logs
+  1481→
+  1482→Use UUIDs, foreign keys, indexes, explicit timestamps, transaction-safe state changes and tenant isolation.
+  1483→
+  1484→Ensure evidence records cannot be silently overwritten.
+  1485→
+  1486→Implement backend authorisation checks on every sensitive endpoint. Frontend hiding is not security.
+  1487→
+  1488→## 16. Required acceptance tests
+  1489→
+  1490→Do not consider this module complete until these scenarios pass:
+  1491→
+  1492→**Scenario A — Stolen vehicle listing**
+  1493→
+  1494→A user attempts to list a vehicle with conflicting identity information. The system flags the conflict, blocks publication where necessary, creates a review case and records the evidence.
+  1495→
+  1496→**Scenario B — Impersonating an owner**
+  1497→
+  1498→A user attempts to sell a vehicle without sufficient ownership authority. The system requests additional verification and prevents an unapproved listing from becoming public.
+  1499→
+  1500→**Scenario C — Fraudulent test drive**
+  1501→
+  1502→A suspicious user attempts to book or collect a vehicle without satisfying the required checks. The showroom cannot release the vehicle through the normal workflow.
+  1503→
+  1504→**Scenario D — Garage vehicle handover**
+  1505→
+  1506→A customer submits their vehicle for repair. The garage receives it, records the condition and mileage, identifies the receiving employee and provides a digital receipt.
+  1507→
+  1508→**Scenario E — Unauthorised road test**
+  1509→
+  1510→A technician attempts to drive a customer's vehicle without the required permission. The system blocks the unauthorised workflow and records the attempt.
+  1511→
+  1512→**Scenario F — Vehicle not returned**
+  1513→
+  1514→A garage has custody of a customer's vehicle, but the customer reports it missing. The system opens a security incident, preserves evidence, alerts authorised reviewers and prevents the garage from silently closing the case.
+  1515→
+  1516→**Scenario G — Unauthorised collection**
+  1517→
+  1518→A person attempts to collect a customer's vehicle without valid authorisation. The garage cannot complete the release workflow.
+  1519→
+  1520→**Scenario H — Staff misconduct**
+  1521→
+  1522→A former garage employee attempts to access a customer's vehicle records. Access is denied and the attempt is logged.
+  1523→
+  1524→**Scenario I — False accusation**
+  1525→
+  1526→A business receives an unverified theft allegation. The system restricts sensitive information, enables a fair investigation and appeal, and does not publicly declare guilt.
+  1527→
+  1528→**Scenario J — Tenant isolation**
+  1529→
+  1530→One garage cannot access another garage's vehicles, customers, evidence, staff or incident records. One showroom cannot access another showroom's private records.
+  1531→
+  1532→**Scenario K — Evidence integrity**
+  1533→
+  1534→A user attempts to delete or alter a previous handover record. The original evidence and audit history remain preserved.
+  1535→
+  1536→**Scenario L — Customer notifications**
+  1537→
+  1538→The customer receives the correct notifications for handover, road-test approval, collection and security incidents. Failed notifications are recorded and retried appropriately.
+  1539→
+  1540→---
+  1541→
+  1542→## 17. Implementation instructions
+  1543→
+  1544→Before implementing:
+  1545→
+  1546→1. Inspect the current CARMAZE repository, architecture, database, authentication, existing garage and showroom portals, My Garage and notification systems.
+  1547→2. Identify what already exists and reuse it.
+  1548→3. Do not duplicate existing functionality.
+  1549→4. Prepare safe database migrations.
+  1550→5. Implement the security workflows in the real backend and frontend.
+  1551→6. Integrate with existing roles, permissions and organisation-level tenant isolation.
+  1552→7. Build responsive customer, garage, showroom and admin interfaces.
+  1553→8. Add audit logs, notifications, evidence storage and automated tests.
+  1554→9. Run migrations, type checks, lint, builds, integration tests and end-to-end tests.
+  1555→10. Fix discovered issues rather than merely reporting them.
+  1556→
+  1557→Do not use mock vehicle verification, fake government checks, simulated tracking, fabricated evidence, fake SMS delivery or fake security analytics.
+  1558→
+  1559→Where an external integration requires credentials or an authorised provider, implement the integration boundary, document the exact missing requirement and keep the status explicitly unverified until the real check succeeds.
+  1560→
+  1561→**Final objective:** Every vehicle listed, viewed, test-driven, handed to a garage, worked on, moved and returned through CARMAZE must have an appropriate level of identity verification, authorisation, accountability and traceable history. Protect customers without making legitimate businesses impossible to operate, and protect businesses without exposing customers to unnecessary risk.

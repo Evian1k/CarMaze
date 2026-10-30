@@ -22,9 +22,10 @@ export function fail(status: number, code: string, message: string, data?: Recor
   return NextResponse.json({ error: code, message, ...data }, { status })
 }
 
-/** Wrap a route handler with uniform error handling. */
-export function route(handler: (req: NextRequest, ctx: RouteCtx) => Promise<Response>) {
-  return async (req: NextRequest, ctx: RouteCtx): Promise<Response> => {
+/** Wrap a route handler with uniform error handling. Generic ctx keeps each
+ * dynamic route's own params typing (e.g. { id: string }) intact. */
+export function route<C = RouteCtx>(handler: (req: NextRequest, ctx: C) => Promise<Response>) {
+  return async (req: NextRequest, ctx: C): Promise<Response> => {
     try {
       return await handler(req, ctx)
     } catch (e) {

@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
-import { CountUp, Reveal, Stagger, StaggerItem } from '@/components/motion/reveal'
+import { CountUp, Reveal, Stagger, StaggerItem, WordRise } from '@/components/motion/reveal'
 import { navigate, buildQuery, apiGet } from '@/lib/client'
 import { BODY_TYPES, KENYA_COUNTIES } from '@/lib/format'
 
@@ -72,9 +72,9 @@ export default function HomeView() {
   return (
     <div>
       {/* ── Hero ── */}
-      <section ref={heroRef} className="relative isolate overflow-hidden bg-[#141613]">
+      <section ref={heroRef} className="cmz-aurora relative isolate overflow-hidden bg-[#141613]">
         <motion.div
-          className="absolute inset-0 bg-cover bg-center opacity-70 will-change-transform"
+          className="cmz-img-reveal absolute inset-0 bg-cover bg-center opacity-70 will-change-transform"
           style={{ backgroundImage: 'url(/images/hero.png)', y: bgY, scale: reduce ? 1 : 1.08 }}
           role="img"
           aria-label="Luxury SUV driving on a night road in Kenya"
@@ -88,14 +88,12 @@ export default function HomeView() {
         )}
         <motion.div style={{ y: fgY, opacity: fgFade }} className="relative mx-auto flex w-full max-w-7xl flex-col justify-center px-4 py-16 sm:px-6 sm:py-24 lg:py-32">
           <Badge className="cmz-float w-fit border-none bg-accent/90 text-accent-foreground">Kenya&apos;s connected automotive ecosystem</Badge>
-          <motion.h1
-            className="mt-4 max-w-2xl text-3xl font-bold leading-tight text-white sm:text-5xl"
-            initial={reduce ? false : { opacity: 0, y: 26 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 0.61, 0.36, 1] }}
-          >
-            Find your next car with <span className="text-[#D9B878]">confidence.</span>
-          </motion.h1>
+          <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-tight text-white sm:text-5xl">
+            <WordRise text="Find your next car with" delay={0.12} />{' '}
+            <span className="text-[#D9B878]">
+              <WordRise text="confidence." delay={0.12 + 5 * 0.055} />
+            </span>
+          </h1>
           <motion.p
             className="mt-3 max-w-xl text-sm text-white/70 sm:text-base"
             initial={reduce ? false : { opacity: 0, y: 20 }}
@@ -146,7 +144,7 @@ export default function HomeView() {
                 <option value="">Anywhere</option>
                 {KENYA_COUNTIES.slice(0, 12).map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-              <Button type="submit" size="lg" className="h-11 gap-2 bg-primary text-primary-foreground transition-transform hover:bg-primary/90 active:scale-[0.97]">
+              <Button type="submit" size="lg" className="cmz-sheen h-11 gap-2 bg-primary text-primary-foreground transition-transform hover:bg-primary/90 active:scale-[0.97]">
                 <Search className="h-4 w-4" /> Search
               </Button>
             </div>

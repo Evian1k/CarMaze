@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import {
   Heart, Share2, Flag, Mail, BadgeCheck, MapPin, Gauge, Fuel, Cog, Car,
   Palette, CalendarDays, Eye, Hash, ShieldAlert, ArrowLeft, MessageSquareText, Phone,
+  CalendarCheck, MessageCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +24,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
+import { MessageDialog, TestDriveDialog } from '@/components/storefront/dialogs'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useAuth } from '@/stores/auth'
 import { apiGet, apiSend, navigate } from '@/lib/client'
@@ -100,6 +102,9 @@ export default function View() {
   const [reportReason, setReportReason] = useState<string>('')
   const [reportDetails, setReportDetails] = useState('')
   const [sendingReport, setSendingReport] = useState(false)
+
+  // Storefront actions (dealer listings with an org): test drive / vehicle enquiry
+  const [storefrontAction, setStorefrontAction] = useState<'message' | 'test-drive' | null>(null)
 
   // ── Load detail (and reset view-local state per vehicle) ──
   useEffect(() => {
@@ -416,6 +421,27 @@ export default function View() {
                   <Flag className="h-4 w-4" /><span className="text-xs">Report</span>
                 </Button>
               </div>
+
+              {vehicle.org?.id && (
+                <div className="mt-2 grid gap-2 border-t border-border pt-3">
+                  <Button
+                    variant="outline"
+                    className="h-11 justify-start gap-2"
+                    onClick={() => setStorefrontAction('test-drive')}
+                    disabled={vehicle.status === 'SOLD'}
+                  >
+                    <CalendarCheck className="h-4 w-4 text-primary" /> Book test drive
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-11 justify-start gap-2"
+                    onClick={() => setStorefrontAction('message')}
+                    disabled={vehicle.status === 'SOLD'}
+                  >
+                    <MessageCircle className="h-4 w-4 text-primary" /> Ask about this vehicle
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -542,6 +568,27 @@ export default function View() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Storefront dialogs — dealer listings */}
+      {vehicle.org?.id && (
+        <>
+          <MessageDialog
+            open={storefrontAction === 'message'}
+            onOpenChange={(open) => { if (!open) setStorefrontAction(null) }}
+            org={{ id: vehicle.org.id, name: vehicle.org.name }}
+            vehicleId={vehicle.id}
+            kind="VEHICLE_ENQUIRY"
+            subject={`Enquiry: ${title}`}
+          />
+          <TestDriveDialog
+            open={storefrontAction === 'test-drive'}
+            onOpenChange={(open) => { if (!open) setStorefrontAction(null) }}
+            org={{ id: vehicle.org.id, name: vehicle.org.name }}
+            vehicleId={vehicle.id}
+            vehicleLabel={title}
+          />
+        </>
+      )}
 
       {/* Report dialog */}
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>

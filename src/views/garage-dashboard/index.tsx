@@ -5,9 +5,11 @@
  * /api/service-requests?org=1, /api/quotes, /api/bookings, /api/reviews. */
 
 import { useCallback, useEffect, useState } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import {
   Wrench, MapPin, Star, Plus, Pencil, Send, CalendarClock, Play, CheckCircle2, XCircle,
   ClipboardList, ShieldCheck, Building2, FileText, Upload, MessageSquareText, Settings2, RefreshCw,
+  Inbox, ClipboardCheck, KeyRound, PackageCheck, Gauge, StickyNote, Ban, CarFront, Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -23,11 +25,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CountUp, Stagger, StaggerItem } from '@/components/motion/reveal'
+import { MessagesTab, useUnreadConversations } from '@/components/messaging/conversation-panel'
 import { useAuth } from '@/stores/auth'
 import { navigate, apiGet, apiSend, apiUpload, buildQuery } from '@/lib/client'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import {
-  money, timeAgo, KENYA_COUNTIES, SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS,
+  money, timeAgo, dateLabel, KENYA_COUNTIES, SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS,
 } from '@/lib/format'
 
 // ─────────────────────────── Types ───────────────────────────
@@ -51,6 +55,7 @@ type ReviewRow = { id: string; rating: number; comment: string | null; createdAt
 type AppEvent = { id: string; type: string; actorName: string | null; note: string | null; createdAt: string }
 type GarageApplication = {
   id: string; refCode: string; status: string; orgName: string; createdAt: string; orgId: string | null
+  type?: string
   events: AppEvent[]
   decisionNote?: string | null
 }
@@ -164,8 +169,9 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
   initialTab: string
   onRefresh: () => void
 }) {
-  const TABS = ['overview', 'services', 'requests', 'quotes', 'bookings', 'reviews', 'profile'] as const
+  const TABS = ['overview', 'services', 'requests', 'quotes', 'bookings', 'custody', 'inbox', 'reviews', 'profile'] as const
   const [tab, setTab] = useState<string>(TABS.includes(initialTab as (typeof TABS)[number]) ? initialTab : 'overview')
+  const unreadMessages = useUnreadConversations('org')
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
@@ -201,6 +207,15 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
           <TabsTrigger value="requests" className="gap-1.5"><ClipboardList className="h-4 w-4" /> Requests</TabsTrigger>
           <TabsTrigger value="quotes" className="gap-1.5"><Send className="h-4 w-4" /> Quotes</TabsTrigger>
           <TabsTrigger value="bookings" className="gap-1.5"><CalendarClock className="h-4 w-4" /> Bookings</TabsTrigger>
+          <TabsTrigger value="custody" className="gap-1.5"><KeyRound className="h-4 w-4" /> Vehicle custody</TabsTrigger>
+          <TabsTrigger value="inbox" className="gap-1.5">
+            <Inbox className="h-4 w-4" /> Inbox
+            {unreadMessages > 0 && (
+              <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground" aria-label={`${unreadMessages} unread`}>
+                {unreadMessages > 9 ? '9+' : unreadMessages}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="reviews" className="gap-1.5"><MessageSquareText className="h-4 w-4" /> Reviews</TabsTrigger>
           <TabsTrigger value="profile" className="gap-1.5"><Settings2 className="h-4 w-4" /> Profile</TabsTrigger>
         </TabsList>
@@ -210,6 +225,8 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
         <TabsContent value="requests" className="mt-4"><RequestsTab orgId={activeOrgId} services={activeGarage.services} /></TabsContent>
         <TabsContent value="quotes" className="mt-4"><QuotesTab orgId={activeOrgId} /></TabsContent>
         <TabsContent value="bookings" className="mt-4"><BookingsTab orgId={activeOrgId} onChanged={onRefresh} /></TabsContent>
+        <TabsContent value="custody" className="mt-4"><FadeIn><CustodyTab /></FadeIn></TabsContent>
+        <TabsContent value="inbox" className="mt-4"><FadeIn><MessagesTab scope="org" /></FadeIn></TabsContent>
         <TabsContent value="reviews" className="mt-4"><ReviewsTab orgId={activeOrgId} rating={activeGarage.rating} /></TabsContent>
         <TabsContent value="profile" className="mt-4"><ProfileTab garage={activeGarage} onSaved={onRefresh} /></TabsContent>
       </Tabs>
@@ -1227,5 +1244,992 @@ function EmptyBlock({ icon, title, desc }: { icon: React.ReactNode; title: strin
       <h3 className="mt-3 font-semibold">{title}</h3>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">{desc}</p>
     </div>
+  )
+}
+
+/** Soft fade/rise for new tab panels. */
+function FadeIn({ children }: { children: React.ReactNode }) {
+  const reduce = useReducedMotion()
+  return (
+    <motion.div
+      initial={reduce ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+// ═══════════════════════════ Vehicle custody (org side) ═══════════════════════════
+
+type CustodyRow = {
+  id: string; refCode: string; status: string; vehicleDesc: string; plate: string | null
+  customerName: string; requestedWork: string | null; createdAt: string; updatedAt: string
+}
+
+type OrgRoadTest = {
+  id: string; purpose: string; driverName: string; status: string
+  startOdometerKm: number | null; endOdometerKm: number | null
+  requestedAt: string; authorisedAt: string | null; startedAt: string | null; endedAt: string | null
+  notes: string | null; incident: boolean
+}
+
+type OrgCustodyEvent = {
+  id: string; type: string; fromStatus: string | null; toStatus: string | null
+  actorName: string | null; actorSide: string; note: string | null; createdAt: string
+}
+
+type OrgCustodyDetail = CustodyRow & {
+  orgName: string
+  authorisedSpendMinor: number | null
+  roadTestAllowed: boolean
+  declaredCondition?: string | null
+  declaredMileageKm?: number | null
+  valuables?: string | null
+  completedWork?: string | null
+  finalOdometerKm?: number | null
+  finalNotes?: string | null
+  costMinor?: number | null
+  photos: string[]
+  completionPhotos: string[]
+  events: OrgCustodyEvent[]
+  roadTests: OrgRoadTest[]
+  collectionAuth: { collectorName: string; collectorPhone: string; codeHint: string; expiresAt: string; usedAt: string | null; revokedAt: string | null } | null
+}
+
+const CUSTODY_META: Record<string, { label: string; badge: string }> = {
+  HANDOVER_REQUESTED: { label: 'Handover requested', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  RECEIVED: { label: 'Received', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+  INSPECTION: { label: 'Inspection', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+  AWAITING_APPROVAL: { label: 'Awaiting customer approval', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  WORK_IN_PROGRESS: { label: 'Work in progress', badge: 'border-indigo-300 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' },
+  ROAD_TEST_REQUESTED: { label: 'Road test requested', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  READY_FOR_COLLECTION: { label: 'Ready for collection', badge: 'border-[#315e4b]/50 bg-[#315e4b]/10 text-[#315e4b] dark:text-[#9dc3ae]' },
+  COLLECTION_PENDING: { label: 'Collection pending', badge: 'border-[#315e4b]/50 bg-[#315e4b]/10 text-[#315e4b] dark:text-[#9dc3ae]' },
+  RETURNED: { label: 'Returned', badge: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
+  DISPUTED: { label: 'Disputed', badge: 'border-destructive/50 bg-destructive/10 text-destructive' },
+  INCIDENT: { label: 'Incident', badge: 'border-destructive/50 bg-destructive/10 text-destructive' },
+}
+
+/** Lifecycle order used to lay out the board. */
+const CUSTODY_FLOW = [
+  'HANDOVER_REQUESTED', 'RECEIVED', 'INSPECTION', 'AWAITING_APPROVAL', 'WORK_IN_PROGRESS',
+  'ROAD_TEST_REQUESTED', 'READY_FOR_COLLECTION', 'COLLECTION_PENDING', 'RETURNED', 'DISPUTED', 'INCIDENT',
+] as const
+
+const ROAD_TEST_META: Record<string, { label: string; badge: string }> = {
+  REQUESTED: { label: 'Awaiting customer authorisation', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  AUTHORISED: { label: 'Authorised — ready to start', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+  IN_PROGRESS: { label: 'On the road', badge: 'border-indigo-300 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' },
+  COMPLETED: { label: 'Completed', badge: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
+  DECLINED: { label: 'Declined by customer', badge: 'bg-muted text-muted-foreground' },
+  CANCELLED: { label: 'Cancelled', badge: 'bg-muted text-muted-foreground' },
+}
+
+/** Statuses the garage can progress from. */
+const MUTABLE_STATUSES = new Set(['RECEIVED', 'INSPECTION', 'AWAITING_APPROVAL', 'WORK_IN_PROGRESS'])
+
+function CustodyTab() {
+  const [custodies, setCustodies] = useState<CustodyRow[] | null>(null)
+  const [tick, setTick] = useState(0)
+  const [detailId, setDetailId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    apiGet<{ custodies: CustodyRow[] }>('/api/custody?org=1')
+      .then((d) => { if (!cancelled) setCustodies(d.custodies) })
+      .catch(() => { if (!cancelled) setCustodies([]) })
+    return () => { cancelled = true }
+  }, [tick])
+
+  // Poll the board every 15 seconds.
+  useEffect(() => {
+    const t = setInterval(() => setTick((k) => k + 1), 15_000)
+    return () => clearInterval(t)
+  }, [])
+
+  const reload = useCallback(() => setTick((k) => k + 1), [])
+  const list = custodies ?? []
+  const inCustody = list.filter((c) => !['RETURNED'].includes(c.status) && c.status !== 'DISPUTED' && c.status !== 'INCIDENT').length
+  const awaitingCustomer = list.filter((c) => ['AWAITING_APPROVAL', 'ROAD_TEST_REQUESTED'].includes(c.status)).length
+  const readyForCollection = list.filter((c) => ['READY_FOR_COLLECTION', 'COLLECTION_PENDING'].includes(c.status)).length
+  const disputed = list.filter((c) => ['DISPUTED', 'INCIDENT'].includes(c.status)).length
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-3xl font-bold"><CountUp value={inCustody} /></p>
+          <p className="mt-1 text-sm font-medium">Vehicles in custody</p>
+          <p className="text-xs text-muted-foreground">From handover to release</p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-3xl font-bold"><CountUp value={awaitingCustomer} /></p>
+          <p className="mt-1 text-sm font-medium">Awaiting customer</p>
+          <p className="text-xs text-muted-foreground">Approvals &amp; road tests</p>
+        </div>
+        <div className="rounded-xl border border-[#315e4b]/40 bg-[#315e4b]/5 p-4">
+          <p className="text-3xl font-bold text-[#315e4b] dark:text-[#9dc3ae]"><CountUp value={readyForCollection} /></p>
+          <p className="mt-1 text-sm font-medium">Ready for collection</p>
+          <p className="text-xs text-muted-foreground">Verify the code at release</p>
+        </div>
+        <div className={`rounded-xl border bg-card p-4 ${disputed > 0 ? 'border-destructive/40 bg-destructive/5' : ''}`}>
+          <p className={`text-3xl font-bold ${disputed > 0 ? 'text-destructive' : ''}`}><CountUp value={disputed} /></p>
+          <p className="mt-1 text-sm font-medium">Disputed / incidents</p>
+          <p className="text-xs text-muted-foreground">Frozen pending review</p>
+        </div>
+      </div>
+
+      <p className="text-sm text-muted-foreground">
+        Every vehicle handed over for work is tracked through custody. A vehicle can only be released with the
+        customer&apos;s 6-digit collection code or their personal collection confirmation — there is no way around it.
+      </p>
+
+      {custodies === null ? (
+        <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
+      ) : list.length === 0 ? (
+        <EmptyBlock
+          icon={<ClipboardCheck className="h-6 w-6" />}
+          title="No custody jobs yet"
+          desc="When a customer hands a vehicle over for booked work, it appears here with full condition records and a protected release flow."
+        />
+      ) : (
+        CUSTODY_FLOW.map((status) => {
+          const group = list.filter((c) => c.status === status)
+          if (group.length === 0) return null
+          const meta = CUSTODY_META[status] ?? { label: status, badge: 'bg-muted text-muted-foreground' }
+          return (
+            <section key={status} aria-label={meta.label}>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{meta.label}</h3>
+                <Badge variant="outline" className={meta.badge}>{group.length}</Badge>
+              </div>
+              <div className="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {group.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setDetailId(c.id)}
+                    className="rounded-xl border bg-card p-4 text-left shadow-sm transition-all hover:shadow-md"
+                    aria-label={`Open custody job ${c.refCode}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="flex min-w-0 items-center gap-2 font-semibold leading-tight">
+                        <CarFront className="h-4 w-4 shrink-0 text-primary" />
+                        <span className="min-w-0 truncate">{c.vehicleDesc}</span>
+                      </h4>
+                      {c.plate && <Badge variant="secondary" className="shrink-0 font-mono text-[11px]">{c.plate}</Badge>}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {c.customerName} · <span className="font-mono">{c.refCode}</span> · updated {timeAgo(c.updatedAt)}
+                    </p>
+                    {c.requestedWork && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{c.requestedWork}</p>}
+                    {['DISPUTED', 'INCIDENT'].includes(status) && (
+                      <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-destructive">
+                        <Ban className="h-3.5 w-3.5" /> Status changes locked
+                      </p>
+                    )}
+                    {status === 'READY_FOR_COLLECTION' && (
+                      <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#315e4b] dark:text-[#9dc3ae]">
+                        <KeyRound className="h-3.5 w-3.5" /> Verify collection code to release
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )
+        })
+      )}
+
+      <CustodyDetailDialog custodyId={detailId} onClose={() => setDetailId(null)} onChanged={reload} />
+    </div>
+  )
+}
+
+function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
+  custodyId: string | null
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const [detail, setDetail] = useState<OrgCustodyDetail | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [dialog, setDialog] = useState<'receive' | 'ready' | 'note' | 'roadtest-request' | 'roadtest-start' | 'roadtest-end' | 'verify' | null>(null)
+  const [activeRoadTest, setActiveRoadTest] = useState<OrgRoadTest | null>(null)
+
+  async function load(id: string, silent = false) {
+    if (!silent) setLoading(true)
+    try {
+      const d = await apiGet<{ custody: OrgCustodyDetail }>(`/api/custody/${id}`)
+      setDetail(d.custody)
+    } catch (e) {
+      if (!silent) toast.error(e instanceof Error ? e.message : 'Could not load the custody job.')
+    } finally {
+      if (!silent) setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (custodyId) load(custodyId)
+    else { setDetail(null); setDialog(null); setActiveRoadTest(null) }
+     
+  }, [custodyId])
+
+  async function patchCustody(payload: Record<string, unknown>, successMsg: string): Promise<boolean> {
+    if (!custodyId) return false
+    setBusy(true)
+    try {
+      await apiSend(`/api/custody/${custodyId}`, 'PATCH', payload)
+      toast.success(successMsg)
+      setDialog(null)
+      await load(custodyId, true)
+      onChanged()
+      return true
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Action failed.')
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const meta = detail ? (CUSTODY_META[detail.status] ?? { label: detail.status, badge: 'bg-muted text-muted-foreground' }) : null
+  const disputed = detail ? (detail.status === 'DISPUTED' || detail.status === 'INCIDENT') : false
+  const canVerify = detail ? ['READY_FOR_COLLECTION', 'COLLECTION_PENDING'].includes(detail.status) : false
+  const canRequestRoadTest = detail ? detail.roadTestAllowed && MUTABLE_STATUSES.has(detail.status) : false
+  const authActive = detail?.collectionAuth && !detail.collectionAuth.usedAt && !detail.collectionAuth.revokedAt
+
+  return (
+    <>
+    <Dialog open={custodyId !== null} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+        {loading || !detail || !meta ? (
+          <div className="space-y-3 py-4">
+            <Skeleton className="h-8 w-2/3" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-40 w-full" />
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <DialogHeader>
+              <DialogTitle className="flex flex-wrap items-center gap-2 text-left">
+                {detail.vehicleDesc}
+                {detail.plate && <Badge variant="secondary" className="font-mono text-[11px]">{detail.plate}</Badge>}
+                <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>
+              </DialogTitle>
+              <DialogDescription className="text-left">
+                {detail.customerName} · <span className="font-mono">{detail.refCode}</span> · handover requested {timeAgo(detail.createdAt)}
+              </DialogDescription>
+            </DialogHeader>
+
+            {disputed && (
+              <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-4" role="alert">
+                <p className="flex items-center gap-2 text-sm font-semibold text-destructive">
+                  <Ban className="h-4 w-4" /> Custody disputed — incident opened.
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-destructive/90">
+                  CARMAZE security will review. You cannot close this dispute.
+                </p>
+              </div>
+            )}
+
+            {/* Job facts */}
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <div className="rounded-lg border p-3 sm:col-span-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Requested work</p>
+                <p className="mt-1">{detail.requestedWork ?? '—'}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Authorised spend cap</p>
+                <p className="mt-1 font-semibold">{detail.authorisedSpendMinor != null ? money(detail.authorisedSpendMinor) : 'No cap set'}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Road tests</p>
+                <p className="mt-1 font-semibold">{detail.roadTestAllowed ? 'Authorised by customer' : 'Not authorised'}</p>
+              </div>
+              {detail.declaredMileageKm != null && (
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Odometer at handover</p>
+                  <p className="mt-1 font-semibold">{detail.declaredMileageKm.toLocaleString()} km</p>
+                </div>
+              )}
+              {detail.valuables && (
+                <div className="rounded-lg border p-3 sm:col-span-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valuables declared</p>
+                  <p className="mt-1">{detail.valuables}</p>
+                </div>
+              )}
+              {detail.declaredCondition && (
+                <div className="rounded-lg border p-3 sm:col-span-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Condition declared at handover</p>
+                  <p className="mt-1">{detail.declaredCondition}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Declared condition photos */}
+            {detail.photos.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold">Handover condition photos</h4>
+                <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {detail.photos.map((p) => (
+                    <a key={p} href={p} target="_blank" rel="noreferrer">
+                      { }
+                      <img src={p} alt="Vehicle condition at handover" className="aspect-square w-full rounded-lg border object-cover transition-transform hover:scale-[1.03]" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Lifecycle actions */}
+            {!disputed && (
+              <div className="rounded-xl border p-4">
+                <h4 className="text-sm font-semibold">Progress the job</h4>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {detail.status === 'HANDOVER_REQUESTED' && (
+                    <Button size="sm" className="min-h-11 gap-1.5" disabled={busy} onClick={() => setDialog('receive')}>
+                      <PackageCheck className="h-4 w-4" /> Receive vehicle
+                    </Button>
+                  )}
+                  {detail.status === 'RECEIVED' && (
+                    <Button size="sm" className="min-h-11 gap-1.5" disabled={busy} onClick={() => patchCustody({ action: 'status', status: 'INSPECTION' }, 'Moved to inspection')}>
+                      <ClipboardCheck className="h-4 w-4" /> Begin inspection
+                    </Button>
+                  )}
+                  {detail.status === 'INSPECTION' && (
+                    <Button size="sm" className="min-h-11 gap-1.5" disabled={busy} onClick={() => patchCustody({ action: 'status', status: 'AWAITING_APPROVAL' }, 'Sent to the customer for approval')}>
+                      <Send className="h-4 w-4" /> Submit for customer approval
+                    </Button>
+                  )}
+                  {detail.status === 'AWAITING_APPROVAL' && (
+                    <Button size="sm" className="min-h-11 gap-1.5" disabled={busy} onClick={() => patchCustody({ action: 'status', status: 'WORK_IN_PROGRESS' }, 'Work started')}>
+                      <Play className="h-4 w-4" /> Start work
+                    </Button>
+                  )}
+                  {detail.status === 'WORK_IN_PROGRESS' && (
+                    <Button size="sm" className="min-h-11 gap-1.5" disabled={busy} onClick={() => setDialog('ready')}>
+                      <CheckCircle2 className="h-4 w-4" /> Mark ready for collection
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" className="min-h-11 gap-1.5" disabled={busy} onClick={() => setDialog('note')}>
+                    <StickyNote className="h-4 w-4" /> Add note
+                  </Button>
+                </div>
+                {detail.completedWork && (
+                  <div className="mt-3 rounded-lg border border-[#315e4b]/40 bg-[#315e4b]/5 p-3 text-sm">
+                    <p className="font-medium text-[#315e4b] dark:text-[#9dc3ae]">Recorded completion</p>
+                    <p className="mt-1">{detail.completedWork}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {detail.costMinor != null && `Final cost ${money(detail.costMinor)} · `}
+                      {detail.finalOdometerKm != null && `${detail.finalOdometerKm.toLocaleString()} km · `}
+                      recorded {timeAgo(detail.updatedAt)}
+                    </p>
+                    {detail.completionPhotos.length > 0 && (
+                      <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                        {detail.completionPhotos.map((p) => (
+                          <a key={p} href={p} target="_blank" rel="noreferrer">
+                            { }
+                            <img src={p} alt="Completed work" className="aspect-square w-full rounded-lg border object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Road tests */}
+            {!disputed && (
+              <div className="rounded-xl border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold">Road tests</h4>
+                  {canRequestRoadTest && (
+                    <Button size="sm" variant="outline" className="min-h-9 gap-1.5" onClick={() => setDialog('roadtest-request')}>
+                      <Gauge className="h-3.5 w-3.5" /> Request road test
+                    </Button>
+                  )}
+                </div>
+                {detail.roadTests.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {detail.roadTestAllowed
+                      ? 'No road tests yet. Request one when the job needs an on-road check.'
+                      : 'The customer has not authorised road tests for this job.'}
+                  </p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {detail.roadTests.map((rt) => {
+                      const rm = ROAD_TEST_META[rt.status] ?? { label: rt.status, badge: 'bg-muted text-muted-foreground' }
+                      return (
+                        <div key={rt.id} className={rt.incident ? 'rounded-lg border border-destructive/50 bg-destructive/5 p-3' : 'rounded-lg border p-3'}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium">{rt.purpose}</p>
+                            <Badge variant="outline" className={rm.badge}>{rm.label}</Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Driver: {rt.driverName} · requested {timeAgo(rt.requestedAt)}
+                            {rt.startOdometerKm != null && ` · out ${rt.startOdometerKm.toLocaleString()} km`}
+                            {rt.endOdometerKm != null && ` · in ${rt.endOdometerKm.toLocaleString()} km`}
+                          </p>
+                          {rt.notes && <p className="mt-1 text-xs text-muted-foreground">Notes: {rt.notes}</p>}
+                          {rt.incident && (
+                            <p className="mt-1 flex items-center gap-1 text-xs font-medium text-destructive">
+                              <Ban className="h-3 w-3" /> Incident reported on this road test
+                            </p>
+                          )}
+                          {rt.status === 'AUTHORISED' && (
+                            <Button size="sm" className="mt-2 min-h-9 gap-1.5" onClick={() => { setActiveRoadTest(rt); setDialog('roadtest-start') }}>
+                              <Play className="h-3.5 w-3.5" /> Start (record odometer)
+                            </Button>
+                          )}
+                          {rt.status === 'IN_PROGRESS' && (
+                            <Button size="sm" className="mt-2 min-h-9 gap-1.5" onClick={() => { setActiveRoadTest(rt); setDialog('roadtest-end') }}>
+                              <CheckCircle2 className="h-3.5 w-3.5" /> End road test
+                            </Button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Release verification */}
+            {canVerify && !disputed && (
+              <div className="rounded-xl border border-[#315e4b]/50 bg-[#315e4b]/5 p-4">
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-[#315e4b] dark:text-[#9dc3ae]">
+                  <KeyRound className="h-4 w-4" /> Release verification
+                </h4>
+                {authActive && detail.collectionAuth && (
+                  <div className="mt-2 rounded-lg border border-amber-300 bg-amber-500/10 p-3 text-sm">
+                    <p className="font-medium">Active collection authorisation</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Collector: <strong className="text-foreground">{detail.collectionAuth.collectorName}</strong> · code hint{' '}
+                      <strong className="font-mono text-foreground">{detail.collectionAuth.codeHint}</strong> · valid until{' '}
+                      {dateLabel(detail.collectionAuth.expiresAt)}
+                    </p>
+                  </div>
+                )}
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Ask the person collecting for their 6-digit code and enter it with their name. The vehicle is marked
+                  returned only after the code verifies — never hand over keys without it.
+                </p>
+                <Button className="mt-3 min-h-11 gap-2" onClick={() => setDialog('verify')}>
+                  <ShieldCheck className="h-4 w-4" /> Verify collection
+                </Button>
+              </div>
+            )}
+
+            {/* Timeline */}
+            <div>
+              <h4 className="text-sm font-semibold">Event timeline</h4>
+              <Stagger className="mt-2 space-y-3">
+                {detail.events.map((ev) => (
+                  <StaggerItem key={ev.id}>
+                    <div className="flex gap-3 text-sm">
+                      <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#c9a45c] ring-4 ring-[#c9a45c]/10" aria-hidden="true" />
+                      <div className="min-w-0">
+                        <p className="font-medium">{custodyEventLabel(ev)}</p>
+                        {ev.note && <p className="text-muted-foreground">{ev.note}</p>}
+                        <p className="text-xs text-muted-foreground">
+                          {timeAgo(ev.createdAt)}{ev.actorName ? ` · ${ev.actorName}` : ''}{ev.actorSide ? ` (${ev.actorSide.toLowerCase()})` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </StaggerItem>
+                ))}
+              </Stagger>
+            </div>
+          </div>
+        )}
+
+      </DialogContent>
+    </Dialog>
+
+    {/* ── Receive vehicle dialog ── */}
+    <ReceiveVehicleDialog
+      open={dialog === 'receive'}
+      busy={busy}
+      onCancel={() => setDialog(null)}
+      onSubmit={(staffName) => patchCustody({ action: 'receive', staffName }, 'Vehicle received into custody')}
+    />
+
+    {/* ── Ready for collection dialog ── */}
+    <ReadyForCollectionDialog
+      open={dialog === 'ready'}
+      busy={busy}
+      onCancel={() => setDialog(null)}
+      onSubmit={async (payload) => {
+        const ok = await patchCustody({ action: 'status', status: 'READY_FOR_COLLECTION', ...payload }, 'Marked ready for collection — the customer can now authorise release')
+        return ok
+      }}
+    />
+
+    {/* ── Note dialog ── */}
+    <NoteDialog
+      open={dialog === 'note'}
+      busy={busy}
+      onCancel={() => setDialog(null)}
+      onSubmit={(note) => patchCustody({ action: 'note', note }, 'Note added to the custody record')}
+    />
+
+    {/* ── Request road test dialog ── */}
+    <RequestRoadTestDialog
+      open={dialog === 'roadtest-request'}
+      busy={busy}
+      onCancel={() => setDialog(null)}
+      onSubmit={(purpose, driverName) => patchCustody({ action: 'request-roadtest', purpose, driverName }, 'Road test requested — awaiting customer authorisation')}
+    />
+
+    {/* ── Start road test dialog ── */}
+    <OdometerDialog
+      open={dialog === 'roadtest-start'}
+      title="Start road test"
+      description={activeRoadTest ? `${activeRoadTest.purpose} — driver ${activeRoadTest.driverName}. Record the odometer before leaving the yard.` : ''}
+      label="Odometer out (km)"
+      submitLabel="Start test"
+      busy={busy}
+      onCancel={() => setDialog(null)}
+      onSubmit={(km) => patchCustody({ action: 'start-roadtest', roadTestId: activeRoadTest?.id, startOdometerKm: km }, 'Road test started')}
+    />
+
+    {/* ── End road test dialog ── */}
+    <EndRoadTestDialog
+      open={dialog === 'roadtest-end'}
+      roadTest={activeRoadTest}
+      busy={busy}
+      onCancel={() => setDialog(null)}
+      onSubmit={(km, notes, incident) => patchCustody(
+        { action: 'end-roadtest', roadTestId: activeRoadTest?.id, endOdometerKm: km, notes: notes || undefined, incident: incident || undefined },
+        incident ? 'Road test ended — incident flagged and CARMAZE notified' : 'Road test completed',
+      )}
+    />
+
+    {/* ── Verify collection dialog ── */}
+    <VerifyCollectionDialog
+      open={dialog === 'verify'}
+      busy={busy}
+      vehicleLabel={detail ? `${detail.vehicleDesc}${detail.plate ? ` (${detail.plate})` : ''}` : ''}
+      onCancel={() => setDialog(null)}
+      onSubmit={async (collectorName, authCode) => {
+        if (!custodyId) return false
+        setBusy(true)
+        try {
+          await apiSend(`/api/custody/${custodyId}/collect`, 'POST', { collectorName, authCode })
+          toast.success('Code verified — vehicle released. Custody closed as RETURNED.')
+          setDialog(null)
+          await load(custodyId, true)
+          onChanged()
+          return true
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'Verification failed — check the name and code.')
+          return false
+        } finally {
+          setBusy(false)
+        }
+      }}
+    />
+    </>
+  )
+}
+
+function custodyEventLabel(ev: OrgCustodyEvent): string {
+  const labels: Record<string, string> = {
+    CREATED: 'Custody requested',
+    RECEIVE: 'Vehicle received',
+    STATUS_CHANGED: 'Status updated',
+    NOTE: 'Note added',
+    ROAD_TEST_REQUESTED: 'Road test requested',
+    ROAD_TEST_AUTHORISED: 'Road test authorised by customer',
+    ROAD_TEST_DECLINED: 'Road test declined by customer',
+    ROAD_TEST_STARTED: 'Road test started',
+    ROAD_TEST_ENDED: 'Road test ended',
+    COMPLETION_RECORDED: 'Completion recorded',
+    COLLECTION_AUTH_CREATED: 'Third-party collection authorised',
+    COLLECTION_AUTH_REVOKED: 'Collection authorisation revoked',
+    COLLECT_SELF: 'Customer confirmed personal collection',
+    COLLECTED: 'Vehicle collected — code verified',
+    DISPUTE: 'Dispute opened',
+    INCIDENT: 'Incident reported',
+  }
+  if (labels[ev.type]) return labels[ev.type]
+  if (ev.toStatus) {
+    const m = CUSTODY_META[ev.toStatus]
+    return `Moved to ${m?.label.toLowerCase() ?? ev.toStatus.toLowerCase()}`
+  }
+  return ev.type.replaceAll('_', ' ').toLowerCase()
+}
+
+// ─────────────────────────── Custody sub-dialogs ───────────────────────────
+
+function ReceiveVehicleDialog({ open, busy, onCancel, onSubmit }: {
+  open: boolean
+  busy: boolean
+  onCancel: () => void
+  onSubmit: (staffName: string) => void
+}) {
+  const [staffName, setStaffName] = useState('')
+  const valid = staffName.trim().length >= 2
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Receive the vehicle</DialogTitle>
+          <DialogDescription>Record which staff member physically checked the vehicle in.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label htmlFor="cu-staff">Staff member receiving *</Label>
+          <Input id="cu-staff" value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="e.g. John Mwangi" />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button disabled={busy || !valid} onClick={() => onSubmit(staffName.trim())} className="min-h-11">
+            {busy ? 'Saving…' : 'Confirm receipt'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ReadyForCollectionDialog({ open, busy, onCancel, onSubmit }: {
+  open: boolean
+  busy: boolean
+  onCancel: () => void
+  onSubmit: (payload: { completedWork: string; finalOdometerKm?: number; finalNotes?: string; costMinor?: number; completionPhotos?: string[] }) => Promise<boolean>
+}) {
+  const [completedWork, setCompletedWork] = useState('')
+  const [finalOdometer, setFinalOdometer] = useState('')
+  const [finalNotes, setFinalNotes] = useState('')
+  const [cost, setCost] = useState('')
+  const [photos, setPhotos] = useState<{ url: string; name: string }[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (open) { setCompletedWork(''); setFinalOdometer(''); setFinalNotes(''); setCost(''); setPhotos([]) }
+  }, [open])
+
+  const costMinor = cost.trim() ? kesToMinor(cost) : null
+  const costInvalid = cost.trim() !== '' && costMinor === null
+  const valid = completedWork.trim().length >= 5
+
+  async function uploadPhoto(file: File) {
+    if (photos.length >= 4) { toast.error('Up to 4 completion photos.'); return }
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const d = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
+      setPhotos((prev) => [...prev, { url: d.url, name: d.name || file.name }])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Upload failed.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function submit() {
+    if (!valid) return
+    setSaving(true)
+    const ok = await onSubmit({
+      completedWork: completedWork.trim(),
+      finalOdometerKm: finalOdometer.trim() ? parseInt(finalOdometer.trim(), 10) : undefined,
+      finalNotes: finalNotes.trim() || undefined,
+      costMinor: costMinor ?? undefined,
+      completionPhotos: photos.length > 0 ? photos.map((p) => p.url) : undefined,
+    })
+    setSaving(false)
+    if (ok) setCompletedWork('')
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Mark ready for collection</DialogTitle>
+          <DialogDescription>Record what was done — the customer sees this before authorising release.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="cu-done">Completed work *</Label>
+            <Textarea id="cu-done" rows={3} value={completedWork} onChange={(e) => setCompletedWork(e.target.value)} placeholder="e.g. Replaced front brake pads, full service, wheel alignment…" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-odo">Final odometer (km)</Label>
+              <Input id="cu-odo" inputMode="numeric" value={finalOdometer} onChange={(e) => setFinalOdometer(e.target.value)} placeholder="e.g. 84210" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-cost">Final cost (KES)</Label>
+              <div className="flex gap-2">
+                <Input id="cu-cost" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="e.g. 12500" />
+              </div>
+              {costInvalid && <p className="text-xs text-destructive">Enter a valid KES amount.</p>}
+              {costMinor !== null && <Badge variant="secondary">{money(costMinor)}</Badge>}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cu-fnotes">Notes for the customer (optional)</Label>
+            <Textarea id="cu-fnotes" rows={2} value={finalNotes} onChange={(e) => setFinalNotes(e.target.value)} placeholder="Advice, next service due, watch-outs…" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Completion photos (optional, up to 4)</Label>
+            <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:bg-muted/60">
+              <Upload className="h-4 w-4" />
+              {uploading ? 'Uploading…' : 'Upload a photo'}
+              <input
+                type="file"
+                className="sr-only"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={uploading}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.currentTarget.value = '' }}
+              />
+            </label>
+            {photos.length > 0 && (
+              <div className="grid grid-cols-4 gap-2">
+                {photos.map((p, i) => (
+                  <div key={p.url} className="relative">
+                    { }
+                    <img src={p.url} alt={p.name} className="aspect-square w-full rounded-lg border object-cover" />
+                    <button
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border bg-background text-muted-foreground hover:text-destructive"
+                      aria-label={`Remove photo ${p.name}`}
+                      onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" disabled={busy || saving} onClick={onCancel}>Cancel</Button>
+          <Button onClick={submit} disabled={busy || saving || !valid || costInvalid} className="min-h-11">
+            {saving ? 'Saving…' : 'Mark ready'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function NoteDialog({ open, busy, onCancel, onSubmit }: {
+  open: boolean
+  busy: boolean
+  onCancel: () => void
+  onSubmit: (note: string) => void
+}) {
+  const [note, setNote] = useState('')
+  const valid = note.trim().length >= 2
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Add a note to the custody record</DialogTitle>
+          <DialogDescription>Notes are visible to the customer in their Vehicle Protection timeline.</DialogDescription>
+        </DialogHeader>
+        <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Customer called — approved extra coolant flush." aria-label="Note" />
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button disabled={busy || !valid} onClick={() => { onSubmit(note.trim()); setNote('') }} className="min-h-11">Save note</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function RequestRoadTestDialog({ open, busy, onCancel, onSubmit }: {
+  open: boolean
+  busy: boolean
+  onCancel: () => void
+  onSubmit: (purpose: string, driverName: string) => void
+}) {
+  const [purpose, setPurpose] = useState('')
+  const [driverName, setDriverName] = useState('')
+  const valid = purpose.trim().length >= 3 && driverName.trim().length >= 2
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Request a road test</DialogTitle>
+          <DialogDescription>
+            The customer must authorise this before the vehicle leaves your yard. Record who will drive.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="rt-purpose">Purpose *</Label>
+            <Input id="rt-purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Verify steering fix on rough road" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rt-driver">Driver name *</Label>
+            <Input id="rt-driver" value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="e.g. Samuel Kariuki (technician)" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button disabled={busy || !valid} onClick={() => { onSubmit(purpose.trim(), driverName.trim()); setPurpose(''); setDriverName('') }} className="min-h-11">
+            {busy ? 'Sending…' : 'Request authorisation'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function OdometerDialog({ open, title, description, label, submitLabel, busy, onCancel, onSubmit }: {
+  open: boolean
+  title: string
+  description: string
+  label: string
+  submitLabel: string
+  busy: boolean
+  onCancel: () => void
+  onSubmit: (km: number) => void
+}) {
+  const [km, setKm] = useState('')
+  const parsed = parseInt(km.trim(), 10)
+  const valid = Number.isFinite(parsed) && parsed >= 0
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label htmlFor="rt-odo">{label} *</Label>
+          <Input id="rt-odo" inputMode="numeric" value={km} onChange={(e) => setKm(e.target.value)} placeholder="e.g. 84210" />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button disabled={busy || !valid} onClick={() => { onSubmit(parsed); setKm('') }} className="min-h-11">
+            {busy ? 'Saving…' : submitLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function EndRoadTestDialog({ open, roadTest, busy, onCancel, onSubmit }: {
+  open: boolean
+  roadTest: OrgRoadTest | null
+  busy: boolean
+  onCancel: () => void
+  onSubmit: (endOdometerKm: number, notes: string, incident: boolean) => void
+}) {
+  const [km, setKm] = useState('')
+  const [notes, setNotes] = useState('')
+  const [incident, setIncident] = useState(false)
+  const parsed = parseInt(km.trim(), 10)
+  const valid = Number.isFinite(parsed) && parsed >= 0
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>End road test</DialogTitle>
+          <DialogDescription>
+            {roadTest ? `${roadTest.purpose} — out at ${roadTest.startOdometerKm != null ? `${roadTest.startOdometerKm.toLocaleString()} km` : '—'}.` : ''} Record the return odometer.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="rt-endo">Odometer in (km) *</Label>
+            <Input id="rt-endo" inputMode="numeric" value={km} onChange={(e) => setKm(e.target.value)} placeholder="e.g. 84265" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rt-enotes">Notes (optional)</Label>
+            <Textarea id="rt-enotes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="How the vehicle behaved…" />
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox checked={incident} onCheckedChange={(v) => setIncident(v === true)} aria-label="Flag an incident on this road test" />
+            Flag an incident (damage, warning light, unexpected behaviour)
+          </label>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button
+            disabled={busy || !valid}
+            variant={incident ? 'destructive' : 'default'}
+            onClick={() => { onSubmit(parsed, notes.trim(), incident); setKm(''); setNotes(''); setIncident(false) }}
+            className="min-h-11"
+          >
+            {busy ? 'Saving…' : 'End test'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function VerifyCollectionDialog({ open, busy, vehicleLabel, onCancel, onSubmit }: {
+  open: boolean
+  busy: boolean
+  vehicleLabel: string
+  onCancel: () => void
+  onSubmit: (collectorName: string, authCode: string) => Promise<boolean>
+}) {
+  const [collectorName, setCollectorName] = useState('')
+  const [code, setCode] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const valid = collectorName.trim().length >= 2 && /^\d{6}$/.test(code.trim())
+
+  async function submit() {
+    if (!valid) return
+    setVerifying(true)
+    const ok = await onSubmit(collectorName.trim(), code.trim())
+    setVerifying(false)
+    if (ok) { setCollectorName(''); setCode('') }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Verify collection</DialogTitle>
+          <DialogDescription>
+            {vehicleLabel && `${vehicleLabel} — `}enter the collector&apos;s name and the 6-digit code the customer shared.
+            The code is single-use and valid for 48 hours.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="vc-name">Collector&apos;s name *</Label>
+            <Input id="vc-name" value={collectorName} onChange={(e) => setCollectorName(e.target.value)} placeholder="Full name as authorised by the customer" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="vc-code">6-digit code *</Label>
+            <Input
+              id="vc-code"
+              inputMode="numeric"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              placeholder="······"
+              className="max-w-40 font-mono text-lg tracking-[0.3em]"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button onClick={submit} disabled={busy || verifying || !valid} className="min-h-11 gap-2">
+            {verifying || busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+            Verify &amp; release
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -1,0 +1,702 @@
+   651→          </DialogHeader>
+   652→
+   653→          <ol className="flex items-center gap-1.5" aria-label="Application progress">
+   654→            {WIZARD_STEPS.map((label, i) => (
+   655→              <li key={label} className="flex flex-1 flex-col gap-1">
+   656→                <div className={cn('h-1.5 rounded-full', i + 1 <= step ? 'bg-primary' : 'bg-muted')} />
+   657→                <span className={cn('text-[10px] font-medium', i + 1 === step ? 'text-foreground' : 'text-muted-foreground')}>{label}</span>
+   658→              </li>
+   659→            ))}
+   660→          </ol>
+   661→
+   662→          {step === 1 && (
+   663→            <div className="grid gap-4">
+   664→              <div className="grid gap-1.5">
+   665→                <Label htmlFor="wz-orgname">Dealership name *</Label>
+   666→                <Input id="wz-orgname" value={form.orgName} onChange={(e) => set('orgName', e.target.value)} placeholder="e.g. Nairobi Auto Hub" maxLength={120} />
+   667→              </div>
+   668→              <div className="grid gap-1.5">
+   669→                <Label htmlFor="wz-regno">Business registration number <span className="font-normal text-muted-foreground">(optional)</span></Label>
+   670→                <Input id="wz-regno" value={form.regNo} onChange={(e) => set('regNo', e.target.value)} placeholder="e.g. BN-2019-4482" maxLength={60} />
+   671→              </div>
+   672→              <div className="grid gap-4 sm:grid-cols-2">
+   673→                <div className="grid gap-1.5">
+   674→                  <Label>County *</Label>
+   675→                  <Select value={form.county} onValueChange={(v) => set('county', v)}>
+   676→                    <SelectTrigger aria-label="County"><SelectValue placeholder="Select county" /></SelectTrigger>
+   677→                    <SelectContent className="max-h-64 scrollbar-thin">
+   678→                      {KENYA_COUNTIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+   679→                    </SelectContent>
+   680→                  </Select>
+   681→                </div>
+   682→                <div className="grid gap-1.5">
+   683→                  <Label htmlFor="wz-town">Town / area</Label>
+   684→                  <Input id="wz-town" value={form.town} onChange={(e) => set('town', e.target.value)} placeholder="e.g. Syokimau" maxLength={60} />
+   685→                </div>
+   686→              </div>
+   687→              <div className="grid gap-1.5">
+   688→                <Label htmlFor="wz-address">Physical address of premises</Label>
+   689→                <Input id="wz-address" value={form.physicalAddress} onChange={(e) => set('physicalAddress', e.target.value)} placeholder="e.g. Mombasa Road, next to Gateway Mall" maxLength={200} />
+   690→              </div>
+   691→              <div className="grid gap-4 sm:grid-cols-2">
+   692→                <div className="grid gap-1.5">
+   693→                  <Label htmlFor="wz-phone">Business phone *</Label>
+   694→                  <Input id="wz-phone" type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+254 7XX XXX XXX" maxLength={20} />
+   695→                </div>
+   696→                <div className="grid gap-1.5">
+   697→                  <Label htmlFor="wz-email">Business email</Label>
+   698→                  <Input id="wz-email" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="sales@yourdealership.co.ke" maxLength={120} />
+   699→                </div>
+   700→              </div>
+   701→            </div>
+   702→          )}
+   703→
+   704→          {step === 2 && (
+   705→            <div className="grid gap-4">
+   706→              <div className="grid gap-1.5">
+   707→                <Label htmlFor="wz-rep">Authorised representative *</Label>
+   708→                <Input id="wz-rep" value={form.representative} onChange={(e) => set('representative', e.target.value)} placeholder="Full name of the person CARMAZE can contact" maxLength={80} />
+   709→              </div>
+   710→              <div className="grid gap-1.5">
+   711→                <Label>Plan you are interested in</Label>
+   712→                <Select value={form.accountType} onValueChange={(v) => set('accountType', v)}>
+   713→                  <SelectTrigger aria-label="Plan interest"><SelectValue /></SelectTrigger>
+   714→                  <SelectContent>
+   715→                    {ACCOUNT_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+   716→                  </SelectContent>
+   717→                </Select>
+   718→                <p className="text-xs text-muted-foreground">Interest only — you choose (or change) your plan after approval, in Billing.</p>
+   719→              </div>
+   720→              <Alert>
+   721→                <Info className="h-4 w-4" />
+   722→                <AlertTitle>Your CARMAZE account</AlertTitle>
+   723→                <AlertDescription>
+   724→                  This application is linked to the account you are signed in with. Verification decisions and messages
+   725→                  arrive as in-app notifications — no separate dealer login is created.
+   726→                </AlertDescription>
+   727→              </Alert>
+   728→            </div>
+   729→          )}
+   730→
+   731→          {step === 3 && (
+   732→            <div className="grid gap-4">
+   733→              <DocUploader
+   734→                idPrefix="wz"
+   735→                docs={docs}
+   736→                uploading={uploading}
+   737→                onAdd={handleFiles}
+   738→                onRemove={(url) => setDocs((prev) => prev.filter((d) => d.url !== url))}
+   739→              />
+   740→              <p className="text-xs leading-relaxed text-muted-foreground">
+   741→                Reviewers check that the business exists and the premises matches what you publish. Keep names and
+   742→                registration numbers readable.
+   743→              </p>
+   744→            </div>
+   745→          )}
+   746→
+   747→          {step === 4 && (
+   748→            <div className="grid gap-4">
+   749→              <dl className="grid gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+   750→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Dealership</dt><dd className="text-right font-medium">{form.orgName || '—'}</dd></div>
+   751→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Reg. number</dt><dd className="text-right">{form.regNo || '—'}</dd></div>
+   752→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Location</dt><dd className="text-right">{[form.town, form.county].filter(Boolean).join(', ') || '—'}</dd></div>
+   753→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Phone</dt><dd className="text-right">{form.phone || '—'}</dd></div>
+   754→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Representative</dt><dd className="text-right">{form.representative || '—'}</dd></div>
+   755→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Plan interest</dt><dd className="text-right">{form.accountType || '—'}</dd></div>
+   756→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Documents</dt><dd className="text-right">{docs.length} uploaded</dd></div>
+   757→              </dl>
+   758→              <label className="flex items-start gap-2.5 text-sm leading-relaxed" htmlFor="wz-consent">
+   759→                <Checkbox id="wz-consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" />
+   760→                <span>I accept the Dealer Agreement and the CARMAZE Privacy Policy, and confirm the information above is accurate.</span>
+   761→              </label>
+   762→            </div>
+   763→          )}
+   764→
+   765→          <DialogFooter className="gap-2 sm:justify-between">
+   766→            <div>
+   767→              {step > 1 && (
+   768→                <Button variant="ghost" onClick={() => setStep((s) => s - 1)} disabled={submitting}>
+   769→                  <ArrowLeft className="h-4 w-4" /> Back
+   770→                </Button>
+   771→              )}
+   772→            </div>
+   773→            <div className="flex gap-2">
+   774→              <Button variant="outline" onClick={() => submit('DRAFT')} disabled={submitting}>
+   775→                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save draft
+   776→              </Button>
+   777→              {step < 4 ? (
+   778→                <Button onClick={next}>Continue <ArrowRight className="h-4 w-4" /></Button>
+   779→              ) : (
+   780→                <Button onClick={() => submit('SUBMITTED')} disabled={submitting}>
+   781→                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Submit application
+   782→                </Button>
+   783→              )}
+   784→            </div>
+   785→          </DialogFooter>
+   786→        </DialogContent>
+   787→      </Dialog>
+   788→    </div>
+   789→  )
+   790→}
+   791→
+   792→// ───────────────────────────── State B — Pending application ─────────────────────────────
+   793→
+   794→function PendingApplication({ app, onUpdated }: { app: DealerApplication; onUpdated: () => void }) {
+   795→  const [docs, setDocs] = useState<DocItem[]>([])
+   796→  const [uploading, setUploading] = useState(false)
+   797→  const [notes, setNotes] = useState('')
+   798→  const [submitting, setSubmitting] = useState(false)
+   799→
+   800→  const needsInfo = app.status === 'MORE_INFO_REQUIRED'
+   801→  const infoEvent = [...app.events].reverse().find((e) => e.type === 'INFO_REQUESTED')
+   802→
+   803→  async function handleFiles(files: FileList | null) {
+   804→    if (!files || files.length === 0) return
+   805→    setUploading(true)
+   806→    try {
+   807→      for (const file of Array.from(files)) {
+   808→        const fd = new FormData()
+   809→        fd.append('file', file)
+   810→        fd.append('kind', 'document')
+   811→        const res = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
+   812→        setDocs((prev) => [...prev, { name: res.name || file.name, url: res.url }])
+   813→      }
+   814→      toast.success('Document uploaded')
+   815→    } catch (e) {
+   816→      toast.error(e instanceof Error ? e.message : 'Upload failed — please try again.')
+   817→    } finally {
+   818→      setUploading(false)
+   819→    }
+   820→  }
+   821→
+   822→  async function resubmit() {
+   823→    if (docs.length === 0 && notes.trim().length < 5) {
+   824→      toast.error('Add a note or attach the requested documents before resubmitting.')
+   825→      return
+   826→    }
+   827→    setSubmitting(true)
+   828→    try {
+   829→      await apiSend(`/api/applications/${app.id}`, 'PATCH', {
+   830→        action: 'resubmit',
+   831→        documents: docs.length > 0 ? docs : undefined,
+   832→        notes: notes.trim() || undefined,
+   833→      })
+   834→      toast.success('Information resubmitted — the review team has been notified.')
+   835→      onUpdated()
+   836→    } catch (e) {
+   837→      toast.error(e instanceof Error ? e.message : 'Could not resubmit.')
+   838→    } finally {
+   839→      setSubmitting(false)
+   840→    }
+   841→  }
+   842→
+   843→  return (
+   844→    <div className="mx-auto w-full max-w-3xl px-3 py-8 sm:px-6 sm:py-12">
+   845→      <Card>
+   846→        <CardHeader>
+   847→          <div className="flex flex-wrap items-center justify-between gap-2">
+   848→            <CardTitle className="flex items-center gap-2 text-xl">
+   849→              <Building2 className="h-5 w-5 text-primary" /> {app.orgName}
+   850→            </CardTitle>
+   851→            <StatusBadge status={app.status} labels={APPLICATION_STATUS_LABELS} classes={APPLICATION_BADGE_CLASS} />
+   852→          </div>
+   853→          <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
+   854→            <span className="font-mono text-xs">{app.refCode}</span>
+   855→            <span aria-hidden>·</span>
+   856→            <span>Submitted {app.submittedAt ? dateLabel(app.submittedAt) : '—'}</span>
+   857→            <span aria-hidden>·</span>
+   858→            <span className="flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> Initial review target: 24 business hours</span>
+   859→          </CardDescription>
+   860→        </CardHeader>
+   861→        <CardContent className="space-y-5">
+   862→          {app.escalated && (
+   863→            <Alert className="border-accent/60 bg-accent/10">
+   864→              <AlertTriangle className="h-4 w-4" />
+   865→              <AlertTitle>Review is taking longer than our target</AlertTitle>
+   866→              <AlertDescription>
+   867→                Your application has been escalated to senior staff — no action is needed from you. We are sorry for the wait.
+   868→              </AlertDescription>
+   869→            </Alert>
+   870→          )}
+   871→
+   872→          {needsInfo && (
+   873→            <div className="space-y-3 rounded-lg border border-accent/60 bg-accent/10 p-4">
+   874→              <div className="flex items-start gap-2">
+   875→                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+   876→                <div className="text-sm">
+   877→                  <p className="font-semibold">The review team requested more information</p>
+   878→                  {infoEvent?.note && <p className="mt-1 text-muted-foreground">{infoEvent.note}</p>}
+   879→                  {app.correctionsDueAt && (
+   880→                    <p className="mt-1 text-muted-foreground">Please respond before <strong>{dateLabel(app.correctionsDueAt)}</strong> to keep your application in the queue.</p>
+   881→                  )}
+   882→                </div>
+   883→              </div>
+   884→              <Separator />
+   885→              <div className="space-y-3">
+   886→                <DocUploader
+   887→                  idPrefix="rs"
+   888→                  docs={docs}
+   889→                  uploading={uploading}
+   890→                  onAdd={handleFiles}
+   891→                  onRemove={(url) => setDocs((prev) => prev.filter((d) => d.url !== url))}
+   892→                />
+   893→                <div className="grid gap-1.5">
+   894→                  <Label htmlFor="rs-notes">Note for the review team</Label>
+   895→                  <Textarea id="rs-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Explain what you corrected or attached…" maxLength={2000} />
+   896→                </div>
+   897→                <Button onClick={resubmit} disabled={submitting} className="min-h-11">
+   898→                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Resubmit application
+   899→                </Button>
+   900→              </div>
+   901→            </div>
+   902→          )}
+   903→
+   904→          {!needsInfo && app.status !== 'APPROVED' && (
+   905→            <p className="text-sm leading-relaxed text-muted-foreground">
+   906→              Your application is in the review queue. You will receive an in-app notification as soon as the review team
+   907→              updates it — this page updates automatically when you revisit.
+   908→            </p>
+   909→          )}
+   910→          {app.status === 'APPROVED' && (
+   911→            <Alert>
+   912→              <BadgeCheck className="h-4 w-4 text-primary" />
+   913→              <AlertTitle>Application approved</AlertTitle>
+   914→              <AlertDescription>
+   915→                Your dealership has been verified. If your DealerOS workspace does not appear shortly, sign out and back in
+   916→                once — or contact support with your reference {app.refCode}.
+   917→              </AlertDescription>
+   918→            </Alert>
+   919→          )}
+   920→
+   921→          {/* Event timeline */}
+   922→          <div>
+   923→            <h3 className="text-sm font-semibold">Application timeline</h3>
+   924→            <ol className="mt-3 space-y-0">
+   925→              {app.events.map((e, i) => (
+   926→                <li key={e.id} className="relative flex gap-3 pb-5 last:pb-0">
+   927→                  {i < app.events.length - 1 && <span aria-hidden className="absolute left-[7px] top-4 h-full w-px bg-border" />}
+   928→                  <span className={cn('mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2', ['APPROVED'].includes(e.type) ? 'border-primary bg-primary' : ['INFO_REQUESTED', 'REJECTED', 'ESCALATED'].includes(e.type) ? 'border-accent bg-accent' : 'border-primary/40 bg-background')} />
+   929→                  <div className="min-w-0">
+   930→                    <p className="text-sm font-medium">{EVENT_LABELS[e.type] ?? e.type}</p>
+   931→                    {e.note && <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{e.note}</p>}
+   932→                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+   933→                      {timeAgo(e.createdAt)}{e.actorName ? ` · ${e.actorName}` : ''}
+   934→                    </p>
+   935→                  </div>
+   936→                </li>
+   937→              ))}
+   938→            </ol>
+   939→          </div>
+   940→        </CardContent>
+   941→      </Card>
+   942→    </div>
+   943→  )
+   944→}
+   945→
+   946→// ───────────────────────────── State C — Dashboard tabs ─────────────────────────────
+   947→
+   948→function OverviewTab({ orgId, dash }: { orgId: string; dash: FetchState<DashboardData> }) {
+   949→  const copilot = useFetch<{ insights: Insight[]; generatedAt: string }>(`/api/dealer/copilot?orgId=${orgId}`)
+   950→
+   951→  if (dash.loading && !dash.data) return <LoadingBlock label="Loading your dealership numbers…" />
+   952→  if (dash.error || !dash.data) {
+   953→    return <ModuleNotice title="Could not load the dashboard" detail={dash.error?.message} retry={dash.reload} />
+   954→  }
+   955→  const d = dash.data
+   956→  const s = d.stats
+   957→
+   958→  return (
+   959→    <div className="space-y-6">
+   960→      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+   961→        <StatCard label="Published" value={s.published} icon={<Car className="h-4 w-4" />} hint={`${s.reserved} reserved`} onClick={() => navigate('/dealer?tab=inventory')} />
+   962→        <StatCard label="Pending review" value={s.pending} icon={<ClipboardList className="h-4 w-4" />} hint={`${s.drafts} drafts`} onClick={() => navigate('/dealer?tab=inventory')} />
+   963→        <StatCard label="Views total" value={num(s.totalViews)} icon={<Eye className="h-4 w-4" />} hint="all listings, lifetime" />
+   964→        <StatCard label="Open enquiries" value={s.enquiriesOpen} icon={<MessageSquare className="h-4 w-4" />} hint={`${s.enquiriesAnswered} answered`} onClick={() => navigate('/dealer?tab=enquiries')} />
+   965→        <StatCard label="Offers sent" value={s.offersPending} icon={<Handshake className="h-4 w-4" />} hint="awaiting seller" onClick={() => navigate('/dealer?tab=offers')} />
+   966→      </div>
+   967→
+   968→      <div className="grid gap-6 lg:grid-cols-5">
+   969→        {/* Copilot panel */}
+   970→        <Card className="lg:col-span-3">
+   971→          <CardHeader className="pb-3">
+   972→            <CardTitle className="flex items-center gap-2 text-base">
+   973→              <Sparkles className="h-4 w-4 text-accent-foreground" /> Dealer Copilot
+   974→              {copilot.loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+   975→            </CardTitle>
+   976→            <CardDescription>
+   977→              Follow-ups computed from your live data{copilot.data?.generatedAt ? ` · updated ${timeAgo(copilot.data.generatedAt)}` : ''}.
+   978→            </CardDescription>
+   979→          </CardHeader>
+   980→          <CardContent className="space-y-3">
+   981→            {copilot.loading && !copilot.data && (
+   982→              <div className="space-y-2"><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></div>
+   983→            )}
+   984→            {copilot.error && (
+   985→              <p className="text-sm text-muted-foreground">Copilot is unavailable right now — {copilot.error.message}</p>
+   986→            )}
+   987→            {copilot.data?.insights.map((ins) => (
+   988→              <div
+   989→                key={ins.id}
+   990→                className={cn(
+   991→                  'rounded-lg border p-3',
+   992→                  ins.severity === 'urgent' && 'border-destructive/40 bg-destructive/5',
+   993→                  ins.severity === 'warning' && 'border-accent/60 bg-accent/10',
+   994→                  ins.severity === 'info' && 'border-border bg-muted/40'
+   995→                )}
+   996→              >
+   997→                <div className="flex items-start gap-2.5">
+   998→                  {ins.severity === 'urgent' && <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />}
+   999→                  {ins.severity === 'warning' && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
+  1000→                  {ins.severity === 'info' && <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
+  1001→                  <div className="min-w-0 flex-1">
+  1002→                    <p className="text-sm font-semibold">{ins.title}</p>
+  1003→                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{ins.detail}</p>
+  1004→                  </div>
+  1005→                  {ins.actionLink && (
+  1006→                    <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => navigate(ins.actionLink!.replace(/^\//, ''))}>
+  1007→                      Open <ArrowRight className="h-3.5 w-3.5" />
+  1008→                    </Button>
+  1009→                  )}
+  1010→                </div>
+  1011→              </div>
+  1012→            ))}
+  1013→          </CardContent>
+  1014→        </Card>
+  1015→
+  1016→        {/* Subscription + latest enquiries */}
+  1017→        <div className="space-y-6 lg:col-span-2">
+  1018→          <Card>
+  1019→            <CardHeader className="pb-3">
+  1020→              <CardTitle className="flex items-center gap-2 text-base"><CreditCard className="h-4 w-4 text-primary" /> Subscription</CardTitle>
+  1021→            </CardHeader>
+  1022→            <CardContent className="space-y-3 text-sm">
+  1023→              {d.subscription ? (
+  1024→                <>
+  1025→                  <div className="flex items-center justify-between gap-2">
+  1026→                    <span className="font-semibold">{d.subscription.planName}</span>
+  1027→                    <Badge variant="secondary" className={cn('border-transparent', d.subscription.status === 'ACTIVE' ? 'bg-primary text-primary-foreground' : 'bg-destructive/15 text-destructive')}>
+  1028→                      {d.subscription.status === 'ACTIVE' ? 'Active' : d.subscription.status}
+  1029→                    </Badge>
+  1030→                  </div>
+  1031→                  <p className="text-muted-foreground">Renews {dateLabel(d.subscription.currentPeriodEnd)}</p>
+  1032→                  <div className="space-y-1.5">
+  1033→                    <div className="flex justify-between text-xs text-muted-foreground">
+  1034→                      <span>Listing usage</span>
+  1035→                      <span>{d.listingUsage.used} of {d.listingUsage.limit ?? '∞'} active</span>
+  1036→                    </div>
+  1037→                    <Progress value={d.listingUsage.limit ? Math.min(100, Math.round((d.listingUsage.used / d.listingUsage.limit) * 100)) : 0} />
+  1038→                  </div>
+  1039→                  <p className="text-xs text-muted-foreground">
+  1040→                    {s.staffCount} of {d.subscription.staffLimit} staff seats · {d.subscription.featuredLimit} featured slots
+  1041→                  </p>
+  1042→                  <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/dealer?tab=billing')}>Manage billing</Button>
+  1043→                </>
+  1044→              ) : (
+  1045→                <div className="space-y-2">
+  1046→                  <p className="text-muted-foreground">No subscription on this dealership yet — pick a plan to publish listings.</p>
+  1047→                  <Button size="sm" onClick={() => navigate('/dealer?tab=billing')}>Choose a plan</Button>
+  1048→                </div>
+  1049→              )}
+  1050→            </CardContent>
+  1051→          </Card>
+  1052→
+  1053→          <Card>
+  1054→            <CardHeader className="pb-3">
+  1055→              <CardTitle className="flex items-center gap-2 text-base"><MessageSquare className="h-4 w-4 text-primary" /> Latest enquiries</CardTitle>
+  1056→            </CardHeader>
+  1057→            <CardContent>
+  1058→              {d.recentEnquiries.length === 0 ? (
+  1059→                <p className="text-sm text-muted-foreground">No enquiries yet — they appear here the moment a customer asks about a listing.</p>
+  1060→              ) : (
+  1061→                <ul className="divide-y">
+  1062→                  {d.recentEnquiries.map((e) => (
+  1063→                    <li key={e.id} className="py-2.5 first:pt-0 last:pb-0">
+  1064→                      <button className="w-full text-left" onClick={() => navigate('/dealer?tab=enquiries')}>
+  1065→                        <div className="flex items-center justify-between gap-2">
+  1066→                          <span className="truncate text-sm font-medium">{e.vehicle.make} {e.vehicle.model} {e.vehicle.year}</span>
+  1067→                          <span className="shrink-0 text-[11px] text-muted-foreground">{timeAgo(e.createdAt)}</span>
+  1068→                        </div>
+  1069→                        <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+  1070→                          {e.lastMessage ? `${e.lastMessage.senderSide === 'SELLER' ? 'You' : e.lastMessage.senderName}: ${e.lastMessage.body}` : e.customerName}
+  1071→                        </p>
+  1072→                      </button>
+  1073→                    </li>
+  1074→                  ))}
+  1075→                </ul>
+  1076→              )}
+  1077→            </CardContent>
+  1078→          </Card>
+  1079→        </div>
+  1080→      </div>
+  1081→    </div>
+  1082→  )
+  1083→}
+  1084→
+  1085→function VehicleRowActions({ v, onDone }: { v: VehicleItem; onDone: () => void }) {
+  1086→  const [busy, setBusy] = useState(false)
+  1087→  const [confirmSold, setConfirmSold] = useState(false)
+  1088→
+  1089→  async function patch(action: 'submit' | 'mark_sold') {
+  1090→    setBusy(true)
+  1091→    try {
+  1092→      await apiSend(`/api/vehicles/${v.id}`, 'PATCH', { action })
+  1093→      toast.success(action === 'submit' ? `${v.refCode} submitted for review.` : `${v.refCode} marked as sold.`)
+  1094→      onDone()
+  1095→    } catch (e) {
+  1096→      toast.error(e instanceof Error ? e.message : 'Action failed.')
+  1097→    } finally {
+  1098→      setBusy(false)
+  1099→      setConfirmSold(false)
+  1100→    }
+  1101→  }
+  1102→
+  1103→  return (
+  1104→    <div className="flex flex-wrap items-center justify-end gap-1.5">
+  1105→      <Button variant="outline" size="sm" className="h-8" onClick={() => navigate(`vehicle-detail/${v.id}`)}>
+  1106→        <Eye className="h-3.5 w-3.5" /> View
+  1107→      </Button>
+  1108→      {v.status === 'DRAFT' && (
+  1109→        <Button size="sm" className="h-8" disabled={busy} onClick={() => patch('submit')}>
+  1110→          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Submit
+  1111→        </Button>
+  1112→      )}
+  1113→      {(v.status === 'PUBLISHED' || v.status === 'RESERVED') && (
+  1114→        <>
+  1115→          <Button variant="outline" size="sm" className="h-8" onClick={() => setConfirmSold(true)} disabled={busy}>
+  1116→            <Check className="h-3.5 w-3.5" /> Mark sold
+  1117→          </Button>
+  1118→          <AlertDialog open={confirmSold} onOpenChange={setConfirmSold}>
+  1119→            <AlertDialogContent>
+  1120→              <AlertDialogHeader>
+  1121→                <AlertDialogTitle>Mark {v.refCode} as sold?</AlertDialogTitle>
+  1122→                <AlertDialogDescription>
+  1123→                  The listing will no longer appear in the marketplace search. This is used for honest reporting of your
+  1124→                  sales.
+  1125→                </AlertDialogDescription>
+  1126→              </AlertDialogHeader>
+  1127→              <AlertDialogFooter>
+  1128→                <AlertDialogCancel>Cancel</AlertDialogCancel>
+  1129→                <AlertDialogAction onClick={() => patch('mark_sold')}>Mark as sold</AlertDialogAction>
+  1130→              </AlertDialogFooter>
+  1131→            </AlertDialogContent>
+  1132→          </AlertDialog>
+  1133→        </>
+  1134→      )}
+  1135→    </div>
+  1136→  )
+  1137→}
+  1138→
+  1139→function InventoryTab({ orgId, dash }: { orgId: string; dash: FetchState<DashboardData> }) {
+  1140→  const vehicles = useFetch<{ vehicles: VehicleItem[] }>('/api/vehicles?org=1')
+  1141→  const usage = dash.data?.listingUsage ?? null
+  1142→
+  1143→  const moduleMissing = vehicles.error?.status === 404
+  1144→  const list = vehicles.data?.vehicles ?? []
+  1145→
+  1146→  return (
+  1147→    <div className="space-y-4">
+  1148→      <div className="flex flex-wrap items-center justify-between gap-3">
+  1149→        <div className="min-w-48 flex-1">
+  1150→          <div className="flex items-center justify-between text-xs text-muted-foreground">
+  1151→            <span>Active listings</span>
+  1152→            <span>{usage ? `${usage.used} of ${usage.limit ?? '∞'} used` : '—'}</span>
+  1153→          </div>
+  1154→          <Progress className="mt-1" value={usage?.limit ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0} />
+  1155→        </div>
+  1156→        <Button onClick={() => navigate('/sell')} className="min-h-11">
+  1157→          <Plus className="h-4 w-4" /> Add vehicle
+  1158→        </Button>
+  1159→      </div>
+  1160→
+  1161→      <Alert>
+  1162→        <Info className="h-4 w-4" />
+  1163→        <AlertDescription>
+  1164→          Listings go through CARMAZE review before publishing — submitted vehicles appear in the marketplace once approved.
+  1165→        </AlertDescription>
+  1166→      </Alert>
+  1167→
+  1168→      {vehicles.loading && !vehicles.data ? (
+  1169→        <LoadingBlock label="Loading your inventory…" />
+  1170→      ) : moduleMissing ? (
+  1171→        <ModuleNotice loading title="Inventory module is loading…" detail="The listings service is being integrated — your vehicles will appear here shortly." retry={vehicles.reload} />
+  1172→      ) : vehicles.error ? (
+  1173→        <ModuleNotice title="Could not load inventory" detail={vehicles.error.message} retry={vehicles.reload} />
+  1174→      ) : list.length === 0 ? (
+  1175→        <EmptyState icon={<Car className="h-8 w-8" />} title="No vehicles yet" detail="Add your first vehicle — it will go through CARMAZE review before it is published." />
+  1176→      ) : (
+  1177→        <>
+  1178→          {/* Desktop table */}
+  1179→          <Card className="hidden md:block">
+  1180→            <CardContent className="px-0 py-0">
+  1181→              <Table>
+  1182→                <TableHeader>
+  1183→                  <TableRow>
+  1184→                    <TableHead className="pl-4">Vehicle</TableHead>
+  1185→                    <TableHead>Price</TableHead>
+  1186→                    <TableHead>Status</TableHead>
+  1187→                    <TableHead className="text-right">Views</TableHead>
+  1188→                    <TableHead className="pr-4 text-right">Actions</TableHead>
+  1189→                  </TableRow>
+  1190→                </TableHeader>
+  1191→                <TableBody>
+  1192→                  {list.map((v) => {
+  1193→                    const thumb = photoUrl(v.photos?.[0])
+  1194→                    return (
+  1195→                      <TableRow key={v.id}>
+  1196→                        <TableCell className="pl-4">
+  1197→                          <div className="flex items-center gap-3">
+  1198→                            {thumb ? (
+  1199→                               
+  1200→                              <img src={thumb} alt={`${v.make} ${v.model}`} className="h-10 w-14 shrink-0 rounded-md object-cover" />
+  1201→                            ) : (
+  1202→                              <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"><Car className="h-4 w-4" /></div>
+  1203→                            )}
+  1204→                            <div className="min-w-0">
+  1205→                              <p className="truncate text-sm font-medium">{vehicleTitle(v)}</p>
+  1206→                              <p className="font-mono text-[11px] text-muted-foreground">{v.refCode}</p>
+  1207→                            </div>
+  1208→                          </div>
+  1209→                        </TableCell>
+  1210→                        <TableCell className="text-sm">{money(v.priceMinor, v.currency)}</TableCell>
+  1211→                        <TableCell><StatusBadge status={v.status} labels={VEHICLE_STATUS_LABELS} classes={VEHICLE_BADGE_CLASS} /></TableCell>
+  1212→                        <TableCell className="text-right text-sm tabular-nums">{num(v.views)}</TableCell>
+  1213→                        <TableCell className="pr-4"><VehicleRowActions v={v} onDone={vehicles.reload} /></TableCell>
+  1214→                      </TableRow>
+  1215→                    )
+  1216→                  })}
+  1217→                </TableBody>
+  1218→              </Table>
+  1219→            </CardContent>
+  1220→          </Card>
+  1221→
+  1222→          {/* Mobile cards */}
+  1223→          <div className="space-y-3 md:hidden">
+  1224→            {list.map((v) => {
+  1225→              const thumb = photoUrl(v.photos?.[0])
+  1226→              return (
+  1227→                <Card key={v.id} className="py-3">
+  1228→                  <CardContent className="flex gap-3 px-3">
+  1229→                    {thumb ? (
+  1230→                       
+  1231→                      <img src={thumb} alt={`${v.make} ${v.model}`} className="h-16 w-20 shrink-0 rounded-md object-cover" />
+  1232→                    ) : (
+  1233→                      <div className="flex h-16 w-20 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"><Car className="h-5 w-5" /></div>
+  1234→                    )}
+  1235→                    <div className="min-w-0 flex-1">
+  1236→                      <div className="flex items-start justify-between gap-2">
+  1237→                        <div className="min-w-0">
+  1238→                          <p className="truncate text-sm font-semibold">{vehicleTitle(v)}</p>
+  1239→                          <p className="font-mono text-[11px] text-muted-foreground">{v.refCode}</p>
+  1240→                        </div>
+  1241→                        <StatusBadge status={v.status} labels={VEHICLE_STATUS_LABELS} classes={VEHICLE_BADGE_CLASS} />
+  1242→                      </div>
+  1243→                      <div className="mt-1 flex items-center justify-between text-sm">
+  1244→                        <span className="font-semibold">{money(v.priceMinor, v.currency)}</span>
+  1245→                        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="h-3.5 w-3.5" /> {num(v.views)}</span>
+  1246→                      </div>
+  1247→                      <div className="mt-2">
+  1248→                        <VehicleRowActions v={v} onDone={vehicles.reload} />
+  1249→                      </div>
+  1250→                    </div>
+  1251→                  </CardContent>
+  1252→                </Card>
+  1253→              )
+  1254→            })}
+  1255→          </div>
+  1256→        </>
+  1257→      )}
+  1258→    </div>
+  1259→  )
+  1260→}
+  1261→
+  1262→function EnquiriesTab({ orgId }: { orgId: string }) {
+  1263→  const enquiries = useFetch<{ enquiries: EnquiryItem[] }>('/api/enquiries?forOrg=1')
+  1264→  const [selectedId, setSelectedId] = useState<string | null>(null)
+  1265→  const [reply, setReply] = useState('')
+  1266→  const [sending, setSending] = useState(false)
+  1267→
+  1268→  const moduleMissing = enquiries.error?.status === 404
+  1269→  const list = enquiries.data?.enquiries ?? []
+  1270→  const selected = list.find((e) => e.id === selectedId) ?? list[0] ?? null
+  1271→  const openCount = list.filter((e) => e.status === 'OPEN').length
+  1272→
+  1273→  async function sendReply() {
+  1274→    if (!selected) return
+  1275→    const body = reply.trim()
+  1276→    if (body.length < 2) {
+  1277→      toast.error('Write a reply first.')
+  1278→      return
+  1279→    }
+  1280→    setSending(true)
+  1281→    try {
+  1282→      await apiSend(`/api/enquiries/${selected.id}`, 'POST', { body })
+  1283→      toast.success('Reply sent to the customer.')
+  1284→      setReply('')
+  1285→      enquiries.reload()
+  1286→    } catch (e) {
+  1287→      toast.error(e instanceof Error ? e.message : 'Could not send the reply.')
+  1288→    } finally {
+  1289→      setSending(false)
+  1290→    }
+  1291→  }
+  1292→
+  1293→  if (enquiries.loading && !enquiries.data) return <LoadingBlock label="Loading enquiries…" />
+  1294→  if (moduleMissing) {
+  1295→    return <ModuleNotice loading title="Enquiry inbox is loading…" detail="The messaging service is being integrated — customer enquiries will appear here." retry={enquiries.reload} />
+  1296→  }
+  1297→  if (enquiries.error) return <ModuleNotice title="Could not load enquiries" detail={enquiries.error.message} retry={enquiries.reload} />
+  1298→
+  1299→  return (
+  1300→    <div className="space-y-4">
+  1301→      {openCount > 0 && (
+  1302→        <Alert className="border-accent/60 bg-accent/10">
+  1303→          <MessageSquareReply className="h-4 w-4" />
+  1304→          <AlertDescription>
+  1305→            {openCount} open {openCount === 1 ? 'enquiry' : 'enquiries'} — respond promptly. Customers who get a reply
+  1306→            within 24 hours are far more likely to visit the yard.
+  1307→          </AlertDescription>
+  1308→        </Alert>
+  1309→      )}
+  1310→
+  1311→      {list.length === 0 ? (
+  1312→        <EmptyState icon={<MessageSquare className="h-8 w-8" />} title="No enquiries yet" detail="When customers ask about your listings, conversations appear here." />
+  1313→      ) : (
+  1314→        <div className="grid gap-4 lg:grid-cols-[minmax(280px,380px)_1fr]">
+  1315→          {/* List */}
+  1316→          <div className="max-h-96 space-y-2 overflow-y-auto pr-1 scrollbar-thin lg:max-h-[560px]">
+  1317→            {list.map((e) => (
+  1318→              <button
+  1319→                key={e.id}
+  1320→                onClick={() => setSelectedId(e.id)}
+  1321→                className={cn(
+  1322→                  'w-full rounded-lg border p-3 text-left transition-colors hover:border-primary/40',
+  1323→                  selected?.id === e.id ? 'border-primary/60 bg-primary/5' : 'bg-card'
+  1324→                )}
+  1325→                aria-current={selected?.id === e.id}
+  1326→              >
+  1327→                <div className="flex items-center justify-between gap-2">
+  1328→                  <span className="truncate font-mono text-[11px] text-muted-foreground">{e.refCode}</span>
+  1329→                  <StatusBadge status={e.status} labels={{ OPEN: 'Open', ANSWERED: 'Answered', CLOSED: 'Closed' }} classes={GENERIC_BADGE_CLASS} />
+  1330→                </div>
+  1331→                <p className="mt-1 truncate text-sm font-medium">{e.vehicle ? vehicleTitle(e.vehicle) : 'Vehicle enquiry'}</p>
+  1332→                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+  1333→                  {e.messages && e.messages.length > 0 ? e.messages[e.messages.length - 1].body : e.message}
+  1334→                </p>
+  1335→                <p className="mt-1 text-[11px] text-muted-foreground">{e.user?.name ?? 'Customer'} · {timeAgo(e.createdAt)}</p>
+  1336→              </button>
+  1337→            ))}
+  1338→          </div>
+  1339→
+  1340→          {/* Thread */}
+  1341→          {selected && (
+  1342→            <Card className="flex min-h-80 flex-col">
+  1343→              <CardHeader className="pb-2">
+  1344→                <div className="flex flex-wrap items-center justify-between gap-2">
+  1345→                  <CardTitle className="text-base">{selected.vehicle ? vehicleTitle(selected.vehicle) : 'Enquiry'} · <span className="font-mono text-xs font-normal text-muted-foreground">{selected.refCode}</span></CardTitle>
+  1346→                  <StatusBadge status={selected.status} labels={{ OPEN: 'Open', ANSWERED: 'Answered', CLOSED: 'Closed' }} classes={GENERIC_BADGE_CLASS} />
+  1347→                </div>
+  1348→                <CardDescription>
+  1349→                  {selected.vehicle ? <>Listed at {money(selected.vehicle.priceMinor, selected.vehicle.currency)}</> : null}
+  1350→                  {selected.phoneShare && selected.phone ? <> · Customer phone: <a className="underline" href={`tel:${selected.phone}`}>{selected.phone}</a></> : ' · Customer has not shared a phone number'}
+
+[showing lines 651-1350 of 2425; use offset=1351 with limit to continue reading]

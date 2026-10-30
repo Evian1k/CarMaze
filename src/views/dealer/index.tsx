@@ -11,12 +11,14 @@
  */
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, Building2, CalendarClock, Car, Check,
-  CircleAlert, ClipboardList, Copy, CreditCard, Eye, FileText, Handshake, Info, Loader2,
-  LogIn, MessageSquare, MessageSquareReply, Plus, RefreshCw, Send, ShieldCheck, Sparkles,
-  Trash2, Upload, Users, Wallet, X,
+  CheckCircle2, CircleAlert, ClipboardList, Copy, CreditCard, Eye, FileText, Gauge, Handshake, IdCard,
+  Inbox, Info, Loader2,
+  LogIn, MessageSquare, MessageSquareReply, Play, Plus, RefreshCw, Send, ShieldCheck, Sparkles,
+  Trash2, Upload, Users, Wallet, X, XCircle,
 } from 'lucide-react'
 import { apiGet, apiSend, apiUpload, navigate } from '@/lib/client'
 import { useHashRoute } from '@/hooks/use-hash-route'
@@ -40,6 +42,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { MessagesTab, useUnreadConversations } from '@/components/messaging/conversation-panel'
 
 // ───────────────────────────── Types ─────────────────────────────
 
@@ -216,7 +219,7 @@ type InvoiceItem = {
 
 // ───────────────────────────── Constants ─────────────────────────────
 
-const TABS = ['overview', 'inventory', 'enquiries', 'offers', 'buying', 'staff', 'billing', 'profile'] as const
+const TABS = ['overview', 'inventory', 'enquiries', 'inbox', 'offers', 'testdrives', 'buying', 'staff', 'billing', 'profile'] as const
 type TabKey = (typeof TABS)[number]
 
 const REVIEWABLE_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'RESUBMITTED']
@@ -2208,6 +2211,7 @@ function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
   const tabParam = route.query.get('tab')
   const tab: TabKey = TABS.includes(tabParam as TabKey) ? (tabParam as TabKey) : 'overview'
   const goTab = (t: string) => navigate(`/dealer?tab=${t}`, { replace: true })
+  const unreadMessages = useUnreadConversations('org')
 
   const stats = dash.data?.stats
 
@@ -2260,7 +2264,9 @@ function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
             ['overview', 'Overview'],
             ['inventory', 'Inventory'],
             ['enquiries', 'Enquiries'],
+            ['inbox', 'Inbox'],
             ['offers', 'Offers'],
+            ['testdrives', 'Test drives'],
             ['buying', 'Buying board'],
             ['staff', 'Staff'],
             ['billing', 'Billing'],
@@ -2268,6 +2274,11 @@ function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
           ] as [TabKey, string][]).map(([key, label]) => (
             <TabsTrigger key={key} value={key} className="min-h-9 shrink-0 gap-1.5 px-3">
               {label}
+              {key === 'inbox' && unreadMessages > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground" aria-label={`${unreadMessages} unread`}>
+                  {unreadMessages > 9 ? '9+' : unreadMessages}
+                </span>
+              )}
               {key === 'enquiries' && stats && stats.enquiriesOpen > 0 && (
                 <Badge variant="secondary" className="h-5 min-w-5 border-transparent bg-accent px-1 text-[10px] font-bold text-accent-foreground">{stats.enquiriesOpen}</Badge>
               )}
@@ -2286,6 +2297,12 @@ function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
         </TabsContent>
         <TabsContent value="enquiries" className="mt-4">
           <EnquiriesTab key={activeOrgId} orgId={activeOrgId} />
+        </TabsContent>
+        <TabsContent value="inbox" className="mt-4">
+          <FadeIn><MessagesTab key={activeOrgId} scope="org" /></FadeIn>
+        </TabsContent>
+        <TabsContent value="testdrives" className="mt-4">
+          <FadeIn><TestDrivesTab key={activeOrgId} orgId={activeOrgId} /></FadeIn>
         </TabsContent>
         <TabsContent value="offers" className="mt-4">
           <OffersTab key={activeOrgId} orgId={activeOrgId} />
@@ -2421,4 +2438,470 @@ export default function View() {
 
   // State A — not applied (or rejected / draft)
   return <NotApplied previousApp={app} onDone={refresh} />
+}
+
+// ───────────────────────────── Test drives (org side) ─────────────────────────────
+
+/** Soft fade/rise for new tab panels. */
+function FadeIn({ children }: { children: React.ReactNode }) {
+  const reduce = useReducedMotion()
+  return (
+    <motion.div
+      initial={reduce ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+type OrgTestDrive = {
+  id: string
+  refCode: string
+  status: string
+  scheduledAt: string
+  licenceConfirmed: boolean
+  customerName: string
+  vehicle: { id: string; make: string; model: string; year: number; photo: string | null } | null
+  odometerOut: number | null
+  odometerIn: number | null
+  conditionOut: string | null
+  conditionIn: string | null
+  releasedBy: string | null
+  returnedBy: string | null
+  startedAt: string | null
+  endedAt: string | null
+  notes: string | null
+}
+
+const TD_STATUS_META: Record<string, { label: string; badge: string }> = {
+  PENDING: { label: 'Requested', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  CONFIRMED: { label: 'Confirmed', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+  IN_PROGRESS: { label: 'In progress', badge: 'border-indigo-300 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' },
+  COMPLETED: { label: 'Completed', badge: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
+  CANCELLED: { label: 'Cancelled', badge: 'bg-muted text-muted-foreground' },
+  NO_SHOW: { label: 'No-show', badge: 'bg-muted text-muted-foreground' },
+}
+
+const TD_STATUS_RANK: Record<string, number> = {
+  CONFIRMED: 0,
+  PENDING: 1,
+  IN_PROGRESS: 2,
+  COMPLETED: 3,
+  NO_SHOW: 4,
+  CANCELLED: 5,
+}
+
+const FUEL_LEVELS = [
+  { value: 'FULL', label: 'Full tank' },
+  { value: 'THREE_QUARTER', label: 'Three quarters' },
+  { value: 'HALF', label: 'Half tank' },
+  { value: 'QUARTER', label: 'Quarter tank' },
+  { value: 'EMPTY', label: 'Reserve / empty' },
+] as const
+
+function TestDrivesTab({ orgId }: { orgId: string }) {
+  const [drives, setDrives] = useState<OrgTestDrive[] | null>(null)
+  const [tick, setTick] = useState(0)
+  const [startFor, setStartFor] = useState<OrgTestDrive | null>(null)
+  const [completeFor, setCompleteFor] = useState<OrgTestDrive | null>(null)
+  const [cancelFor, setCancelFor] = useState<OrgTestDrive | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    apiGet<{ testDrives: OrgTestDrive[] }>('/api/test-drives?org=1')
+      .then((d) => { if (!cancelled) setDrives(d.testDrives) })
+      .catch(() => { if (!cancelled) setDrives([]) })
+    return () => { cancelled = true }
+  }, [orgId, tick])
+
+  // Poll every 15 seconds so new requests and overdue drives surface quickly.
+  useEffect(() => {
+    const t = setInterval(() => setTick((k) => k + 1), 15_000)
+    return () => clearInterval(t)
+  }, [])
+
+  const reload = useCallback(() => setTick((k) => k + 1), [])
+
+  const sorted = useMemo(() => {
+    const now = Date.now()
+    return [...(drives ?? [])].sort((a, b) => {
+      const rankA = TD_STATUS_RANK[a.status] ?? 9
+      const rankB = TD_STATUS_RANK[b.status] ?? 9
+      if (rankA !== rankB) return rankA - rankB
+      if (rankA <= 2) return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+      return new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
+    }).map((d) => ({
+      ...d,
+      overdue: d.status === 'IN_PROGRESS' && d.startedAt && now - new Date(d.startedAt).getTime() > 2 * 3_600_000,
+    }))
+  }, [drives])
+
+  const pendingCount = (drives ?? []).filter((d) => ['PENDING', 'CONFIRMED'].includes(d.status)).length
+
+  async function patchDrive(id: string, payload: Record<string, unknown>, successMsg: string) {
+    setBusy(true)
+    try {
+      await apiSend(`/api/test-drives/${id}`, 'PATCH', payload)
+      toast.success(successMsg)
+      reload()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Action failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        {pendingCount > 0
+          ? `${pendingCount} drive${pendingCount === 1 ? '' : 's'} need action — confirm requests and record odometers at handover and return.`
+          : 'Test drives requested from your listings. Record the odometer and condition when keys go out and come back.'}
+      </p>
+
+      {drives === null ? (
+        <LoadingBlock label="Loading test drives…" />
+      ) : sorted.length === 0 ? (
+        <EmptyState icon={<Car className="h-8 w-8" />} title="No test drives yet" detail="When customers request a drive on your listings, it appears here for scheduling and key handover." />
+      ) : (
+        <div className="space-y-3">
+          {sorted.map((d) => {
+            const meta = TD_STATUS_META[d.status] ?? { label: d.status, badge: 'bg-muted text-muted-foreground' }
+            return (
+              <Card key={d.id} className="py-4">
+                <CardContent className="px-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      {d.vehicle?.photo ? (
+                         
+                        <img src={d.vehicle.photo} alt="" className="h-14 w-20 shrink-0 rounded-lg object-cover" />
+                      ) : (
+                        <span className="flex h-14 w-20 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                          <Car className="h-5 w-5" />
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-semibold">
+                          {d.vehicle ? (
+                            <button className="hover:underline" onClick={() => { const v = d.vehicle; if (v) navigate(`vehicle-detail/${v.id}`) }}>
+                              {vehicleTitle(d.vehicle)}
+                            </button>
+                          ) : 'Vehicle removed'}
+                        </h3>
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span>{d.customerName}</span>
+                          <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" /> {new Date(d.scheduledAt).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                          <span className="font-mono">{d.refCode}</span>
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <Badge variant="outline" className={cn('px-1.5 py-0 text-[10px]', meta.badge)}>{meta.label}</Badge>
+                          {d.licenceConfirmed ? (
+                            <Badge variant="outline" className="border-[#315e4b]/40 px-1.5 py-0 text-[10px] text-[#315e4b] dark:text-[#9dc3ae]">
+                              <IdCard className="h-3 w-3" /> Licence verified
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="px-1.5 py-0 text-[10px] text-muted-foreground">Licence not verified</Badge>
+                          )}
+                          {'overdue' in d && d.overdue && (
+                            <Badge variant="outline" className="border-destructive/50 bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive">
+                              <XCircle className="h-3 w-3" /> Overdue — check return
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      {d.status === 'PENDING' && (
+                        <>
+                          <Button size="sm" className="min-h-9 gap-1.5" disabled={busy} onClick={() => patchDrive(d.id, { action: 'confirm' }, 'Test drive confirmed')}>
+                            <Check className="h-3.5 w-3.5" /> Confirm
+                          </Button>
+                          <Button size="sm" variant="ghost" className="min-h-9 text-destructive hover:text-destructive" disabled={busy} onClick={() => setCancelFor(d)}>
+                            <XCircle className="h-3.5 w-3.5" /> Cancel
+                          </Button>
+                        </>
+                      )}
+                      {d.status === 'CONFIRMED' && (
+                        <>
+                          <Button size="sm" className="min-h-9 gap-1.5" disabled={busy} onClick={() => setStartFor(d)}>
+                            <Play className="h-3.5 w-3.5" /> Start drive
+                          </Button>
+                          <Button size="sm" variant="outline" className="min-h-9" disabled={busy} onClick={() => patchDrive(d.id, { action: 'no-show' }, 'Marked as no-show')}>
+                            No-show
+                          </Button>
+                          <Button size="sm" variant="ghost" className="min-h-9 text-destructive hover:text-destructive" disabled={busy} onClick={() => setCancelFor(d)}>
+                            <XCircle className="h-3.5 w-3.5" /> Cancel
+                          </Button>
+                        </>
+                      )}
+                      {d.status === 'IN_PROGRESS' && (
+                        <Button size="sm" className="min-h-9 gap-1.5" disabled={busy} onClick={() => setCompleteFor(d)}>
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Complete drive
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {(d.odometerOut != null || d.odometerIn != null || d.conditionOut || d.conditionIn || d.releasedBy || d.returnedBy || d.notes) && (
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground">
+                      {d.odometerOut != null && <span className="flex items-center gap-1"><Gauge className="h-3 w-3" /> Out: {d.odometerOut.toLocaleString()} km</span>}
+                      {d.odometerIn != null && <span className="flex items-center gap-1"><Gauge className="h-3 w-3" /> In: {d.odometerIn.toLocaleString()} km</span>}
+                      {d.releasedBy && <span>Released by {d.releasedBy}</span>}
+                      {d.returnedBy && <span>Returned to {d.returnedBy}</span>}
+                      {d.conditionOut && <span>Out condition: {d.conditionOut}</span>}
+                      {d.conditionIn && <span>In condition: {d.conditionIn}</span>}
+                      {d.notes && <span className="w-full">Notes: {d.notes}</span>}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Start drive dialog */}
+      <StartDriveDialog
+        drive={startFor}
+        busy={busy}
+        onClose={() => setStartFor(null)}
+        onSubmit={async (payload) => {
+          if (!startFor) return
+          await patchDrive(startFor.id, { action: 'start', ...payload }, 'Drive started — keys handed over')
+          setStartFor(null)
+        }}
+      />
+
+      {/* Complete drive dialog */}
+      <CompleteDriveDialog
+        drive={completeFor}
+        busy={busy}
+        onClose={() => setCompleteFor(null)}
+        onSubmit={async (payload) => {
+          if (!completeFor) return
+          await patchDrive(completeFor.id, { action: 'complete', ...payload }, 'Drive completed — vehicle returned')
+          setCompleteFor(null)
+        }}
+      />
+
+      {/* Cancel dialog */}
+      <CancelDriveDialog
+        drive={cancelFor}
+        busy={busy}
+        onClose={() => setCancelFor(null)}
+        onSubmit={async (note) => {
+          if (!cancelFor) return
+          await patchDrive(cancelFor.id, { action: 'cancel', note: note || undefined }, 'Test drive cancelled')
+          setCancelFor(null)
+        }}
+      />
+    </div>
+  )
+}
+
+function StartDriveDialog({ drive, busy, onClose, onSubmit }: {
+  drive: OrgTestDrive | null
+  busy: boolean
+  onClose: () => void
+  onSubmit: (payload: { odometerOut: number; fuelOut?: string; conditionOut?: string; releasedBy: string }) => Promise<void>
+}) {
+  const [odometer, setOdometer] = useState('')
+  const [fuel, setFuel] = useState<string>('FULL')
+  const [condition, setCondition] = useState('')
+  const [releasedBy, setReleasedBy] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (drive) { setOdometer(''); setFuel('FULL'); setCondition(''); setReleasedBy('') }
+  }, [drive])
+
+  const km = parseInt(odometer.trim(), 10)
+  const valid = Number.isFinite(km) && km >= 0 && releasedBy.trim().length >= 2
+
+  async function submit() {
+    if (!valid || !drive) return
+    setSaving(true)
+    try {
+      await onSubmit({
+        odometerOut: km,
+        fuelOut: fuel,
+        conditionOut: condition.trim() || undefined,
+        releasedBy: releasedBy.trim(),
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={drive !== null} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Start test drive</DialogTitle>
+          <DialogDescription>
+            {drive ? `${drive.vehicle ? vehicleTitle(drive.vehicle) : 'Vehicle'} for ${drive.customerName}. ` : ''}
+            Record the odometer and who released the keys before the car leaves the yard.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="td-odometer-out">Odometer out (km) *</Label>
+              <Input id="td-odometer-out" inputMode="numeric" value={odometer} onChange={(e) => setOdometer(e.target.value)} placeholder="e.g. 64210" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="td-fuel-out">Fuel level</Label>
+              <Select value={fuel} onValueChange={setFuel}>
+                <SelectTrigger id="td-fuel-out" aria-label="Fuel level at handover"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FUEL_LEVELS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="td-condition-out">Condition notes (optional)</Label>
+            <Textarea id="td-condition-out" rows={2} value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="e.g. Small scratch on rear bumper noted with customer" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="td-released-by">Released by (staff name) *</Label>
+            <Input id="td-released-by" value={releasedBy} onChange={(e) => setReleasedBy(e.target.value)} placeholder="e.g. Aisha Njeri" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={busy || saving || !valid} className="min-h-11">
+            {(busy || saving) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} Start drive
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function CompleteDriveDialog({ drive, busy, onClose, onSubmit }: {
+  drive: OrgTestDrive | null
+  busy: boolean
+  onClose: () => void
+  onSubmit: (payload: { odometerIn: number; fuelIn?: string; conditionIn?: string; returnedBy: string }) => Promise<void>
+}) {
+  const [odometer, setOdometer] = useState('')
+  const [fuel, setFuel] = useState<string>('FULL')
+  const [condition, setCondition] = useState('')
+  const [returnedBy, setReturnedBy] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (drive) { setOdometer(''); setFuel('FULL'); setCondition(''); setReturnedBy('') }
+  }, [drive])
+
+  const km = parseInt(odometer.trim(), 10)
+  const valid = Number.isFinite(km) && km >= 0 && returnedBy.trim().length >= 2
+
+  async function submit() {
+    if (!valid || !drive) return
+    setSaving(true)
+    try {
+      await onSubmit({
+        odometerIn: km,
+        fuelIn: fuel,
+        conditionIn: condition.trim() || undefined,
+        returnedBy: returnedBy.trim(),
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={drive !== null} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Complete test drive</DialogTitle>
+          <DialogDescription>
+            {drive && drive.odometerOut != null ? `Went out at ${drive.odometerOut.toLocaleString()} km. ` : ''}
+            Record the return odometer and who received the vehicle.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="td-odometer-in">Odometer in (km) *</Label>
+              <Input id="td-odometer-in" inputMode="numeric" value={odometer} onChange={(e) => setOdometer(e.target.value)} placeholder="e.g. 64265" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="td-fuel-in">Fuel level on return</Label>
+              <Select value={fuel} onValueChange={setFuel}>
+                <SelectTrigger id="td-fuel-in" aria-label="Fuel level on return"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FUEL_LEVELS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="td-condition-in">Condition on return (optional)</Label>
+            <Textarea id="td-condition-in" rows={2} value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="e.g. Clean, no new damage" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="td-returned-by">Received by (staff name) *</Label>
+            <Input id="td-returned-by" value={returnedBy} onChange={(e) => setReturnedBy(e.target.value)} placeholder="e.g. Aisha Njeri" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={busy || saving || !valid} className="min-h-11">
+            {(busy || saving) ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Complete drive
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function CancelDriveDialog({ drive, busy, onClose, onSubmit }: {
+  drive: OrgTestDrive | null
+  busy: boolean
+  onClose: () => void
+  onSubmit: (note: string) => Promise<void>
+}) {
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (drive) setNote('')
+  }, [drive])
+
+  async function submit() {
+    if (!drive) return
+    setSaving(true)
+    try {
+      await onSubmit(note.trim())
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={drive !== null} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Cancel this test drive?</DialogTitle>
+          <DialogDescription>
+            {drive ? `${drive.customerName}'s drive on ${drive.vehicle ? vehicleTitle(drive.vehicle) : 'the vehicle'} will be cancelled.` : ''} The customer is notified automatically.
+          </DialogDescription>
+        </DialogHeader>
+        <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason (optional, shared with the customer)" aria-label="Cancellation reason" />
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Keep drive</Button>
+          <Button variant="destructive" onClick={submit} disabled={busy || saving} className="min-h-11">
+            {(busy || saving) ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} Cancel drive
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }

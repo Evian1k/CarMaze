@@ -43,6 +43,222 @@ model User {
   orgMemberships   OrgMember[]
   follows          Follow[]         @relation("Follower")
   followings       Follow[]         @relation("Following")
+  conversations    Conversation[]   @relation("Conversations")
+  custodies        VehicleCustody[] @relation("Custodies")
+  testDrives       TestDrive[]      @relation("TestDrives")
+  incidents        SecurityIncident[] @relation("Incidents")
+}
+
+// ───────────────────── Unified messaging (customer ⇄ business) ─────────────────────
+
+model Conversation {
+  id                 String   @id @default(cuid())
+  orgId              String
+  org                Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customerId         String
+  customer           User     @relation("Conversations", fields: [customerId], references: [id])
+  subject            String? // e.g. "Accident repair — KDJ 345K"
+  vehicleId          String? // optional vehicle listing reference
+  vehicle            Vehicle? @relation(fields: [vehicleId], references: [id])
+  serviceId          String? // optional garage service reference
+  kind               String   @default("GENERAL") // GENERAL|QUOTE|BOOKING|VEHICLE_ENQUIRY|SUPPORT
+  status             String   @default("OPEN") // OPEN|CLOSED
+  lastMessageAt      DateTime @default(now())
+  lastMessagePreview String?
+  unreadForOrg       Boolean  @default(false)
+  unreadForCustomer  Boolean  @default(false)
+  orgArchived        Boolean  @default(false)
+  customerArchived   Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  messages ConversationMessage[]
+
+  @@index([orgId, lastMessageAt])
+  @@index([customerId, lastMessageAt])
+}
+
+model ConversationMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String? // null → system note
+  senderName     String
+  senderSide     String // CUSTOMER|ORG|SYSTEM
+  body           String
+  attachments    String? // JSON string[] of attachment urls
+  refType        String? // QUOTE|BOOKING|SERVICE_REQUEST|VEHICLE
+  refId          String?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+// ───────────── Garage Vehicle Protection — custody / handover ─────────────
+
+model VehicleCustody {
+  id                   String    @id @default(cuid())
+  refCode              String    @unique
+  orgId                String
+  org                  Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customerId           String
+  customer             User      @relation("Custodies", fields: [customerId], references: [id])
+  myVehicleId          String?   // link to a My Garage vehicle record
+  vehicleDesc          String    // "Toyota Prado 2018, KDJ 345K"
+  plate                String?
+  odometerKm           Int?
+  fuelLevel            String?   // E|QUARTER|HALF|THREE_QUARTER|FULL
+  conditionNotes       String?   // existing damage declared by customer
+  photos               String?   // JSON string[] — drop-off condition evidence
+  valuables            String?   // declared personal property left inside
+  requestedWork        String
+  authorisedSpendMinor Int?      // agreed spending cap
+  roadTestAllowed      Boolean   @default(false)
+  status               String    @default("HANDOVER_REQUESTED")
+  // HANDOVER_REQUESTED|RECEIVED|INSPECTION|AWAITING_APPROVAL|WORK_IN_PROGRESS|ROAD_TEST_REQUESTED|READY_FOR_COLLECTION|COLLECTION_PENDING|RETURNED|DISPUTED|INCIDENT
+  receivedAt           DateTime?
+  receivedByStaffName  String?
+  readyAt              DateTime?
+  completedWork        String?
+  finalOdometerKm      Int?
+  finalNotes           String?
+  completionPhotos     String?   // JSON string[]
+  costMinor            Int?
+  collectedAt          DateTime?
+  collectedByName      String?
+  returnedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  events       CustodyEvent[]
+  roadTests    RoadTest[]
+  collectionAuth CollectionAuthorisation?
+
+  @@index([orgId, status])
+  @@index([customerId, status])
+}
+
+model CustodyEvent {
+  id         String         @id @default(cuid())
+  custodyId  String
+  custody    VehicleCustody @relation(fields: [custodyId], references: [id], onDelete: Cascade)
+  type       String // STATUS_CHANGE|NOTE|ROAD_TEST|DISPUTE|INCIDENT|HANDOVER|COLLECTION
+  fromStatus String?
+  toStatus   String?
+  actorId    String?
+  actorName  String
+  actorSide  String // CUSTOMER|ORG|SYSTEM
+  note       String?
+  createdAt  DateTime       @default(now())
+
+  @@index([custodyId, createdAt])
+}
+
+model RoadTest {
+  id              String         @id @default(cuid())
+  custodyId       String
+  custody         VehicleCustody @relation(fields: [custodyId], references: [id], onDelete: Cascade)
+  purpose         String
+  driverName      String
+  startOdometerKm Int?
+  endOdometerKm   Int?
+  requestedAt     DateTime       @default(now())
+  authorisedAt    DateTime? // customer approval
+  startedAt       DateTime?
+  endedAt         DateTime?
+  status          String         @default("REQUESTED") // REQUESTED|AUTHORISED|IN_PROGRESS|COMPLETED|DECLINED
+  notes           String?
+  incident        Boolean        @default(false)
+
+  @@index([custodyId])
+}
+
+model CollectionAuthorisation {
+  id             String         @id @default(cuid())
+  custodyId      String         @unique
+  custody        VehicleCustody @relation(fields: [custodyId], references: [id], onDelete: Cascade)
+  collectorName  String
+  collectorPhone String
+  authCodeHash   String // bcrypt hash of the single-use code
+  codeHint       String? // last 2 chars shown for verification UX
+  expiresAt      DateTime
+  usedAt         DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime       @default(now())
+}
+
+// ───────────── Showroom test-drive appointments ─────────────
+
+model TestDrive {
+  id               String   @id @default(cuid())
+  refCode          String   @unique
+  orgId            String
+  org              Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vehicleId        String
+  vehicle          Vehicle  @relation(fields: [vehicleId], references: [id])
+  customerId       String
+  customer         User     @relation("TestDrives", fields: [customerId], references: [id])
+  scheduledAt      DateTime
+  status           String   @default("REQUESTED") // REQUESTED|CONFIRMED|IN_PROGRESS|COMPLETED|NO_SHOW|CANCELLED
+  licenceConfirmed Boolean  @default(false) // customer confirms valid licence
+  odometerOut      Int?
+  odometerIn       Int?
+  fuelOut          String?
+  fuelIn           String?
+  conditionOut     String?
+  conditionIn      String?
+  releasedBy       String? // staff who authorised vehicle release
+  returnedBy       String?
+  startedAt        DateTime?
+  endedAt          DateTime?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([orgId, status])
+  @@index([customerId])
+}
+
+// ───────────── Security incidents ─────────────
+
+model SecurityIncident {
+  id             String   @id @default(cuid())
+  refCode        String   @unique
+  category       String
+  // STOLEN_VEHICLE|MISSING_FROM_GARAGE|TEST_DRIVE_NOT_RETURNED|UNAUTHORISED_USE|UNAUTHORISED_RELEASE|DAMAGE_IN_CUSTODY|MISSING_PROPERTY|OWNERSHIP_FRAUD|FAKE_DOCS|MISCONDUCT|CUSTOMER_FRAUD|OTHER
+  reporterId     String
+  reporter       User     @relation("Incidents", fields: [reporterId], references: [id])
+  reporterSide   String // CUSTOMER|ORG
+  orgId          String? // involved business (plain ref, no cascade)
+  custodyId      String?
+  testDriveId    String?
+  vehicleDesc    String?
+  subjectDesc    String? // restricted: person/organisation under review
+  title          String
+  details        String
+  evidence       String? // JSON [{url,name,uploadedAt}]
+  status         String   @default("OPEN") // OPEN|UNDER_REVIEW|RESOLVED|DISMISSED|ESCALATED
+  severity       String   @default("MEDIUM") // LOW|MEDIUM|HIGH|CRITICAL
+  assignedTo     String?
+  resolutionNote String?
+  resolvedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  timeline IncidentEvent[]
+
+  @@index([status, severity])
+}
+
+model IncidentEvent {
+  id         String           @id @default(cuid())
+  incidentId String
+  incident   SecurityIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  type       String // CREATED|NOTE|STATUS_CHANGE|EVIDENCE|ESCALATION|RESOLUTION
+  actorId    String?
+  actorName  String
+  note       String?
+  createdAt  DateTime         @default(now())
 }
 
 model Org {
@@ -71,6 +287,23 @@ model Org {
   invoices   Invoice[]
   subscription Subscription?
   campaigns  Campaign[]
+
+  // ── Storefront (public business page) ──
+  logoUrl         String?
+  coverUrl        String?
+  gallery         String? // JSON string[] of image urls
+  openingHours    String? // JSON {"mon":["08:00","18:00"],…} null value = closed
+  specialities    String? // JSON string[]
+  faqs            String? // JSON [{q,a}]
+  serviceAreas    String? // JSON string[] of counties/areas served
+  whatsappEnabled Boolean @default(false)
+  callEnabled     Boolean @default(true)
+  responseMinutes Int? // expected response time in minutes (self-reported)
+
+  // ── Relations ──
+  conversations Conversation[]
+  custodies     VehicleCustody[]
+  testDrives    TestDrive[]
 }
 
 model OrgMember {
@@ -178,6 +411,8 @@ model Vehicle {
   enquiries Enquiry[]
   offers   Offer[]
   campaigns Campaign[]
+  conversations Conversation[]
+  testDrives    TestDrive[]
 
   @@index([status, make])
   @@index([status, bodyType])

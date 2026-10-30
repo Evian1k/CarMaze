@@ -1,0 +1,1232 @@
+     1→'use client'
+     2→
+     3→/* Garage Dashboard — GarageOS for approved garages, plus the garage
+     4→ * application wizard for new providers. Real data via /api/garages?mine=1,
+     5→ * /api/service-requests?org=1, /api/quotes, /api/bookings, /api/reviews. */
+     6→
+     7→import { useCallback, useEffect, useState } from 'react'
+     8→import {
+     9→  Wrench, MapPin, Star, Plus, Pencil, Send, CalendarClock, Play, CheckCircle2, XCircle,
+    10→  ClipboardList, ShieldCheck, Building2, FileText, Upload, MessageSquareText, Settings2, RefreshCw,
+    11→} from 'lucide-react'
+    12→import { toast } from 'sonner'
+    13→import { Button } from '@/components/ui/button'
+    14→import { Input } from '@/components/ui/input'
+    15→import { Label } from '@/components/ui/label'
+    16→import { Badge } from '@/components/ui/badge'
+    17→import { Skeleton } from '@/components/ui/skeleton'
+    18→import { Textarea } from '@/components/ui/textarea'
+    19→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    20→import { Checkbox } from '@/components/ui/checkbox'
+    21→import { Separator } from '@/components/ui/separator'
+    22→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    23→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    24→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    25→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    26→import { useAuth } from '@/stores/auth'
+    27→import { navigate, apiGet, apiSend, apiUpload, buildQuery } from '@/lib/client'
+    28→import { useHashRoute } from '@/hooks/use-hash-route'
+    29→import {
+    30→  money, timeAgo, KENYA_COUNTIES, SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS,
+    31→} from '@/lib/format'
+    32→
+    33→// ─────────────────────────── Types ───────────────────────────
+    34→
+    35→type ServiceRow = { id: string; category: string; title: string; description: string | null; priceFromMinor: number | null; active: boolean }
+    36→type MyGarage = {
+    37→  org: { id: string; name: string; county: string; town: string | null; location: string | null; description: string | null; phone: string | null; status: string }
+    38→  services: ServiceRow[]
+    39→  rating: { avg: number; count: number }
+    40→  stats: { openRequests: number; quoted: number; booked: number; completed: number; pendingBookings: number }
+    41→  subscription: { planCode: string; status: string; currentPeriodEnd: string } | null
+    42→}
+    43→type MyQuote = { id: string; amountMinor: number; leadDays: number | null; message: string | null; status: string; createdAt: string }
+    44→type LeadRequest = {
+    45→  id: string; refCode: string; category: string; vehicleDesc: string | null; description: string
+    46→  county: string; town: string | null; status: string; configId: string | null; createdAt: string
+    47→  customer: { name: string }
+    48→  myQuote: MyQuote | null
+    49→}
+    50→type ReviewRow = { id: string; rating: number; comment: string | null; createdAt: string; author: { name: string } }
+    51→type AppEvent = { id: string; type: string; actorName: string | null; note: string | null; createdAt: string }
+    52→type GarageApplication = {
+    53→  id: string; refCode: string; status: string; orgName: string; createdAt: string; orgId: string | null
+    54→  events: AppEvent[]
+    55→  decisionNote?: string | null
+    56→}
+    57→
+    58→const REVIEWABLE = ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'RESUBMITTED']
+    59→
+    60→/** KES major-unit input → integer minor units (×100). Returns null when invalid. */
+    61→function kesToMinor(input: string): number | null {
+    62→  const v = input.trim().replace(/,/g, '')
+    63→  if (!/^\d+(\.\d{1,2})?$/.test(v)) return null
+    64→  const minor = Math.round(parseFloat(v) * 100)
+    65→  return Number.isFinite(minor) && minor > 0 ? minor : null
+    66→}
+    67→
+    68→const REQUEST_STATUS_LABELS: Record<string, string> = {
+    69→  OPEN: 'Open', QUOTING: 'Quoting', BOOKED: 'Booked', IN_PROGRESS: 'In progress',
+    70→  COMPLETED: 'Completed', CANCELLED: 'Cancelled', EXPIRED: 'Expired',
+    71→}
+    72→const BOOKING_STATUS_LABELS: Record<string, string> = {
+    73→  CONFIRMED: 'Confirmed', IN_PROGRESS: 'In progress', COMPLETED: 'Completed', CANCELLED: 'Cancelled',
+    74→}
+    75→
+    76→export default function GarageDashboardView() {
+    77→  const { user, loading } = useAuth()
+    78→  const route = useHashRoute()
+    79→  const [phase, setPhase] = useState<'loading' | 'wizard' | 'application' | 'dashboard'>('loading')
+    80→  const [garages, setGarages] = useState<MyGarage[]>([])
+    81→  const [activeOrgId, setActiveOrgId] = useState<string>('')
+    82→  const [application, setApplication] = useState<GarageApplication | null>(null)
+    83→
+    84→  const activeGarage = garages.find((g) => g.org.id === activeOrgId) ?? garages[0] ?? null
+    85→
+    86→  // ── Bootstrap: which phase are we in? ──
+    87→  const bootstrap = useCallback(() => {
+    88→    if (!user) return
+    89→    let appsFetched: GarageApplication[] | null = null
+    90→    let mineFetched: MyGarage[] | null = null
+    91→    const decide = () => {
+    92→      if (appsFetched === null || mineFetched === null) return
+    93→      if (mineFetched.length > 0) {
+    94→        setGarages(mineFetched)
+    95→        setActiveOrgId(mineFetched[0].org.id)
+    96→        setPhase('dashboard')
+    97→      } else {
+    98→        const app = appsFetched.find((a) => a.type === 'GARAGE') ?? null
+    99→        setApplication(app)
+   100→        setPhase(app ? 'application' : 'wizard')
+   101→      }
+   102→    }
+   103→    apiGet<{ applications: (GarageApplication & { type: string })[] }>('/api/applications')
+   104→      .then((d) => { appsFetched = d.applications; decide() })
+   105→      .catch(() => { appsFetched = []; decide() })
+   106→    apiGet<{ garages: MyGarage[] }>('/api/garages?mine=1')
+   107→      .then((d) => { mineFetched = d.garages; decide() })
+   108→      .catch(() => { mineFetched = []; decide() })
+   109→  }, [user])
+   110→
+   111→  useEffect(() => {
+   112→    if (!loading && user) bootstrap()
+   113→  }, [loading, user, bootstrap])
+   114→
+   115→  // ─────────────────────────── Gate: signed out ───────────────────────────
+   116→  if (!loading && !user) {
+   117→    return (
+   118→      <div className="mx-auto max-w-md px-4 py-20 text-center">
+   119→        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#315e4b]/10 text-[#315e4b]"><Wrench className="h-7 w-7" /></div>
+   120→        <h1 className="mt-4 text-2xl font-bold">Garage Dashboard</h1>
+   121→        <p className="mt-2 text-sm text-muted-foreground">Sign in with your garage account to manage services, quotes, bookings and reviews.</p>
+   122→        <Button className="mt-6" onClick={() => navigate('signin')}>Sign in</Button>
+   123→      </div>
+   124→    )
+   125→  }
+   126→
+   127→  if (loading || phase === 'loading') {
+   128→    return (
+   129→      <div className="mx-auto max-w-5xl space-y-4 p-6">
+   130→        <Skeleton className="h-8 w-64" />
+   131→        <Skeleton className="h-24 rounded-xl" />
+   132→        <Skeleton className="h-64 rounded-xl" />
+   133→      </div>
+   134→    )
+   135→  }
+   136→
+   137→  // ─────────────────────────── Gate: application wizard ───────────────────────────
+   138→  if (phase === 'wizard') {
+   139→    return <ApplicationWizard user={user!} onDone={bootstrap} />
+   140→  }
+   141→
+   142→  // ─────────────────────────── Gate: application under review ───────────────────────────
+   143→  if (phase === 'application' && application) {
+   144→    return (
+   145→      <ApplicationStatus
+   146→        application={application}
+   147→        onResubmitted={bootstrap}
+   148→        onNewApplication={() => { setApplication(null); setPhase('wizard') }}
+   149→      />
+   150→    )
+   151→  }
+   152→
+   153→  // ─────────────────────────── Dashboard ───────────────────────────
+   154→  return <Dashboard garages={garages} activeGarage={activeGarage!} activeOrgId={activeOrgId} onOrgChange={setActiveOrgId} initialTab={route.query.get('tab') ?? 'overview'} onRefresh={bootstrap} />
+   155→}
+   156→
+   157→// ═══════════════════════════ Dashboard (approved garage) ═══════════════════════════
+   158→
+   159→function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab, onRefresh }: {
+   160→  garages: MyGarage[]
+   161→  activeGarage: MyGarage
+   162→  activeOrgId: string
+   163→  onOrgChange: (id: string) => void
+   164→  initialTab: string
+   165→  onRefresh: () => void
+   166→}) {
+   167→  const TABS = ['overview', 'services', 'requests', 'quotes', 'bookings', 'reviews', 'profile'] as const
+   168→  const [tab, setTab] = useState<string>(TABS.includes(initialTab as (typeof TABS)[number]) ? initialTab : 'overview')
+   169→
+   170→  return (
+   171→    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+   172→      {/* Header */}
+   173→      <div className="flex flex-wrap items-start justify-between gap-3">
+   174→        <div>
+   175→          <div className="flex items-center gap-2">
+   176→            <h1 className="text-2xl font-bold">{activeGarage.org.name}</h1>
+   177→            <Badge variant="outline" className="gap-1 border-[#315e4b]/40 text-[#315e4b]"><ShieldCheck className="h-3 w-3" /> Approved garage</Badge>
+   178→          </div>
+   179→          <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+   180→            <MapPin className="h-3.5 w-3.5" />
+   181→            {[activeGarage.org.town, activeGarage.org.county].filter(Boolean).join(', ')}
+   182→            {activeGarage.subscription && ` · ${activeGarage.subscription.planCode} plan`}
+   183→          </p>
+   184→        </div>
+   185→        {garages.length > 1 && (
+   186→          <Select value={activeOrgId} onValueChange={onOrgChange}>
+   187→            <SelectTrigger className="w-64" aria-label="Switch garage">
+   188→              <SelectValue placeholder="Choose garage" />
+   189→            </SelectTrigger>
+   190→            <SelectContent>
+   191→              {garages.map((g) => <SelectItem key={g.org.id} value={g.org.id}>{g.org.name}</SelectItem>)}
+   192→            </SelectContent>
+   193→          </Select>
+   194→        )}
+   195→      </div>
+   196→
+   197→      <Tabs value={tab} onValueChange={setTab} className="mt-6">
+   198→        <TabsList className="scrollbar-thin h-auto w-full justify-start overflow-x-auto py-0.5">
+   199→          <TabsTrigger value="overview" className="gap-1.5"><Building2 className="h-4 w-4" /> Overview</TabsTrigger>
+   200→          <TabsTrigger value="services" className="gap-1.5"><Wrench className="h-4 w-4" /> Services</TabsTrigger>
+   201→          <TabsTrigger value="requests" className="gap-1.5"><ClipboardList className="h-4 w-4" /> Requests</TabsTrigger>
+   202→          <TabsTrigger value="quotes" className="gap-1.5"><Send className="h-4 w-4" /> Quotes</TabsTrigger>
+   203→          <TabsTrigger value="bookings" className="gap-1.5"><CalendarClock className="h-4 w-4" /> Bookings</TabsTrigger>
+   204→          <TabsTrigger value="reviews" className="gap-1.5"><MessageSquareText className="h-4 w-4" /> Reviews</TabsTrigger>
+   205→          <TabsTrigger value="profile" className="gap-1.5"><Settings2 className="h-4 w-4" /> Profile</TabsTrigger>
+   206→        </TabsList>
+   207→
+   208→        <TabsContent value="overview" className="mt-4"><OverviewTab garage={activeGarage} onGo={setTab} /></TabsContent>
+   209→        <TabsContent value="services" className="mt-4"><ServicesTab orgId={activeOrgId} services={activeGarage.services} onChanged={onRefresh} /></TabsContent>
+   210→        <TabsContent value="requests" className="mt-4"><RequestsTab orgId={activeOrgId} services={activeGarage.services} /></TabsContent>
+   211→        <TabsContent value="quotes" className="mt-4"><QuotesTab orgId={activeOrgId} /></TabsContent>
+   212→        <TabsContent value="bookings" className="mt-4"><BookingsTab orgId={activeOrgId} onChanged={onRefresh} /></TabsContent>
+   213→        <TabsContent value="reviews" className="mt-4"><ReviewsTab orgId={activeOrgId} rating={activeGarage.rating} /></TabsContent>
+   214→        <TabsContent value="profile" className="mt-4"><ProfileTab garage={activeGarage} onSaved={onRefresh} /></TabsContent>
+   215→      </Tabs>
+   216→    </div>
+   217→  )
+   218→}
+   219→
+   220→// ─────────────────────────── Overview ───────────────────────────
+   221→
+   222→function OverviewTab({ garage, onGo }: { garage: MyGarage; onGo: (tab: string) => void }) {
+   223→  const stats = garage.stats
+   224→  const activeServices = garage.services.filter((s) => s.active)
+   225→  return (
+   226→    <div className="space-y-4">
+   227→      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+   228→        <StatCard label="Eligible open requests" value={stats.openRequests} hint="Leads in your categories" onClick={() => onGo('requests')} />
+   229→        <StatCard label="Quotes sent" value={stats.quoted} hint="All time" onClick={() => onGo('quotes')} />
+   230→        <StatCard label="Active bookings" value={stats.booked} hint="Confirmed or in progress" onClick={() => onGo('bookings')} />
+   231→        <StatCard label="Services completed" value={stats.completed} hint="All time" onClick={() => onGo('bookings')} />
+   232→      </div>
+   233→
+   234→      <div className="grid gap-4 lg:grid-cols-2">
+   235→        <Card>
+   236→          <CardHeader className="pb-2"><CardTitle className="text-base">Rating</CardTitle></CardHeader>
+   237→          <CardContent className="flex items-center gap-4">
+   238→            <div className="text-4xl font-bold">{garage.rating.count > 0 ? garage.rating.avg.toFixed(1) : '—'}</div>
+   239→            <div>
+   240→              <Stars avg={garage.rating.avg} />
+   241→              <p className="mt-1 text-xs text-muted-foreground">
+   242→                {garage.rating.count > 0 ? `${garage.rating.count} verified review${garage.rating.count === 1 ? '' : 's'} from completed bookings` : 'No reviews yet — they come from completed bookings.'}
+   243→              </p>
+   244→            </div>
+   245→          </CardContent>
+   246→        </Card>
+   247→
+   248→        <Card>
+   249→          <CardHeader className="pb-2"><CardTitle className="text-base">Request pipeline</CardTitle></CardHeader>
+   250→          <CardContent className="space-y-2 text-sm">
+   251→            <PipelineRow label="Open / quoting leads available to you" value={stats.openRequests} onClick={() => onGo('requests')} />
+   252→            <PipelineRow label="Bookings awaiting schedule or start" value={stats.pendingBookings} onClick={() => onGo('bookings')} />
+   253→            <PipelineRow label="Active services listed" value={activeServices.length} onClick={() => onGo('services')} />
+   254→            <PipelineRow label="Inactive services" value={garage.services.length - activeServices.length} onClick={() => onGo('services')} />
+   255→          </CardContent>
+   256→        </Card>
+   257→      </div>
+   258→
+   259→      <Alert>
+   260→        <ClipboardList className="h-4 w-4" />
+   261→        <AlertTitle>How leads work</AlertTitle>
+   262→        <AlertDescription>
+   263→          You see requests whose category matches an <strong>active service</strong> you list, plus every request you already quoted.
+   264→          Send quotes from the Requests tab — customers accept in their account and a booking is created automatically.
+   265→        </AlertDescription>
+   266→      </Alert>
+   267→    </div>
+   268→  )
+   269→}
+   270→
+   271→function StatCard({ label, value, hint, onClick }: { label: string; value: number; hint: string; onClick: () => void }) {
+   272→  return (
+   273→    <button onClick={onClick} className="rounded-xl border bg-card p-4 text-left transition-colors hover:bg-muted/50">
+   274→      <p className="text-3xl font-bold">{value}</p>
+   275→      <p className="mt-1 text-sm font-medium">{label}</p>
+   276→      <p className="text-xs text-muted-foreground">{hint}</p>
+   277→    </button>
+   278→  )
+   279→}
+   280→
+   281→function PipelineRow({ label, value, onClick }: { label: string; value: number; onClick: () => void }) {
+   282→  return (
+   283→    <button onClick={onClick} className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted/60">
+   284→      <span className="text-muted-foreground">{label}</span>
+   285→      <Badge variant="secondary">{value}</Badge>
+   286→    </button>
+   287→  )
+   288→}
+   289→
+   290→// ─────────────────────────── Services ───────────────────────────
+   291→
+   292→function ServicesTab({ orgId, services, onChanged }: { orgId: string; services: ServiceRow[]; onChanged: () => void }) {
+   293→  const [dialogOpen, setDialogOpen] = useState(false)
+   294→  const [editing, setEditing] = useState<ServiceRow | null>(null)
+   295→  const [category, setCategory] = useState<string>('GENERAL_SERVICE')
+   296→  const [title, setTitle] = useState('')
+   297→  const [description, setDescription] = useState('')
+   298→  const [price, setPrice] = useState('')
+   299→  const [saving, setSaving] = useState(false)
+   300→
+   301→  function openCreate() {
+   302→    setEditing(null)
+   303→    setCategory('GENERAL_SERVICE')
+   304→    setTitle('')
+   305→    setDescription('')
+   306→    setPrice('')
+   307→    setDialogOpen(true)
+   308→  }
+   309→
+   310→  function openEdit(s: ServiceRow) {
+   311→    setEditing(s)
+   312→    setCategory(s.category)
+   313→    setTitle(s.title)
+   314→    setDescription(s.description ?? '')
+   315→    setPrice(s.priceFromMinor ? String(s.priceFromMinor / 100) : '')
+   316→    setDialogOpen(true)
+   317→  }
+   318→
+   319→  const priceMinor = price.trim() ? kesToMinor(price) : null
+   320→  const priceInvalid = price.trim() !== '' && priceMinor === null
+   321→
+   322→  function save() {
+   323→    if (title.trim().length < 3) { toast.error('Give the service a clear title'); return }
+   324→    if (priceInvalid) { toast.error('Price must be a KES amount like 3500 or 3500.50'); return }
+   325→    setSaving(true)
+   326→    const payload = {
+   327→      category,
+   328→      title: title.trim(),
+   329→      description: description.trim() || null,
+   330→      priceFromMinor: priceMinor,
+   331→    }
+   332→    const call = editing
+   333→      ? apiSend(`/api/garage-services?id=${editing.id}`, 'PATCH', payload)
+   334→      : apiSend('/api/garage-services', 'POST', { ...payload, orgId })
+   335→    call
+   336→      .then(() => {
+   337→        toast.success(editing ? 'Service updated' : 'Service added')
+   338→        setDialogOpen(false)
+   339→        onChanged()
+   340→      })
+   341→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not save service'))
+   342→      .finally(() => setSaving(false))
+   343→  }
+   344→
+   345→  function toggleActive(s: ServiceRow) {
+   346→    apiSend(`/api/garage-services?id=${s.id}`, 'PATCH', { active: !s.active })
+   347→      .then(() => { toast.success(s.active ? 'Service deactivated' : 'Service activated'); onChanged() })
+   348→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not update service'))
+   349→  }
+   350→
+   351→  return (
+   352→    <div className="space-y-4">
+   353→      <div className="flex flex-wrap items-center justify-between gap-2">
+   354→        <p className="text-sm text-muted-foreground">Active services decide which customer requests you see. Deactivate instead of deleting to keep history.</p>
+   355→        <Button onClick={openCreate} className="gap-1.5"><Plus className="h-4 w-4" /> Add service</Button>
+   356→      </div>
+   357→
+   358→      {services.length === 0 ? (
+   359→        <EmptyBlock icon={<Wrench className="h-6 w-6" />} title="No services yet" desc="Add the categories you cover — e.g. general servicing, tyres, or modifications — so matching requests reach you." />
+   360→      ) : (
+   361→        <div className="grid gap-3 md:grid-cols-2">
+   362→          {services.map((s) => (
+   363→            <Card key={s.id} className={`p-4 ${!s.active ? 'opacity-60' : ''}`}>
+   364→              <div className="flex items-start justify-between gap-2">
+   365→                <div className="min-w-0">
+   366→                  <div className="flex flex-wrap items-center gap-2">
+   367→                    <h4 className="font-semibold">{s.title}</h4>
+   368→                    <Badge variant={s.active ? 'secondary' : 'outline'}>{s.active ? 'Active' : 'Inactive'}</Badge>
+   369→                  </div>
+   370→                  <p className="mt-0.5 text-xs text-muted-foreground">{SERVICE_CATEGORY_LABELS[s.category] ?? s.category}</p>
+   371→                  {s.description && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{s.description}</p>}
+   372→                  <p className="mt-2 text-sm font-medium">{s.priceFromMinor ? `from ${money(s.priceFromMinor)}` : 'Price on quote'}</p>
+   373→                </div>
+   374→                <div className="flex shrink-0 flex-col gap-1.5">
+   375→                  <Button size="sm" variant="outline" className="gap-1" onClick={() => openEdit(s)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+   376→                  <Button size="sm" variant="ghost" onClick={() => toggleActive(s)}>{s.active ? 'Deactivate' : 'Activate'}</Button>
+   377→                </div>
+   378→              </div>
+   379→            </Card>
+   380→          ))}
+   381→        </div>
+   382→      )}
+   383→
+   384→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   385→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+   386→          <DialogHeader>
+   387→            <DialogTitle>{editing ? 'Edit service' : 'Add a service'}</DialogTitle>
+   388→            <DialogDescription>Shown on your public garage profile. &quot;From&quot; pricing sets customer expectations.</DialogDescription>
+   389→          </DialogHeader>
+   390→          <div className="space-y-4">
+   391→            <div className="space-y-1.5">
+   392→              <Label htmlFor="svc-category">Category</Label>
+   393→              <Select value={category} onValueChange={setCategory}>
+   394→                <SelectTrigger id="svc-category"><SelectValue /></SelectTrigger>
+   395→                <SelectContent>
+   396→                  {SERVICE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{SERVICE_CATEGORY_LABELS[c]}</SelectItem>)}
+   397→                </SelectContent>
+   398→              </Select>
+   399→            </div>
+   400→            <div className="space-y-1.5">
+   401→              <Label htmlFor="svc-title">Title</Label>
+   402→              <Input id="svc-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Full engine service" />
+   403→            </div>
+   404→            <div className="space-y-1.5">
+   405→              <Label htmlFor="svc-desc">Description (optional)</Label>
+   406→              <Textarea id="svc-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's included, warranties, turnaround…" />
+   407→            </div>
+   408→            <div className="space-y-1.5">
+   409→              <Label htmlFor="svc-price">Price from (KES, optional)</Label>
+   410→              <div className="flex gap-2">
+   411→                <Input id="svc-price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g. 6500" className="max-w-40" />
+   412→                {priceMinor !== null && <Badge variant="secondary" className="self-center">{money(priceMinor)}</Badge>}
+   413→              </div>
+   414→              {priceInvalid && <p className="text-xs text-destructive">Enter a valid KES amount, e.g. 6500 or 6500.50</p>}
+   415→            </div>
+   416→          </div>
+   417→          <DialogFooter>
+   418→            <Button variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
+   419→            <Button onClick={save} disabled={saving || title.trim().length < 3 || priceInvalid}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Add service'}</Button>
+   420→          </DialogFooter>
+   421→        </DialogContent>
+   422→      </Dialog>
+   423→    </div>
+   424→  )
+   425→}
+   426→
+   427→// ─────────────────────────── Requests (leads) + Quotes ───────────────────────────
+   428→
+   429→function useOrgRequests(orgId: string) {
+   430→  const [feed, setFeed] = useState<{ orgId: string; requests: LeadRequest[]; tick: number } | null>(null)
+   431→  const [tick, setTick] = useState(0)
+   432→  useEffect(() => {
+   433→    let cancelled = false
+   434→    apiGet<{ requests: LeadRequest[] }>(buildQuery('/api/service-requests', { org: 1, orgId }))
+   435→      .then((d) => { if (!cancelled) setFeed({ orgId, requests: d.requests, tick }) })
+   436→      .catch(() => { if (!cancelled) setFeed({ orgId, requests: [], tick }) })
+   437→    return () => { cancelled = true }
+   438→  }, [orgId, tick])
+   439→  const refresh = useCallback(() => setTick((t) => t + 1), [])
+   440→  // Stale while switching orgs or refetching — renders as loading.
+   441→  const requests = feed && feed.orgId === orgId && feed.tick === tick ? feed.requests : null
+   442→  return { requests, refresh }
+   443→}
+   444→
+   445→function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[] }) {
+   446→  const { requests, refresh } = useOrgRequests(orgId)
+   447→  const [quoteFor, setQuoteFor] = useState<LeadRequest | null>(null)
+   448→  const [amount, setAmount] = useState('')
+   449→  const [leadDays, setLeadDays] = useState('')
+   450→  const [message, setMessage] = useState('')
+   451→  const [sending, setSending] = useState(false)
+   452→
+   453→  const activeCategories = new Set(services.filter((s) => s.active).map((s) => s.category))
+   454→
+   455→  function openQuote(r: LeadRequest) {
+   456→    setQuoteFor(r)
+   457→    setAmount('')
+   458→    setLeadDays('')
+   459→    setMessage('')
+   460→  }
+   461→
+   462→  const amountMinor = amount.trim() ? kesToMinor(amount) : null
+   463→  const amountInvalid = amount.trim() !== '' && amountMinor === null
+   464→  const leadInvalid = leadDays.trim() !== '' && !/^\d{1,3}$/.test(leadDays.trim())
+   465→
+   466→  function sendQuote() {
+   467→    if (!quoteFor) return
+   468→    if (amountMinor === null) { toast.error('Enter a valid KES amount, e.g. 12000'); return }
+   469→    setSending(true)
+   470→    apiSend('/api/quotes', 'POST', {
+   471→      requestId: quoteFor.id,
+   472→      orgId,
+   473→      amountMinor,
+   474→      leadDays: leadDays.trim() ? parseInt(leadDays.trim(), 10) : undefined,
+   475→      message: message.trim() || undefined,
+   476→    })
+   477→      .then(() => {
+   478→        toast.success(`Quote sent to ${quoteFor.customer.name}`)
+   479→        setQuoteFor(null)
+   480→        refresh()
+   481→      })
+   482→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not send quote'))
+   483→      .finally(() => setSending(false))
+   484→  }
+   485→
+   486→  return (
+   487→    <div className="space-y-4">
+   488→      <p className="text-sm text-muted-foreground">
+   489→        Eligible requests match your active service categories. Sending another quote updates your previous one — customers never see other garages&apos; prices.
+   490→      </p>
+   491→
+   492→      {requests === null ? (
+   493→        <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
+   494→      ) : requests.length === 0 ? (
+   495→        <EmptyBlock
+   496→          icon={<ClipboardList className="h-6 w-6" />}
+   497→          title="No eligible requests right now"
+   498→          desc="Add more service categories or check back — new requests notify garages offering that category instantly."
+   499→        />
+   500→      ) : (
+   501→        <div className="space-y-3">
+   502→          {requests.map((r) => {
+   503→            const eligible = ['OPEN', 'QUOTING'].includes(r.status) && activeCategories.has(r.category)
+   504→            return (
+   505→              <Card key={r.id} className="p-4 sm:p-5">
+   506→                <div className="flex flex-wrap items-start justify-between gap-2">
+   507→                  <div className="min-w-0">
+   508→                    <div className="flex flex-wrap items-center gap-2">
+   509→                      <h4 className="font-semibold">{SERVICE_CATEGORY_LABELS[r.category] ?? r.category}</h4>
+   510→                      <Badge variant="outline">{REQUEST_STATUS_LABELS[r.status] ?? r.status}</Badge>
+   511→                      {r.configId && (
+   512→                        <button
+   513→                          className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-[#315e4b] hover:bg-muted"
+   514→                          onClick={() => navigate(`customizer?cfg=${r.configId}`)}
+   515→                        >
+   516→                          <Settings2 className="h-3 w-3" /> 3D configuration
+   517→                        </button>
+   518→                      )}
+   519→                    </div>
+   520→                    <p className="mt-1 text-xs text-muted-foreground">
+   521→                      {r.refCode} · {r.county}{r.town ? ` · ${r.town}` : ''} · {timeAgo(r.createdAt)} · requested by {r.customer.name}
+   522→                    </p>
+   523→                  </div>
+   524→                  {eligible && (
+   525→                    <Button size="sm" className="gap-1.5" onClick={() => openQuote(r)}>
+   526→                      <Send className="h-3.5 w-3.5" /> {r.myQuote ? 'Update quote' : 'Send quote'}
+   527→                    </Button>
+   528→                  )}
+   529→                </div>
+   530→                <p className="mt-2 text-sm text-muted-foreground">{r.description}</p>
+   531→                {r.vehicleDesc && <p className="mt-1 text-xs text-muted-foreground">Vehicle: {r.vehicleDesc}</p>}
+   532→                {r.myQuote && (
+   533→                  <div className={`mt-3 rounded-lg border p-3 text-sm ${r.myQuote.status === 'ACCEPTED' ? 'border-[#315e4b]/40 bg-[#315e4b]/5' : ''}`}>
+   534→                    <div className="flex flex-wrap items-center justify-between gap-2">
+   535→                      <span className="font-medium">Your quote: <span className="font-bold text-[#315e4b]">{money(r.myQuote.amountMinor)}</span>
+   536→                        {r.myQuote.leadDays !== null && <span className="ml-2 text-xs text-muted-foreground">· {r.myQuote.leadDays} day{r.myQuote.leadDays === 1 ? '' : 's'} lead</span>}
+   537→                      </span>
+   538→                      <Badge variant={r.myQuote.status === 'ACCEPTED' ? 'default' : r.myQuote.status === 'PENDING' ? 'secondary' : 'outline'} className={r.myQuote.status === 'ACCEPTED' ? 'bg-[#315e4b] text-white' : ''}>
+   539→                        {r.myQuote.status}
+   540→                      </Badge>
+   541→                    </div>
+   542→                    {r.myQuote.message && <p className="mt-1 text-xs text-muted-foreground">{r.myQuote.message}</p>}
+   543→                    <p className="mt-1 text-[10px] text-muted-foreground">sent {timeAgo(r.myQuote.createdAt)}</p>
+   544→                  </div>
+   545→                )}
+   546→              </Card>
+   547→            )
+   548→          })}
+   549→        </div>
+   550→      )}
+   551→
+   552→      {/* Quote dialog */}
+   553→      <Dialog open={quoteFor !== null} onOpenChange={(open) => { if (!open) setQuoteFor(null) }}>
+   554→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+   555→          <DialogHeader>
+   556→            <DialogTitle>Send quote</DialogTitle>
+   557→            <DialogDescription>
+   558→              {quoteFor && `${quoteFor.refCode} · ${SERVICE_CATEGORY_LABELS[quoteFor.category] ?? quoteFor.category} · ${quoteFor.county}`}
+   559→            </DialogDescription>
+   560→          </DialogHeader>
+   561→          <div className="space-y-4">
+   562→            <div className="space-y-1.5">
+   563→              <Label htmlFor="q-amount">Amount (KES)</Label>
+   564→              <div className="flex gap-2">
+   565→                <Input id="q-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 12500" className="max-w-40" />
+   566→                {amountMinor !== null && <Badge variant="secondary" className="self-center">{money(amountMinor)}</Badge>}
+   567→              </div>
+   568→              {amountInvalid && <p className="text-xs text-destructive">Enter a valid KES amount, e.g. 12500 or 12500.50</p>}
+   569→            </div>
+   570→            <div className="space-y-1.5">
+   571→              <Label htmlFor="q-lead">Lead time in days (optional)</Label>
+   572→              <Input id="q-lead" inputMode="numeric" value={leadDays} onChange={(e) => setLeadDays(e.target.value)} placeholder="e.g. 2" className="max-w-24" />
+   573→              {leadInvalid && <p className="text-xs text-destructive">Whole days, e.g. 2</p>}
+   574→            </div>
+   575→            <div className="space-y-1.5">
+   576→              <Label htmlFor="q-msg">Message (optional)</Label>
+   577→              <Textarea id="q-msg" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="What the quote includes, parts, warranty…" />
+   578→            </div>
+   579→          </div>
+   580→          <DialogFooter>
+   581→            <Button variant="ghost" onClick={() => setQuoteFor(null)}>Cancel</Button>
+   582→            <Button onClick={sendQuote} disabled={sending || amountMinor === null || amountInvalid || leadInvalid}>
+   583→              {sending ? 'Sending…' : quoteFor?.myQuote ? 'Update quote' : 'Send quote'}
+   584→            </Button>
+   585→          </DialogFooter>
+   586→        </DialogContent>
+   587→      </Dialog>
+   588→    </div>
+   589→  )
+   590→}
+   591→
+   592→/** Quotes tab — sent quotes derived from the org feed (own quotes only, tenant-safe). */
+   593→function QuotesTab({ orgId }: { orgId: string }) {
+   594→  const { requests } = useOrgRequests(orgId)
+   595→  const quoted = requests?.filter((r) => r.myQuote) ?? []
+   596→  const statusBadge = (status: string) =>
+   597→    status === 'ACCEPTED' ? 'default' : status === 'PENDING' ? 'secondary' : 'outline'
+   598→
+   599→  return (
+   600→    <div className="space-y-3">
+   601→      {requests === null ? (
+   602→        <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+   603→      ) : quoted.length === 0 ? (
+   604→        <EmptyBlock icon={<Send className="h-6 w-6" />} title="No quotes sent yet" desc="Quotes you send from the Requests tab appear here with their live status." />
+   605→      ) : (
+   606→        quoted.map((r) => (
+   607→          <Card key={r.id} className={`p-4 ${r.myQuote!.status === 'ACCEPTED' ? 'border-[#315e4b]/50 bg-[#315e4b]/5' : ''}`}>
+   608→            <div className="flex flex-wrap items-center justify-between gap-2">
+   609→              <div>
+   610→                <p className="font-medium">{r.refCode} · {SERVICE_CATEGORY_LABELS[r.category] ?? r.category}</p>
+   611→                <p className="text-xs text-muted-foreground">{r.county}{r.town ? ` · ${r.town}` : ''} · request is {REQUEST_STATUS_LABELS[r.status] ?? r.status}</p>
+   612→              </div>
+   613→              <div className="text-right">
+   614→                <p className="font-bold text-[#315e4b]">{money(r.myQuote!.amountMinor)}</p>
+   615→                <Badge variant={statusBadge(r.myQuote!.status)} className={r.myQuote!.status === 'ACCEPTED' ? 'bg-[#315e4b] text-white' : ''}>{r.myQuote!.status}</Badge>
+   616→              </div>
+   617→            </div>
+   618→            {r.myQuote!.message && <p className="mt-2 text-sm text-muted-foreground">{r.myQuote!.message}</p>}
+   619→          </Card>
+   620→        ))
+   621→      )}
+   622→    </div>
+   623→  )
+   624→}
+   625→
+   626→// ─────────────────────────── Bookings ───────────────────────────
+   627→
+   628→type OrgBookingFeed = {
+   629→  id: string; scheduledAt: string | null; status: string; notes: string | null; updatedAt: string
+   630→  request: {
+   631→    refCode: string; category: string; description: string; vehicleDesc: string | null
+   632→    county: string; town: string | null; status: string
+   633→    customer: { name: string; phone: string | null }
+   634→  }
+   635→}
+   636→
+   637→function BookingsTab({ orgId, onChanged }: { orgId: string; onChanged: () => void }) {
+   638→  const [feed, setFeed] = useState<{ orgId: string; bookings: OrgBookingFeed[] } | null>(null)
+   639→  const [scheduleFor, setScheduleFor] = useState<OrgBookingFeed | null>(null)
+   640→  const [scheduleAt, setScheduleAt] = useState('')
+   641→  const [notesFor, setNotesFor] = useState<{ booking: OrgBookingFeed; action: 'complete' | 'cancel' } | null>(null)
+   642→  const [notes, setNotes] = useState('')
+   643→  const [busy, setBusy] = useState(false)
+   644→
+   645→  const load = useCallback(() => {
+   646→    apiGet<{ bookings: OrgBookingFeed[] }>(buildQuery('/api/bookings', { org: 1, orgId }))
+   647→      .then((d) => setFeed({ orgId, bookings: d.bookings }))
+   648→      .catch(() => setFeed({ orgId, bookings: [] }))
+   649→  }, [orgId])
+   650→
+   651→  useEffect(() => {
+   652→    load()
+   653→  }, [load])
+   654→
+   655→  const bookings = feed && feed.orgId === orgId ? feed.bookings : null
+   656→
+   657→  function act(booking: OrgBookingFeed, action: string, extra?: Record<string, unknown>) {
+   658→    setBusy(true)
+   659→    apiSend<{ booking: { status: string } }>(`/api/bookings?id=${booking.id}`, 'PATCH', { action, ...extra })
+   660→      .then((d) => {
+   661→        toast.success(`Booking ${d.booking.status.toLowerCase().replaceAll('_', ' ')}`)
+   662→        setScheduleFor(null); setNotesFor(null); setNotes(''); setScheduleAt('')
+   663→        load()
+   664→        onChanged()
+   665→      })
+   666→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not update booking'))
+   667→      .finally(() => setBusy(false))
+   668→  }
+   669→
+   670→  return (
+   671→    <div className="space-y-3">
+   672→      {bookings === null ? (
+   673→        <div className="space-y-3">{[0, 1].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+   674→      ) : bookings.length === 0 ? (
+   675→        <EmptyBlock
+   676→          icon={<CalendarClock className="h-6 w-6" />}
+   677→          title="No bookings yet"
+   678→          desc="When a customer accepts your quote, a confirmed booking appears here with their contact details."
+   679→        />
+   680→      ) : (
+   681→        bookings.map((b) => (
+   682→          <Card key={b.id} className="p-4 sm:p-5">
+   683→            <div className="flex flex-wrap items-start justify-between gap-2">
+   684→              <div className="min-w-0">
+   685→                <div className="flex flex-wrap items-center gap-2">
+   686→                  <h4 className="font-semibold">{b.request.refCode}</h4>
+   687→                  <Badge variant={b.status === 'COMPLETED' ? 'default' : b.status === 'CANCELLED' ? 'outline' : 'secondary'}
+   688→                    className={b.status === 'COMPLETED' ? 'bg-[#315e4b] text-white' : ''}>
+   689→                    {BOOKING_STATUS_LABELS[b.status] ?? b.status}
+   690→                  </Badge>
+   691→                  <Badge variant="outline">{SERVICE_CATEGORY_LABELS[b.request.category] ?? b.request.category}</Badge>
+   692→                </div>
+   693→                {/* Customer contact is visible here only — justified by an accepted booking. */}
+   694→                <p className="mt-1 text-xs text-muted-foreground">
+   695→                  {b.request.customer.name}{b.request.customer.phone ? ` · ${b.request.customer.phone}` : ''} · {b.request.county}{b.request.town ? ` · ${b.request.town}` : ''}
+   696→                </p>
+   697→                <p className="mt-1 text-sm text-muted-foreground">{b.request.vehicleDesc ? `${b.request.vehicleDesc} — ` : ''}{b.request.description}</p>
+   698→                <p className="mt-1 text-xs text-muted-foreground">
+   699→                  Scheduled: {b.scheduledAt ? new Date(b.scheduledAt).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' }) : 'not scheduled yet'}
+   700→                </p>
+   701→                {b.notes && <p className="mt-1 text-xs text-muted-foreground">Notes: {b.notes}</p>}
+   702→              </div>
+   703→              <div className="flex shrink-0 flex-wrap gap-2">
+   704→                {(b.status === 'CONFIRMED' || b.status === 'IN_PROGRESS') && (
+   705→                  <Button size="sm" variant="outline" className="gap-1" onClick={() => { setScheduleFor(b); setScheduleAt(b.scheduledAt ? toLocalInput(b.scheduledAt) : '') }}>
+   706→                    <CalendarClock className="h-3.5 w-3.5" /> Schedule
+   707→                  </Button>
+   708→                )}
+   709→                {b.status === 'CONFIRMED' && <Button size="sm" className="gap-1" onClick={() => act(b, 'start')} disabled={busy}><Play className="h-3.5 w-3.5" /> Start</Button>}
+   710→                {b.status === 'IN_PROGRESS' && <Button size="sm" className="gap-1" onClick={() => { setNotesFor({ booking: b, action: 'complete' }); setNotes('') }} disabled={busy}><CheckCircle2 className="h-3.5 w-3.5" /> Complete</Button>}
+   711→                {(b.status === 'CONFIRMED' || b.status === 'IN_PROGRESS') && (
+   712→                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { setNotesFor({ booking: b, action: 'cancel' }); setNotes('') }} disabled={busy}>
+   713→                    <XCircle className="h-3.5 w-3.5" /> Cancel
+   714→                  </Button>
+   715→                )}
+   716→              </div>
+   717→            </div>
+   718→          </Card>
+   719→        ))
+   720→      )}
+   721→
+   722→      {/* Schedule dialog */}
+   723→      <Dialog open={scheduleFor !== null} onOpenChange={(open) => { if (!open) setScheduleFor(null) }}>
+   724→        <DialogContent className="sm:max-w-sm">
+   725→          <DialogHeader>
+   726→            <DialogTitle>Schedule booking</DialogTitle>
+   727→            <DialogDescription>{scheduleFor?.request.refCode} — pick the date and time the customer should come in (or you go out).</DialogDescription>
+   728→          </DialogHeader>
+   729→          <div className="space-y-1.5">
+   730→            <Label htmlFor="bk-when">Date &amp; time</Label>
+   731→            <Input id="bk-when" type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} />
+   732→          </div>
+   733→          <DialogFooter>
+   734→            <Button variant="ghost" onClick={() => setScheduleFor(null)}>Cancel</Button>
+   735→            <Button
+   736→              disabled={busy || !scheduleAt}
+   737→              onClick={() => scheduleFor && act(scheduleFor, 'schedule', { scheduledAt: new Date(scheduleAt).toISOString() })}
+   738→            >
+   739→              Save schedule
+   740→            </Button>
+   741→          </DialogFooter>
+   742→        </DialogContent>
+   743→      </Dialog>
+   744→
+   745→      {/* Complete / cancel dialog */}
+   746→      <Dialog open={notesFor !== null} onOpenChange={(open) => { if (!open) setNotesFor(null) }}>
+   747→        <DialogContent className="sm:max-w-sm">
+   748→          <DialogHeader>
+   749→            <DialogTitle>{notesFor?.action === 'complete' ? 'Complete booking' : 'Cancel booking'}</DialogTitle>
+   750→            <DialogDescription>
+   751→              {notesFor?.booking.request.refCode}
+   752→              {notesFor?.action === 'complete' ? ' — the customer will be asked to leave a review.' : ' — the request is closed for quoting.'}
+   753→            </DialogDescription>
+   754→          </DialogHeader>
+   755→          <div className="space-y-1.5">
+   756→            <Label htmlFor="bk-notes">Notes (optional)</Label>
+   757→            <Textarea id="bk-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Work done, advice for the customer, reason for cancelling…" />
+   758→          </div>
+   759→          <DialogFooter>
+   760→            <Button variant="ghost" onClick={() => setNotesFor(null)}>Close</Button>
+   761→            <Button
+   762→              variant={notesFor?.action === 'cancel' ? 'destructive' : 'default'}
+   763→              disabled={busy}
+   764→              onClick={() => notesFor && act(notesFor.booking, notesFor.action, { notes: notes.trim() || undefined })}
+   765→            >
+   766→              {notesFor?.action === 'complete' ? 'Mark completed' : 'Cancel booking'}
+   767→            </Button>
+   768→          </DialogFooter>
+   769→        </DialogContent>
+   770→      </Dialog>
+   771→    </div>
+   772→  )
+   773→}
+   774→
+   775→function toLocalInput(iso: string): string {
+   776→  const d = new Date(iso)
+   777→  const pad = (n: number) => String(n).padStart(2, '0')
+   778→  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+   779→}
+   780→
+   781→// ─────────────────────────── Reviews ───────────────────────────
+   782→
+   783→function ReviewsTab({ orgId, rating }: { orgId: string; rating: { avg: number; count: number } }) {
+   784→  const [feed, setFeed] = useState<{ orgId: string; reviews: ReviewRow[] } | null>(null)
+   785→
+   786→  useEffect(() => {
+   787→    let cancelled = false
+   788→    apiGet<{ reviews: ReviewRow[] }>(buildQuery('/api/reviews', { orgId }))
+   789→      .then((d) => { if (!cancelled) setFeed({ orgId, reviews: d.reviews }) })
+   790→      .catch(() => { if (!cancelled) setFeed({ orgId, reviews: [] }) })
+   791→    return () => { cancelled = true }
+   792→  }, [orgId])
+   793→
+   794→  const reviews = feed && feed.orgId === orgId ? feed.reviews : null
+   795→
+   796→  return (
+   797→    <div className="space-y-4">
+   798→      <Card className="p-4">
+   799→        <div className="flex items-center gap-4">
+   800→          <div className="text-4xl font-bold">{rating.count > 0 ? rating.avg.toFixed(1) : '—'}</div>
+   801→          <div>
+   802→            <Stars avg={rating.avg} />
+   803→            <p className="mt-1 text-xs text-muted-foreground">
+   804→              {rating.count > 0 ? `${rating.count} review${rating.count === 1 ? '' : 's'} from completed bookings` : 'Reviews appear after customers complete booked services.'}
+   805→            </p>
+   806→          </div>
+   807→        </div>
+   808→      </Card>
+   809→
+   810→      {reviews === null ? (
+   811→        <div className="space-y-3">{[0, 1].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+   812→      ) : reviews.length === 0 ? (
+   813→        <EmptyBlock icon={<MessageSquareText className="h-6 w-6" />} title="No reviews yet" desc="Complete bookings to earn verified reviews — only customers with a completed booking can review." />
+   814→      ) : (
+   815→        reviews.map((r) => (
+   816→          <Card key={r.id} className="p-4">
+   817→            <div className="flex items-center justify-between gap-2">
+   818→              <div className="flex items-center gap-2">
+   819→                <Stars avg={r.rating} />
+   820→                <span className="text-sm font-medium">{r.author.name}</span>
+   821→              </div>
+   822→              <span className="text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
+   823→            </div>
+   824→            {r.comment && <p className="mt-2 text-sm text-muted-foreground">{r.comment}</p>}
+   825→          </Card>
+   826→        ))
+   827→      )}
+   828→    </div>
+   829→  )
+   830→}
+   831→
+   832→// ─────────────────────────── Profile ───────────────────────────
+   833→
+   834→function ProfileTab({ garage, onSaved }: { garage: MyGarage; onSaved: () => void }) {
+   835→  const [name, setName] = useState(garage.org.name)
+   836→  const [description, setDescription] = useState(garage.org.description ?? '')
+   837→  const [location, setLocation] = useState(garage.org.location ?? '')
+   838→  const [phone, setPhone] = useState(garage.org.phone ?? '')
+   839→  const [town, setTown] = useState(garage.org.town ?? '')
+   840→  const [saving, setSaving] = useState(false)
+   841→
+   842→  function save() {
+   843→    if (name.trim().length < 2) { toast.error('Garage name is too short'); return }
+   844→    setSaving(true)
+   845→    apiSend<{ org: { id: string } }>(buildQuery('/api/garages', { id: garage.org.id }), 'PATCH', {
+   846→      name: name.trim(),
+   847→      description: description.trim(),
+   848→      location: location.trim(),
+   849→      phone: phone.trim(),
+   850→      town: town.trim(),
+   851→    })
+   852→      .then(() => { toast.success('Profile updated'); onSaved() })
+   853→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not update profile'))
+   854→      .finally(() => setSaving(false))
+   855→  }
+   856→
+   857→  return (
+   858→    <Card className="p-6">
+   859→      <CardHeader className="px-0 pt-0">
+   860→        <CardTitle className="text-lg">Garage profile</CardTitle>
+   861→        <CardDescription>Shown on your public listing in the Garages directory. County was set during verification.</CardDescription>
+   862→      </CardHeader>
+   863→      <CardContent className="grid gap-4 px-0 sm:grid-cols-2">
+   864→        <div className="space-y-1.5 sm:col-span-2">
+   865→          <Label htmlFor="pf-name">Garage name</Label>
+   866→          <Input id="pf-name" value={name} onChange={(e) => setName(e.target.value)} />
+   867→        </div>
+   868→        <div className="space-y-1.5 sm:col-span-2">
+   869→          <Label htmlFor="pf-desc">Description</Label>
+   870→          <Textarea id="pf-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What your garage specialises in…" />
+   871→        </div>
+   872→        <div className="space-y-1.5">
+   873→          <Label htmlFor="pf-town">Town</Label>
+   874→          <Input id="pf-town" value={town} onChange={(e) => setTown(e.target.value)} placeholder="e.g. Westlands" />
+   875→        </div>
+   876→        <div className="space-y-1.5">
+   877→          <Label htmlFor="pf-loc">Street / landmark</Label>
+   878→          <Input id="pf-loc" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Karuna Rd, Westlands" />
+   879→        </div>
+   880→        <div className="space-y-1.5">
+   881→          <Label htmlFor="pf-phone">Business phone</Label>
+   882→          <Input id="pf-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2547…" />
+   883→        </div>
+   884→        <div className="flex items-end">
+   885→          <Button onClick={save} disabled={saving} className="gap-1.5"><RefreshCw className={`h-4 w-4 ${saving ? 'animate-spin' : ''}`} /> {saving ? 'Saving…' : 'Save profile'}</Button>
+   886→        </div>
+   887→      </CardContent>
+   888→    </Card>
+   889→  )
+   890→}
+   891→
+   892→// ═══════════════════════════ Application wizard ═══════════════════════════
+   893→
+   894→type Doc = { name: string; url: string }
+   895→
+   896→function ApplicationWizard({ user, onDone }: { user: NonNullable<ReturnType<typeof useAuth.getState>['user']>; onDone: () => void }) {
+   897→  const [step, setStep] = useState(1)
+   898→  const [orgName, setOrgName] = useState('')
+   899→  const [regNo, setRegNo] = useState('')
+   900→  const [county, setCounty] = useState('Nairobi')
+   901→  const [town, setTown] = useState('')
+   902→  const [physicalAddress, setPhysicalAddress] = useState('')
+   903→  const [phone, setPhone] = useState(user.phone ?? '')
+   904→  const [email, setEmail] = useState(user.email)
+   905→  const [representative, setRepresentative] = useState(user.name)
+   906→  const [categories, setCategories] = useState<string[]>([])
+   907→  const [docs, setDocs] = useState<Doc[]>([])
+   908→  const [uploading, setUploading] = useState(false)
+   909→  const [consent, setConsent] = useState(false)
+   910→  const [notes, setNotes] = useState('')
+   911→  const [submitting, setSubmitting] = useState(false)
+   912→
+   913→  const canStep1 = orgName.trim().length >= 2 && phone.trim().length >= 9
+   914→  const canStep2 = categories.length > 0 && representative.trim().length >= 2
+   915→  const canSubmit = canStep1 && canStep2 && consent
+   916→
+   917→  function toggleCategory(c: string) {
+   918→    setCategories((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
+   919→  }
+   920→
+   921→  function uploadDoc(file: File) {
+   922→    setUploading(true)
+   923→    const fd = new FormData()
+   924→    fd.append('file', file)
+   925→    fd.append('kind', 'document')
+   926→    apiUpload<{ url: string; name: string }>('/api/upload', fd)
+   927→      .then((d) => { setDocs((prev) => [...prev, { name: d.name, url: d.url }]); toast.success(`${d.name} uploaded`) })
+   928→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Upload failed'))
+   929→      .finally(() => setUploading(false))
+   930→  }
+   931→
+   932→  function submit() {
+   933→    setSubmitting(true)
+   934→    apiSend<{ application: GarageApplication }>('/api/applications', 'POST', {
+   935→      type: 'GARAGE',
+   936→      status: 'SUBMITTED',
+   937→      orgName: orgName.trim(),
+   938→      regNo: regNo.trim() || undefined,
+   939→      county,
+   940→      town: town.trim() || undefined,
+   941→      physicalAddress: physicalAddress.trim() || undefined,
+   942→      phone: phone.trim(),
+   943→      email: email.trim() || undefined,
+   944→      representative: representative.trim(),
+   945→      categories: categories.join(','),
+   946→      documents: docs,
+   947→      consent,
+   948→      notes: notes.trim() || undefined,
+   949→    })
+   950→      .then(() => {
+   951→        toast.success('Application submitted — review usually starts within 24 business hours')
+   952→        onDone()
+   953→      })
+   954→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not submit application'))
+   955→      .finally(() => setSubmitting(false))
+   956→  }
+   957→
+   958→  return (
+   959→    <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
+   960→      <div className="flex items-center gap-2">
+   961→        <Wrench className="h-6 w-6 text-[#315e4b]" />
+   962→        <h1 className="text-2xl font-bold">List your garage on CARMAZE</h1>
+   963→      </div>
+   964→      <p className="mt-2 text-sm text-muted-foreground">
+   965→        Apply once — our team verifies your business, then your garage goes live in the directory and you start receiving quote requests.
+   966→      </p>
+   967→
+   968→      <div className="mt-6 flex items-center gap-2" aria-hidden="true">
+   969→        {[1, 2, 3].map((s) => (
+   970→          <div key={s} className={`h-1.5 flex-1 rounded-full ${s <= step ? 'bg-[#315e4b]' : 'bg-muted'}`} />
+   971→        ))}
+   972→      </div>
+   973→      <p className="mt-2 text-xs text-muted-foreground">Step {step} of 3</p>
+   974→
+   975→      <Card className="mt-4 p-6">
+   976→        {step === 1 && (
+   977→          <div className="space-y-4">
+   978→            <h2 className="font-semibold">Business information</h2>
+   979→            <div className="grid gap-4 sm:grid-cols-2">
+   980→              <div className="space-y-1.5">
+   981→                <Label htmlFor="ap-name">Garage / business name *</Label>
+   982→                <Input id="ap-name" value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="e.g. Premium Motors Garage" />
+   983→              </div>
+   984→              <div className="space-y-1.5">
+   985→                <Label htmlFor="ap-reg">Registration no. (optional)</Label>
+   986→                <Input id="ap-reg" value={regNo} onChange={(e) => setRegNo(e.target.value)} placeholder="e.g. BN-2014-7731" />
+   987→              </div>
+   988→              <div className="space-y-1.5">
+   989→                <Label htmlFor="ap-county">County *</Label>
+   990→                <Select value={county} onValueChange={setCounty}>
+   991→                  <SelectTrigger id="ap-county"><SelectValue /></SelectTrigger>
+   992→                  <SelectContent>{KENYA_COUNTIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+   993→                </Select>
+   994→              </div>
+   995→              <div className="space-y-1.5">
+   996→                <Label htmlFor="ap-town">Town</Label>
+   997→                <Input id="ap-town" value={town} onChange={(e) => setTown(e.target.value)} placeholder="e.g. Westlands" />
+   998→              </div>
+   999→              <div className="space-y-1.5 sm:col-span-2">
+  1000→                <Label htmlFor="ap-addr">Physical address / landmark</Label>
+  1001→                <Input id="ap-addr" value={physicalAddress} onChange={(e) => setPhysicalAddress(e.target.value)} placeholder="e.g. Karuna Rd, Westlands, opposite X" />
+  1002→              </div>
+  1003→              <div className="space-y-1.5">
+  1004→                <Label htmlFor="ap-phone">Business phone *</Label>
+  1005→                <Input id="ap-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2547…" />
+  1006→              </div>
+  1007→              <div className="space-y-1.5">
+  1008→                <Label htmlFor="ap-email">Business email</Label>
+  1009→                <Input id="ap-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="service@yourgarage.co.ke" />
+  1010→              </div>
+  1011→            </div>
+  1012→            <div className="flex justify-end">
+  1013→              <Button disabled={!canStep1} onClick={() => setStep(2)}>Continue</Button>
+  1014→            </div>
+  1015→          </div>
+  1016→        )}
+  1017→
+  1018→        {step === 2 && (
+  1019→          <div className="space-y-4">
+  1020→            <h2 className="font-semibold">Representative &amp; services</h2>
+  1021→            <div className="space-y-1.5">
+  1022→              <Label htmlFor="ap-rep">Authorised representative *</Label>
+  1023→              <Input id="ap-rep" value={representative} onChange={(e) => setRepresentative(e.target.value)} />
+  1024→            </div>
+  1025→            <div className="space-y-1.5">
+  1026→              <Label>Service categories offered * (select all that apply)</Label>
+  1027→              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+  1028→                {SERVICE_CATEGORIES.map((c) => (
+  1029→                  <label key={c} className="flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-sm transition-colors hover:bg-muted/60">
+  1030→                    <Checkbox checked={categories.includes(c)} onCheckedChange={() => toggleCategory(c)} aria-label={SERVICE_CATEGORY_LABELS[c]} />
+  1031→                    {SERVICE_CATEGORY_LABELS[c]}
+  1032→                  </label>
+  1033→                ))}
+  1034→              </div>
+  1035→              {categories.length === 0 && <p className="text-xs text-muted-foreground">At least one category is required.</p>}
+  1036→            </div>
+  1037→            <div className="flex justify-between">
+  1038→              <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
+  1039→              <Button disabled={!canStep2} onClick={() => setStep(3)}>Continue</Button>
+  1040→            </div>
+  1041→          </div>
+  1042→        )}
+  1043→
+  1044→        {step === 3 && (
+  1045→          <div className="space-y-4">
+  1046→            <h2 className="font-semibold">Documents &amp; consent</h2>
+  1047→            <div className="space-y-2">
+  1048→              <Label>Verification documents</Label>
+  1049→              <p className="text-xs text-muted-foreground">
+  1050→                Business permit / registration certificate. JPG, PNG or PDF up to 5MB. Stored privately — only reviewers see them.
+  1051→              </p>
+  1052→              <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:bg-muted/60">
+  1053→                <Upload className="h-4 w-4" />
+  1054→                {uploading ? 'Uploading…' : 'Upload a document'}
+  1055→                <input
+  1056→                  type="file"
+  1057→                  className="sr-only"
+  1058→                  accept="image/jpeg,image/png,image/webp,application/pdf"
+  1059→                  disabled={uploading || docs.length >= 5}
+  1060→                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f); e.currentTarget.value = '' }}
+  1061→                />
+  1062→              </label>
+  1063→              {docs.length > 0 && (
+  1064→                <ul className="space-y-1">
+  1065→                  {docs.map((d, i) => (
+  1066→                    <li key={d.url} className="flex items-center justify-between rounded-md bg-muted/60 px-3 py-1.5 text-sm">
+  1067→                      <span className="flex items-center gap-2 truncate"><FileText className="h-3.5 w-3.5 shrink-0" /> {d.name}</span>
+  1068→                      <button className="text-xs text-muted-foreground hover:text-destructive" onClick={() => setDocs((prev) => prev.filter((_, j) => j !== i))}>remove</button>
+  1069→                    </li>
+  1070→                  ))}
+  1071→                </ul>
+  1072→              )}
+  1073→            </div>
+  1074→            <div className="space-y-1.5">
+  1075→              <Label htmlFor="ap-notes">Anything else reviewers should know (optional)</Label>
+  1076→              <Textarea id="ap-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+  1077→            </div>
+  1078→            <label className="flex cursor-pointer items-start gap-2 text-sm">
+  1079→              <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" aria-label="Provider terms consent" />
+  1080→              <span>
+  1081→                I confirm the information provided is accurate and I accept the CARMAZE provider terms and privacy notice,
+  1082→                including honest-quote and no-fake-dispatch rules for roadside services. *
+  1083→              </span>
+  1084→            </label>
+  1085→            <div className="flex justify-between">
+  1086→              <Button variant="ghost" onClick={() => setStep(2)}>Back</Button>
+  1087→              <Button disabled={!canSubmit || submitting || uploading} onClick={submit}>
+  1088→                {submitting ? 'Submitting…' : 'Submit application'}
+  1089→              </Button>
+  1090→            </div>
+  1091→          </div>
+  1092→        )}
+  1093→      </Card>
+  1094→    </div>
+  1095→  )
+  1096→}
+  1097→
+  1098→// ═══════════════════════════ Application status ═══════════════════════════
+  1099→
+  1100→function ApplicationStatus({ application, onResubmitted, onNewApplication }: {
+  1101→  application: GarageApplication
+  1102→  onResubmitted: () => void
+  1103→  onNewApplication: () => void
+  1104→}) {
+  1105→  const [docs, setDocs] = useState<Doc[]>([])
+  1106→  const [uploading, setUploading] = useState(false)
+  1107→  const [notes, setNotes] = useState('')
+  1108→  const [submitting, setSubmitting] = useState(false)
+  1109→  const needsInfo = application.status === 'MORE_INFO_REQUIRED'
+  1110→
+  1111→  function uploadDoc(file: File) {
+  1112→    setUploading(true)
+  1113→    const fd = new FormData()
+  1114→    fd.append('file', file)
+  1115→    fd.append('kind', 'document')
+  1116→    apiUpload<{ url: string; name: string }>('/api/upload', fd)
+  1117→      .then((d) => { setDocs((prev) => [...prev, { name: d.name, url: d.url }]); toast.success(`${d.name} uploaded`) })
+  1118→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Upload failed'))
+  1119→      .finally(() => setUploading(false))
+  1120→  }
+  1121→
+  1122→  function resubmit() {
+  1123→    setSubmitting(true)
+  1124→    apiSend(`/api/applications/${application.id}`, 'PATCH', {
+  1125→      action: 'resubmit',
+  1126→      ...(docs.length > 0 ? { documents: docs } : {}),
+  1127→      notes: notes.trim() || 'Requested information provided.',
+  1128→    })
+  1129→      .then(() => { toast.success('Resubmitted — reviewers have been notified'); onResubmitted() })
+  1130→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not resubmit'))
+  1131→      .finally(() => setSubmitting(false))
+  1132→  }
+  1133→
+  1134→  return (
+  1135→    <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
+  1136→      <h1 className="text-2xl font-bold">Garage application</h1>
+  1137→      <p className="mt-1 text-sm text-muted-foreground">Reference {application.refCode} · submitted {timeAgo(application.createdAt)}</p>
+  1138→
+  1139→      <Alert className="mt-4">
+  1140→        <ShieldCheck className="h-4 w-4" />
+  1141→        <AlertTitle>Status: {application.status.replaceAll('_', ' ').toLowerCase()}</AlertTitle>
+  1142→        <AlertDescription>
+  1143→          {needsInfo
+  1144→            ? 'The review team needs more information before approving. Provide it below.'
+  1145→            : application.status === 'REJECTED'
+  1146→              ? 'This application was rejected. You can submit a new application with updated information.'
+  1147→              : 'Your garage application is in the review queue. You will be notified of any update.'}
+  1148→        </AlertDescription>
+  1149→      </Alert>
+  1150→
+  1151→      <Card className="mt-4 p-5">
+  1152→        <h2 className="font-semibold">Timeline</h2>
+  1153→        <Separator className="my-3" />
+  1154→        <ol className="space-y-3">
+  1155→          {application.events.map((ev) => (
+  1156→            <li key={ev.id} className="flex gap-3 text-sm">
+  1157→              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#c9a45c]" aria-hidden="true" />
+  1158→              <div>
+  1159→                <p className="font-medium">{ev.type.replaceAll('_', ' ').toLowerCase()}</p>
+  1160→                {ev.note && <p className="text-muted-foreground">{ev.note}</p>}
+  1161→                <p className="text-xs text-muted-foreground">{timeAgo(ev.createdAt)}{ev.actorName ? ` · ${ev.actorName}` : ''}</p>
+  1162→              </div>
+  1163→            </li>
+  1164→          ))}
+  1165→        </ol>
+  1166→      </Card>
+  1167→
+  1168→      {needsInfo && (
+  1169→        <Card className="mt-4 p-5">
+  1170→          <h2 className="font-semibold">Provide requested information</h2>
+  1171→          <p className="mt-1 text-xs text-muted-foreground">Attach documents if asked, and add a short note for the reviewer.</p>
+  1172→          <label className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:bg-muted/60">
+  1173→            <Upload className="h-4 w-4" />
+  1174→            {uploading ? 'Uploading…' : 'Upload document (optional)'}
+  1175→            <input
+  1176→              type="file"
+  1177→              className="sr-only"
+  1178→              accept="image/jpeg,image/png,image/webp,application/pdf"
+  1179→              disabled={uploading}
+  1180→              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f); e.currentTarget.value = '' }}
+  1181→            />
+  1182→          </label>
+  1183→          {docs.length > 0 && (
+  1184→            <ul className="mt-2 space-y-1">
+  1185→              {docs.map((d, i) => (
+  1186→                <li key={d.url} className="flex items-center justify-between rounded-md bg-muted/60 px-3 py-1.5 text-sm">
+  1187→                  <span className="flex items-center gap-2 truncate"><FileText className="h-3.5 w-3.5 shrink-0" /> {d.name}</span>
+  1188→                  <button className="text-xs text-muted-foreground hover:text-destructive" onClick={() => setDocs((prev) => prev.filter((_, j) => j !== i))}>remove</button>
+  1189→                </li>
+  1190→              ))}
+  1191→            </ul>
+  1192→          )}
+  1193→          <div className="mt-3 space-y-1.5">
+  1194→            <Label htmlFor="rs-notes">Note to reviewers</Label>
+  1195→            <Textarea id="rs-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+  1196→          </div>
+  1197→          <Button className="mt-3" onClick={resubmit} disabled={submitting || uploading}>
+  1198→            {submitting ? 'Submitting…' : 'Resubmit application'}
+  1199→          </Button>
+  1200→        </Card>
+  1201→      )}
+  1202→
+  1203→      {application.status === 'REJECTED' && (
+  1204→        <Button className="mt-4" variant="outline" onClick={onNewApplication}>Submit a new application</Button>
+  1205→      )}
+  1206→    </div>
+  1207→  )
+  1208→}
+  1209→
+  1210→// ─────────────────────────── Shared bits ───────────────────────────
+  1211→
+  1212→function Stars({ avg }: { avg: number }) {
+  1213→  const rounded = Math.round(avg)
+  1214→  return (
+  1215→    <span className="flex" aria-label={`Rated ${avg.toFixed(1)} out of 5`} role="img">
+  1216→      {[1, 2, 3, 4, 5].map((i) => (
+  1217→        <Star key={i} className={`h-3.5 w-3.5 ${i <= rounded ? 'fill-[#c9a45c] text-[#c9a45c]' : 'text-muted-foreground/40'}`} aria-hidden="true" />
+  1218→      ))}
+  1219→    </span>
+  1220→  )
+  1221→}
+  1222→
+  1223→function EmptyBlock({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
+  1224→  return (
+  1225→    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center">
+  1226→      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">{icon}</span>
+  1227→      <h3 className="mt-3 font-semibold">{title}</h3>
+  1228→      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{desc}</p>
+  1229→    </div>
+  1230→  )
+  1231→}
+  1232→

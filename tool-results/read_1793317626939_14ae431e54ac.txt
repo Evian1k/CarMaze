@@ -1,0 +1,672 @@
+   890→
+   891→Implement, test and document the real functionality. Do not stop at a plan or attractive interface.           # CARMAZE — VEHICLE TRUST, ANTI-THEFT, FRAUD PREVENTION & PROPERTY PROTECTION SYSTEM
+   892→
+   893→You are extending CARMAZE, a Kenya-first automotive marketplace and vehicle services ecosystem. Implement a complete, production-oriented security and trust system that protects customers, private sellers, showrooms, garages, staff, vehicles and other property.
+   894→
+   895→This is a core platform requirement, not an optional feature.
+   896→
+   897→**The central rule: CARMAZE must never treat a vehicle as legitimate simply because someone has uploaded photos, entered a registration number, or claimed to own it.**
+   898→
+   899→The platform must reduce opportunities for stolen vehicles to be listed, fraudsters to impersonate owners, test drives to become theft opportunities, garages to misuse customer vehicles, and customers to falsely accuse legitimate businesses.
+   900→
+   901→Do not promise that any system can eliminate all theft or fraud. Build layered controls, traceable evidence, clear accountability, alerts, incident handling and escalation procedures.
+   902→
+   903→---
+   904→
+   905→## 1. Vehicle identity and ownership verification
+   906→
+   907→Build a vehicle verification workflow before a vehicle can be publicly advertised or accepted into sensitive transactions.
+   908→
+   909→Collect and validate, where legally appropriate:
+   910→
+   911→- Registration number.
+   912→- Make, model, year, colour and body type.
+   913→- Chassis/VIN number.
+   914→- Engine number where appropriate.
+   915→- Current registered owner details, handled securely.
+   916→- Seller identity and verified contact information.
+   917→- Proof of ownership or lawful authority to sell.
+   918→- Relevant import, clearance or registration documentation where applicable.
+   919→- Vehicle photographs from multiple angles.
+   920→- Additional identifying features and modifications.
+   921→
+   922→Implement the following controls:
+   923→
+   924→1. Detect duplicate registration numbers, VINs and chassis identifiers across listings.
+   925→2. Detect conflicting vehicle descriptions and suspiciously reused photographs.
+   926→3. Flag changes to important vehicle identity fields.
+   927→4. Keep an immutable history of identity changes and verification decisions.
+   928→5. Require additional review when ownership documents and seller details do not match.
+   929→6. Prevent publication when mandatory checks remain incomplete.
+   930→7. Allow a legitimate authorised representative to submit a vehicle with verifiable authority.
+   931→8. Provide a secure process for reporting suspected stolen vehicles.
+   932→9. Never expose private identity documents publicly.
+   933→10. Use authorised verification sources and integrations only.
+   934→
+   935→**Kenya-specific requirement:** Design an integration-ready verification process for authorised vehicle ownership and registration checks, including relevant NTSA processes and other legally authorised sources. Do not scrape restricted systems, bypass access controls or pretend that a government check has been completed when it has not.
+   936→
+   937→Verification statuses:
+   938→
+   939→- Not submitted
+   940→- Pending verification
+   941→- Additional information required
+   942→- Under manual review
+   943→- Verified
+   944→- Rejected
+   945→- Suspicious — restricted
+   946→- Reported stolen — restricted
+   947→- Verification expired, where applicable
+   948→
+   949→A verified badge must represent actual completed checks, not payment or subscription status.
+   950→
+   951→## 2. Stolen vehicle prevention and response
+   952→
+   953→Create a restricted vehicle security reporting system.
+   954→
+   955→Allow authorised users to report:
+   956→
+   957→- Suspected stolen vehicles.
+   958→- Vehicles advertised without the owner's permission.
+   959→- Altered registration or VIN details.
+   960→- Suspicious ownership documents.
+   961→- Vehicles being sold by someone who may not be the lawful owner.
+   962→- Possible cloned registration plates.
+   963→- Fraudulent vehicle transfers.
+   964→- A vehicle that has disappeared during a garage visit or test drive.
+   965→
+   966→When a credible report is submitted:
+   967→
+   968→1. Create a unique incident reference.
+   969→2. Record the reporter, time, vehicle identifiers and available evidence.
+   970→3. Preserve relevant listing and account activity.
+   971→4. Restrict the affected listing or transaction while a review takes place, proportionate to the risk.
+   972→5. Notify authorised security reviewers.
+   973→6. Prevent the vehicle from being relisted under the same identifiers while the investigation is unresolved.
+   974→7. Allow the affected user to submit evidence and appeal.
+   975→8. Record every reviewer action and decision.
+   976→9. Escalate credible suspected criminal activity to the appropriate authorities through lawful procedures.
+   977→
+   978→Do not automatically declare someone a criminal based only on an allegation or an AI risk score.
+   979→
+   980→Keep sensitive incident information restricted to authorised personnel. Never publicly expose an alleged victim's identity, personal documents or investigation details.
+   981→
+   982→## 3. Secure vehicle viewing and test drives
+   983→
+   984→A showroom viewing or test drive is a high-risk point.
+   985→
+   986→Create a controlled process for vehicle viewing and test-drive appointments.
+   987→
+   988→Before a test drive:
+   989→
+   990→- Verify the customer account and contact information.
+   991→- Require additional identity verification according to risk and applicable law.
+   992→- Confirm the customer has the legally required driving licence and that it is valid for the vehicle.
+   993→- Record the selected vehicle and its current listing status.
+   994→- Record the showroom, responsible staff member and appointment time.
+   995→- Require the showroom to confirm the appointment.
+   996→- Record the vehicle's pre-test-drive condition.
+   997→- Record the odometer reading, fuel level and visible damage where appropriate.
+   998→- Require acknowledgement of clear test-drive terms and responsibilities.
+   999→- Record who authorised the vehicle release.
+  1000→
+  1001→During and after the test drive:
+  1002→
+  1003→- Record departure and return times.
+  1004→- Record the staff member responsible.
+  1005→- Record any change in the vehicle's condition.
+  1006→- Require the showroom to confirm the vehicle's return.
+  1007→- Escalate overdue returns.
+  1008→- Notify the appropriate manager if a vehicle has not been returned within the configured period.
+  1009→- Preserve appointment, communication and incident records.
+  1010→
+  1011→Do not make continuous GPS tracking mandatory or claim it is active unless a lawful, functioning tracking integration exists.
+  1012→
+  1013→A customer must never be permitted to bypass the showroom's authorised vehicle-release process simply because an appointment exists.
+  1014→
+  1015→## 4. CARMAZE Garage Vehicle Protection
+  1016→
+  1017→This is one of the most important modules.
+  1018→
+  1019→A customer may hand over a valuable vehicle to a garage for repair, servicing, detailing, modification or inspection. CARMAZE must provide a traceable vehicle handover and return process.
+  1020→
+  1021→Build a complete **Digital Vehicle Handover Record**.
+  1022→
+  1023→### A. Before vehicle drop-off
+  1024→
+  1025→The customer must be able to:
+  1026→
+  1027→- Select the garage.
+  1028→- Select the vehicle from My Garage or register a new vehicle.
+  1029→- Describe the requested work.
+  1030→- Upload photographs and videos of the vehicle.
+  1031→- Record existing scratches, dents, broken parts and other visible damage.
+  1032→- Record the odometer reading.
+  1033→- Record fuel level.
+  1034→- List valuables or personal property inside the vehicle, if relevant.
+  1035→- Identify existing accessories and modifications.
+  1036→- Record any known mechanical issues.
+  1037→- Declare whether the garage is permitted to move or road-test the vehicle.
+  1038→- Specify authorised work and any spending limit where agreed.
+  1039→
+  1040→The garage must:
+  1041→
+  1042→- Confirm that it has received the vehicle.
+  1043→- Identify the employee receiving it.
+  1044→- Confirm the date and time.
+  1045→- Review and acknowledge the condition report.
+  1046→- Record any disagreement about the vehicle's condition.
+  1047→- Provide a digital handover receipt to the customer.
+  1048→
+  1049→The customer must be able to review the record and confirm the handover.
+  1050→
+  1051→### B. Garage custody and vehicle movement
+  1052→
+  1053→Every vehicle accepted by a garage must have a custody record.
+  1054→
+  1055→Track:
+  1056→
+  1057→- Customer and vehicle references.
+  1058→- Garage organisation and branch.
+  1059→- Receiving employee.
+  1060→- Responsible technician.
+  1061→- Vehicle location or custody status.
+  1062→- Arrival and expected collection dates.
+  1063→- Approved repair or service scope.
+  1064→- Authorised additional work.
+  1065→- Vehicle movement events.
+  1066→- Road-test authorisations.
+  1067→- Staff handovers.
+  1068→- Changes in vehicle condition.
+  1069→- Customer approvals and communications.
+  1070→
+  1071→Use explicit vehicle custody statuses:
+  1072→
+  1073→- Handover requested
+  1074→- Appointment confirmed
+  1075→- Awaiting vehicle
+  1076→- Received by garage
+  1077→- Inspection in progress
+  1078→- Awaiting customer approval
+  1079→- Work authorised
+  1080→- Work in progress
+  1081→- Road test requested
+  1082→- Road test authorised
+  1083→- Ready for collection
+  1084→- Collection verification pending
+  1085→- Returned to customer
+  1086→- Disputed
+  1087→- Security incident opened
+  1088→
+  1089→**Important restrictions:**
+  1090→
+  1091→- A garage employee must not be able to mark a vehicle as returned without the required collection confirmation.
+  1092→- A garage must not be able to authorise extra repairs or charges without the customer's approval where approval is required.
+  1093→- Staff must not be able to delete or rewrite historical custody events.
+  1094→- Any correction must create a new audit entry.
+  1095→- Only authorised staff may update vehicle custody.
+  1096→- A customer must be notified of significant custody changes.
+  1097→
+  1098→### C. Vehicle movement and road tests
+  1099→
+  1100→A garage must not drive a customer's vehicle without the relevant permission.
+  1101→
+  1102→Build:
+  1103→
+  1104→- Road-test request.
+  1105→- Customer approval or recorded prior authorisation within agreed terms.
+  1106→- Purpose of road test.
+  1107→- Authorised driver.
+  1108→- Start time.
+  1109→- Starting odometer reading.
+  1110→- Return time.
+  1111→- Ending odometer reading.
+  1112→- Reported route or distance, only where reliably and lawfully recorded.
+  1113→- Vehicle condition before and after.
+  1114→- Any accident, damage or incident report.
+  1115→
+  1116→If a garage wants to move the vehicle for any other reason, it must record the reason and obtain the required authorisation.
+  1117→
+  1118→Do not assume permission to repair also means permission for unrelated personal use.
+  1119→
+  1120→### D. Secure collection and vehicle return
+  1121→
+  1122→Before the customer collects the vehicle:
+  1123→
+  1124→- Garage records completed work.
+  1125→- Garage records the final odometer and vehicle condition.
+  1126→- Garage uploads relevant completion photographs.
+  1127→- Garage provides an itemised invoice.
+  1128→- Customer receives a notification.
+  1129→- Customer can review the work and report discrepancies.
+  1130→- The authorised person returning the vehicle is recorded.
+  1131→- The customer confirms collection through their authenticated account or an approved alternative verification process.
+  1132→- Both parties receive a final digital custody receipt.
+  1133→
+  1134→If a customer disputes damage, missing property, unauthorised use or a missing vehicle, allow them to open a security incident without being forced to mark the job as successfully completed.
+  1135→
+  1136→Never let the garage close a disputed custody incident unilaterally.
+  1137→
+  1138→## 5. Garage business verification and staff accountability
+  1139→
+  1140→A garage must not receive access to customer vehicles merely by registering an account.
+  1141→
+  1142→Create a garage verification process that can collect, where legally appropriate:
+  1143→
+  1144→- Business registration information.
+  1145→- Physical business location.
+  1146→- Authorised business representative.
+  1147→- Verified business phone and email.
+  1148→- Business licence or relevant permits where applicable.
+  1149→- Ownership or authority to represent the business.
+  1150→- Branch information.
+  1151→- Staff records.
+  1152→- Insurance information where relevant and verifiable.
+  1153→- Security and customer property handling policies.
+  1154→
+  1155→Create staff-level accounts.
+  1156→
+  1157→Each employee must have:
+  1158→
+  1159→- A unique account.
+  1160→- A verified contact method.
+  1161→- An assigned organisation and branch.
+  1162→- A defined role.
+  1163→- Explicit permissions.
+  1164→- An employment/active status.
+  1165→- An auditable activity history.
+  1166→
+  1167→Example roles:
+  1168→
+  1169→- Garage Owner
+  1170→- Branch Manager
+  1171→- Service Advisor
+  1172→- Technician
+  1173→- Vehicle Receiving Officer
+  1174→- Cashier
+  1175→- Customer Support
+  1176→
+  1177→Apply least-privilege access.
+  1178→
+  1179→For example:
+  1180→
+  1181→- A technician may see assigned work but should not change business ownership or billing settings.
+  1182→- A receiving officer may record vehicle handovers but should not approve their own exceptional access requests.
+  1183→- A manager may approve operational actions but cannot erase audit history.
+  1184→- A former employee must immediately lose access when deactivated.
+  1185→
+  1186→Support multi-person approval for sensitive actions, such as vehicle release to someone other than the registered customer.
+  1187→
+  1188→## 6. Customer vehicle release protection
+  1189→
+  1190→A garage must not hand over a customer's vehicle to an unauthorised person.
+  1191→
+  1192→Build an authorised collection process.
+  1193→
+  1194→The customer may:
+  1195→
+  1196→- Collect personally.
+  1197→- Authorise another person to collect.
+  1198→- Set an expiry time for collection permission.
+  1199→- Revoke an unused authorisation.
+  1200→- Confirm the identity of the authorised collector through a secure process.
+  1201→
+  1202→For collection by another person:
+  1203→
+  1204→- Record the customer's explicit authorisation.
+  1205→- Record the authorised person's details securely.
+  1206→- Generate a single-use collection reference or equivalent secure verification.
+  1207→- Expire the authorisation after the configured time.
+  1208→- Record the receiving employee and collection time.
+  1209→- Notify the customer after collection.
+  1210→- Provide a dispute process if the customer did not authorise the release.
+  1211→
+  1212→Do not rely on a screenshot of an OTP or a simple vehicle registration number as sufficient proof of authority.
+  1213→
+  1214→Do not store collection secrets in plaintext.
+  1215→
+  1216→## 7. Customer property and valuables protection
+  1217→
+  1218→Allow customers to record personal property left inside a vehicle.
+  1219→
+  1220→Provide clear warnings that customers should remove valuables before handing over a vehicle wherever practical.
+  1221→
+  1222→Where property remains:
+  1223→
+  1224→- Record the customer's declaration.
+  1225→- Record relevant condition evidence.
+  1226→- Record any garage acknowledgement.
+  1227→- Restrict access to the record.
+  1228→- Record any missing-property complaint.
+  1229→- Preserve relevant handover and communication records.
+  1230→
+  1231→Do not imply CARMAZE insures or guarantees the value of property unless an actual insurance arrangement exists.
+  1232→
+  1233→## 8. Dealer and private seller protection
+  1234→
+  1235→Protect legitimate sellers from fraudulent buyers and protect buyers from stolen or misrepresented vehicles.
+  1236→
+  1237→Implement:
+  1238→
+  1239→- Seller identity and ownership-authority verification.
+  1240→- Secure listing approval.
+  1241→- Vehicle identity checks.
+  1242→- Suspicious account and listing detection.
+  1243→- Appointment and viewing records.
+  1244→- Secure enquiry and offer history.
+  1245→- Vehicle reservation history.
+  1246→- Evidence of customer and seller agreement.
+  1247→- Clear vehicle condition disclosures.
+  1248→- Fraud reporting.
+  1249→- Dispute handling.
+  1250→
+  1251→Do not allow a seller to change important vehicle identity details after verification without triggering a review.
+  1252→
+  1253→A seller must not be allowed to claim a vehicle has been verified if the verification has expired or been revoked.
+  1254→
+  1255→## 9. Fraud detection and suspicious behaviour
+  1256→
+  1257→Build a CARMAZE Risk Engine that identifies suspicious patterns using actual platform data.
+  1258→
+  1259→Potential indicators include:
+  1260→
+  1261→- Multiple accounts listing the same vehicle.
+  1262→- Repeated VIN or registration conflicts.
+  1263→- Reused identity or vehicle documents.
+  1264→- Suspiciously frequent account changes.
+  1265→- Repeated failed ownership checks.
+  1266→- Multiple businesses connected to suspicious activity.
+  1267→- Repeated customer complaints involving a specific employee.
+  1268→- Unauthorised vehicle movements.
+  1269→- Unusual road-test patterns.
+  1270→- Repeated vehicle collection disputes.
+  1271→- Attempts to bypass platform communication or verification controls.
+  1272→- Unusual changes to vehicle price or ownership information.
+  1273→- Repeated failed collection authorisations.
+  1274→
+  1275→Risk levels:
+  1276→
+  1277→- Low
+  1278→- Moderate
+  1279→- High
+  1280→- Critical
+  1281→
+  1282→For each flag, record:
+  1283→
+  1284→- Triggering evidence.
+  1285→- Date and time.
+  1286→- Relevant account, organisation, vehicle or incident.
+  1287→- Risk explanation.
+  1288→- Reviewer.
+  1289→- Review outcome.
+  1290→- Actions taken.
+  1291→- Appeal or resolution.
+  1292→
+  1293→AI can assist with prioritisation and evidence summarisation, but it must not independently declare someone guilty, fabricate evidence or automatically impose severe penalties without an appropriate review process.
+  1294→
+  1295→## 10. CARMAZE Security Control Center
+  1296→
+  1297→Create a dedicated restricted security dashboard for authorised platform personnel.
+  1298→
+  1299→Include:
+  1300→
+  1301→- Vehicle verification queue.
+  1302→- Suspected stolen vehicle reports.
+  1303→- Suspicious listings.
+  1304→- Garage security incidents.
+  1305→- Test-drive incidents.
+  1306→- Vehicle custody disputes.
+  1307→- Unauthorised collection reports.
+  1308→- Employee-related complaints.
+  1309→- Suspicious business activity.
+  1310→- Evidence records.
+  1311→- Review assignments.
+  1312→- Escalation deadlines.
+  1313→- Appeals.
+  1314→- Security analytics.
+  1315→
+  1316→Allow authorised reviewers to:
+  1317→
+  1318→- Restrict suspicious listings.
+  1319→- Temporarily restrict relevant accounts or business workflows where justified.
+  1320→- Request further evidence.
+  1321→- Record investigation notes.
+  1322→- Contact affected parties.
+  1323→- Escalate to the appropriate authorities where lawful.
+  1324→- Resolve or close incidents with documented reasons.
+  1325→
+  1326→Sensitive records must be protected by strict role-based permissions and access logs.
+  1327→
+  1328→Platform administrators must not be able to silently erase security evidence.
+  1329→
+  1330→## 11. Incident management and evidence preservation
+  1331→
+  1332→Build a formal incident workflow.
+  1333→
+  1334→Incident types:
+  1335→
+  1336→- Suspected stolen vehicle.
+  1337→- Vehicle missing from garage.
+  1338→- Vehicle not returned after test drive.
+  1339→- Unauthorised vehicle use.
+  1340→- Unauthorised vehicle release.
+  1341→- Vehicle damage during garage custody.
+  1342→- Missing property.
+  1343→- Ownership fraud.
+  1344→- Fake documentation.
+  1345→- Dealer or garage misconduct.
+  1346→- Customer fraud.
+  1347→- Other safety or security incidents.
+  1348→
+  1349→Every incident should have:
+  1350→
+  1351→- Unique incident ID.
+  1352→- Incident category.
+  1353→- Reporting party.
+  1354→- Affected vehicle.
+  1355→- Relevant customer and business references.
+  1356→- Timeline.
+  1357→- Evidence attachments.
+  1358→- Related messages and approved records.
+  1359→- Assigned reviewer.
+  1360→- Status.
+  1361→- Actions and decisions.
+  1362→- Resolution.
+  1363→- Appeal history.
+  1364→
+  1365→Preserve original uploaded evidence and its metadata where technically and legally appropriate. Record file hashes, upload time, uploader and access history. Restrict evidence access.
+  1366→
+  1367→Do not alter original evidence when generating previews or compressed copies.
+  1368→
+  1369→Use retention periods that comply with applicable law and documented business requirements. Support lawful preservation requests and authorised deletion where required.
+  1370→
+  1371→## 12. Customer security dashboard
+  1372→
+  1373→Create a section inside My Garage called **Vehicle Protection**.
+  1374→
+  1375→Customers should be able to see:
+  1376→
+  1377→- Their verified vehicles.
+  1378→- Vehicle ownership verification status.
+  1379→- Active garage jobs.
+  1380→- Current custody status.
+  1381→- Previous garage handovers.
+  1382→- Road-test permissions.
+  1383→- Collection authorisations.
+  1384→- Service and repair history.
+  1385→- Security alerts.
+  1386→- Open disputes and incidents.
+  1387→- Digital receipts and evidence.
+  1388→- Authorised businesses that have handled their vehicles.
+  1389→
+  1390→Customers should receive notifications for:
+  1391→
+  1392→- Vehicle accepted by a garage.
+  1393→- Vehicle custody transferred to a staff member.
+  1394→- Road test requested.
+  1395→- Road test authorised.
+  1396→- Vehicle marked ready.
+  1397→- Collection authorised.
+  1398→- Vehicle collected.
+  1399→- Suspicious activity involving their account or vehicle.
+  1400→
+  1401→Keep customer vehicle history private by default.
+  1402→
+  1403→## 13. Notifications and emergency escalation
+  1404→
+  1405→Create reliable notifications through supported channels.
+  1406→
+  1407→Support in-app notifications, email and SMS where configured.
+  1408→
+  1409→Examples:
+  1410→
+  1411→- A garage has accepted your vehicle.
+  1412→- Your vehicle has been marked ready for collection.
+  1413→- A road test requires your approval.
+  1414→- Your vehicle has been collected by an authorised person.
+  1415→- A suspicious listing involving your vehicle has been reported.
+  1416→- An incident has been opened.
+  1417→- Additional evidence is required.
+  1418→
+  1419→Track notification attempts, delivery results and retries.
+  1420→
+  1421→Never mark an SMS or email as delivered when the provider has not confirmed it.
+  1422→
+  1423→For urgent vehicle theft or safety incidents, clearly instruct users to contact the appropriate local authorities immediately. CARMAZE is not an emergency-response authority and must not present its internal reporting feature as a replacement for police reporting.
+  1424→
+  1425→## 14. Legal, privacy and operational safeguards
+  1426→
+  1427→Design the system with Kenyan law and applicable data-protection requirements in mind.
+  1428→
+  1429→Include:
+  1430→
+  1431→- Data minimisation.
+  1432→- Explicit consent where required.
+  1433→- Secure storage of identity and ownership documents.
+  1434→- Encryption in transit and at rest where supported.
+  1435→- Access logging.
+  1436→- Retention and deletion rules.
+  1437→- Privacy notices.
+  1438→- Incident response policies.
+  1439→- Lawful authority disclosure procedures.
+  1440→- Clear business and customer responsibilities.
+  1441→- Fair complaint and appeal procedures.
+  1442→
+  1443→Do not publicly label a person or business as a thief or criminal based on an unverified complaint.
+  1444→
+  1445→Do not allow businesses to secretly monitor customers.
+  1446→
+  1447→Do not implement hidden GPS tracking, covert recording or unlawful surveillance.
+  1448→
+  1449→Any location or tracking integration must have a legitimate purpose, appropriate legal basis, clear disclosure and appropriate access controls.
+  1450→
+  1451→## 15. Database and backend requirements
+  1452→
+  1453→Inspect the existing CARMAZE database before making changes.
+  1454→
+  1455→Extend the actual database with appropriate entities, relationships, constraints and migrations. Suggested entities include:
+  1456→
+  1457→- vehicle_identity_records
+  1458→- vehicle_verification_checks
+  1459→- vehicle_ownership_evidence
+  1460→- vehicle_security_reports
+  1461→- vehicle_risk_flags
+  1462→- garage_vehicle_custody
+  1463→- garage_handover_records
+  1464→- garage_handover_photos
+  1465→- garage_custody_events
+  1466→- garage_road_test_requests
+  1467→- garage_road_test_records
+  1468→- vehicle_collection_authorisations
+  1469→- vehicle_collection_records
+  1470→- garage_staff
+  1471→- garage_staff_permissions
+  1472→- showroom_test_drive_appointments
+  1473→- showroom_test_drive_records
+  1474→- security_incidents
+  1475→- security_incident_evidence
+  1476→- security_incident_actions
+  1477→- security_review_assignments
+  1478→- security_appeals
+  1479→- notification_delivery_attempts
+  1480→- security_audit_logs
+  1481→
+  1482→Use UUIDs, foreign keys, indexes, explicit timestamps, transaction-safe state changes and tenant isolation.
+  1483→
+  1484→Ensure evidence records cannot be silently overwritten.
+  1485→
+  1486→Implement backend authorisation checks on every sensitive endpoint. Frontend hiding is not security.
+  1487→
+  1488→## 16. Required acceptance tests
+  1489→
+  1490→Do not consider this module complete until these scenarios pass:
+  1491→
+  1492→**Scenario A — Stolen vehicle listing**
+  1493→
+  1494→A user attempts to list a vehicle with conflicting identity information. The system flags the conflict, blocks publication where necessary, creates a review case and records the evidence.
+  1495→
+  1496→**Scenario B — Impersonating an owner**
+  1497→
+  1498→A user attempts to sell a vehicle without sufficient ownership authority. The system requests additional verification and prevents an unapproved listing from becoming public.
+  1499→
+  1500→**Scenario C — Fraudulent test drive**
+  1501→
+  1502→A suspicious user attempts to book or collect a vehicle without satisfying the required checks. The showroom cannot release the vehicle through the normal workflow.
+  1503→
+  1504→**Scenario D — Garage vehicle handover**
+  1505→
+  1506→A customer submits their vehicle for repair. The garage receives it, records the condition and mileage, identifies the receiving employee and provides a digital receipt.
+  1507→
+  1508→**Scenario E — Unauthorised road test**
+  1509→
+  1510→A technician attempts to drive a customer's vehicle without the required permission. The system blocks the unauthorised workflow and records the attempt.
+  1511→
+  1512→**Scenario F — Vehicle not returned**
+  1513→
+  1514→A garage has custody of a customer's vehicle, but the customer reports it missing. The system opens a security incident, preserves evidence, alerts authorised reviewers and prevents the garage from silently closing the case.
+  1515→
+  1516→**Scenario G — Unauthorised collection**
+  1517→
+  1518→A person attempts to collect a customer's vehicle without valid authorisation. The garage cannot complete the release workflow.
+  1519→
+  1520→**Scenario H — Staff misconduct**
+  1521→
+  1522→A former garage employee attempts to access a customer's vehicle records. Access is denied and the attempt is logged.
+  1523→
+  1524→**Scenario I — False accusation**
+  1525→
+  1526→A business receives an unverified theft allegation. The system restricts sensitive information, enables a fair investigation and appeal, and does not publicly declare guilt.
+  1527→
+  1528→**Scenario J — Tenant isolation**
+  1529→
+  1530→One garage cannot access another garage's vehicles, customers, evidence, staff or incident records. One showroom cannot access another showroom's private records.
+  1531→
+  1532→**Scenario K — Evidence integrity**
+  1533→
+  1534→A user attempts to delete or alter a previous handover record. The original evidence and audit history remain preserved.
+  1535→
+  1536→**Scenario L — Customer notifications**
+  1537→
+  1538→The customer receives the correct notifications for handover, road-test approval, collection and security incidents. Failed notifications are recorded and retried appropriately.
+  1539→
+  1540→---
+  1541→
+  1542→## 17. Implementation instructions
+  1543→
+  1544→Before implementing:
+  1545→
+  1546→1. Inspect the current CARMAZE repository, architecture, database, authentication, existing garage and showroom portals, My Garage and notification systems.
+  1547→2. Identify what already exists and reuse it.
+  1548→3. Do not duplicate existing functionality.
+  1549→4. Prepare safe database migrations.
+  1550→5. Implement the security workflows in the real backend and frontend.
+  1551→6. Integrate with existing roles, permissions and organisation-level tenant isolation.
+  1552→7. Build responsive customer, garage, showroom and admin interfaces.
+  1553→8. Add audit logs, notifications, evidence storage and automated tests.
+  1554→9. Run migrations, type checks, lint, builds, integration tests and end-to-end tests.
+  1555→10. Fix discovered issues rather than merely reporting them.
+  1556→
+  1557→Do not use mock vehicle verification, fake government checks, simulated tracking, fabricated evidence, fake SMS delivery or fake security analytics.
+  1558→
+  1559→Where an external integration requires credentials or an authorised provider, implement the integration boundary, document the exact missing requirement and keep the status explicitly unverified until the real check succeeds.
+  1560→
+  1561→**Final objective:** Every vehicle listed, viewed, test-driven, handed to a garage, worked on, moved and returned through CARMAZE must have an appropriate level of identity verification, authorisation, accountability and traceable history. Protect customers without making legitimate businesses impossible to operate, and protect businesses without exposing customers to unnecessary risk.

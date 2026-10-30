@@ -1,10 +1,11 @@
 'use client'
 
 /* Garages — public directory of verified garages & specialists with
- * category/county filters and a quote-request flow. Data: /api/garages. */
+ * category/county filters and a quote-request flow. Data: /api/garages.
+ * #/garages/<orgId> renders the shared OrgStorefront business page. */
 
 import { useEffect, useMemo, useState } from 'react'
-import { MapPin, ShieldCheck, Star, Wrench, Sparkles, ClipboardList, Search } from 'lucide-react'
+import { MapPin, ShieldCheck, Star, Wrench, Sparkles, ClipboardList, Search, ArrowRight, Store } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +17,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { GarageAssistant } from '@/components/ai/garage-assistant'
+import OrgStorefront from '@/views/org-storefront'
+import { useHashRoute } from '@/hooks/use-hash-route'
 import { useAuth } from '@/stores/auth'
 import { apiGet, apiSend, navigate, buildQuery } from '@/lib/client'
 import { money, KENYA_COUNTIES, SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS } from '@/lib/format'
@@ -31,6 +34,8 @@ type Garage = {
 const CATEGORY_CHIPS = SERVICE_CATEGORIES.filter((c) => c !== 'OTHER')
 
 export default function GaragesView() {
+  const route = useHashRoute()
+  const routeOrgId = route.segments[1]
   const { user, loading } = useAuth()
   const [category, setCategory] = useState<string>('')
   const [county, setCounty] = useState<string>('all')
@@ -113,6 +118,9 @@ export default function GaragesView() {
       .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not send request'))
       .finally(() => setSending(false))
   }
+
+  // ── Storefront detail route: #/garages/<orgId> ──
+  if (routeOrgId) return <OrgStorefront key={routeOrgId} orgId={routeOrgId} />
 
   return (
     <div className="min-h-screen bg-background">
@@ -215,10 +223,19 @@ export default function GaragesView() {
             </div>
           ) : (
             filtered.slice(0, visible).map((g) => (
-              <Card key={g.org.id} className="flex flex-col p-4 transition-shadow hover:shadow-md sm:p-6">
+              <Card
+                key={g.org.id}
+                className="flex cursor-pointer flex-col p-4 transition-shadow hover:shadow-md sm:p-6"
+                onClick={() => navigate(`garages/${g.org.id}`)}
+              >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="font-semibold leading-tight">{g.org.name}</h3>
+                  <div className="min-w-0">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate(`garages/${g.org.id}`) }}
+                      className="text-left font-semibold leading-tight hover:underline"
+                    >
+                      {g.org.name}
+                    </button>
                     <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5" />
                       {[g.org.town, g.org.county].filter(Boolean).join(', ') || g.org.county}
@@ -255,7 +272,22 @@ export default function GaragesView() {
                 )}
 
                 <div className="mt-auto flex gap-2 pt-4">
-                  <Button className="flex-1" onClick={() => openQuoteDialog(g)}>Request a quote</Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={(e) => { e.stopPropagation(); openQuoteDialog(g) }}
+                  >
+                    Request a quote
+                  </Button>
+                  <Button
+                    className="shrink-0 gap-1.5"
+                    onClick={(e) => { e.stopPropagation(); navigate(`garages/${g.org.id}`) }}
+                    aria-label={`View ${g.org.name} storefront`}
+                  >
+                    <Store className="h-4 w-4 sm:hidden" aria-hidden="true" />
+                    <span className="hidden sm:inline">View storefront</span>
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
                 </div>
               </Card>
             ))

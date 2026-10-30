@@ -59,6 +59,17 @@ async function main() {
   await db.savedSearch.deleteMany()
   await db.offer.deleteMany()
   await db.buyingRequest.deleteMany()
+  // New models (conversations, custody, test drives, incidents) — children
+  // first, and all before org/user/vehicle deletes (restrict FKs).
+  await db.incidentEvent.deleteMany()
+  await db.securityIncident.deleteMany()
+  await db.custodyEvent.deleteMany()
+  await db.roadTest.deleteMany()
+  await db.collectionAuthorisation.deleteMany()
+  await db.vehicleCustody.deleteMany()
+  await db.conversationMessage.deleteMany()
+  await db.conversation.deleteMany()
+  await db.testDrive.deleteMany()
   await db.listingEvent.deleteMany()
   await db.vehiclePhoto.deleteMany()
   await db.vehicle.deleteMany()
@@ -224,7 +235,7 @@ async function main() {
   // ── Vehicles ──
   type Seed = {
     make: string; model: string; year: number; priceMinor: number; mileageKm: number; fuel: string; transmission: string;
-    bodyType: string; condition: string; county: string; color: string; engineCc?: number; sellerType?: string;
+    bodyType: string; condition: string; county: string; town?: string; color: string; engineCc?: number; sellerType?: string;
     status?: string; featured?: boolean; match?: boolean; orgId?: string; ownerId: string; images: string[];
     description: string; views?: number;
   }
@@ -243,7 +254,8 @@ async function main() {
     { make: 'BMW', model: 'X3 xDrive20d', year: 2017, priceMinor: 420000000, mileageKm: 91000, fuel: 'DIESEL', transmission: 'AUTOMATIC', bodyType: 'SUV', condition: 'FOREIGN_USED', county: 'Nairobi', color: 'Mineral Grey', engineCc: 2000, orgId: dealerOrg.id, ownerId: dealerOwner.id, status: 'DRAFT', images: [], description: 'Draft listing — photos being prepared.' },
   ]
 
-  const vehicles = []
+  type CreatedVehicle = Awaited<ReturnType<typeof db.vehicle.create>>
+  const vehicles: CreatedVehicle[] = []
   let seq = 100
   for (const s of seeds) {
     const v = await db.vehicle.create({
@@ -473,6 +485,262 @@ async function main() {
     data: [
       { actorId: admin.id, actorName: admin.name, action: 'APPLICATION_APPROVED', targetType: 'APPLICATION', targetId: app1.id, metadata: JSON.stringify({ org: dealerOrg.name }), createdAt: daysFromNow(-38) },
       { actorId: ops.id, actorName: ops.name, action: 'APPLICATION_INFO_REQUESTED', targetType: 'APPLICATION', targetId: appInfo.id, createdAt: daysFromNow(-2) },
+    ],
+  })
+
+  // ───────────── Storefront data (dealer + garage business pages) ─────────────
+  const standardHours = {
+    mon: ['08:00', '18:00'], tue: ['08:00', '18:00'], wed: ['08:00', '18:00'],
+    thu: ['08:00', '18:00'], fri: ['08:00', '18:00'], sat: ['09:00', '16:00'], sun: null,
+  }
+  const extendedHours = {
+    mon: ['07:30', '18:30'], tue: ['07:30', '18:30'], wed: ['07:30', '18:30'],
+    thu: ['07:30', '18:30'], fri: ['07:30', '18:30'], sat: ['08:00', '17:00'], sun: null,
+  }
+
+  await db.org.update({
+    where: { id: dealerOrg.id },
+    data: {
+      coverUrl: '/images/hero.png',
+      gallery: JSON.stringify(['/images/prado.png', '/images/harrier.png', '/images/xtrail.png', '/images/forester.png']),
+      openingHours: JSON.stringify(standardHours),
+      specialities: JSON.stringify(['Premium SUVs', 'Executive sedans', 'Trade-ins accepted', 'Financing assistance']),
+      faqs: JSON.stringify([
+        { q: 'Can I book an inspection before buying?', a: 'Yes — we encourage independent inspections and can arrange a Saturday viewing slot. Just message us through the platform.' },
+        { q: 'Do you accept trade-ins?', a: 'We accept trade-ins of any make. Bring the logbook and a valid ID for a same-day valuation.' },
+        { q: 'Is financing available?', a: 'We work with partner banks and saccos; approvals typically take 2–3 working days with a 20% deposit.' },
+      ]),
+      serviceAreas: JSON.stringify(['Nairobi', 'Kiambu', 'Machakos', 'Kajiado']),
+      whatsappEnabled: true,
+      callEnabled: true,
+      responseMinutes: 45,
+    },
+  })
+  await db.org.update({
+    where: { id: dealerOrg2.id },
+    data: {
+      coverUrl: '/images/prado.png',
+      gallery: JSON.stringify(['/images/demio.png', '/images/fit.png', '/images/dmax.png', '/images/c200.png']),
+      openingHours: JSON.stringify(standardHours),
+      specialities: JSON.stringify(['Family cars', 'Compact hatchbacks', 'Trade-in valuations']),
+      faqs: JSON.stringify([
+        { q: 'Are your prices negotiable?', a: 'Listed prices are close to final, but we consider serious offers and trade-in combos.' },
+        { q: 'Do you deliver upcountry?', a: 'Yes — delivery within Nairobi is free; upcountry delivery is arranged per county.' },
+      ]),
+      serviceAreas: JSON.stringify(['Nairobi', 'Kiambu']),
+      whatsappEnabled: false,
+      callEnabled: true,
+      responseMinutes: 90,
+    },
+  })
+  await db.org.update({
+    where: { id: garageOrg.id },
+    data: {
+      coverUrl: '/images/garage.png',
+      gallery: JSON.stringify(['/images/prado.png', '/images/forester.png', '/images/xtrail.png']),
+      openingHours: JSON.stringify(extendedHours),
+      specialities: JSON.stringify(['Mechanical repairs', 'Auto-electrical diagnostics', 'Bodywork & spray', 'Performance upgrades']),
+      faqs: JSON.stringify([
+        { q: 'Do you use genuine parts?', a: 'We quote with genuine or OEM-equivalent parts — you approve the option before we order.' },
+        { q: 'How does vehicle custody work?', a: 'Every handover is logged with photos, odometer and fuel level. You approve any road test and authorise collection with a secure code.' },
+        { q: 'Can I get a quote before committing?', a: 'Yes — send your request through CARMAZE and we respond with an itemised quote, usually within a day.' },
+      ]),
+      serviceAreas: JSON.stringify(['Nairobi', 'Kiambu', 'Nakuru']),
+      whatsappEnabled: true,
+      callEnabled: true,
+      responseMinutes: 60,
+    },
+  })
+  await db.org.update({
+    where: { id: garageOrg2.id },
+    data: {
+      coverUrl: '/images/intro-road.png',
+      gallery: JSON.stringify(['/images/dmax.png', '/images/demio.png', '/images/vitz.png']),
+      openingHours: JSON.stringify(extendedHours),
+      specialities: JSON.stringify(['Tyres & alignment', 'Batteries', '24/7 roadside assistance']),
+      faqs: JSON.stringify([
+        { q: 'Do you offer roadside assistance at night?', a: 'Yes — call-outs run 24/7 within Nairobi. Night call-out rate applies from 8pm.' },
+        { q: 'How long does a tyre fitting take?', a: 'Around 30–45 minutes for a set, including balancing and alignment check.' },
+      ]),
+      serviceAreas: JSON.stringify(['Nairobi', 'Machakos', 'Kajiado']),
+      whatsappEnabled: false,
+      callEnabled: true,
+      responseMinutes: 120,
+    },
+  })
+
+  // ───────────── Conversations (unified messaging) ─────────────
+  await db.conversation.create({
+    data: {
+      orgId: dealerOrg.id,
+      customerId: customer.id,
+      vehicleId: prado.id,
+      subject: 'Toyota Land Cruiser Prado TX-L — inspection & trade-in',
+      kind: 'VEHICLE_ENQUIRY',
+      lastMessageAt: hoursAgo(4),
+      lastMessagePreview: 'Great — Saturday 10am works. Should I bring my Demio for the trade-in valuation too?',
+      unreadForOrg: true,
+      messages: {
+        create: [
+          { senderId: customer.id, senderName: customer.name, senderSide: 'CUSTOMER', body: 'Hi, is the Prado TX-L still available? I would like to view it this Saturday morning.', createdAt: hoursAgo(26) },
+          { senderId: dealerStaff.id, senderName: dealerStaff.name, senderSide: 'ORG', body: 'Hello Amina, yes it is available. Saturday 10am works well — ask for Brian at reception, Mombasa Road next to Gateway Mall.', createdAt: hoursAgo(24) },
+          { senderId: customer.id, senderName: customer.name, senderSide: 'CUSTOMER', body: 'Great — Saturday 10am works. Should I bring my Demio for the trade-in valuation too?', createdAt: hoursAgo(4) },
+        ],
+      },
+    },
+  })
+  await db.conversation.create({
+    data: {
+      orgId: garageOrg.id,
+      customerId: customer.id,
+      subject: 'Quote request — 2" lift kit for Prado',
+      kind: 'QUOTE',
+      lastMessageAt: hoursAgo(28),
+      lastMessagePreview: 'Hi Amina, the itemised quote is KES 98,000 fitted, including alignment and a 12-month workmanship warranty.',
+      unreadForCustomer: true,
+      messages: {
+        create: [
+          { senderId: customer.id, senderName: customer.name, senderSide: 'CUSTOMER', body: 'Hi, I got your quote for the 2-inch lift kit and 18-inch wheels on my Prado. What is the final fitted price?', createdAt: hoursAgo(30) },
+          { senderId: garageOwner.id, senderName: garageOwner.name, senderSide: 'ORG', body: 'Hi Amina, the itemised quote is KES 98,000 fitted, including alignment and a 12-month workmanship warranty.', createdAt: hoursAgo(28) },
+        ],
+      },
+    },
+  })
+
+  // ───────────── Custody lifecycle (Garage Vehicle Protection) ─────────────
+  const custody = await db.vehicleCustody.create({
+    data: {
+      refCode: 'HC-K7Q2MD',
+      orgId: garageOrg.id,
+      customerId: customer.id,
+      myVehicleId: myVitz.id,
+      vehicleDesc: 'Toyota Vitz 1.0 2016, KCX 118R',
+      plate: 'KCX 118R',
+      odometerKm: 62500,
+      fuelLevel: 'QUARTER',
+      conditionNotes: 'Minor scratch on rear bumper (pre-existing). No other known damage.',
+      photos: JSON.stringify([]),
+      valuables: 'Phone charger and umbrella in the boot.',
+      requestedWork: 'Full engine service, replace front brake pads, and investigate the intermittent engine warning light.',
+      authorisedSpendMinor: 1500000,
+      roadTestAllowed: true,
+      status: 'READY_FOR_COLLECTION',
+      receivedAt: hoursAgo(47),
+      receivedByStaffName: 'Mary Achieng',
+      readyAt: hoursAgo(2),
+      completedWork: 'Full service done, front brake pads replaced, engine warning light traced to a faulty VVT sensor and replaced. Road test clean.',
+      finalOdometerKm: 62596,
+      finalNotes: 'Vehicle in good condition. Rear bumper scratch as declared at drop-off, no new damage.',
+      completionPhotos: JSON.stringify([]),
+      costMinor: 1240000,
+      createdAt: hoursAgo(48),
+      events: {
+        create: [
+          { type: 'HANDOVER', actorId: customer.id, actorName: customer.name, actorSide: 'CUSTOMER', note: 'Handover requested — vehicle dropped off with declared condition and valuables.', createdAt: hoursAgo(48) },
+          { type: 'STATUS_CHANGE', fromStatus: 'HANDOVER_REQUESTED', toStatus: 'RECEIVED', actorName: 'Mary Achieng', actorSide: 'ORG', note: 'Vehicle received by Mary Achieng. Drop-off photos taken.', createdAt: hoursAgo(47) },
+          { type: 'STATUS_CHANGE', fromStatus: 'RECEIVED', toStatus: 'INSPECTION', actorName: 'Mary Achieng', actorSide: 'ORG', note: 'Inspection started — fluids, brakes and full diagnostics.', createdAt: hoursAgo(45) },
+          { type: 'STATUS_CHANGE', fromStatus: 'INSPECTION', toStatus: 'WORK_IN_PROGRESS', actorName: 'Mary Achieng', actorSide: 'ORG', note: 'Estimate approved by customer; work started.', createdAt: hoursAgo(40) },
+          { type: 'STATUS_CHANGE', fromStatus: 'WORK_IN_PROGRESS', toStatus: 'READY_FOR_COLLECTION', actorName: 'Mary Achieng', actorSide: 'ORG', note: 'Work completed — vehicle ready for collection.', createdAt: hoursAgo(2) },
+        ],
+      },
+    },
+  })
+  await db.roadTest.create({
+    data: {
+      custodyId: custody.id,
+      purpose: 'Verify repair — intermittent engine warning light',
+      driverName: 'Samuel Otieno',
+      status: 'COMPLETED',
+      incident: false,
+      requestedAt: hoursAgo(44),
+      authorisedAt: hoursAgo(43),
+      startedAt: hoursAgo(42),
+      endedAt: hoursAgo(41),
+      startOdometerKm: 62510,
+      endOdometerKm: 62596,
+      notes: 'Warning light stayed off across 86 km including highway section. No faults logged.',
+    },
+  })
+
+  // ───────────── Test drives ─────────────
+  const harrier = vehicles[1]
+  await db.testDrive.create({
+    data: {
+      refCode: 'TD-K4M8XQ',
+      orgId: dealerOrg.id,
+      vehicleId: prado.id,
+      customerId: customer.id,
+      scheduledAt: daysFromNow(1),
+      status: 'REQUESTED',
+      licenceConfirmed: true,
+      createdAt: hoursAgo(6),
+    },
+  })
+  await db.testDrive.create({
+    data: {
+      refCode: 'TD-9XP2VN',
+      orgId: dealerOrg.id,
+      vehicleId: harrier.id,
+      customerId: customer.id,
+      scheduledAt: daysFromNow(-3),
+      status: 'COMPLETED',
+      licenceConfirmed: true,
+      odometerOut: 76005,
+      odometerIn: 76048,
+      fuelOut: 'FULL',
+      fuelIn: 'THREE_QUARTER',
+      conditionOut: 'Clean, no visible damage',
+      conditionIn: 'No new damage noted',
+      releasedBy: 'Brian Ochieng',
+      returnedBy: 'Brian Ochieng',
+      startedAt: daysFromNow(-3),
+      endedAt: daysFromNow(-3),
+      notes: 'Customer happy with the drive; following up on financing options.',
+      createdAt: daysFromNow(-4),
+    },
+  })
+
+  // ───────────── Security incidents ─────────────
+  const incOpen = await db.securityIncident.create({
+    data: {
+      refCode: 'INC-K8Q4XT',
+      category: 'MISSING_FROM_GARAGE',
+      reporterId: customer.id,
+      reporterSide: 'CUSTOMER',
+      title: 'Vehicle missing from partner garage yard',
+      details: 'My vehicle was left at a partner garage for a scheduled service and could not be located at the agreed collection time. The garage could not account for it for several hours. Requesting a CARMAZE review of the custody records and CCTV.',
+      status: 'OPEN',
+      severity: 'HIGH',
+      createdAt: hoursAgo(30),
+    },
+  })
+  await db.incidentEvent.createMany({
+    data: [
+      { incidentId: incOpen.id, type: 'CREATED', actorId: customer.id, actorName: customer.name, note: 'Incident reported (MISSING_FROM_GARAGE).', createdAt: hoursAgo(30) },
+      { incidentId: incOpen.id, type: 'NOTE', actorId: ops.id, actorName: ops.name, note: 'Premises CCTV footage requested; garage owner contacted for a statement.', createdAt: hoursAgo(26) },
+    ],
+  })
+  const incResolved = await db.securityIncident.create({
+    data: {
+      refCode: 'INC-3RT9WB',
+      category: 'DAMAGE_IN_CUSTODY',
+      reporterId: customer.id,
+      reporterSide: 'CUSTOMER',
+      orgId: garageOrg2.id,
+      vehicleDesc: 'Toyota Vitz 2016 (KCX 118R)',
+      title: 'Alloy wheel scuffed during service visit',
+      details: 'After collecting my Vitz from a routine service, I noticed a fresh scuff on the front-left alloy wheel that was not there at drop-off. I raised it with the garage the same day and they acknowledged the damage occurred on their lift.',
+      status: 'RESOLVED',
+      severity: 'LOW',
+      resolutionNote: 'Garage accepted liability and refurbished the wheel at no cost. Customer confirmed satisfied and closed the case.',
+      resolvedAt: daysFromNow(-6),
+      createdAt: daysFromNow(-9),
+    },
+  })
+  await db.incidentEvent.createMany({
+    data: [
+      { incidentId: incResolved.id, type: 'CREATED', actorId: customer.id, actorName: customer.name, note: 'Incident reported (DAMAGE_IN_CUSTODY).', createdAt: daysFromNow(-9) },
+      { incidentId: incResolved.id, type: 'RESOLUTION', actorId: ops.id, actorName: ops.name, note: 'Garage accepted liability and refurbished the wheel at no cost. Customer confirmed satisfied and closed the case.', createdAt: daysFromNow(-6) },
     ],
   })
 

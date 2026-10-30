@@ -3,6 +3,37 @@ import { audit } from '@/lib/audit'
 import { notifyMany } from '@/lib/notify'
 
 /**
+ * Audit helper for confirmed payments. Safe to call from both the automatic
+ * M-Pesa callback (no actor) and manual reconciliation (acting staff member).
+ */
+export async function auditPaymentConfirmed(params: {
+  refCode: string
+  amountMinor: number
+  paidVia: 'MPESA' | 'MANUAL'
+  note?: string
+  actorId?: string
+  actorName?: string
+  campaignActivated?: string | null
+  subscriptionActivated?: string | null
+}): Promise<void> {
+  await audit({
+    actorId: params.actorId ?? null,
+    actorName: params.actorName ?? (params.paidVia === 'MPESA' ? 'M-Pesa callback' : 'Manual reconciliation'),
+    action: 'INVOICE_PAID',
+    targetType: 'INVOICE',
+    targetId: params.refCode,
+    metadata: {
+      refCode: params.refCode,
+      paidVia: params.paidVia,
+      note: params.note ?? null,
+      amountMinor: params.amountMinor,
+      campaignActivated: params.campaignActivated ?? null,
+      subscriptionActivated: params.subscriptionActivated ?? null,
+    },
+  })
+}
+
+/**
  * Shared paid-invoice activation logic used by manual reconciliation
  * (mark-paid) and the M-Pesa Daraja callback. Parses the plan code from the
  * invoice description "[plan:<code>]" suffix written by /api/billing/subscribe.
@@ -11,7 +42,11 @@ export async function activatePaidInvoice(
   invoiceId: string,
   paidVia: 'MPESA' | 'MANUAL',
   note?: string
-): Promise<{ activatedSubscription: string | null; activatedCampaign: string | null }> {
+): Promise<{
+  activatedSubscription: string | null
+  activatedCampaign: string | null
+  invoice: { id: string; refCode: string; amountMinor: number; currency: string; type: string }
+}> {
   const invoice = await db.invoice.findUnique({ where: { id: invoiceId } })
   if (!invoice) throw new Error('Invoice not found')
 
@@ -68,19 +103,15 @@ export async function activatePaidInvoice(
     })
   }
 
-  await auditPaymentConfirmed(invoice, paidVia, note)
-  return { activatedSubscription, activatedCampaign }
-}
-
-export async function auditPaymentConfirmed(
-  invoice: { id: string; refCode: string; amountMinor: number; type: string },
-  paidVia: 'MPESA' | 'MANUAL',
-  note?: string
-): Promise<void> {
-  await audit({
-    action: 'INVOICE_PAID',
-    targetType: 'INVOICE',
-    targetId: invoice.id,
-    metadata: { refCode: invoice.refCode, paidVia, note: note ?? null, amountMinor: invoice.amountMinor, type: invoice.type },
+  await auditPaymentConfirmed({
+    refCode: invoice.refCode,
+    amountMinor: invoice.amountMinor,
+    paidVia,
+    note,
   })
+  return {
+    activatedSubscription,
+    activatedCampaign,
+    invoice: { id: invoice.id, refCode: invoice.refCode, amountMinor: invoice.amountMinor, currency: invoice.currency, type: invoice.type },
+  }
 }

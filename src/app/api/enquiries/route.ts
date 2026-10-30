@@ -5,7 +5,7 @@ import { route, ok, fail, ApiError, parseBody, requireUser, getIp } from '@/lib/
 import { rateLimit } from '@/lib/rate-limit'
 import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
-import { notifyMany } from '@/lib/notify'
+import { notify, notifyMany } from '@/lib/notify'
 
 // ───────────────────────── helpers ─────────────────────────
 

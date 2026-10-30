@@ -1,8 +1,9 @@
 'use client'
 
 /* CARMAZE — Showrooms (#/showrooms)
- * Public directory of verified dealer showrooms with their latest listings.
- * "Visit showroom" filters the marketplace to that dealer via ?org=<id>.
+ * Public directory of verified dealer showrooms. #/showrooms/<orgId>
+ * renders the shared OrgStorefront business page; "Browse listings"
+ * filters the marketplace to that dealer via ?org=<id>.
  */
 
 import { useEffect, useState } from 'react'
@@ -12,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
+import OrgStorefront from '@/views/org-storefront'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { apiGet, navigate } from '@/lib/client'
 import { timeAgo, money } from '@/lib/format'
@@ -31,6 +33,7 @@ type Showroom = {
 
 export default function View() {
   const route = useHashRoute()
+  const routeOrgId = route.segments[1]
   const [showrooms, setShowrooms] = useState<Showroom[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,6 +53,9 @@ export default function View() {
     }
     navigate(`cars?org=${s.id}`)
   }
+
+  // ── Storefront detail route: #/showrooms/<orgId> ──
+  if (routeOrgId) return <OrgStorefront key={routeOrgId} orgId={routeOrgId} />
 
   if (error) {
     return (
@@ -105,11 +111,20 @@ export default function View() {
           {showrooms.map((s) => {
             const place = [s.location, s.town, s.county].filter(Boolean).join(', ')
             return (
-              <Card key={s.id} className="flex flex-col">
+              <Card
+                key={s.id}
+                className="flex cursor-pointer flex-col transition-shadow hover:shadow-md"
+                onClick={() => navigate(`showrooms/${s.id}`)}
+              >
                 <CardContent className="flex flex-1 flex-col gap-4 p-6">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-bold">{s.name}</h2>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); navigate(`showrooms/${s.id}`) }}
+                        className="text-left text-lg font-bold hover:underline"
+                      >
+                        {s.name}
+                      </button>
                       <Badge variant="outline" className="gap-1 text-primary">
                         <BadgeCheck className="h-3.5 w-3.5" /> Verified dealer
                       </Badge>
@@ -130,7 +145,7 @@ export default function View() {
                       s.vehicles.map((v) => (
                         <button
                           key={v.id}
-                          onClick={() => navigate(`vehicle-detail/${v.id}`)}
+                          onClick={(e) => { e.stopPropagation(); navigate(`vehicle-detail/${v.id}`) }}
                           className="group overflow-hidden rounded-lg border border-border text-left"
                           aria-label={`View ${v.make} ${v.model}`}
                         >
@@ -161,9 +176,22 @@ export default function View() {
                     )}
                   </div>
 
-                  <Button className="mt-auto h-11 w-full" onClick={() => visit(s)}>
-                    Visit showroom <ArrowRight className="h-4 w-4" />
-                  </Button>
+                  <div className="mt-auto grid grid-cols-2 gap-2">
+                    <Button
+                      className="h-11 gap-1.5"
+                      onClick={(e) => { e.stopPropagation(); navigate(`showrooms/${s.id}`) }}
+                      aria-label={`View ${s.name} storefront`}
+                    >
+                      View storefront <ArrowRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-11 gap-1.5"
+                      onClick={(e) => { e.stopPropagation(); visit(s) }}
+                    >
+                      Browse listings <CarFront className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )

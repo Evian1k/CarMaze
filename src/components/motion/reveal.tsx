@@ -4,7 +4,7 @@
  * All respect prefers-reduced-motion via framer-motion's useReducedMotion. */
 
 import { useEffect, useRef, useState } from 'react'
-import { motion, useInView, useReducedMotion } from 'framer-motion'
+import { motion, useInView, useReducedMotion, useScroll, useTransform } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 const EASE = [0.22, 0.61, 0.36, 1] as const
@@ -117,5 +117,104 @@ export function CountUp({
       {display.toLocaleString()}
       {suffix}
     </span>
+  )
+}
+
+/** Subtle lift + shadow on hover — the standard card micro-interaction. */
+export function HoverLift({
+  children,
+  className,
+  lift = 4,
+  scale = 1,
+}: {
+  children: React.ReactNode
+  className?: string
+  lift?: number
+  scale?: number
+}) {
+  const reduce = useReducedMotion()
+  if (reduce) return <div className={className}>{children}</div>
+  return (
+    <motion.div
+      className={className}
+      whileHover={{ y: -lift, scale }}
+      whileTap={{ scale: 0.985 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+/** Gentle scroll parallax — pass children that should drift as the page scrolls. */
+export function Parallax({
+  children,
+  className,
+  distance = 40,
+}: {
+  children: React.ReactNode
+  className?: string
+  distance?: number
+}) {
+  const reduce = useReducedMotion()
+  const ref = useRef<HTMLDivElement>(null)
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
+  const y = useTransform(scrollYProgress, [0, 1], [distance, -distance])
+  if (reduce) return <div className={className}>{children}</div>
+  return (
+    <div ref={ref} className={className}>
+      <motion.div style={{ y }}>{children}</motion.div>
+    </div>
+  )
+}
+
+/** Headline whose words rise in sequence — for hero titles. */
+export function WordRise({
+  text,
+  className,
+  delay = 0,
+  gap = 0.055,
+}: {
+  text: string
+  className?: string
+  delay?: number
+  gap?: number
+}) {
+  const reduce = useReducedMotion()
+  const words = text.split(' ')
+  if (reduce) return <span className={className}>{text}</span>
+  return (
+    <span className={cn('inline-block', className)} aria-label={text}>
+      {words.map((w, i) => (
+        <span key={i} className="inline-block overflow-hidden pb-[0.08em] -mb-[0.08em] align-bottom">
+          <motion.span
+            className="inline-block will-change-transform"
+            initial={{ y: '110%' }}
+            animate={{ y: 0 }}
+            transition={{ duration: 0.7, delay: delay + i * gap, ease: EASE }}
+          >
+            {w}
+            {i < words.length - 1 ? '\u00A0' : ''}
+          </motion.span>
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/** Springy press feedback wrapper for any clickable element. */
+export function Pressable({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  const reduce = useReducedMotion()
+  if (reduce) return <div className={className}>{children}</div>
+  return (
+    <motion.div className={className} whileTap={{ scale: 0.96 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }}>
+      {children}
+    </motion.div>
   )
 }

@@ -164,8 +164,12 @@ export default function View() {
             : 'Offer rejected',
           { description: action === 'accept' ? `The dealer (${offer.org.name}) has been notified.` : undefined }
         )
-        if (res.vehicle?.status) return Promise.all([loadListings(), loadOffers()])
-        return loadOffers()
+        if (res.vehicle?.status) {
+          void loadListings()
+          void loadOffers()
+        } else {
+          void loadOffers()
+        }
       })
       .catch((e: Error) => toast.error(e.message))
       .finally(() => setBusyOffer(null))
@@ -281,7 +285,7 @@ export default function View() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={statusBadgeVariant(v.status)}>{VEHICLE_STATUS_LABELS[v.status] ?? v.status}</Badge>
+                          <Badge variant={statusBadgeVariant(v.status ?? '')}>{VEHICLE_STATUS_LABELS[v.status ?? ''] ?? v.status}</Badge>
                           <span className="font-mono text-xs text-muted-foreground">{v.refCode}</span>
                           {v.featured && <Badge className="border-none bg-accent text-accent-foreground">Featured</Badge>}
                         </div>
