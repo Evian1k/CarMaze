@@ -13,12 +13,15 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Logo } from '@/components/brand/logo'
 import { apiSend, navigate, ClientApiError } from '@/lib/client'
 import { useAuth } from '@/stores/auth'
-import { ShieldCheck } from 'lucide-react'
+import { Gift, ShieldCheck, X } from 'lucide-react'
 
 export default function AuthView() {
   const route = useHashRoute()
   const { user, refresh } = useAuth()
   const [mode, setMode] = useState<'signin' | 'register'>(route.query.get('mode') === 'register' ? 'register' : 'signin')
+  // Referral attribution: ?ref=<code> on the invite link (#/signin?ref=CODE).
+  const [ref] = useState<string>(() => (route.query.get('ref') || '').trim().slice(0, 32))
+  const [refHintDismissed, setRefHintDismissed] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -39,7 +42,7 @@ export default function AuthView() {
       if (mode === 'signin') {
         await apiSend('/api/auth/login', 'POST', { email, password })
       } else {
-        await apiSend('/api/auth/register', 'POST', { name, email, password, phone: phone || undefined })
+        await apiSend('/api/auth/register', 'POST', { name, email, password, phone: phone || undefined, ref: ref || undefined })
       }
       await refresh()
       navigate('account')
@@ -80,6 +83,22 @@ export default function AuthView() {
               <Alert variant="destructive" className="mb-4">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
+            )}
+            {mode === 'register' && ref && !refHintDismissed && (
+              <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-accent/50 bg-accent/20 px-3 py-2 text-sm text-primary">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <Gift className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Joining with a referral from a friend
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRefHintDismissed(true)}
+                  aria-label="Dismiss referral note"
+                  className="-mr-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground sm:h-7 sm:w-7"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
             )}
             <form onSubmit={submit} className="space-y-4">
               {mode === 'register' && (

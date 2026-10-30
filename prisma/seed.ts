@@ -77,6 +77,9 @@ async function main() {
   await db.application.deleteMany()
   await db.orgMember.deleteMany()
   await db.org.deleteMany()
+  await db.partnerRequest.deleteMany()
+  await db.partner.deleteMany()
+  await db.loyaltyLedger.deleteMany()
   await db.customizerConfig.deleteMany()
   await db.user.deleteMany()
   await db.systemSetting.deleteMany()
@@ -111,6 +114,15 @@ async function main() {
   const pendingGarageUser = await db.user.create({
     data: { email: 'apply.garage@carmaze.co.ke', name: 'Caroline Wanjiru', passwordHash: hash, phone: '+254799222000', roles: 'CUSTOMER' },
   })
+
+  // ── Referral codes (Loyalty & Referrals) ──
+  await db.user.update({ where: { id: admin.id }, data: { referralCode: 'GRZ8F4KQ' } })
+  await db.user.update({ where: { id: ops.id }, data: { referralCode: 'OPS5M2XN' } })
+  await db.user.update({ where: { id: dealerOwner.id }, data: { referralCode: 'DLR7K9WQ' } })
+  await db.user.update({ where: { id: dealerStaff.id }, data: { referralCode: 'STF3P8RM' } })
+  await db.user.update({ where: { id: garageOwner.id }, data: { referralCode: 'GRG6T4ZC' } })
+  await db.user.update({ where: { id: seller.id }, data: { referralCode: 'SLR2N7VD', referredById: customer.id, referredAt: daysFromNow(-26) } })
+  await db.user.update({ where: { id: customer.id }, data: { referralCode: 'AMN9H5XS' } })
 
   // ── Orgs ──
   const dealerOrg = await db.org.create({
@@ -445,6 +457,56 @@ async function main() {
       refCode: 'CMP-9ZT3KD', orgId: dealerOrg.id, vehicleId: prado.id, packageCode: 'spotlight-7',
       status: 'PENDING_PAYMENT', invoiceId: (await db.invoice.findFirst({ where: { refCode: 'INV-TD4K8Z' } }))!.id,
     },
+  })
+
+  // ── Active paid campaign (D-Max homepage feature — real revenue record) ──
+  const campInv = await db.invoice.create({
+    data: {
+      refCode: 'INV-BX6N2T', orgId: dealerOrg.id, type: 'CAMPAIGN', description: 'Homepage Feature (3 days) — D-Max Double Cab',
+      amountMinor: 300000, status: 'PAID', issuedAt: daysFromNow(-2), dueDate: daysFromNow(1), paidAt: daysFromNow(-2), paidVia: 'MPESA',
+    },
+  })
+  await db.campaign.create({
+    data: {
+      refCode: 'CMP-K4W8QN', orgId: dealerOrg.id, vehicleId: dmax.id, packageCode: 'feature-home-3',
+      status: 'ACTIVE', startsAt: daysFromNow(-2), endsAt: daysFromNow(1), impressions: 347, clicks: 41, invoiceId: campInv.id,
+    },
+  })
+
+  // ── Partner Network (only verified partners are publicly listed) ──
+  await db.partner.createMany({
+    data: [
+      { refCode: 'PRT-A2M8KQ', name: 'AutoCheck Inspection Services', category: 'INSPECTION', county: 'Nairobi', serviceAreas: JSON.stringify(['Nairobi', 'Kiambu', 'Machakos', 'Nakuru']), description: 'Pre-purchase vehicle inspections: 220-point mechanical, electrical and body checks with a same-day digital report. Bookings any day of the week.', phone: '+254712345678', email: 'book@autocheck.co.ke', whatsapp: true, website: 'https://autocheck.co.ke', contactName: 'Peter Maina', status: 'APPROVED', verified: true, rating: 4.8, referrals: 63, createdAt: daysFromNow(-120) },
+      { refCode: 'PRT-B7X4RD', name: 'BimaLink Insurance Agency', category: 'INSURANCE', county: 'Nairobi', serviceAreas: JSON.stringify(['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret']), description: 'Licensed motor insurance agency offering comprehensive cover from leading underwriters, with end-to-end claims support.', phone: '+254719888777', email: 'hello@bimalink.co.ke', whatsapp: true, website: 'https://bimalink.co.ke', contactName: 'Faith Wambui', status: 'APPROVED', verified: true, rating: 4.5, referrals: 128, createdAt: daysFromNow(-95) },
+      { refCode: 'PRT-C9Q3WN', name: 'QuickTow Recovery', category: 'TOWING', county: 'Nairobi', serviceAreas: JSON.stringify(['Nairobi', 'Kiambu', 'Machakos', 'Kajiado']), description: '24/7 flatbed and towing recovery across the Nairobi metro. Average arrival under 45 minutes within the city.', phone: '+254700111999', whatsapp: true, contactName: 'Dennis Ouma', status: 'APPROVED', verified: true, rating: 4.2, referrals: 89, createdAt: daysFromNow(-70) },
+      { refCode: 'PRT-D5F7HB', name: 'PartsHub Kenya', category: 'PARTS', county: 'Mombasa', serviceAreas: JSON.stringify(['Mombasa', 'Nairobi']), description: 'Genuine and aftermarket spare parts supplier for Japanese models with next-day delivery countrywide.', phone: '+254733222111', email: 'sales@partshub.co.ke', contactName: 'Ali Hassan', status: 'PENDING', createdAt: daysFromNow(-2) },
+    ],
+  })
+  const autocheck = await db.partner.findUnique({ where: { refCode: 'PRT-A2M8KQ' } })
+  if (autocheck) {
+    await db.partnerRequest.create({
+      data: {
+        refCode: 'PRQ-8T3WLM', partnerId: autocheck.id, userId: customer.id, name: customer.name, phone: '+254745654321',
+        county: 'Nairobi', message: 'Would like a pre-purchase inspection on a Toyota Prado in Syokimau this Saturday morning.',
+        status: 'CLOSED', createdAt: daysFromNow(-12),
+      },
+    })
+  }
+  await db.auditLog.createMany({
+    data: [
+      { actorId: admin.id, actorName: admin.name, action: 'PARTNER_APPROVED', targetType: 'PARTNER', targetId: 'PRT-A2M8KQ', metadata: JSON.stringify({ partner: 'AutoCheck Inspection Services' }), createdAt: daysFromNow(-115) },
+      { actorId: admin.id, actorName: admin.name, action: 'PARTNER_APPROVED', targetType: 'PARTNER', targetId: 'PRT-B7X4RD', metadata: JSON.stringify({ partner: 'BimaLink Insurance Agency' }), createdAt: daysFromNow(-90) },
+      { actorId: admin.id, actorName: admin.name, action: 'PARTNER_APPROVED', targetType: 'PARTNER', targetId: 'PRT-C9Q3WN', metadata: JSON.stringify({ partner: 'QuickTow Recovery' }), createdAt: daysFromNow(-65) },
+    ],
+  })
+
+  // ── Loyalty ledger (transparent points history for the demo customer) ──
+  await db.loyaltyLedger.createMany({
+    data: [
+      { userId: customer.id, points: 500, reason: 'REFERRAL_SIGNUP', refType: 'USER', refId: seller.id, note: 'James Mwangi joined with your referral link.', createdAt: daysFromNow(-26) },
+      { userId: customer.id, points: 250, reason: 'SERVICE_COMPLETED', refType: 'BOOKING', note: 'Vitz regular service completed by Mombasa Road Tyres & Service.', createdAt: daysFromNow(-5) },
+      { userId: customer.id, points: 100, reason: 'REVIEW_EARNED', refType: 'ORG_REVIEW', note: 'Verified review published — Mombasa Road Tyres & Service.', createdAt: daysFromNow(-4) },
+    ],
   })
 
   // ── Notifications demo ──

@@ -35,6 +35,7 @@ const NAV = [
   { label: 'Showrooms', href: '/showrooms' },
   { label: 'Customizer', href: '/customizer' },
   { label: 'Garages', href: '/garages' },
+  { label: 'Partners', href: '/partners' },
   { label: 'Roadside Help', href: '/roadside' },
   { label: 'Community', href: '/community' },
 ]
@@ -289,6 +290,7 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
               <li><button className="hover:text-foreground" onClick={() => navigate('garages')}>Find a garage</button></li>
               <li><button className="hover:text-foreground" onClick={() => navigate('roadside')}>Roadside assistance</button></li>
+              <li><button className="hover:text-foreground" onClick={() => navigate('partners')}>Partner network</button></li>
               <li><button className="hover:text-foreground" onClick={() => navigate('my-garage')}>My Garage records</button></li>
               <li><button className="hover:text-foreground" onClick={() => navigate('dealer')}>DealerOS for dealers</button></li>
             </ul>

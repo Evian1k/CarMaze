@@ -5,7 +5,7 @@
 
 import { useEffect, useCallback, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Heart, MailCheck, Bell, MessageSquareText, Wrench, Search, PhoneCall, Copy, ShieldCheck, KeyRound, MessagesSquare } from 'lucide-react'
+import { Heart, MailCheck, Bell, MessageSquareText, Wrench, Search, PhoneCall, Copy, ShieldCheck, KeyRound, MessagesSquare, Gift } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
 import { MessagesTab } from '@/components/messaging/conversation-panel'
 import { VehicleProtection } from '@/components/protection/vehicle-protection'
+import { RewardsPanel } from '@/components/loyalty/rewards-panel'
 import { CustomerTestDrives } from '@/components/protection/customer-test-drives'
 import { useAuth } from '@/stores/auth'
 import { navigate, apiGet, apiSend } from '@/lib/client'
@@ -38,7 +39,7 @@ type RequestItem = {
 type SavedSearchItem = { id: string; name: string; query: string; createdAt: string }
 type NotificationItem = { id: string; title: string; body: string | null; link: string | null; readAt: string | null; createdAt: string }
 
-const TABS = ['profile', 'saved', 'enquiries', 'messages', 'requests', 'searches', 'protection', 'testdrives', 'notifications'] as const
+const TABS = ['profile', 'saved', 'enquiries', 'messages', 'requests', 'searches', 'rewards', 'protection', 'testdrives', 'notifications'] as const
 
 export default function AccountView() {
   const route = useHashRoute()
@@ -190,6 +191,7 @@ export default function AccountView() {
           <TabsTrigger value="messages" className="gap-1.5"><MessagesSquare className="h-4 w-4" /> Messages</TabsTrigger>
           <TabsTrigger value="requests" className="gap-1.5"><Wrench className="h-4 w-4" /> Requests</TabsTrigger>
           <TabsTrigger value="searches" className="gap-1.5"><Search className="h-4 w-4" /> Searches</TabsTrigger>
+          <TabsTrigger value="rewards" className="gap-1.5"><Gift className="h-4 w-4" /> Rewards</TabsTrigger>
           <TabsTrigger value="protection" className="gap-1.5"><ShieldCheck className="h-4 w-4" /> Vehicle protection</TabsTrigger>
           <TabsTrigger value="testdrives" className="gap-1.5"><KeyRound className="h-4 w-4" /> Test drives</TabsTrigger>
           <TabsTrigger value="notifications" className="gap-1.5"><Bell className="h-4 w-4" /> Alerts</TabsTrigger>
@@ -383,6 +385,11 @@ export default function AccountView() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Rewards (loyalty points & referrals) */}
+        <TabsContent value="rewards" className="mt-4">
+          <FadeIn><RewardsPanel /></FadeIn>
         </TabsContent>
 
         {/* Vehicle protection */}

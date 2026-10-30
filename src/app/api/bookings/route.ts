@@ -169,6 +169,28 @@ export const PATCH = route(async (req: NextRequest) => {
         body: `${booking.org.name} marked your service as completed. How did it go? Leave a review.`,
         link: '/garages',
       })
+      // Loyalty: a completed service earns the customer +250 points. Guarded by
+      // a ledger check (userId + reason + refId) so re-completions/retries never
+      // double-award; points failure NEVER fails the booking transition.
+      try {
+        const alreadyAwarded = await db.loyaltyLedger.findFirst({
+          where: { userId: booking.request.customerId, reason: 'SERVICE_COMPLETED', refId: booking.id },
+        })
+        if (!alreadyAwarded) {
+          await db.loyaltyLedger.create({
+            data: {
+              userId: booking.request.customerId,
+              points: 250,
+              reason: 'SERVICE_COMPLETED',
+              refType: 'BOOKING',
+              refId: booking.id,
+              note: `Service completed — ${booking.org.name}`,
+            },
+          })
+        }
+      } catch (e) {
+        console.error('[bookings] loyalty award failed (ignored)', e)
+      }
       await recordAudit(user.id, user.name, 'BOOKING_COMPLETED', booking.id, { requestRef: booking.request.refCode, notes: Boolean(body.notes) })
       return ok({ booking: updated })
     }

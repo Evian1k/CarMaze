@@ -23,6 +23,9 @@ model User {
   phoneCode     String?
   roles         String   @default("CUSTOMER") // comma separated: CUSTOMER,SELLER,DEALER_OWNER,DEALER_STAFF,GARAGE_OWNER,GARAGE_STAFF,SUPPORT,REVIEWER,MODERATOR,FINANCE,ADMIN,FOUNDER
   status        String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  referralCode  String?  @unique // this user's own shareable referral code
+  referredById  String?  // user who referred them (attribution — set once at registration)
+  referredAt    DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -47,6 +50,7 @@ model User {
   custodies        VehicleCustody[] @relation("Custodies")
   testDrives       TestDrive[]      @relation("TestDrives")
   incidents        SecurityIncident[] @relation("Incidents")
+  loyaltyEntries   LoyaltyLedger[]
 }
 
 // ───────────────────── Unified messaging (customer ⇄ business) ─────────────────────
@@ -908,4 +912,73 @@ model ViewEvent {
   id        String   @id @default(cuid())
   key       String   @unique
   createdAt DateTime @default(now())
+}
+
+// ───────────────────────── CARMAZE Partner Network ─────────────────────────
+// Inspection, insurance, finance, towing, parts, transport partners.
+// Partners are only publicly listed after real verification (status APPROVED
+// + verified). Applications come from the public form; staff approve in the
+// Control Center. Suspended partners disappear from public listings.
+
+model Partner {
+  id           String   @id @default(cuid())
+  refCode      String   @unique
+  name         String
+  category     String   // INSPECTION | INSURANCE | FINANCE | TOWING | PARTS | TRANSPORT | OTHER
+  county       String
+  serviceAreas String?  // JSON string[] of counties/areas served
+  description  String?
+  logoUrl      String?
+  coverUrl     String?
+  phone        String?
+  email        String?
+  whatsapp     Boolean  @default(false)
+  website      String?
+  contactName  String?
+  status       String   @default("PENDING") // PENDING | APPROVED | SUSPENDED | REJECTED
+  verified     Boolean  @default(false)
+  rating       Float?   // computed from partner feedback; null = no ratings yet
+  referrals    Int      @default(0) // tracked referral requests sent via the platform
+  notes        String?  // internal staff notes — never exposed publicly
+  rejectionReason String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  requests PartnerRequest[]
+}
+
+// A customer request routed to a partner (referral tracking + audit trail).
+model PartnerRequest {
+  id        String   @id @default(cuid())
+  refCode   String   @unique
+  partnerId String
+  partner   Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  userId    String?
+  name      String
+  phone     String
+  email     String?
+  county    String
+  message   String
+  status    String   @default("NEW") // NEW | CONTACTED | CLOSED
+  createdAt DateTime @default(now())
+}
+
+// ───────────────────── CARMAZE Loyalty & Referrals ─────────────────────
+// Transparent points ledger. Points are earned through real, verifiable
+// activity (referrals that complete registration, eligible reviews,
+// completed garage services). Points are never purchasable.
+
+model LoyaltyLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  points    Int      // positive = earned, negative = redeemed
+  reason    String   // REFERRAL_SIGNUP | REVIEW_EARNED | SERVICE_COMPLETED | ADJUSTMENT
+  refType   String?  // e.g. USER, ORG_REVIEW, BOOKING
+  refId     String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([reason])
 }

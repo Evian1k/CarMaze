@@ -18,19 +18,23 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   AlertTriangle,
+  BadgeCheck,
   BellRing,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Handshake,
   Inbox,
   LifeBuoy,
   Megaphone,
   RefreshCw,
   Save,
   Search,
+  Send,
   ShieldAlert,
   Star,
+  Undo2,
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -71,7 +75,7 @@ const PIE_COLORS = ['#315E4B', '#D9B878', '#7FA08E', '#6E6E67', '#B0A284', '#5C8
 
 const TABS = [
   'overview', 'applications', 'listings', 'users', 'reports', 'billing',
-  'campaigns', 'support', 'notifications', 'settings', 'audit',
+  'campaigns', 'partners', 'support', 'notifications', 'settings', 'audit',
 ] as const
 type TabKey = (typeof TABS)[number]
 
@@ -83,6 +87,7 @@ const TAB_LABELS: Record<TabKey, string> = {
   reports: 'Reports',
   billing: 'Billing',
   campaigns: 'Campaigns',
+  partners: 'Partners',
   support: 'Support',
   notifications: 'Notifications',
   settings: 'Settings',
@@ -321,6 +326,46 @@ type OpsData = {
   health: { mpesa: boolean; email: boolean; sms: boolean }
 }
 
+type PartnerNote = { by: string; at: string; text: string }
+
+type PartnerRow = {
+  id: string
+  refCode: string
+  name: string
+  category: string
+  county: string
+  serviceAreas: string[] | string | null
+  description: string | null
+  logoUrl: string | null
+  coverUrl: string | null
+  phone: string | null
+  email: string | null
+  whatsapp: boolean
+  website: string | null
+  contactName: string | null
+  status: string
+  verified: boolean
+  rating: number | null
+  referrals: number
+  notes: string | null
+  notesList?: PartnerNote[]
+  rejectionReason: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+type PartnerCounts = { PENDING: number; APPROVED: number; SUSPENDED: number; REJECTED: number }
+
+type BroadcastRow = {
+  id: string
+  actorName: string | null
+  createdAt: string
+  title: string
+  audience: string
+  recipients: number | null
+  link: string | null
+}
+
 type SettingsData = { settings: { key: string; value: unknown; updatedAt: string }[]; allowedKeys: string[] }
 
 type AuditRow = {
@@ -422,8 +467,9 @@ export default function View() {
           {tab === 'reports' && <ReportsTab />}
           {tab === 'billing' && <BillingTab user={user} />}
           {tab === 'campaigns' && <CampaignsTab />}
+          {tab === 'partners' && <PartnersTab />}
           {tab === 'support' && <SupportTab />}
-          {tab === 'notifications' && <NotificationsTab />}
+          {tab === 'notifications' && <NotificationsTab user={user} />}
           {tab === 'settings' && <SettingsTab user={user} />}
           {tab === 'audit' && <AuditTab />}
         </div>
@@ -1622,6 +1668,385 @@ function ReportsTab() {
   )
 }
 
+// ───────────────────────────── Partners moderation ─────────────────────────────
+
+const PARTNER_STATUS_FILTERS = ['PENDING', 'APPROVED', 'SUSPENDED', 'REJECTED'] as const
+
+function PartnersTab() {
+  const [statusFilter, setStatusFilter] = useState<(typeof PARTNER_STATUS_FILTERS)[number]>('PENDING')
+  const [partners, setPartners] = useState<PartnerRow[] | null>(null)
+  const [counts, setCounts] = useState<PartnerCounts | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    apiGet<{ partners: PartnerRow[]; counts: PartnerCounts }>(buildQuery('/api/admin/partners', { status: statusFilter }))
+      .then((d) => {
+        if (alive) {
+          setPartners(d.partners)
+          setCounts(d.counts)
+        }
+      })
+      .catch((e: Error) => {
+        if (alive) setError(e.message)
+      })
+    return () => {
+      alive = false
+    }
+  }, [statusFilter, reload])
+
+  const selected = partners?.find((p) => p.id === selectedId) ?? null
+
+  return (
+    <div className="space-y-4">
+      <Alert>
+        <Handshake className="h-4 w-4" aria-hidden />
+        <AlertTitle>Partner network moderation</AlertTitle>
+        <AlertDescription>
+          Inspection, insurance, finance, towing, parts and transport partners. Only APPROVED partners appear in public listings — approval is earned through document review, never bought.
+        </AlertDescription>
+      </Alert>
+
+      {/* Status chips with live counts */}
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter partners by status">
+        {PARTNER_STATUS_FILTERS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setStatusFilter(s)}
+            aria-pressed={statusFilter === s}
+            className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              statusFilter === s ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+            }`}
+          >
+            {s.toLowerCase()} <span className="tabular-nums opacity-70">{counts ? counts[s] : '…'}</span>
+          </button>
+        ))}
+      </div>
+
+      {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
+      {!error && (!partners || !counts) && <LoadingCards n={3} />}
+      {partners && partners.length === 0 && (
+        <EmptyState message={`No ${statusFilter.toLowerCase()} partners right now. New applications from the public partner form appear here as PENDING.`} />
+      )}
+
+      {partners && partners.length > 0 && (
+        <div className="overflow-hidden rounded-xl border">
+          <div className="max-h-[60vh] overflow-y-auto">
+            <Table>
+              <TableHeader className="sticky top-0 bg-card">
+                <TableRow>
+                  <TableHead>Partner</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>County</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Referrals</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Detail</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {partners.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>
+                      <p className="flex items-center gap-1.5 font-medium">
+                        {p.name}
+                        {p.verified ? (
+                          <BadgeCheck className="h-4 w-4 shrink-0 text-[#c9a94e]" aria-label="Verified partner" />
+                        ) : null}
+                      </p>
+                      <p className="font-mono text-xs text-muted-foreground">{p.refCode}</p>
+                    </TableCell>
+                    <TableCell className="text-sm capitalize">{p.category.toLowerCase()}</TableCell>
+                    <TableCell className="text-sm">{p.county}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={p.status} />
+                      {p.rejectionReason && p.status === 'REJECTED' ? (
+                        <p className="mt-0.5 max-w-[200px] truncate text-[11px] text-red-600 dark:text-red-400" title={p.rejectionReason}>
+                          {p.rejectionReason}
+                        </p>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{p.referrals}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{dateLabel(p.createdAt)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="outline" onClick={() => setSelectedId(p.id)} aria-label={`Open partner ${p.name}`}>
+                        Review
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {selected && (
+        <PartnerDetail
+          partner={selected}
+          onClose={() => {
+            setSelectedId(null)
+            setReload((r) => r + 1)
+          }}
+          onMutated={() => setReload((r) => r + 1)}
+        />
+      )}
+    </div>
+  )
+}
+
+function PartnerDetail({ partner, onClose, onMutated }: { partner: PartnerRow; onClose: () => void; onMutated: () => void }) {
+  const [busy, setBusy] = useState(false)
+  // reject / suspend reason dialog
+  const [reasonAction, setReasonAction] = useState<'reject' | 'suspend' | null>(null)
+  const [reason, setReason] = useState('')
+  const [approveOpen, setApproveOpen] = useState(false)
+  const [reactivateOpen, setReactivateOpen] = useState(false)
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [noteText, setNoteText] = useState('')
+
+  function act(body: Record<string, unknown>, msg: string, closeAfter: boolean) {
+    setBusy(true)
+    apiSend(`/api/admin/partners/${partner.id}`, 'PATCH', body)
+      .then(() => {
+        toast.success(msg)
+        if (closeAfter) {
+          onClose()
+        } else {
+          onMutated()
+        }
+      })
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setBusy(false))
+  }
+
+  const serviceAreas: string[] = (() => {
+    const v = partner.serviceAreas
+    if (!v) return []
+    if (Array.isArray(v)) return v
+    try {
+      const parsed = JSON.parse(v) as string[]
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })()
+
+  // The API stores notes as a JSON string of entries ({by, at, text}) and may
+  // include them pre-parsed as notesList. Degrade to the raw string otherwise.
+  const noteEntries: PartnerNote[] = (() => {
+    if (Array.isArray(partner.notesList) && partner.notesList.length > 0) return partner.notesList
+    if (!partner.notes) return []
+    try {
+      const parsed = JSON.parse(partner.notes) as PartnerNote[]
+      return Array.isArray(parsed) ? parsed.filter((n) => n && typeof n.text === 'string') : []
+    } catch {
+      return [{ by: '', at: '', text: partner.notes }]
+    }
+  })()
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            {partner.name}
+            <StatusBadge status={partner.status} />
+            {partner.verified ? <StatusBadge status="APPROVED" label="verified" /> : null}
+          </DialogTitle>
+          <DialogDescription>
+            {partner.refCode} · {partner.category.toLowerCase()} partner · {partner.county}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 text-sm">
+          <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+            <Detail label="Contact person" value={partner.contactName ?? '—'} />
+            <Detail label="Phone" value={partner.phone ?? '—'} />
+            <Detail label="Email" value={partner.email ?? '—'} />
+            <Detail label="Website" value={partner.website ?? '—'} />
+            <Detail label="WhatsApp" value={partner.whatsapp ? 'Enabled' : 'Not enabled'} />
+            <Detail label="County" value={partner.county} />
+            <Detail label="Service areas" value={serviceAreas.length > 0 ? serviceAreas.join(', ') : '—'} />
+            <Detail label="Rating" value={partner.rating !== null ? `${partner.rating.toFixed(1)} / 5` : 'No ratings yet'} />
+            <Detail label="Referral requests" value={String(partner.referrals)} />
+            <Detail label="Created" value={`${dateLabel(partner.createdAt)} (${timeAgo(partner.createdAt)})`} />
+            <Detail label="Last updated" value={timeAgo(partner.updatedAt)} />
+          </div>
+
+          {partner.description ? (
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Public description</p>
+              <p className="whitespace-pre-wrap rounded-md bg-muted p-3">{partner.description}</p>
+            </div>
+          ) : null}
+
+          {partner.rejectionReason ? (
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rejection reason</p>
+              <p className="rounded-md bg-red-500/10 p-3 text-red-600 dark:text-red-400">{partner.rejectionReason}</p>
+            </div>
+          ) : null}
+
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Internal notes (never public)</p>
+            {noteEntries.length === 0 ? (
+              <p className="text-muted-foreground">No internal notes recorded yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {noteEntries.map((n, i) => (
+                  <li key={i} className="rounded-md bg-muted p-3">
+                    <p className="whitespace-pre-wrap">{n.text}</p>
+                    {n.by ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {n.by}
+                        {n.at ? ` · ${timeAgo(n.at)}` : ''}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-wrap gap-2">
+            {(partner.status === 'PENDING' || partner.status === 'REJECTED') && (
+              <Button size="sm" disabled={busy} onClick={() => setApproveOpen(true)}>
+                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Approve
+              </Button>
+            )}
+            {partner.status === 'PENDING' && (
+              <Button size="sm" variant="destructive" disabled={busy} onClick={() => { setReasonAction('reject'); setReason('') }}>
+                <XCircle className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Reject
+              </Button>
+            )}
+            {partner.status === 'APPROVED' && (
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => { setReasonAction('suspend'); setReason('') }}>
+                Suspend
+              </Button>
+            )}
+            {partner.status === 'SUSPENDED' && (
+              <Button size="sm" disabled={busy} onClick={() => setReactivateOpen(true)}>
+                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Reactivate
+              </Button>
+            )}
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => { setNoteOpen(true); setNoteText('') }}>
+              Add internal note
+            </Button>
+          </div>
+        </div>
+
+        {/* Reject / Suspend — shared reason dialog */}
+        <Dialog open={reasonAction !== null} onOpenChange={(open) => !open && setReasonAction(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{reasonAction === 'reject' ? `Reject ${partner.name}` : `Suspend ${partner.name}`}</DialogTitle>
+              <DialogDescription>
+                {reasonAction === 'reject'
+                  ? 'The partner will not be publicly listed. A reason is mandatory for the audit trail.'
+                  : 'The partner disappears from public listings immediately. A reason is mandatory for the audit trail.'}
+              </DialogDescription>
+            </DialogHeader>
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Business permit could not be verified with the county registry." rows={3} />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReasonAction(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={busy || reason.trim().length < 10}
+                onClick={() => {
+                  if (reasonAction === 'reject') act({ action: 'reject', reason: reason.trim() }, 'Partner rejected.', true)
+                  else act({ action: 'suspend', reason: reason.trim() }, 'Partner suspended — removed from public listings.', true)
+                  setReasonAction(null)
+                }}
+              >
+                Confirm {reasonAction === 'reject' ? 'rejection' : 'suspension'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Approve confirm */}
+        <AlertDialog open={approveOpen} onOpenChange={setApproveOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Approve {partner.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                The partner becomes eligible for the public partner directory and referral routing. Verify their documents are genuine first — approval is a trust decision and is audit-logged.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={busy}
+                onClick={() => {
+                  act({ action: 'approve' }, 'Partner approved.', true)
+                  setApproveOpen(false)
+                }}
+              >
+                Approve partner
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Reactivate confirm */}
+        <AlertDialog open={reactivateOpen} onOpenChange={setReactivateOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reactivate {partner.name}?</AlertDialogTitle>
+              <AlertDialogDescription>The partner returns to APPROVED and is publicly listed again. This decision is audit-logged.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={busy}
+                onClick={() => {
+                  act({ action: 'reactivate' }, 'Partner reactivated.', true)
+                  setReactivateOpen(false)
+                }}
+              >
+                Reactivate
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Internal note */}
+        <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add internal note</DialogTitle>
+              <DialogDescription>Notes are visible to CARMAZE staff only — never shown publicly or to the partner.</DialogDescription>
+            </DialogHeader>
+            <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="e.g. Called the business line — permit verification in progress." rows={3} />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNoteOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={busy || noteText.trim().length < 2}
+                onClick={() => {
+                  act({ action: 'note', text: noteText.trim() }, 'Internal note added.', false)
+                  setNoteOpen(false)
+                }}
+              >
+                Save note
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ───────────────────────────── Billing ─────────────────────────────
 
 const INVOICE_TYPE_LABELS: Record<string, string> = { SUBSCRIPTION: 'Subscription', CAMPAIGN: 'Campaign', LEAD_FEE: 'Lead fee' }
@@ -1634,6 +2059,8 @@ function BillingTab({ user }: { user: CurrentUser }) {
   const [reload, setReload] = useState(0)
   const [markTarget, setMarkTarget] = useState<InvoiceRow | null>(null)
   const [note, setNote] = useState('')
+  const [refundTarget, setRefundTarget] = useState<InvoiceRow | null>(null)
+  const [refundReason, setRefundReason] = useState('')
   const [busy, setBusy] = useState(false)
   const canFinance = hasAnyRole(user, 'FINANCE', 'ADMIN', 'FOUNDER')
 
@@ -1670,6 +2097,26 @@ function BillingTab({ user }: { user: CurrentUser }) {
       .then((d) => {
         toast.success(`Invoice ${d.invoice.refCode} marked paid.`)
         toast.warning(d.warning)
+        setReload((r) => r + 1)
+      })
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setBusy(false))
+  }
+
+  function refund() {
+    if (!refundTarget) return
+    setBusy(true)
+    apiSend<{ invoice: InvoiceRow; subscriptionCancelled: boolean; campaignsEnded: number }>(
+      `/api/billing/invoices/${refundTarget.id}/refund`,
+      'POST',
+      { reason: refundReason.trim() }
+    )
+      .then((d) => {
+        toast.success(
+          `Invoice ${d.invoice.refCode} recorded as refunded.${d.subscriptionCancelled ? ' Subscription cancelled immediately.' : ''}${
+            d.campaignsEnded > 0 ? ` ${d.campaignsEnded} active campaign(s) ended.` : ''
+          }`
+        )
         setReload((r) => r + 1)
       })
       .catch((e: Error) => toast.error(e.message))
@@ -1758,6 +2205,11 @@ function BillingTab({ user }: { user: CurrentUser }) {
                             Mark paid
                           </Button>
                         ) : null}
+                        {inv.status === 'PAID' ? (
+                          <Button size="sm" variant="outline" disabled={busy} onClick={() => { setRefundTarget(inv); setRefundReason('') }}>
+                            <Undo2 className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Record refund
+                          </Button>
+                        ) : null}
                       </TableCell>
                     )}
                   </TableRow>
@@ -1768,7 +2220,7 @@ function BillingTab({ user }: { user: CurrentUser }) {
         </div>
       )}
 
-      {!canFinance && <p className="text-xs text-muted-foreground">Marking invoices paid requires FINANCE, ADMIN or FOUNDER role.</p>}
+      {!canFinance && <p className="text-xs text-muted-foreground">Marking invoices paid or recording refunds requires FINANCE, ADMIN or FOUNDER role.</p>}
 
       {/* Mark paid confirm */}
       <Dialog open={markTarget !== null} onOpenChange={(open) => !open && setMarkTarget(null)}>
@@ -1790,6 +2242,56 @@ function BillingTab({ user }: { user: CurrentUser }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Refund confirm — mandatory written reason, honest consequences */}
+      <AlertDialog open={refundTarget !== null} onOpenChange={(open) => !open && setRefundTarget(null)}>
+        <AlertDialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Record refund for {refundTarget?.refCode}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  The invoice becomes REFUNDED — refunded money is not counted as revenue. The payment date is kept as history, and the written reason below is stored in the audit trail with your name. The organisation owner is notified.
+                </p>
+                {refundTarget?.type === 'SUBSCRIPTION' ? (
+                  <p className="rounded-md bg-[#d9b878]/15 px-3 py-2 text-[#8a6d1f] dark:text-[#d9b878]">
+                    Consequence: the organisation&apos;s ACTIVE subscription is CANCELLED immediately — the money is returned, so the paid entitlement ends now.
+                  </p>
+                ) : null}
+                {refundTarget?.type === 'CAMPAIGN' ? (
+                  <p className="rounded-md bg-[#d9b878]/15 px-3 py-2 text-[#8a6d1f] dark:text-[#d9b878]">
+                    Consequence: any ACTIVE campaign linked to this invoice is ENDED immediately (money returned, promotion stops).
+                  </p>
+                ) : null}
+                {refundTarget?.type === 'LEAD_FEE' ? (
+                  <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground">
+                    This invoice has no recurring entitlement — only the invoice status changes.
+                  </p>
+                ) : null}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            value={refundReason}
+            onChange={(e) => setRefundReason(e.target.value)}
+            placeholder="Reason for the refund (required, at least 10 characters) — e.g. Duplicate payment received for the same subscription period."
+            rows={3}
+            aria-label="Refund reason"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy || refundReason.trim().length < 10}
+              onClick={() => {
+                refund()
+                setRefundTarget(null)
+              }}
+            >
+              Record refund
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -2091,10 +2593,20 @@ function SupportTab() {
 
 // ───────────────────────────── Notifications (ops) ─────────────────────────────
 
-function NotificationsTab() {
+function NotificationsTab({ user }: { user: CurrentUser }) {
   const [data, setData] = useState<OpsData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
+  // Broadcast composer state (ADMIN/FOUNDER only — server enforces the same rule)
+  const canBroadcast = hasAnyRole(user, 'ADMIN', 'FOUNDER')
+  const [broadcasts, setBroadcasts] = useState<BroadcastRow[] | null>(null)
+  const [composerOpen, setComposerOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [audience, setAudience] = useState('CUSTOMERS')
+  const [bTitle, setBTitle] = useState('')
+  const [bBody, setBBody] = useState('')
+  const [bLink, setBLink] = useState('')
+  const [sending, setSending] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -2105,10 +2617,38 @@ function NotificationsTab() {
       .catch((e: Error) => {
         if (alive) setError(e.message)
       })
+    apiGet<{ broadcasts: BroadcastRow[] }>('/api/admin/broadcast')
+      .then((d) => {
+        if (alive) setBroadcasts(d.broadcasts)
+      })
+      .catch(() => {
+        if (alive) setBroadcasts([])
+      })
     return () => {
       alive = false
     }
   }, [reload])
+
+  function sendBroadcast() {
+    setSending(true)
+    apiSend<{ recipients: number; warning?: string }>('/api/admin/broadcast', 'POST', {
+      title: bTitle.trim(),
+      body: bBody.trim(),
+      audience,
+      link: bLink.trim() || undefined,
+    })
+      .then((d) => {
+        toast.success(`Broadcast delivered in-app to ${d.recipients} user(s).`)
+        if (d.warning) toast.warning(d.warning)
+        setComposerOpen(false)
+        setBTitle('')
+        setBBody('')
+        setBLink('')
+        setReload((r) => r + 1)
+      })
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setSending(false))
+  }
 
   if (error) return <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />
   if (!data) return <LoadingCards n={4} />
@@ -2123,6 +2663,46 @@ function NotificationsTab() {
           success. Configure SMTP_URL / SMS_API_KEY to activate them — in-app notifications always work.
         </AlertDescription>
       </Alert>
+
+      {/* ── Broadcast composer + history ── */}
+      <Card className="p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">Broadcasts</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Platform-wide announcements. Delivery is honest: in-app is real; EMAIL/SMS rows record the actual provider state.
+            </p>
+          </div>
+          {canBroadcast ? (
+            <Button size="sm" onClick={() => setComposerOpen(true)}>
+              <Send className="mr-1.5 h-3.5 w-3.5" aria-hidden /> New broadcast
+            </Button>
+          ) : (
+            <Badge variant="outline" className="border-border bg-muted text-muted-foreground">admin only</Badge>
+          )}
+        </div>
+        <Separator className="my-3" />
+        {broadcasts && broadcasts.length === 0 ? (
+          <EmptyState message="No broadcasts have been sent yet. Admins can compose one with “New broadcast” — every send is audit-logged with the exact recipient count." />
+        ) : broadcasts && broadcasts.length > 0 ? (
+          <ul className="max-h-64 divide-y overflow-y-auto">
+            {broadcasts.map((b) => (
+              <li key={b.id} className="flex items-start justify-between gap-3 py-2 text-sm">
+                <div>
+                  <p className="font-medium">{b.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {b.audience.toLowerCase()} · {b.recipients !== null ? `${b.recipients} recipient(s)` : 'recipient count unavailable'} · by {b.actorName ?? 'system'}
+                    {b.link ? ` · links to ${b.link}` : ''}
+                  </p>
+                </div>
+                <span className="whitespace-nowrap text-xs text-muted-foreground">{timeAgo(b.createdAt)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Loading />
+        )}
+      </Card>
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="M-Pesa" value={data.health.mpesa ? 'Configured' : 'Not configured'} tone={data.health.mpesa ? 'green' : 'gold'} />
@@ -2191,6 +2771,96 @@ function NotificationsTab() {
           </div>
         )}
       </Card>
+
+      {/* ── Broadcast composer ── */}
+      <Dialog open={composerOpen} onOpenChange={setComposerOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Compose broadcast</DialogTitle>
+            <DialogDescription>
+              Sends an in-app notification to the selected audience. Rate limit: 4 broadcasts per hour. Every send is audit-logged with your name and the exact recipient count.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Audience</Label>
+              <Select value={audience} onValueChange={setAudience}>
+                <SelectTrigger aria-label="Broadcast audience">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Everyone (active users, cap 1,000)</SelectItem>
+                  <SelectItem value="CUSTOMERS">Customers only</SelectItem>
+                  <SelectItem value="DEALERS">Dealers (owners &amp; staff)</SelectItem>
+                  <SelectItem value="GARAGES">Garages (owners &amp; staff)</SelectItem>
+                  <SelectItem value="STAFF">CARMAZE staff</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="broadcast-title">Title</Label>
+              <Input id="broadcast-title" value={bTitle} onChange={(e) => setBTitle(e.target.value)} placeholder="e.g. Scheduled maintenance this Sunday" maxLength={120} />
+            </div>
+            <div>
+              <Label htmlFor="broadcast-body">Message</Label>
+              <Textarea id="broadcast-body" value={bBody} onChange={(e) => setBBody(e.target.value)} placeholder="What should every recipient know? (10–1000 characters)" rows={4} maxLength={1000} />
+              <p className="mt-1 text-right text-xs text-muted-foreground">{bBody.trim().length}/1000</p>
+            </div>
+            <div>
+              <Label htmlFor="broadcast-link">Link (optional)</Label>
+              <Input id="broadcast-link" value={bLink} onChange={(e) => setBLink(e.target.value)} placeholder="/cars — in-app hash route the notification opens" maxLength={200} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setComposerOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={sending || bTitle.trim().length < 4 || bBody.trim().length < 10} onClick={() => setConfirmOpen(true)}>
+              Review &amp; send
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Broadcast confirmation — shows the recipient estimate before sending */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent className="sm:max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send “{bTitle.trim()}”?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  {audience === 'ALL' &&
+                    'This goes to every ACTIVE user on the platform, capped at 1,000 recipients.'}
+                  {audience === 'CUSTOMERS' &&
+                    'This goes to active users with the CUSTOMER role and no business or staff roles.'}
+                  {audience === 'DEALERS' &&
+                    'This goes to active users with DEALER_OWNER or DEALER_STAFF roles.'}
+                  {audience === 'GARAGES' &&
+                    'This goes to active users with GARAGE_OWNER or GARAGE_STAFF roles.'}
+                  {audience === 'STAFF' &&
+                    'This goes to active staff accounts (support, reviewers, moderators, finance, admin, founder).'}
+                </p>
+                <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground">
+                  In-app delivery is real. EMAIL/SMS rows will honestly record the provider state — with no provider configured they are stored as FAILED, never as sent.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Back to editing</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={sending}
+              onClick={() => {
+                sendBroadcast()
+                setConfirmOpen(false)
+              }}
+            >
+              Send broadcast
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

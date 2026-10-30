@@ -50,6 +50,17 @@ export const GET = route(async (_req: NextRequest) => {
     photos: v.photos,
   })
 
+  // Real promotion metrics: every homepage render that shows the featured
+  // strip records one impression for each ACTIVE campaign on those vehicles
+  // (single updateMany, only counted rows in the actual response).
+  const featuredIds = featuredRows.map((v) => v.id)
+  if (featuredIds.length > 0) {
+    await db.campaign.updateMany({
+      where: { vehicleId: { in: featuredIds }, status: 'ACTIVE' },
+      data: { impressions: { increment: 1 } },
+    })
+  }
+
   return ok(
     {
       recent: recentRows.map(toCard),

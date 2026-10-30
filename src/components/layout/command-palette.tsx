@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react'
 import {
   Car, Wrench, LifeBuoy, Users, Sparkles, Store, LayoutDashboard, User,
-  Search, LogIn, LogOut, KeyRound, Settings, FolderKanban, Home, CircleHelp,
+  Search, LogIn, LogOut, KeyRound, Settings, FolderKanban, Home, CircleHelp, Handshake,
 } from 'lucide-react'
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty,
@@ -54,6 +54,7 @@ export function CommandPalette() {
     { icon: Sparkles, label: '3D customizer', href: '/customizer' },
     { icon: Wrench, label: 'Find a garage', href: '/garages' },
     { icon: LifeBuoy, label: 'Roadside help', href: '/roadside' },
+    { icon: Handshake, label: 'Partner network', href: '/partners' },
     { icon: Users, label: 'Community', href: '/community' },
     { icon: FolderKanban, label: 'My Garage', href: '/my-garage' },
     { icon: LayoutDashboard, label: 'My Listings', href: '/my-listings' },

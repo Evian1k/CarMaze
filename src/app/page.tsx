@@ -46,6 +46,7 @@ const VIEWS: Record<string, React.ComponentType> = {
   garages: dynamic(() => import('@/views/garages'), { ssr, loading }),
   'garage-dashboard': dynamic(() => import('@/views/garage-dashboard'), { ssr, loading }),
   roadside: dynamic(() => import('@/views/roadside'), { ssr, loading }),
+  partners: dynamic(() => import('@/views/partners'), { ssr, loading }),
   'my-garage': dynamic(() => import('@/views/my-garage'), { ssr, loading }),
   community: dynamic(() => import('@/views/community'), { ssr, loading }),
   account: dynamic(() => import('@/views/account'), { ssr, loading }),

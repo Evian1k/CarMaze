@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CountUp, Stagger, StaggerItem } from '@/components/motion/reveal'
 import { MessagesTab, useUnreadConversations } from '@/components/messaging/conversation-panel'
+import { PromotionsSection } from '@/components/billing/promotions-section'
 import { useAuth } from '@/stores/auth'
 import { navigate, apiGet, apiSend, apiUpload, buildQuery } from '@/lib/client'
 import { useHashRoute } from '@/hooks/use-hash-route'
@@ -228,7 +229,13 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
         <TabsContent value="custody" className="mt-4"><FadeIn><CustodyTab /></FadeIn></TabsContent>
         <TabsContent value="inbox" className="mt-4"><FadeIn><MessagesTab scope="org" /></FadeIn></TabsContent>
         <TabsContent value="reviews" className="mt-4"><ReviewsTab orgId={activeOrgId} rating={activeGarage.rating} /></TabsContent>
-        <TabsContent value="profile" className="mt-4"><ProfileTab garage={activeGarage} onSaved={onRefresh} /></TabsContent>
+        <TabsContent value="profile" className="mt-4">
+          <div className="space-y-6">
+            <ProfileTab garage={activeGarage} onSaved={onRefresh} />
+            {/* Billing — promotions (garage packages apply to the org, same M-Pesa flow) */}
+            <PromotionsSection />
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   )

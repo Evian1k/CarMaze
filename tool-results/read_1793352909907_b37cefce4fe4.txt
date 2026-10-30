@@ -1,0 +1,627 @@
+     1→'use client'
+     2→
+     3→/* CARMAZE — Sell (#/sell)
+     4→ * Three-step listing form: vehicle basics → pricing & details → reach.
+     5→ * Supports edit mode via ?id=<vehicleId> (own, editable listings only).
+     6→ */
+     7→
+     8→import { useEffect, useMemo, useState } from 'react'
+     9→import {
+    10→  Car, Tag, Megaphone, Check, Loader2, ImagePlus, X, LockKeyhole,
+    11→  ChevronLeft, ChevronRight, PartyPopper,
+    12→} from 'lucide-react'
+    13→import { Button } from '@/components/ui/button'
+    14→import { Card, CardContent } from '@/components/ui/card'
+    15→import { Input } from '@/components/ui/input'
+    16→import { Label } from '@/components/ui/label'
+    17→import { Textarea } from '@/components/ui/textarea'
+    18→import { Checkbox } from '@/components/ui/checkbox'
+    19→import { Reveal } from '@/components/motion/reveal'
+    20→import { Badge } from '@/components/ui/badge'
+    21→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    22→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    23→import { ListingAssistant } from '@/components/ai/listing-assistant'
+    24→import { useHashRoute } from '@/hooks/use-hash-route'
+    25→import { useAuth } from '@/stores/auth'
+    26→import { apiGet, apiSend, apiUpload, navigate } from '@/lib/client'
+    27→import { KENYA_COUNTIES, VEHICLE_MAKES, BODY_TYPES, FUEL_TYPES, TRANSMISSIONS, CONDITIONS, CONDITION_LABELS, money } from '@/lib/format'
+    28→import { toast } from 'sonner'
+    29→
+    30→const FEATURES = [
+    31→  'Sunroof', 'Leather seats', 'Reverse camera', 'Apple CarPlay', 'Android Auto',
+    32→  'AWD', 'Tow bar', 'Alloy wheels', 'Navigation', 'Cruise control', 'Roof rails', 'New tyres',
+    33→]
+    34→
+    35→const STEPS = [
+    36→  { n: 1, label: 'Vehicle basics', icon: Car },
+    37→  { n: 2, label: 'Pricing & details', icon: Tag },
+    38→  { n: 3, label: 'Reach & publish', icon: Megaphone },
+    39→]
+    40→
+    41→const EDITABLE_STATUSES = ['DRAFT', 'PENDING_REVIEW', 'REJECTED']
+    42→
+    43→type FormState = {
+    44→  make: string
+    45→  model: string
+    46→  year: string
+    47→  bodyType: string
+    48→  condition: string
+    49→  fuel: string
+    50→  transmission: string
+    51→  engineCc: string
+    52→  color: string
+    53→  county: string
+    54→  town: string
+    55→  price: string // major KES in the input
+    56→  mileage: string
+    57→  description: string
+    58→  matchWithDealers: boolean
+    59→}
+    60→
+    61→const EMPTY_FORM: FormState = {
+    62→  make: '', model: '', year: '', bodyType: '', condition: 'FOREIGN_USED', fuel: 'PETROL',
+    63→  transmission: 'AUTOMATIC', engineCc: '', color: '', county: '', town: '',
+    64→  price: '', mileage: '', description: '', matchWithDealers: false,
+    65→}
+    66→
+    67→export default function View() {
+    68→  const route = useHashRoute()
+    69→  const { user, loading: authLoading } = useAuth()
+    70→
+    71→  const [step, setStep] = useState(1)
+    72→  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+    73→  const [features, setFeatures] = useState<string[]>([])
+    74→  const [photos, setPhotos] = useState<{ url: string }[]>([])
+    75→  const [uploading, setUploading] = useState(false)
+    76→  const [submitting, setSubmitting] = useState<null | 'DRAFT' | 'PENDING_REVIEW'>(null)
+    77→  const [success, setSuccess] = useState<{ refCode: string; status: string } | null>(null)
+    78→  const [editId, setEditId] = useState<string | null>(null)
+    79→  const [editStatus, setEditStatus] = useState<string | null>(null)
+    80→  const [editNote, setEditNote] = useState<string | null>(null)
+    81→  const [editError, setEditError] = useState<string | null>(null)
+    82→
+    83→  const editQueryId = route.query.get('id')
+    84→
+    85→  // ── Edit mode: load own editable vehicle and prefill ──
+    86→  useEffect(() => {
+    87→    if (!user || !editQueryId) return
+    88→    let active = true
+    89→    apiGet<{ vehicle: {
+    90→      id: string; status: string; reviewNote: string | null; make: string; model: string; year: number;
+    91→      priceMinor: number; mileageKm: number; fuel: string; transmission: string; bodyType: string;
+    92→      engineCc: number | null; condition: string; county: string; town: string | null; color: string;
+    93→      description: string; matchWithDealers: boolean; photos: { url: string; order: number }[];
+    94→    } }>(`/api/vehicles/${editQueryId}`)
+    95→      .then((d) => {
+    96→        if (!active) return
+    97→        const v = d.vehicle
+    98→        if (!EDITABLE_STATUSES.includes(v.status)) {
+    99→          setEditError(`This listing is ${v.status.toLowerCase().replace('_', ' ')} and can no longer be edited.`)
+   100→          return
+   101→        }
+   102→        setEditId(v.id)
+   103→        setEditStatus(v.status)
+   104→        setEditNote(v.reviewNote)
+   105→        setForm({
+   106→          make: v.make,
+   107→          model: v.model,
+   108→          year: String(v.year),
+   109→          bodyType: v.bodyType,
+   110→          condition: v.condition,
+   111→          fuel: v.fuel,
+   112→          transmission: v.transmission,
+   113→          engineCc: v.engineCc ? String(v.engineCc) : '',
+   114→          color: v.color,
+   115→          county: v.county,
+   116→          town: v.town ?? '',
+   117→          price: String(Math.round(v.priceMinor / 100)),
+   118→          mileage: String(v.mileageKm),
+   119→          description: v.description,
+   120→          matchWithDealers: v.matchWithDealers,
+   121→        })
+   122→        setPhotos(v.photos.map((p) => ({ url: p.url })))
+   123→      })
+   124→      .catch((e: Error) => { if (active) setEditError(e.message) })
+   125→    return () => { active = false }
+   126→  }, [user, editQueryId])
+   127→
+   128→  const priceMinor = useMemo(() => {
+   129→    const n = Number(form.price)
+   130→    return form.price !== '' && Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null
+   131→  }, [form.price])
+   132→
+   133→  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
+   134→    setForm((f) => ({ ...f, [key]: value }))
+   135→  }
+   136→  const setDescription = (d: string) => set('description', d)
+   137→
+   138→  function toggleFeature(f: string) {
+   139→    setFeatures((fs) => (fs.includes(f) ? fs.filter((x) => x !== f) : [...fs, f]))
+   140→  }
+   141→
+   142→  async function handleFiles(fileList: FileList) {
+   143→    const slots = 8 - photos.length
+   144→    if (slots <= 0) { toast.warning('Maximum of 8 photos'); return }
+   145→    const files = Array.from(fileList).slice(0, slots)
+   146→    const invalid = files.find((f) => !['image/jpeg', 'image/png', 'image/webp'].includes(f.type))
+   147→    if (invalid) { toast.error('Photos must be JPG, PNG or WEBP'); return }
+   148→    setUploading(true)
+   149→    for (const file of files) {
+   150→      try {
+   151→        const fd = new FormData()
+   152→        fd.set('file', file)
+   153→        fd.set('kind', 'image')
+   154→        const res = await apiUpload<{ url: string }>('/api/upload', fd)
+   155→        setPhotos((p) => (p.length < 8 ? [...p, { url: res.url }] : p))
+   156→      } catch (e) {
+   157→        toast.error(e instanceof Error ? e.message : 'Upload failed')
+   158→      }
+   159→    }
+   160→    setUploading(false)
+   161→  }
+   162→
+   163→  function removePhoto(url: string) {
+   164→    setPhotos((p) => p.filter((x) => x.url !== url))
+   165→  }
+   166→
+   167→  function validateStep(current: number): string | null {
+   168→    if (current === 1) {
+   169→      if (!form.make) return 'Select the make'
+   170→      if (form.model.trim().length < 1) return 'Enter the model'
+   171→      const y = Number(form.year)
+   172→      const maxYear = new Date().getFullYear() + 1
+   173→      if (!form.year || !Number.isInteger(y) || y < 1980 || y > maxYear) return `Year must be between 1980 and ${maxYear}`
+   174→      if (!form.bodyType) return 'Select the body type'
+   175→      if (!form.condition) return 'Select the condition'
+   176→      if (!form.fuel) return 'Select the fuel type'
+   177→      if (!form.transmission) return 'Select the transmission'
+   178→      if (!form.color.trim()) return 'Enter the colour'
+   179→      if (!form.county) return 'Select the county'
+   180→      return null
+   181→    }
+   182→    if (current === 2) {
+   183→      if (!priceMinor) return 'Enter a valid price in KES'
+   184→      const m = Number(form.mileage)
+   185→      if (form.mileage === '' || !Number.isInteger(m) || m < 0) return 'Enter valid mileage in km'
+   186→      if (form.description.trim().length < 30) return 'Description must be at least 30 characters'
+   187→      return null
+   188→    }
+   189→    return null
+   190→  }
+   191→
+   192→  function next() {
+   193→    const err = validateStep(step)
+   194→    if (err) { toast.error(err); return }
+   195→    setStep((s) => Math.min(3, s + 1))
+   196→  }
+   197→
+   198→  function submit(status: 'DRAFT' | 'PENDING_REVIEW') {
+   199→    for (let s = 1; s <= 2; s++) {
+   200→      const err = validateStep(s)
+   201→      if (err) { toast.error(err); setStep(s); return }
+   202→    }
+   203→    if (!user) { navigate('signin'); return }
+   204→    setSubmitting(status)
+   205→    const fields = {
+   206→      make: form.make,
+   207→      model: form.model.trim(),
+   208→      year: Number(form.year),
+   209→      priceMinor: priceMinor ?? 0,
+   210→      mileageKm: Number(form.mileage),
+   211→      fuel: form.fuel,
+   212→      transmission: form.transmission,
+   213→      bodyType: form.bodyType,
+   214→      condition: form.condition,
+   215→      county: form.county,
+   216→      town: form.town.trim() || undefined,
+   217→      color: form.color.trim(),
+   218→      engineCc: form.engineCc ? Number(form.engineCc) : undefined,
+   219→      description: form.description.trim(),
+   220→      matchWithDealers: form.matchWithDealers,
+   221→      photos: photos.map((p) => p.url),
+   222→    }
+   223→    let done: Promise<{ vehicle: { refCode: string; status: string } }>
+   224→    if (editId) {
+   225→      // Edit mode: PATCH applies fields; submitting additionally moves DRAFT/REJECTED → PENDING_REVIEW.
+   226→      const payload: Record<string, unknown> = { ...fields }
+   227→      if (status === 'PENDING_REVIEW') payload.action = 'submit'
+   228→      done = apiSend<{ vehicle: { refCode: string; status: string } }>(`/api/vehicles/${editId}`, 'PATCH', payload)
+   229→    } else {
+   230→      done = apiSend<{ vehicle: { refCode: string; status: string } }>('/api/vehicles', 'POST', { ...fields, status })
+   231→    }
+   232→    done
+   233→      .then((res) => {
+   234→        setSuccess({ refCode: res.vehicle.refCode, status: res.vehicle.status })
+   235→        window.scrollTo({ top: 0 })
+   236→      })
+   237→      .catch((e: Error) => toast.error(e.message))
+   238→      .finally(() => setSubmitting(null))
+   239→  }
+   240→
+   241→  // ── Auth gate ──
+   242→  if (!authLoading && !user) {
+   243→    return (
+   244→      <div className="mx-auto w-full max-w-lg px-4 py-16 sm:py-24">
+   245→        <Card>
+   246→          <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+   247→            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+   248→              <LockKeyhole className="h-7 w-7 text-primary" />
+   249→            </div>
+   250→            <h1 className="text-xl font-bold">Sign in to start selling</h1>
+   251→            <p className="text-sm text-muted-foreground">
+   252→              Browsing CARMAZE is free and needs no account. To list a vehicle you&apos;ll need to sign in so
+   253→              buyers can reach you securely — your contact details stay private until you choose to share them.
+   254→            </p>
+   255→            <div className="flex flex-col gap-2 sm:flex-row">
+   256→              <Button className="h-11 px-6" onClick={() => navigate('signin')}>Sign in</Button>
+   257→              <Button variant="outline" className="h-11 px-6" onClick={() => navigate('cars')}>Keep browsing</Button>
+   258→            </div>
+   259→          </CardContent>
+   260→        </Card>
+   261→      </div>
+   262→    )
+   263→  }
+   264→
+   265→  // ── Success screen ──
+   266→  if (success) {
+   267→    return (
+   268→      <div className="mx-auto w-full max-w-lg px-4 py-16 sm:py-24">
+   269→        <Card>
+   270→          <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+   271→            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/25">
+   272→              <PartyPopper className="h-7 w-7 text-accent-foreground" />
+   273→            </div>
+   274→            <h1 className="text-xl font-bold">
+   275→              {success.status === 'PENDING_REVIEW' ? 'Listing submitted for review' : 'Draft saved'}
+   276→            </h1>
+   277→            <p className="rounded-lg bg-muted px-3 py-1.5 font-mono text-sm font-semibold tracking-wide">
+   278→              {success.refCode}
+   279→            </p>
+   280→            <p className="text-sm text-muted-foreground">
+   281→              {success.status === 'PENDING_REVIEW'
+   282→                ? 'Our review team checks every listing to keep the marketplace scam-free. The initial review target is 24 business hours — you\'ll get a notification the moment your car goes live.'
+   283→                : 'Your listing is saved as a draft. Submit it for review whenever you\'re ready — nothing is public until it\'s approved.'}
+   284→            </p>
+   285→            <div className="flex flex-col gap-2 sm:flex-row">
+   286→              <Button className="h-11 px-6" onClick={() => navigate('my-listings')}>Go to my listings</Button>
+   287→              <Button variant="outline" className="h-11 px-6" onClick={() => navigate('cars')}>Browse marketplace</Button>
+   288→            </div>
+   289→          </CardContent>
+   290→        </Card>
+   291→      </div>
+   292→    )
+   293→  }
+   294→
+   295→  const canContinue = true
+   296→
+   297→  return (
+   298→    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
+   299→      <Reveal>
+   300→        <header className="mb-6">
+   301→          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+   302→            {editId ? 'Edit your listing' : 'Sell your car'}
+   303→          </h1>
+   304→          <p className="mt-1 text-sm text-muted-foreground">
+   305→            {editId
+   306→              ? `Editing ${editStatus === 'REJECTED' ? 'a rejected listing' : 'your listing'} — changes go live after re-review.`
+   307→              : 'Free to list. Reviewed within 24 business hours. Your phone stays private until you accept an enquiry.'}
+   308→          </p>
+   309→        </header>
+   310→      </Reveal>
+   311→
+   312→      {editError && (
+   313→        <Alert className="mb-6">
+   314→          <AlertTitle>Can&apos;t edit this listing</AlertTitle>
+   315→          <AlertDescription>{editError}</AlertDescription>
+   316→        </Alert>
+   317→      )}
+   318→
+   319→      {editStatus === 'REJECTED' && editNote && (
+   320→        <Alert className="mb-6 border-destructive/40 bg-destructive/5 text-destructive [&>svg]:text-destructive">
+   321→          <AlertTitle>Rejected by review — fix and resubmit</AlertTitle>
+   322→          <AlertDescription>{editNote}</AlertDescription>
+   323→        </Alert>
+   324→      )}
+   325→
+   326→      {/* Progress */}
+   327→      <ol className="mb-8 flex items-center gap-2" aria-label="Form progress">
+   328→        {STEPS.map((s, i) => (
+   329→          <li key={s.n} className="flex flex-1 items-center gap-2">
+   330→            <span
+   331→              aria-current={step === s.n ? 'step' : undefined}
+   332→              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+   333→                step > s.n ? 'bg-primary text-primary-foreground' : step === s.n ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'
+   334→              }`}
+   335→            >
+   336→              {step > s.n ? <Check className="h-4 w-4" /> : s.n}
+   337→            </span>
+   338→            <span className={`hidden text-sm font-medium sm:block ${step === s.n ? 'text-foreground' : 'text-muted-foreground'}`}>
+   339→              {s.label}
+   340→            </span>
+   341→            {i < STEPS.length - 1 && <span className={`h-px flex-1 ${step > s.n ? 'bg-primary' : 'bg-border'}`} />}
+   342→          </li>
+   343→        ))}
+   344→      </ol>
+   345→
+   346→      <Card>
+   347→        <CardContent className="p-6">
+   348→          {step === 1 && (
+   349→            <div className="space-y-4">
+   350→              <div className="grid gap-4 sm:grid-cols-2">
+   351→                <div className="space-y-1.5">
+   352→                  <Label>Make *</Label>
+   353→                  <Select value={form.make || undefined} onValueChange={(v) => set('make', v)}>
+   354→                    <SelectTrigger className="w-full"><SelectValue placeholder="Select make" /></SelectTrigger>
+   355→                    <SelectContent>
+   356→                      {VEHICLE_MAKES.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+   357→                    </SelectContent>
+   358→                  </Select>
+   359→                </div>
+   360→                <div className="space-y-1.5">
+   361→                  <Label htmlFor="s-model">Model *</Label>
+   362→                  <Input id="s-model" placeholder="e.g. Harrier Premium" value={form.model} onChange={(e) => set('model', e.target.value)} />
+   363→                </div>
+   364→                <div className="space-y-1.5">
+   365→                  <Label htmlFor="s-year">Year of manufacture *</Label>
+   366→                  <Input id="s-year" inputMode="numeric" placeholder="2018" value={form.year} onChange={(e) => set('year', e.target.value.replace(/[^\d]/g, ''))} />
+   367→                </div>
+   368→                <div className="space-y-1.5">
+   369→                  <Label>Body type *</Label>
+   370→                  <Select value={form.bodyType || undefined} onValueChange={(v) => set('bodyType', v)}>
+   371→                    <SelectTrigger className="w-full"><SelectValue placeholder="Select body" /></SelectTrigger>
+   372→                    <SelectContent>
+   373→                      {BODY_TYPES.map((b) => <SelectItem key={b} value={b}>{b.charAt(0) + b.slice(1).toLowerCase()}</SelectItem>)}
+   374→                    </SelectContent>
+   375→                  </Select>
+   376→                </div>
+   377→                <div className="space-y-1.5">
+   378→                  <Label>Condition *</Label>
+   379→                  <Select value={form.condition || undefined} onValueChange={(v) => set('condition', v)}>
+   380→                    <SelectTrigger className="w-full"><SelectValue placeholder="Select condition" /></SelectTrigger>
+   381→                    <SelectContent>
+   382→                      {CONDITIONS.map((c) => <SelectItem key={c} value={c}>{CONDITION_LABELS[c]}</SelectItem>)}
+   383→                    </SelectContent>
+   384→                  </Select>
+   385→                </div>
+   386→                <div className="space-y-1.5">
+   387→                  <Label>Fuel *</Label>
+   388→                  <Select value={form.fuel || undefined} onValueChange={(v) => set('fuel', v)}>
+   389→                    <SelectTrigger className="w-full"><SelectValue placeholder="Select fuel" /></SelectTrigger>
+   390→                    <SelectContent>
+   391→                      {FUEL_TYPES.map((f) => <SelectItem key={f} value={f}>{f.charAt(0) + f.slice(1).toLowerCase()}</SelectItem>)}
+   392→                    </SelectContent>
+   393→                  </Select>
+   394→                </div>
+   395→                <div className="space-y-1.5">
+   396→                  <Label>Transmission *</Label>
+   397→                  <Select value={form.transmission || undefined} onValueChange={(v) => set('transmission', v)}>
+   398→                    <SelectTrigger className="w-full"><SelectValue placeholder="Select" /></SelectTrigger>
+   399→                    <SelectContent>
+   400→                      {TRANSMISSIONS.map((t) => <SelectItem key={t} value={t}>{t === 'AUTOMATIC' ? 'Automatic' : 'Manual'}</SelectItem>)}
+   401→                    </SelectContent>
+   402→                  </Select>
+   403→                </div>
+   404→                <div className="space-y-1.5">
+   405→                  <Label htmlFor="s-engine">Engine (cc)</Label>
+   406→                  <Input id="s-engine" inputMode="numeric" placeholder="e.g. 2000" value={form.engineCc} onChange={(e) => set('engineCc', e.target.value.replace(/[^\d]/g, ''))} />
+   407→                </div>
+   408→                <div className="space-y-1.5">
+   409→                  <Label htmlFor="s-color">Colour *</Label>
+   410→                  <Input id="s-color" placeholder="e.g. Pearl White" value={form.color} onChange={(e) => set('color', e.target.value)} />
+   411→                </div>
+   412→                <div className="space-y-1.5">
+   413→                  <Label>County *</Label>
+   414→                  <Select value={form.county || undefined} onValueChange={(v) => set('county', v)}>
+   415→                    <SelectTrigger className="w-full"><SelectValue placeholder="Select county" /></SelectTrigger>
+   416→                    <SelectContent>
+   417→                      {KENYA_COUNTIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+   418→                    </SelectContent>
+   419→                  </Select>
+   420→                </div>
+   421→                <div className="space-y-1.5 sm:col-span-2">
+   422→                  <Label htmlFor="s-town">Town / area</Label>
+   423→                  <Input id="s-town" placeholder="e.g. Syokimau" value={form.town} onChange={(e) => set('town', e.target.value)} />
+   424→                </div>
+   425→              </div>
+   426→            </div>
+   427→          )}
+   428→
+   429→          {step === 2 && (
+   430→            <div className="space-y-6">
+   431→              <div className="grid gap-4 sm:grid-cols-2">
+   432→                <div className="space-y-1.5">
+   433→                  <Label htmlFor="s-price">Asking price (KES) *</Label>
+   434→                  <Input
+   435→                    id="s-price"
+   436→                    inputMode="numeric"
+   437→                    placeholder="e.g. 1,250,000"
+   438→                    value={form.price}
+   439→                    onChange={(e) => set('price', e.target.value.replace(/[^\d]/g, ''))}
+   440→                  />
+   441→                  <p className="text-sm font-semibold text-primary">
+   442→                    {priceMinor ? money(priceMinor) : 'Enter a price to see the formatted value'}
+   443→                  </p>
+   444→                </div>
+   445→                <div className="space-y-1.5">
+   446→                  <Label htmlFor="s-mileage">Mileage (km) *</Label>
+   447→                  <Input id="s-mileage" inputMode="numeric" placeholder="e.g. 76000" value={form.mileage} onChange={(e) => set('mileage', e.target.value.replace(/[^\d]/g, ''))} />
+   448→                </div>
+   449→              </div>
+   450→
+   451→              <div className="space-y-1.5">
+   452→                <div className="flex flex-wrap items-center justify-between gap-2">
+   453→                  <Label htmlFor="s-desc">Description *</Label>
+   454→                  <span className={`text-xs ${form.description.trim().length >= 30 ? 'text-primary' : 'text-muted-foreground'}`}>
+   455→                    {form.description.trim().length}/30 min
+   456→                  </span>
+   457→                </div>
+   458→                <Textarea
+   459→                  id="s-desc"
+   460→                  rows={6}
+   461→                  placeholder="Describe the condition, service history, why you're selling…"
+   462→                  value={form.description}
+   463→                  onChange={(e) => set('description', e.target.value)}
+   464→                />
+   465→                <ListingAssistant
+   466→                  facts={{
+   467→                    make: form.make,
+   468→                    model: form.model,
+   469→                    year: Number(form.year) || undefined,
+   470→                    mileageKm: Number(form.mileage) || undefined,
+   471→                    condition: form.condition,
+   472→                    features,
+   473→                    notes: form.color ? `Colour: ${form.color}${form.town ? ` · Located in ${form.town}` : ''}` : '',
+   474→                  }}
+   475→                  onApply={(d) => setDescription(d)}
+   476→                />
+   477→              </div>
+   478→
+   479→              <div className="space-y-2">
+   480→                <Label>Common features (helps AI & buyers)</Label>
+   481→                <div className="flex flex-wrap gap-2">
+   482→                  {FEATURES.map((f) => (
+   483→                    <button
+   484→                      key={f}
+   485→                      type="button"
+   486→                      onClick={() => toggleFeature(f)}
+   487→                      aria-pressed={features.includes(f)}
+   488→                      className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+   489→                        features.includes(f)
+   490→                          ? 'border-primary bg-primary text-primary-foreground'
+   491→                          : 'border-border bg-background hover:bg-muted'
+   492→                      }`}
+   493→                    >
+   494→                      {f}
+   495→                    </button>
+   496→                  ))}
+   497→                </div>
+   498→              </div>
+   499→
+   500→              <div className="space-y-2">
+   501→                <Label>Photos ({photos.length}/8)</Label>
+   502→                <p className="text-xs text-muted-foreground">Clear, well-lit photos sell faster. Max 5MB each, JPG/PNG/WEBP.</p>
+   503→                <div className="flex flex-wrap gap-3">
+   504→                  {photos.map((p) => (
+   505→                    <div key={p.url} className="group relative h-24 w-32 overflow-hidden rounded-lg border border-border">
+   506→                      <img src={p.url} alt="Vehicle photo" className="h-full w-full object-cover" />
+   507→                      <button
+   508→                        type="button"
+   509→                        onClick={() => removePhoto(p.url)}
+   510→                        aria-label="Remove photo"
+   511→                        className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-destructive"
+   512→                      >
+   513→                        <X className="h-4 w-4" />
+   514→                      </button>
+   515→                    </div>
+   516→                  ))}
+   517→                  {photos.length < 8 && (
+   518→                    <label className="flex h-24 w-32 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary">
+   519→                      {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
+   520→                      {uploading ? 'Uploading…' : 'Add photos'}
+   521→                      <input
+   522→                        type="file"
+   523→                        accept="image/jpeg,image/png,image/webp"
+   524→                        multiple
+   525→                        className="sr-only"
+   526→                        onChange={(e) => {
+   527→                          if (e.target.files && e.target.files.length > 0) handleFiles(e.target.files)
+   528→                          e.target.value = ''
+   529→                        }}
+   530→                      />
+   531→                    </label>
+   532→                  )}
+   533→                </div>
+   534→              </div>
+   535→            </div>
+   536→          )}
+   537→
+   538→          {step === 3 && (
+   539→            <div className="space-y-6">
+   540→              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-muted/40 p-4">
+   541→                <Checkbox
+   542→                  className="mt-0.5"
+   543→                  checked={form.matchWithDealers}
+   544→                  onCheckedChange={(c) => set('matchWithDealers', c === true)}
+   545→                />
+   546→                <span className="text-sm">
+   547→                  <span className="font-medium">Let verified dealers send me offers</span>
+   548→                  <span className="mt-0.5 block text-muted-foreground">
+   549→                    My contact stays private until I accept an enquiry or offer. Dealers can bid for my car without ever seeing my number.
+   550→                  </span>
+   551→                </span>
+   552→              </label>
+   553→
+   554→              {/* Preview */}
+   555→              <div className="rounded-xl border border-border p-4">
+   556→                <h3 className="mb-3 text-sm font-semibold">Listing preview</h3>
+   557→                <div className="flex gap-4">
+   558→                  <div className="flex h-24 w-36 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted text-xs text-muted-foreground">
+   559→                    {photos.length > 0
+   560→                      ? <img src={photos[0].url} alt="Listing preview" className="h-full w-full object-cover" />
+   561→                      : 'No photo yet'}
+   562→                  </div>
+   563→                  <div className="min-w-0 space-y-1">
+   564→                    <p className="truncate font-semibold">
+   565→                      {form.make || 'Make'} {form.model || 'Model'} {form.year || ''}
+   566→                    </p>
+   567→                    <p className="font-bold text-primary">{priceMinor ? money(priceMinor) : 'KES —'}</p>
+   568→                    <div className="flex flex-wrap gap-1.5">
+   569→                      {form.condition && <Badge variant="secondary">{CONDITION_LABELS[form.condition] ?? form.condition}</Badge>}
+   570→                      {form.bodyType && <Badge variant="outline">{form.bodyType.charAt(0) + form.bodyType.slice(1).toLowerCase()}</Badge>}
+   571→                      {form.mileage && <Badge variant="outline">{Number(form.mileage).toLocaleString()} km</Badge>}
+   572→                      {form.county && <Badge variant="outline">{form.county}</Badge>}
+   573→                    </div>
+   574→                  </div>
+   575→                </div>
+   576→              </div>
+   577→
+   578→              <p className="text-xs text-muted-foreground">
+   579→                By submitting you confirm the details are accurate and you&apos;re authorised to sell this vehicle.
+   580→                Listings are checked by our team before going public — the initial review target is 24 business hours.
+   581→              </p>
+   582→            </div>
+   583→          )}
+   584→
+   585→          {/* Nav buttons */}
+   586→          <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+   587→            <div>
+   588→              {step > 1 && (
+   589→                <Button variant="outline" className="h-11 px-5" onClick={() => setStep((s) => s - 1)}>
+   590→                  <ChevronLeft className="h-4 w-4" /> Back
+   591→                </Button>
+   592→              )}
+   593→            </div>
+   594→            <div className="flex flex-wrap items-center gap-2">
+   595→              {step < 3 ? (
+   596→                <Button className="h-11 px-6" onClick={next} disabled={!canContinue}>
+   597→                  Continue <ChevronRight className="h-4 w-4" />
+   598→                </Button>
+   599→              ) : (
+   600→                <>
+   601→                  <Button
+   602→                    variant="outline"
+   603→                    className="h-11 px-5"
+   604→                    disabled={submitting !== null}
+   605→                    onClick={() => submit('DRAFT')}
+   606→                  >
+   607→                    {submitting === 'DRAFT' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+   608→                    Save draft
+   609→                  </Button>
+   610→                  <Button
+   611→                    className="h-11 px-6"
+   612→                    disabled={submitting !== null}
+   613→                    onClick={() => submit('PENDING_REVIEW')}
+   614→                  >
+   615→                    {submitting === 'PENDING_REVIEW' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+   616→                    Submit for review
+   617→                  </Button>
+   618→                </>
+   619→              )}
+   620→            </div>
+   621→          </div>
+   622→        </CardContent>
+   623→      </Card>
+   624→    </div>
+   625→  )
+   626→}
+   627→

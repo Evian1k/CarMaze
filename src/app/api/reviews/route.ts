@@ -80,6 +80,31 @@ export const POST = route(async (req: NextRequest) => {
         data: { orgId: body.orgId, authorId: user.id, rating: body.rating, comment: body.comment || null },
       })
 
+  // Loyalty: first publication of a review earns +100 points. Updates never
+  // re-award, and the ledger check (userId + reason + refId) makes this
+  // idempotent even if creation were retried. Points failure NEVER fails the review.
+  if (!existing) {
+    try {
+      const alreadyAwarded = await db.loyaltyLedger.findFirst({
+        where: { userId: user.id, reason: 'REVIEW_EARNED', refId: review.id },
+      })
+      if (!alreadyAwarded) {
+        await db.loyaltyLedger.create({
+          data: {
+            userId: user.id,
+            points: 100,
+            reason: 'REVIEW_EARNED',
+            refType: 'ORG_REVIEW',
+            refId: review.id,
+            note: `Review published — ${org.name}`,
+          },
+        })
+      }
+    } catch (e) {
+      console.error('[reviews] loyalty award failed (ignored)', e)
+    }
+  }
+
   await audit({
     actorId: user.id, actorName: user.name,
     action: existing ? 'REVIEW_UPDATED' : 'REVIEW_CREATED',

@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→/**
+     4→ * CARMAZE Control Center (#/admin) — staff-only platform administration
+     5→ * plus the billing console (subscriptions, campaigns, M-Pesa).
+     6→ *
+     7→ * Honesty rules encoded here:
+     8→ *  - Every number comes from a live API aggregate — nothing hardcoded.
+     9→ *  - Integration chips show REAL configuration state (e.g. M-Pesa
+    10→ *    "not configured" is shown in amber, never faked as green).
+    11→ *  - Payment actions never pretend success: STK push failures surface the
+    12→ *    server's 501/502 states and manual mark-paid requires a written
+    13→ *    reconciliation note that is audit-logged.
+    14→ * Server-side authorisation is the source of truth; the role gate below is
+    15→ * only UX — APIs enforce the same rules.
+    16→ */
+    17→
+    18→import { useEffect, useState, type ReactNode } from 'react'
+    19→import {
+    20→  AlertTriangle,
+    21→  BellRing,
+    22→  CheckCircle2,
+    23→  ChevronLeft,
+    24→  ChevronRight,
+    25→  ExternalLink,
+    26→  Inbox,
+    27→  LifeBuoy,
+    28→  Megaphone,
+    29→  RefreshCw,
+    30→  Save,
+    31→  Search,
+    32→  ShieldAlert,
+    33→  Star,
+    34→  XCircle,
+    35→} from 'lucide-react'
+    36→import { toast } from 'sonner'
+    37→import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, CartesianGrid } from 'recharts'
+    38→
+    39→import { apiGet, apiSend, buildQuery, navigate } from '@/lib/client'
+    40→import { hasAnyRole, useAuth, type CurrentUser } from '@/stores/auth'
+    41→import { useHashRoute } from '@/hooks/use-hash-route'
+    42→import { money, compactMoney, timeAgo, dateLabel, VEHICLE_STATUS_LABELS, APPLICATION_STATUS_LABELS, vehicleTitle } from '@/lib/format'
+    43→import { Button } from '@/components/ui/button'
+    44→import { Badge } from '@/components/ui/badge'
+    45→import { Card } from '@/components/ui/card'
+    46→import { Input } from '@/components/ui/input'
+    47→import { Label } from '@/components/ui/label'
+    48→import { Textarea } from '@/components/ui/textarea'
+    49→import { Skeleton } from '@/components/ui/skeleton'
+    50→import { Separator } from '@/components/ui/separator'
+    51→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    52→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    53→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    54→import {
+    55→  AlertDialog,
+    56→  AlertDialogAction,
+    57→  AlertDialogCancel,
+    58→  AlertDialogContent,
+    59→  AlertDialogDescription,
+    60→  AlertDialogFooter,
+    61→  AlertDialogHeader,
+    62→  AlertDialogTitle,
+    63→} from '@/components/ui/alert-dialog'
+    64→import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+    65→
+    66→// ───────────────────────────── Constants & helpers ─────────────────────────────
+    67→
+    68→const GREEN = '#315E4B'
+    69→const GOLD = '#D9B878'
+    70→const PIE_COLORS = ['#315E4B', '#D9B878', '#7FA08E', '#6E6E67', '#B0A284', '#5C8A73', '#C9B285', '#8FA99F']
+    71→
+    72→const TABS = [
+    73→  'overview', 'applications', 'listings', 'users', 'reports', 'billing',
+    74→  'campaigns', 'support', 'notifications', 'settings', 'audit',
+    75→] as const
+    76→type TabKey = (typeof TABS)[number]
+    77→
+    78→const TAB_LABELS: Record<TabKey, string> = {
+    79→  overview: 'Overview',
+    80→  applications: 'Applications',
+    81→  listings: 'Listings',
+    82→  users: 'Users',
+    83→  reports: 'Reports',
+    84→  billing: 'Billing',
+    85→  campaigns: 'Campaigns',
+    86→  support: 'Support',
+    87→  notifications: 'Notifications',
+    88→  settings: 'Settings',
+    89→  audit: 'Audit',
+    90→}
+    91→
+    92→const STAFF_ROLES_CLIENT = ['SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER'] as const
+    93→
+    94→type Tone = 'green' | 'gold' | 'red' | 'neutral'
+    95→
+    96→function toneFor(status: string): Tone {
+    97→  const green = ['PUBLISHED', 'APPROVED', 'ACTIVE', 'PAID', 'RESOLVED', 'SUCCESS', 'SENT', 'CONNECTED', 'CONFIGURED', 'DONE']
+    98→  const gold = ['PENDING_REVIEW', 'PENDING', 'PENDING_PAYMENT', 'OPEN', 'IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'RESUBMITTED', 'INITIATED', 'QUEUED', 'RESERVED', 'PAST_DUE']
+    99→  const red = ['REJECTED', 'SUSPENDED', 'FAILED', 'OVERDUE', 'REVOKED', 'ERROR']
+   100→  if (green.includes(status)) return 'green'
+   101→  if (gold.includes(status)) return 'gold'
+   102→  if (red.includes(status)) return 'red'
+   103→  return 'neutral'
+   104→}
+   105→
+   106→const TONE_CLASSES: Record<Tone, string> = {
+   107→  green: 'border-primary/30 bg-primary/10 text-primary',
+   108→  gold: 'border-[#c9a94e]/50 bg-[#d9b878]/15 text-[#8a6d1f] dark:text-[#d9b878]',
+   109→  red: 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400',
+   110→  neutral: 'border-border bg-muted text-muted-foreground',
+   111→}
+   112→
+   113→function StatusBadge({ status, label }: { status: string; label?: string }) {
+   114→  return (
+   115→    <Badge variant="outline" className={`font-medium ${TONE_CLASSES[toneFor(status)]}`}>
+   116→      {label ?? status.replaceAll('_', ' ').toLowerCase()}
+   117→    </Badge>
+   118→  )
+   119→}
+   120→
+   121→function StatCard({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: string; tone?: Tone }) {
+   122→  return (
+   123→    <Card className="p-4">
+   124→      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+   125→      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone === 'gold' ? 'text-[#8a6d1f] dark:text-[#d9b878]' : tone === 'red' ? 'text-red-600 dark:text-red-400' : tone === 'green' ? 'text-primary' : ''}`}>{value}</p>
+   126→      {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
+   127→    </Card>
+   128→  )
+   129→}
+   130→
+   131→function Loading() {
+   132→  return (
+   133→    <div className="flex items-center justify-center py-20" aria-busy="true">
+   134→      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   135→      <span className="sr-only">Loading</span>
+   136→    </div>
+   137→  )
+   138→}
+   139→
+   140→function EmptyState({ message }: { message: string }) {
+   141→  return (
+   142→    <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-10 text-center">
+   143→      <Inbox className="h-6 w-6 text-muted-foreground" aria-hidden />
+   144→      <p className="max-w-sm px-4 text-sm text-muted-foreground">{message}</p>
+   145→    </div>
+   146→  )
+   147→}
+   148→
+   149→function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
+   150→  return (
+   151→    <Alert variant="destructive">
+   152→      <AlertTriangle className="h-4 w-4" aria-hidden />
+   153→      <AlertTitle>Could not load data</AlertTitle>
+   154→      <AlertDescription className="flex flex-wrap items-center gap-3">
+   155→        <span>{message}</span>
+   156→        {onRetry ? (
+   157→          <Button size="sm" variant="outline" onClick={onRetry}>
+   158→            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Retry
+   159→          </Button>
+   160→        ) : null}
+   161→      </AlertDescription>
+   162→    </Alert>
+   163→  )
+   164→}
+   165→
+   166→function LoadingCards({ n = 6 }: { n?: number }) {
+   167→  return (
+   168→    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+   169→      {Array.from({ length: n }).map((_, i) => (
+   170→        <Skeleton key={i} className="h-24 rounded-xl" />
+   171→      ))}
+   172→    </div>
+   173→  )
+   174→}
+   175→
+   176→// ───────────────────────────── API payload types ─────────────────────────────
+   177→
+   178→type Health = {
+   179→  status: string
+   180→  checks: { database: string; mpesa: string; email: string; sms: string; ai: string }
+   181→}
+   182→
+   183→type OverviewData = {
+   184→  users: { total: number; suspended: number; newThisWeek: number }
+   185→  orgs: {
+   186→    dealers: { total: number; active: number; pending: number }
+   187→    garages: { total: number; active: number; pending: number }
+   188→  }
+   189→  listings: { published: number; pendingReview: number; sold: number; rejected: number; drafts: number }
+   190→  enquiries: { total: number; open: number }
+   191→  revenue: { paidTotalMinor: number; pendingCount: number; pendingTotalMinor: number; byType: { type: string; paidMinor: number; pendingMinor: number }[] }
+   192→  campaigns: { active: number; pendingPayment: number }
+   193→  ops: { failedNotifications: number; failedPayments: number; openReports: number; openTickets: number; escalatedApplications: number }
+   194→  recentAudit: { action: string; actorName: string | null; targetType: string | null; targetId: string | null; createdAt: string }[]
+   195→  chart: { listingsByStatus: { status: string; count: number }[] }
+   196→}
+   197→
+   198→type AppEvent = { id: string; type: string; actorName?: string | null; note?: string | null; createdAt: string }
+   199→type AppDoc = { name: string; url: string; uploadedAt?: string }
+   200→type QueueApplication = {
+   201→  id: string
+   202→  refCode: string
+   203→  type: string
+   204→  orgName: string
+   205→  regNo: string | null
+   206→  county: string
+   207→  town: string | null
+   208→  physicalAddress: string | null
+   209→  phone: string
+   210→  email: string | null
+   211→  representative: string
+   212→  accountType: string | null
+   213→  categories: string | null
+   214→  documents: string | null
+   215→  notes: string | null
+   216→  status: string
+   217→  reviewSlaHours: number
+   218→  submittedAt: string | null
+   219→  reviewOwnerId: string | null
+   220→  reviewOwnerName: string | null
+   221→  decisionNote: string | null
+   222→  infoRequestedAt: string | null
+   223→  correctionsDueAt: string | null
+   224→  escalated: boolean
+   225→  createdAt: string
+   226→  user: { name: string; email: string; phone: string | null }
+   227→  events: AppEvent[]
+   228→}
+   229→
+   230→type AdminListing = {
+   231→  id: string
+   232→  refCode: string
+   233→  make: string
+   234→  model: string
+   235→  year: number
+   236→  priceMinor: number
+   237→  status: string
+   238→  sellerType: string
+   239→  featured: boolean
+   240→  reviewNote: string | null
+   241→  county: string
+   242→  createdAt: string
+   243→  photos: { url: string; order: number }[]
+   244→  owner: { id: string; name: string; email: string; phone: string | null }
+   245→  org: { name: string; type: string } | null
+   246→}
+   247→
+   248→type UserRow = {
+   249→  id: string
+   250→  name: string
+   251→  email: string
+   252→  roles: string[]
+   253→  phone: string | null
+   254→  status: string
+   255→  createdAt: string
+   256→  memberships: { orgName: string; orgType: string; role: string }[]
+   257→}
+   258→
+   259→type ReportRow = {
+   260→  id: string
+   261→  targetType: string
+   262→  targetId: string
+   263→  reason: string
+   264→  details: string | null
+   265→  status: string
+   266→  resolutionNote: string | null
+   267→  createdAt: string
+   268→}
+   269→
+   270→type PaymentRow = { id: string; provider: string; phone: string; amountMinor: number; status: string; resultDesc: string | null; createdAt: string }
+   271→type InvoiceRow = {
+   272→  id: string
+   273→  refCode: string
+   274→  org: { name: string; type: string } | null
+   275→  type: string
+   276→  description: string
+   277→  amountMinor: number
+   278→  currency: string
+   279→  status: string
+   280→  issuedAt: string
+   281→  dueDate: string | null
+   282→  paidAt: string | null
+   283→  paidVia: string | null
+   284→  payments: PaymentRow[]
+   285→}
+   286→
+   287→type CampaignRow = {
+   288→  id: string
+   289→  refCode: string
+   290→  org: { name: string; type: string }
+   291→  vehicle: { refCode: string; make: string; model: string; year: number; status: string }
+   292→  packageCode: string
+   293→  packageName: string
+   294→  packageDays: number | null
+   295→  packagePriceMinor: number | null
+   296→  status: string
+   297→  startsAt: string | null
+   298→  endsAt: string | null
+   299→  impressions: number
+   300→  clicks: number
+   301→  createdAt: string
+   302→  invoice: { refCode: string; status: string; amountMinor: number } | null
+   303→}
+   304→
+   305→type TicketRow = {
+   306→  id: string
+   307→  refCode: string
+   308→  name: string
+   309→  email: string
+   310→  subject: string
+   311→  message: string
+   312→  status: string
+   313→  response: string | null
+   314→  createdAt: string
+   315→}
+   316→
+   317→type OpsData = {
+   318→  failedDeliveries: { id: string; channel: string; status: string; lastError: string | null; notification: { title: string; type: string }; createdAt: string }[]
+   319→  paymentAttempts: { id: string; invoice: { refCode: string; status: string }; provider: string; phone: string; amountMinor: number; status: string; resultDesc: string | null; createdAt: string }[]
+   320→  tickets: TicketRow[]
+   321→  health: { mpesa: boolean; email: boolean; sms: boolean }
+   322→}
+   323→
+   324→type SettingsData = { settings: { key: string; value: unknown; updatedAt: string }[]; allowedKeys: string[] }
+   325→
+   326→type AuditRow = {
+   327→  id: string
+   328→  actorId: string | null
+   329→  actorName: string | null
+   330→  action: string
+   331→  targetType: string | null
+   332→  targetId: string | null
+   333→  metadata: string | null
+   334→  createdAt: string
+   335→}
+   336→
+   337→// ───────────────────────────── Root view ─────────────────────────────
+   338→
+   339→export default function View() {
+   340→  const user = useAuth((s) => s.user)
+   341→  const authLoading = useAuth((s) => s.loading)
+   342→  const route = useHashRoute()
+   343→  const [health, setHealth] = useState<Health | null>(null)
+   344→  const [sweeping, setSweeping] = useState(false)
+   345→
+   346→  const tabParam = route.query.get('tab')
+   347→  const tab: TabKey = (TABS as readonly string[]).includes(tabParam ?? '') ? (tabParam as TabKey) : 'overview'
+   348→  const isStaff = hasAnyRole(user, ...STAFF_ROLES_CLIENT)
+   349→
+   350→  useEffect(() => {
+   351→    let alive = true
+   352→    apiGet<Health>('/api/health')
+   353→      .then((d) => {
+   354→        if (alive) setHealth(d)
+   355→      })
+   356→      .catch(() => {})
+   357→    return () => {
+   358→      alive = false
+   359→    }
+   360→  }, [])
+   361→
+   362→  function runSweep() {
+   363→    setSweeping(true)
+   364→    apiSend<{ reviewed: number; reviewerReminders: number; applicantReminders: number; escalations: number }>('/api/applications/sweep', 'POST')
+   365→      .then((r) => {
+   366→        toast.success(
+   367→          `Sweep complete — ${r.reviewed} active applications checked, ${r.reviewerReminders} reviewer reminders, ${r.applicantReminders} applicant reminders, ${r.escalations} escalations.`
+   368→        )
+   369→      })
+   370→      .catch((e: Error) => toast.error(e.message))
+   371→      .finally(() => setSweeping(false))
+   372→  }
+   373→
+   374→  if (authLoading) return <Loading />
+   375→  if (!user || !isStaff) return <Restricted />
+   376→
+   377→  return (
+   378→    <div className="min-h-screen bg-[#f7f6f2] dark:bg-background">
+   379→      <main className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6">
+   380→        <header>
+   381→          <div className="flex flex-wrap items-start justify-between gap-3">
+   382→            <div>
+   383→              <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
+   384→                CARMAZE Control Center
+   385→                <ShieldAlert className="h-5 w-5 text-primary" aria-hidden />
+   386→              </h1>
+   387→              <p className="mt-0.5 text-sm text-muted-foreground">
+   388→                Platform operations, verification and billing — live aggregates, honest payment states.
+   389→              </p>
+   390→            </div>
+   391→            <div className="flex flex-wrap items-center gap-2">
+   392→              <HealthChips health={health} />
+   393→              <Button size="sm" variant="outline" onClick={runSweep} disabled={sweeping}>
+   394→                <RefreshCw className={`mr-1.5 h-4 w-4 ${sweeping ? 'animate-spin' : ''}`} aria-hidden />
+   395→                {sweeping ? 'Sweeping…' : 'Run follow-up sweep'}
+   396→              </Button>
+   397→            </div>
+   398→          </div>
+   399→
+   400→          <nav aria-label="Control Center sections" className="mt-5 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:thin]">
+   401→            {TABS.map((t) => (
+   402→              <button
+   403→                key={t}
+   404→                type="button"
+   405→                onClick={() => navigate(`admin?tab=${t}`)}
+   406→                aria-current={tab === t ? 'page' : undefined}
+   407→                className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+   408→                  tab === t ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+   409→                }`}
+   410→              >
+   411→                {TAB_LABELS[t]}
+   412→              </button>
+   413→            ))}
+   414→          </nav>
+   415→        </header>
+   416→
+   417→        <div className="mt-5">
+   418→          {tab === 'overview' && <OverviewTab />}
+   419→          {tab === 'applications' && <ApplicationsTab user={user} />}
+   420→          {tab === 'listings' && <ListingsTab />}
+   421→          {tab === 'users' && <UsersTab user={user} />}
+   422→          {tab === 'reports' && <ReportsTab />}
+   423→          {tab === 'billing' && <BillingTab user={user} />}
+   424→          {tab === 'campaigns' && <CampaignsTab />}
+   425→          {tab === 'support' && <SupportTab />}
+   426→          {tab === 'notifications' && <NotificationsTab />}
+   427→          {tab === 'settings' && <SettingsTab user={user} />}
+   428→          {tab === 'audit' && <AuditTab />}
+   429→        </div>
+   430→      </main>
+   431→    </div>
+   432→  )
+   433→}
+   434→
+   435→function Restricted() {
+   436→  return (
+   437→    <div className="flex min-h-[70vh] items-center justify-center px-4">
+   438→      <Card className="w-full max-w-md p-6 text-center">
+   439→        <ShieldAlert className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden />
+   440→        <h1 className="mt-3 text-lg font-semibold">Restricted</h1>
+   441→        <p className="mt-1 text-sm text-muted-foreground">
+   442→          This area is limited to authorised CARMAZE staff accounts. If you believe you should have access, contact the platform team.
+   443→        </p>
+   444→        <Button variant="outline" className="mt-4" onClick={() => navigate('')}>
+   445→          Back to marketplace
+   446→        </Button>
+   447→      </Card>
+   448→    </div>
+   449→  )
+   450→}
+   451→
+   452→function HealthChips({ health }: { health: Health | null }) {
+   453→  if (!health) {
+   454→    return (
+   455→      <div className="flex gap-1.5">
+   456→        {[0, 1, 2, 3].map((i) => (
+   457→          <Skeleton key={i} className="h-7 w-24 rounded-full" />
+   458→        ))}
+   459→      </div>
+   460→    )
+   461→  }
+   462→  const items = [
+   463→    { label: 'DB', ok: health.checks.database === 'connected', okText: 'Live', badText: 'DB error' },
+   464→    { label: 'M-Pesa', ok: health.checks.mpesa === 'configured', okText: 'Configured', badText: 'Not configured' },
+   465→    { label: 'Email', ok: health.checks.email === 'configured', okText: 'Configured', badText: 'Not configured' },
+   466→    { label: 'SMS', ok: health.checks.sms === 'configured', okText: 'Configured', badText: 'Not configured' },
+   467→  ]
+   468→  return (
+   469→    <div className="flex flex-wrap gap-1.5" role="status" aria-label="Integration status">
+   470→      {items.map((i) => (
+   471→        <Badge
+   472→          key={i.label}
+   473→          variant="outline"
+   474→          className={
+   475→            i.ok
+   476→              ? 'border-primary/30 bg-primary/10 text-primary'
+   477→              : 'border-[#c9a94e]/50 bg-[#d9b878]/15 text-[#8a6d1f] dark:text-[#d9b878]'
+   478→          }
+   479→        >
+   480→          {i.ok ? <CheckCircle2 className="mr-1 h-3 w-3" aria-hidden /> : <AlertTriangle className="mr-1 h-3 w-3" aria-hidden />}
+   481→          {i.label}: {i.ok ? i.okText : i.badText}
+   482→        </Badge>
+   483→      ))}
+   484→    </div>
+   485→  )
+   486→}
+   487→
+   488→// ───────────────────────────── Overview ─────────────────────────────
+   489→
+   490→function OverviewTab() {
+   491→  const [data, setData] = useState<OverviewData | null>(null)
+   492→  const [error, setError] = useState<string | null>(null)
+   493→  const [reload, setReload] = useState(0)
+   494→
+   495→  useEffect(() => {
+   496→    let alive = true
+   497→    apiGet<OverviewData>('/api/admin/overview')
+   498→      .then((d) => {
+   499→        if (alive) setData(d)
+   500→      })
+   501→      .catch((e: Error) => {
+   502→        if (alive) setError(e.message)
+   503→      })
+   504→    return () => {
+   505→      alive = false
+   506→    }
+   507→  }, [reload])
+   508→
+   509→  if (error) return <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />
+   510→  if (!data) return <LoadingCards n={9} />
+   511→
+   512→  const rev = data.revenue
+   513→  const revenueChartData = rev.byType.map((t) => ({
+   514→    name: t.type === 'SUBSCRIPTION' ? 'Subscriptions' : t.type === 'CAMPAIGN' ? 'Campaigns' : 'Lead fees',
+   515→    Paid: t.paidMinor / 100,
+   516→    Pending: t.pendingMinor / 100,
+   517→  }))
+   518→  const hasRevenue = rev.paidTotalMinor > 0 || rev.pendingTotalMinor > 0
+   519→  const pieData = data.chart.listingsByStatus.map((s) => ({
+   520→    name: VEHICLE_STATUS_LABELS[s.status] ?? s.status,
+   521→    value: s.count,
+   522→  }))
+   523→  const hasListings = pieData.some((p) => p.value > 0)
+   524→
+   525→  return (
+   526→    <div className="space-y-5">
+   527→      <section aria-label="Key metrics" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+   528→        <StatCard label="Users" value={data.users.total} sub={`+${data.users.newThisWeek} this week · ${data.users.suspended} suspended`} />
+   529→        <StatCard label="Dealers" value={`${data.orgs.dealers.active}/${data.orgs.dealers.total}`} sub={`${data.orgs.dealers.pending} application(s) in queue`} tone="green" />
+   530→        <StatCard label="Garages" value={`${data.orgs.garages.active}/${data.orgs.garages.total}`} sub={`${data.orgs.garages.pending} application(s) in queue`} tone="green" />
+   531→        <StatCard label="Live listings" value={data.listings.published} sub={`${data.listings.pendingReview} pending review`} />
+   532→        <StatCard label="Paid revenue" value={compactMoney(rev.paidTotalMinor)} sub={`${rev.pendingCount} invoice(s) pending · ${compactMoney(rev.pendingTotalMinor)}`} tone="green" />
+   533→        <StatCard label="Campaigns" value={data.campaigns.active} sub={`${data.campaigns.pendingPayment} awaiting payment`} />
+   534→      </section>
+   535→
+   536→      <section aria-label="Operations flags" className="grid grid-cols-2 gap-3 md:grid-cols-5">
+   537→        <OpsFlag label="Failed notifications" count={data.ops.failedNotifications} tab="notifications" />
+   538→        <OpsFlag label="Failed payments" count={data.ops.failedPayments} tab="notifications" />
+   539→        <OpsFlag label="Open reports" count={data.ops.openReports} tab="reports" />
+   540→        <OpsFlag label="Open tickets" count={data.ops.openTickets} tab="support" />
+   541→        <OpsFlag label="Escalated applications" count={data.ops.escalatedApplications} tab="applications" />
+   542→      </section>
+   543→
+   544→      <div className="grid gap-4 lg:grid-cols-2">
+   545→        <Card className="p-4">
+   546→          <h3 className="text-sm font-semibold">Revenue by invoice type</h3>
+   547→          <p className="mb-3 text-xs text-muted-foreground">Paid vs pending (KES) — computed live from invoices.</p>
+   548→          {hasRevenue ? (
+   549→            <ResponsiveContainer width="100%" height={240}>
+   550→              <BarChart data={revenueChartData} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
+   551→                <CartesianGrid strokeDasharray="3 3" stroke="#e5e3dd" vertical={false} />
+   552→                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6e6e67' }} axisLine={{ stroke: '#e5e3dd' }} tickLine={false} />
+   553→                <YAxis tick={{ fontSize: 12, fill: '#6e6e67' }} tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}K` : String(v))} axisLine={false} tickLine={false} />
+   554→                <Tooltip formatter={(value) => money(Number(value) * 100)} contentStyle={{ borderRadius: 10, borderColor: '#e5e3dd', fontSize: 13 }} />
+   555→                <Legend wrapperStyle={{ fontSize: 12 }} />
+   556→                <Bar dataKey="Paid" fill={GREEN} radius={[4, 4, 0, 0]} maxBarSize={48} />
+   557→                <Bar dataKey="Pending" fill={GOLD} radius={[4, 4, 0, 0]} maxBarSize={48} />
+   558→              </BarChart>
+   559→            </ResponsiveContainer>
+   560→          ) : (
+   561→            <EmptyState message="No invoices yet — the revenue chart fills in as subscriptions and campaigns are paid." />
+   562→          )}
+   563→        </Card>
+   564→
+   565→        <Card className="p-4">
+   566→          <h3 className="text-sm font-semibold">Listings by status</h3>
+   567→          <p className="mb-3 text-xs text-muted-foreground">Marketplace inventory health at a glance.</p>
+   568→          {hasListings ? (
+   569→            <ResponsiveContainer width="100%" height={240}>
+   570→              <PieChart>
+   571→                <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={85} paddingAngle={2} strokeWidth={1}>
+   572→                  {pieData.map((entry, i) => (
+   573→                    <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+   574→                  ))}
+   575→                </Pie>
+   576→                <Tooltip contentStyle={{ borderRadius: 10, borderColor: '#e5e3dd', fontSize: 13 }} />
+   577→                <Legend wrapperStyle={{ fontSize: 12 }} />
+   578→              </PieChart>
+   579→            </ResponsiveContainer>
+   580→          ) : (
+   581→            <EmptyState message="No listings yet." />
+   582→          )}
+   583→        </Card>
+   584→      </div>
+   585→
+   586→      <div className="grid gap-4 lg:grid-cols-2">
+   587→        <Card className="p-4">
+   588→          <h3 className="text-sm font-semibold">Recent audit trail</h3>
+   589→          <p className="mb-2 text-xs text-muted-foreground">Latest 8 platform events. Full trail in the Audit tab.</p>
+   590→          {data.recentAudit.length === 0 ? (
+   591→            <EmptyState message="No audit entries yet." />
+   592→          ) : (
+   593→            <ul className="divide-y">
+   594→              {data.recentAudit.map((a, i) => (
+   595→                <li key={`${a.action}-${i}`} className="flex items-start justify-between gap-3 py-2 text-sm">
+   596→                  <div>
+   597→                    <p className="font-medium">{a.action.replaceAll('_', ' ').toLowerCase()}</p>
+   598→                    <p className="text-xs text-muted-foreground">
+   599→                      {a.actorName ?? 'system'}
+   600→                      {a.targetType ? ` · ${a.targetType.toLowerCase()}` : ''}
+   601→                    </p>
+   602→                  </div>
+   603→                  <span className="whitespace-nowrap text-xs text-muted-foreground">{timeAgo(a.createdAt)}</span>
+   604→                </li>
+   605→              ))}
+   606→            </ul>
+   607→          )}
+   608→        </Card>
+   609→
+   610→        <Card className="p-4">
+   611→          <h3 className="text-sm font-semibold">Queue &amp; content summary</h3>
+   612→          <p className="mb-2 text-xs text-muted-foreground">Where attention is needed right now.</p>
+   613→          <ul className="space-y-2 text-sm">
+   614→            <li className="flex items-center justify-between">
+   615→              <span className="text-muted-foreground">Listing review queue</span>
+   616→              <Button size="sm" variant="ghost" onClick={() => navigate('admin?tab=listings')}>
+   617→                {data.listings.pendingReview} pending <ChevronRight className="ml-1 h-3.5 w-3.5" aria-hidden />
+   618→              </Button>
+   619→            </li>
+   620→            <li className="flex items-center justify-between">
+   621→              <span className="text-muted-foreground">Verification applications</span>
+   622→              <Button size="sm" variant="ghost" onClick={() => navigate('admin?tab=applications')}>
+   623→                {data.orgs.dealers.pending + data.orgs.garages.pending} in queue <ChevronRight className="ml-1 h-3.5 w-3.5" aria-hidden />
+   624→              </Button>
+   625→            </li>
+   626→            <li className="flex items-center justify-between">
+   627→              <span className="text-muted-foreground">Enquiries (open)</span>
+   628→              <span className="tabular-nums">
+   629→                {data.enquiries.open} / {data.enquiries.total}
+   630→              </span>
+   631→            </li>
+   632→            <li className="flex items-center justify-between">
+   633→              <span className="text-muted-foreground">Sold / rejected / drafts</span>
+   634→              <span className="tabular-nums">
+   635→                {data.listings.sold} / {data.listings.rejected} / {data.listings.drafts}
+   636→              </span>
+   637→            </li>
+   638→          </ul>
+   639→          <Separator className="my-3" />
+   640→          <p className="text-xs text-muted-foreground">
+   641→            All figures are computed on request from live database aggregates — nothing cached, nothing estimated.
+   642→          </p>
+   643→        </Card>
+   644→      </div>
+   645→    </div>
+   646→  )
+   647→}
+   648→
+   649→function OpsFlag({ label, count, tab }: { label: string; count: number; tab: TabKey }) {
+   650→  return (
+   651→    <button
+   652→      type="button"
+   653→      onClick={() => navigate(`admin?tab=${tab}`)}
+   654→      className={`rounded-xl border p-3 text-left transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05] ${count > 0 ? 'border-[#c9a94e]/60 bg-[#d9b878]/10' : 'border-border bg-card'}`}
+   655→    >
+   656→      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+   657→      <p className={`mt-0.5 text-xl font-semibold tabular-nums ${count > 0 ? 'text-[#8a6d1f] dark:text-[#d9b878]' : 'text-muted-foreground'}`}>{count}</p>
+   658→    </button>
+   659→  )
+   660→}
+   661→
+   662→// ───────────────────────────── Applications ─────────────────────────────
+   663→
+   664→function ApplicationsTab({ user }: { user: CurrentUser }) {
+   665→  const [apps, setApps] = useState<QueueApplication[] | null>(null)
+   666→  const [error, setError] = useState<string | null>(null)
+   667→  const [reload, setReload] = useState(0)
+   668→  const [selectedId, setSelectedId] = useState<string | null>(null)
+   669→
+   670→  useEffect(() => {
+   671→    let alive = true
+   672→    apiGet<{ applications: QueueApplication[] }>('/api/applications?scope=queue')
+   673→      .then((d) => {
+   674→        if (alive) setApps(d.applications)
+   675→      })
+   676→      .catch((e: Error) => {
+   677→        if (alive) setError(e.message)
+   678→      })
+   679→    return () => {
+   680→      alive = false
+   681→    }
+   682→  }, [reload])
+   683→
+   684→  if (error) return <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />
+   685→  if (!apps) return <LoadingCards n={4} />
+   686→
+   687→  return (
+   688→    <div className="space-y-4">
+   689→      <Alert>
+   690→        <BellRing className="h-4 w-4" aria-hidden />
+   691→        <AlertTitle>Live review queue</AlertTitle>
+   692→        <AlertDescription>
+   693→          Submitted, under-review, resubmitted and information-request applications. Finalised decisions are visible in the Audit tab.
+   694→        </AlertDescription>
+   695→      </Alert>
+   696→
+   697→      {apps.length === 0 ? (
+   698→        <EmptyState message="The review queue is clear — no applications waiting." />
+   699→      ) : (
+   700→        <div className="grid gap-3 md:grid-cols-2">
+   701→          {apps.map((app) => {
+   702→            const ageH = app.submittedAt ? (Date.now() - new Date(app.submittedAt).getTime()) / 3_600_000 : null
+   703→            const overSla = ageH !== null && ageH > app.reviewSlaHours
+   704→            return (
+   705→              <Card
+   706→                key={app.id}
+   707→                className={`cursor-pointer p-4 transition-shadow hover:shadow-md ${overSla ? 'border-[#c9a94e]/60' : ''}`}
+   708→                onClick={() => setSelectedId(app.id)}
+   709→                role="button"
+   710→                tabIndex={0}
+   711→                onKeyDown={(e) => {
+   712→                  if (e.key === 'Enter' || e.key === ' ') setSelectedId(app.id)
+   713→                }}
+   714→                aria-label={`Open application ${app.refCode}`}
+   715→              >
+   716→                <div className="flex items-start justify-between gap-2">
+   717→                  <div>
+   718→                    <p className="font-mono text-xs text-muted-foreground">{app.refCode}</p>
+   719→                    <h3 className="font-semibold leading-tight">{app.orgName}</h3>
+   720→                    <p className="text-sm text-muted-foreground">
+   721→                      {app.user.name} · {app.county}
+   722→                      {app.town ? `, ${app.town}` : ''}
+   723→                    </p>
+   724→                  </div>
+   725→                  <div className="flex flex-col items-end gap-1">
+   726→                    <StatusBadge status={app.status} label={APPLICATION_STATUS_LABELS[app.status] ?? app.status} />
+   727→                    <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
+   728→                      {app.type === 'DEALER' ? 'Dealership' : 'Garage'}
+   729→                    </Badge>
+   730→                  </div>
+   731→                </div>
+   732→                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+   733→                  {ageH !== null ? (
+   734→                    <span className={overSla ? 'font-semibold text-[#8a6d1f] dark:text-[#d9b878]' : 'text-muted-foreground'}>
+   735→                      Age {Math.round(ageH)}h · SLA {app.reviewSlaHours}h {overSla ? '— over target' : ''}
+   736→                    </span>
+   737→                  ) : (
+   738→                    <span className="text-muted-foreground">Not submitted yet</span>
+   739→                  )}
+   740→                  {app.reviewOwnerName ? <span className="text-muted-foreground">Reviewer: {app.reviewOwnerName}</span> : <span className="text-muted-foreground">Unassigned</span>}
+   741→                  {app.escalated ? <StatusBadge status="FAILED" label="escalated" /> : null}
+   742→                  {app.correctionsDueAt ? <span className="text-muted-foreground">Corrections due {dateLabel(app.correctionsDueAt)}</span> : null}
+   743→                </div>
+   744→              </Card>
+   745→            )
+   746→          })}
+   747→        </div>
+   748→      )}
+   749→
+   750→      {selectedId && (
+   751→        <ApplicationDetail
+   752→          id={selectedId}
+   753→          user={user}
+   754→          onClose={() => {
+   755→            setSelectedId(null)
+   756→            setReload((r) => r + 1)
+   757→          }}
+   758→        />
+   759→      )}
+   760→    </div>
+   761→  )
+   762→}
+   763→
+   764→function ApplicationDetail({ id, user, onClose }: { id: string; user: CurrentUser; onClose: () => void }) {
+   765→  const [app, setApp] = useState<QueueApplication | null>(null)
+   766→  const [error, setError] = useState<string | null>(null)
+   767→  const [reload, setReload] = useState(0)
+   768→  const [busy, setBusy] = useState(false)
+   769→
+   770→  // request info dialog
+   771→  const [infoOpen, setInfoOpen] = useState(false)
+   772→  const [infoMsg, setInfoMsg] = useState('')
+   773→  const [infoDays, setInfoDays] = useState('7')
+   774→  // reject dialog
+   775→  const [rejectOpen, setRejectOpen] = useState(false)
+   776→  const [rejectNote, setRejectNote] = useState('')
+   777→  // approve confirm
+   778→  const [approveOpen, setApproveOpen] = useState(false)
+   779→  // suspend/revoke dialog
+   780→  const [closeAction, setCloseAction] = useState<'suspend' | 'revoke' | null>(null)
+   781→  const [closeNote, setCloseNote] = useState('')
+   782→
+   783→  useEffect(() => {
+   784→    let alive = true
+   785→    apiGet<{ application: QueueApplication }>(`/api/applications/${id}`)
+   786→      .then((d) => {
+   787→        if (alive) setApp(d.application)
+   788→      })
+   789→      .catch((e: Error) => {
+   790→        if (alive) setError(e.message)
+   791→      })
+   792→    return () => {
+   793→      alive = false
+   794→    }
+   795→  }, [id, reload])
+   796→
+   797→  function act(body: Record<string, unknown>, successMsg: string, closeAfter: boolean) {
+   798→    if (!app) return
+   799→    setBusy(true)
+   800→    apiSend<{ application: QueueApplication }>(`/api/applications/${app.id}`, 'PATCH', body)
+   801→      .then(() => {
+   802→        toast.success(successMsg)
+   803→        if (closeAfter) {
+   804→          onClose()
+   805→        } else {
+   806→          setReload((r) => r + 1)
+   807→        }
+   808→      })
+   809→      .catch((e: Error) => toast.error(e.message))
+   810→      .finally(() => setBusy(false))
+   811→  }
+   812→
+   813→  const documents: AppDoc[] = (() => {
+   814→    if (!app?.documents) return []
+   815→    try {
+   816→      const parsed = JSON.parse(app.documents) as AppDoc[]
+   817→      return Array.isArray(parsed) ? parsed : []
+   818→    } catch {
+   819→      return []
+   820→    }
+   821→  })()
+   822→
+   823→  return (
+   824→    <Dialog open onOpenChange={(open) => !open && onClose()}>
+   825→      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+   826→        <DialogHeader>
+   827→          <DialogTitle className="flex flex-wrap items-center gap-2">
+   828→            {app ? app.refCode : 'Application'}
+   829→            {app ? <StatusBadge status={app.status} label={APPLICATION_STATUS_LABELS[app.status] ?? app.status} /> : null}
+   830→            {app?.escalated ? <StatusBadge status="FAILED" label="escalated" /> : null}
+   831→          </DialogTitle>
+   832→          <DialogDescription>
+   833→            {app ? `${app.orgName} — ${app.type === 'DEALER' ? 'dealership' : 'garage'} verification` : 'Loading…'}
+   834→          </DialogDescription>
+   835→        </DialogHeader>
+   836→
+   837→        {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
+   838→        {!app && !error && <Loading />}
+   839→
+   840→        {app && (
+   841→          <div className="space-y-4 text-sm">
+   842→            <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+   843→              <Detail label="Applicant" value={`${app.user.name} (${app.user.email})`} />
+   844→              <Detail label="Applicant phone" value={app.user.phone ?? app.phone} />
+   845→              <Detail label="Business phone" value={app.phone} />
+   846→              <Detail label="Business email" value={app.email ?? '—'} />
+   847→              <Detail label="County / town" value={`${app.county}${app.town ? `, ${app.town}` : ''}`} />
+   848→              <Detail label="Registration no." value={app.regNo ?? '—'} />
+   849→              <Detail label="Representative" value={app.representative} />
+   850→              <Detail label="Plan interest" value={app.accountType ?? '—'} />
+   851→              {app.type === 'GARAGE' && <Detail label="Service categories" value={app.categories ? app.categories.split(',').join(', ') : '—'} />}
+   852→              <Detail label="Submitted" value={app.submittedAt ? `${dateLabel(app.submittedAt)} (${timeAgo(app.submittedAt)})` : '—'} />
+   853→              <Detail label="SLA" value={`${app.reviewSlaHours}h target`} />
+   854→              {app.correctionsDueAt && <Detail label="Corrections due" value={dateLabel(app.correctionsDueAt)} />}
+   855→              <Detail label="Reviewer" value={app.reviewOwnerName ?? 'Unassigned'} />
+   856→              <Detail label="Physical address" value={app.physicalAddress ?? '—'} />
+   857→            </div>
+   858→
+   859→            {app.notes ? (
+   860→              <div>
+   861→                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Applicant notes</p>
+   862→                <p className="rounded-md bg-muted p-3">{app.notes}</p>
+   863→              </div>
+   864→            ) : null}
+   865→
+   866→            <div>
+   867→              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Documents</p>
+   868→              {documents.length === 0 ? (
+   869→                <p className="text-muted-foreground">No documents attached.</p>
+   870→              ) : (
+   871→                <ul className="space-y-1">
+   872→                  {documents.map((d, i) => (
+   873→                    <li key={i}>
+   874→                      {/* Protected file route — opens in a new tab for staff review. */}
+   875→                      <a href={d.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary underline-offset-2 hover:underline">
+   876→                        <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+   877→                        {d.name}
+   878→                      </a>
+   879→                    </li>
+   880→                  ))}
+   881→                </ul>
+   882→              )}
+   883→            </div>
+   884→
+   885→            <div>
+   886→              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Timeline</p>
+   887→              <ol className="space-y-2 border-l pl-4">
+   888→                {app.events.map((ev) => (
+   889→                  <li key={ev.id} className="relative">
+   890→                    <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-primary" aria-hidden />
+   891→                    <p className="font-medium">{ev.type.replaceAll('_', ' ').toLowerCase()}</p>
+   892→                    {ev.note ? <p className="text-muted-foreground">{ev.note}</p> : null}
+   893→                    <p className="text-xs text-muted-foreground">
+   894→                      {ev.actorName ?? 'system'} · {timeAgo(ev.createdAt)}
+   895→                    </p>
+   896→                  </li>
+   897→                ))}
+   898→              </ol>
+   899→            </div>
+   900→
+   901→            <Separator />
+   902→
+   903→            <div className="flex flex-wrap gap-2">
+   904→              <Button
+   905→                size="sm"
+   906→                variant="outline"
+   907→                disabled={busy || app.reviewOwnerId === user.id}
+   908→                onClick={() => act({ action: 'assign', reviewOwnerId: user.id, reviewOwnerName: user.name }, `Review assigned to you.` , false)}
+   909→              >
+   910→                Assign to me
+   911→              </Button>
+   912→              <Button size="sm" variant="outline" disabled={busy || app.status === 'UNDER_REVIEW'} onClick={() => act({ action: 'start_review' }, 'Review started.', false)}>
+   913→                Start review
+   914→              </Button>
+   915→              <Button size="sm" variant="outline" disabled={busy} onClick={() => setInfoOpen(true)}>
+   916→                Request info
+   917→              </Button>
+   918→              <Button size="sm" variant="destructive" disabled={busy} onClick={() => setRejectOpen(true)}>
+   919→                Reject
+   920→              </Button>
+   921→              <Button size="sm" disabled={busy} onClick={() => setApproveOpen(true)}>
+   922→                Approve
+   923→              </Button>
+   924→              <Button size="sm" variant="outline" disabled={busy} onClick={() => setCloseAction('suspend')}>
+   925→                Suspend
+   926→              </Button>
+   927→              <Button size="sm" variant="outline" disabled={busy} onClick={() => setCloseAction('revoke')}>
+   928→                Revoke
+   929→              </Button>
+   930→            </div>
+   931→          </div>
+   932→        )}
+   933→
+   934→        {/* Request info */}
+   935→        <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
+   936→          <DialogContent className="sm:max-w-md">
+   937→            <DialogHeader>
+   938→              <DialogTitle>Request information</DialogTitle>
+   939→              <DialogDescription>Tell the applicant exactly what is missing and set a correction deadline.</DialogDescription>
+   940→            </DialogHeader>
+   941→            <div className="space-y-3">
+   942→              <div>
+   943→                <Label htmlFor="info-msg">What is required</Label>
+   944→                <Textarea id="info-msg" value={infoMsg} onChange={(e) => setInfoMsg(e.target.value)} placeholder="e.g. Please upload a clear photo of the business permit…" rows={3} />
+   945→              </div>
+   946→              <div>
+   947→                <Label>Corrections window</Label>
+   948→                <Select value={infoDays} onValueChange={setInfoDays}>
+   949→                  <SelectTrigger>
+   950→                    <SelectValue />
+   951→                  </SelectTrigger>
+   952→                  <SelectContent>
+   953→                    <SelectItem value="3">3 days</SelectItem>
+   954→                    <SelectItem value="7">7 days</SelectItem>
+   955→                    <SelectItem value="14">14 days</SelectItem>
+   956→                  </SelectContent>
+   957→                </Select>
+   958→              </div>
+   959→            </div>
+   960→            <DialogFooter>
+   961→              <Button variant="outline" onClick={() => setInfoOpen(false)}>
+   962→                Cancel
+   963→              </Button>
+   964→              <Button
+   965→                disabled={busy || infoMsg.trim().length < 5}
+   966→                onClick={() => {
+   967→                  act({ action: 'request_info', infoMessage: infoMsg.trim(), correctionDays: Number(infoDays) }, 'Information request sent to the applicant.', false)
+   968→                  setInfoOpen(false)
+   969→                }}
+   970→              >
+   971→                Send request
+   972→              </Button>
+   973→            </DialogFooter>
+   974→          </DialogContent>
+   975→        </Dialog>
+   976→
+   977→        {/* Reject */}
+   978→        <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+   979→          <DialogContent className="sm:max-w-md">
+   980→            <DialogHeader>
+   981→              <DialogTitle>Reject application</DialogTitle>
+   982→              <DialogDescription>The applicant will see this reason. Minimum 10 characters.</DialogDescription>
+   983→            </DialogHeader>
+   984→            <Textarea value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="Explain the decision clearly and fairly…" rows={3} />
+   985→            <DialogFooter>
+   986→              <Button variant="outline" onClick={() => setRejectOpen(false)}>
+   987→                Cancel
+   988→              </Button>
+   989→              <Button
+   990→                variant="destructive"
+   991→                disabled={busy || rejectNote.trim().length < 10}
+   992→                onClick={() => {
+   993→                  act({ action: 'reject', decisionNote: rejectNote.trim() }, 'Application rejected.', true)
+   994→                  setRejectOpen(false)
+   995→                }}
+   996→              >
+   997→                Confirm rejection
+   998→              </Button>
+   999→            </DialogFooter>
+  1000→          </DialogContent>
+  1001→        </Dialog>
+  1002→
+  1003→        {/* Approve */}
+  1004→        <AlertDialog open={approveOpen} onOpenChange={setApproveOpen}>
+  1005→          <AlertDialogContent>
+  1006→            <AlertDialogHeader>
+  1007→              <AlertDialogTitle>Approve {app?.orgName}?</AlertDialogTitle>
+  1008→              <AlertDialogDescription>
+  1009→                Approval creates the organisation on CARMAZE, grants the applicant owner access to their {app?.type === 'DEALER' ? 'DealerOS dashboard' : 'garage dashboard'} and sends a welcome notification. This decision is audit-logged.
+  1010→              </AlertDialogDescription>
+  1011→            </AlertDialogHeader>
+  1012→            <AlertDialogFooter>
+  1013→              <AlertDialogCancel>Cancel</AlertDialogCancel>
+  1014→              <AlertDialogAction
+  1015→                disabled={busy}
+  1016→                onClick={() => {
+  1017→                  act({ action: 'approve' }, 'Application approved — organisation created.', true)
+  1018→                  setApproveOpen(false)
+  1019→                }}
+  1020→              >
+  1021→                Approve &amp; create organisation
+  1022→              </AlertDialogAction>
+  1023→            </AlertDialogFooter>
+  1024→          </AlertDialogContent>
+  1025→        </AlertDialog>
+  1026→
+  1027→        {/* Suspend / Revoke */}
+  1028→        <Dialog open={closeAction !== null} onOpenChange={(open) => !open && setCloseAction(null)}>
+  1029→          <DialogContent className="sm:max-w-md">
+  1030→            <DialogHeader>
+  1031→              <DialogTitle>{closeAction === 'suspend' ? 'Suspend application' : 'Revoke application'}</DialogTitle>
+  1032→              <DialogDescription>{closeAction === 'suspend' ? 'Temporarily pause this application.' : 'Permanently close this application. The applicant keeps their account.'}</DialogDescription>
+  1033→            </DialogHeader>
+  1034→            <Textarea value={closeNote} onChange={(e) => setCloseNote(e.target.value)} placeholder="Reason (required)…" rows={3} />
+  1035→            <DialogFooter>
+  1036→              <Button variant="outline" onClick={() => setCloseAction(null)}>
+  1037→                Cancel
+  1038→              </Button>
+  1039→              <Button
+  1040→                variant="destructive"
+  1041→                disabled={busy || closeNote.trim().length === 0}
+  1042→                onClick={() => {
+  1043→                  act({ action: closeAction, decisionNote: closeNote.trim() }, closeAction === 'suspend' ? 'Application suspended.' : 'Application revoked.', true)
+  1044→                  setCloseAction(null)
+  1045→                }}
+  1046→              >
+  1047→                Confirm
+  1048→              </Button>
+  1049→            </DialogFooter>
+  1050→          </DialogContent>
+  1051→        </Dialog>
+  1052→      </DialogContent>
+  1053→    </Dialog>
+  1054→  )
+  1055→}
+  1056→
+  1057→function Detail({ label, value }: { label: string; value: string }) {
+  1058→  return (
+  1059→    <div>
+  1060→      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+  1061→      <p className="break-words">{value}</p>
+  1062→    </div>
+  1063→  )
+  1064→}
+  1065→
+  1066→// ───────────────────────────── Listings ─────────────────────────────
+  1067→
+  1068→const LISTING_STATUS_FILTERS = ['PENDING_REVIEW', 'ALL', 'PUBLISHED', 'REJECTED', 'SUSPENDED', 'SOLD', 'DRAFT']
+  1069→
+  1070→function ListingsTab() {
+  1071→  const [status, setStatus] = useState('PENDING_REVIEW')
+  1072→  const [page, setPage] = useState(1)
+  1073→  const [listings, setListings] = useState<AdminListing[] | null>(null)
+  1074→  const [total, setTotal] = useState(0)
+  1075→  const [error, setError] = useState<string | null>(null)
+  1076→  const [reload, setReload] = useState(0)
+  1077→  const [busy, setBusy] = useState(false)
+  1078→
+  1079→  const [approving, setApproving] = useState<AdminListing | null>(null)
+  1080→  const [rejecting, setRejecting] = useState<AdminListing | null>(null)
+  1081→  const [rejectNote, setRejectNote] = useState('')
+  1082→  const [suspending, setSuspending] = useState<AdminListing | null>(null)
+  1083→  const [suspendNote, setSuspendNote] = useState('')
+  1084→
+  1085→  useEffect(() => {
+  1086→    let alive = true
+  1087→    apiGet<{ listings: AdminListing[]; total: number }>(buildQuery('/api/admin/listings', { status, page }))
+  1088→      .then((d) => {
+  1089→        if (alive) {
+  1090→          setListings(d.listings)
+  1091→          setTotal(d.total)
+  1092→        }
+  1093→      })
+  1094→      .catch((e: Error) => {
+  1095→        if (alive) setError(e.message)
+  1096→      })
+  1097→    return () => {
+  1098→      alive = false
+  1099→    }
+  1100→  }, [status, page, reload])
+  1101→
+  1102→  function act(body: Record<string, unknown>, successMsg: string) {
+  1103→    setBusy(true)
+  1104→    apiSend('/api/admin/listings', 'PATCH', body)
+  1105→      .then(() => {
+  1106→        toast.success(successMsg)
+  1107→        setReload((r) => r + 1)
+  1108→      })
+  1109→      .catch((e: Error) => toast.error(e.message))
+  1110→      .finally(() => setBusy(false))
+  1111→  }
+  1112→
+  1113→  const pageSize = 12
+  1114→
+  1115→  return (
+  1116→    <div className="space-y-4">
+  1117→      <div className="flex flex-wrap items-center gap-3">
+  1118→        <Select
+  1119→          value={status}
+  1120→          onValueChange={(v) => {
+  1121→            setStatus(v)
+  1122→            setPage(1)
+  1123→          }}
+  1124→        >
+  1125→          <SelectTrigger className="w-[220px]" aria-label="Filter listings by status">
+  1126→            <SelectValue />
+  1127→          </SelectTrigger>
+  1128→          <SelectContent>
+  1129→            {LISTING_STATUS_FILTERS.map((s) => (
+  1130→              <SelectItem key={s} value={s}>
+  1131→                {s === 'ALL' ? 'All statuses' : VEHICLE_STATUS_LABELS[s] ?? s}
+  1132→              </SelectItem>
+  1133→            ))}
+  1134→          </SelectContent>
+  1135→        </Select>
+  1136→        <p className="text-sm text-muted-foreground">
+  1137→          {listings ? `${total} listing(s)` : 'Loading…'}
+  1138→        </p>
+  1139→      </div>
+  1140→
+  1141→      {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
+  1142→      {!error && !listings && <LoadingCards n={6} />}
+  1143→
+  1144→      {listings && listings.length === 0 && <EmptyState message={`No listings with status "${VEHICLE_STATUS_LABELS[status] ?? status}".`} />}
+  1145→
+  1146→      {listings && listings.length > 0 && (
+  1147→        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+  1148→          {listings.map((v) => (
+  1149→            <Card key={v.id} className="overflow-hidden p-0">
+  1150→              <div className="flex gap-3 p-4">
+  1151→                <div className="h-20 w-24 shrink-0 overflow-hidden rounded-md bg-muted">
+  1152→                  {v.photos[0] ? (
+  1153→                     
+  1154→                    <img src={v.photos[0].url} alt={`${v.make} ${v.model}`} className="h-full w-full object-cover" />
+  1155→                  ) : (
+  1156→                    <div className="flex h-full items-center justify-center text-xs text-muted-foreground">No photo</div>
+  1157→                  )}
+  1158→                </div>
+  1159→                <div className="min-w-0 flex-1">
+  1160→                  <div className="flex items-start justify-between gap-2">
+  1161→                    <h3 className="truncate font-semibold leading-tight">{vehicleTitle(v)}</h3>
+  1162→                    <StatusBadge status={v.status} label={VEHICLE_STATUS_LABELS[v.status] ?? v.status} />
+  1163→                  </div>
+  1164→                  <p className="font-mono text-xs text-muted-foreground">{v.refCode}</p>
+  1165→                  <p className="text-sm font-semibold text-primary">{money(v.priceMinor)}</p>
+  1166→                  <p className="truncate text-xs text-muted-foreground">
+  1167→                    {v.owner.name}
+  1168→                    {v.org ? ` · ${v.org.name}` : ' · private seller'} · {timeAgo(v.createdAt)}
+  1169→                  </p>
+  1170→                  {v.reviewNote && (v.status === 'REJECTED' || v.status === 'SUSPENDED') ? (
+  1171→                    <p className="mt-1 line-clamp-2 rounded bg-red-500/10 px-2 py-1 text-xs text-red-600 dark:text-red-400">{v.reviewNote}</p>
+  1172→                  ) : null}
+  1173→                </div>
+  1174→              </div>
+  1175→              <div className="flex flex-wrap gap-2 border-t bg-black/[0.015] px-4 py-2.5 dark:bg-white/[0.03]">
+  1176→                {v.status === 'PENDING_REVIEW' && (
+  1177→                  <>
+  1178→                    <Button size="sm" disabled={busy} onClick={() => setApproving(v)}>
+  1179→                      <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Approve
+  1180→                    </Button>
+  1181→                    <Button size="sm" variant="destructive" disabled={busy} onClick={() => { setRejecting(v); setRejectNote('') }}>
+  1182→                      <XCircle className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Reject
+  1183→                    </Button>
+  1184→                  </>
+  1185→                )}
+  1186→                {(v.status === 'PUBLISHED' || v.status === 'RESERVED') && (
+  1187→                  <>
+  1188→                    <Button size="sm" variant={v.featured ? 'secondary' : 'outline'} disabled={busy} onClick={() => act({ id: v.id, action: v.featured ? 'unfeature' : 'feature' }, v.featured ? 'Featuring removed.' : 'Listing featured.')}>
+  1189→                      <Star className={`mr-1.5 h-3.5 w-3.5 ${v.featured ? 'fill-[#d9b878] text-[#c9a94e]' : ''}`} aria-hidden />
+  1190→                      {v.featured ? 'Unfeature' : 'Feature'}
+  1191→                    </Button>
+  1192→                    <Button size="sm" variant="outline" disabled={busy} onClick={() => { setSuspending(v); setSuspendNote('') }}>
+  1193→                      Suspend
+  1194→                    </Button>
+  1195→                  </>
+  1196→                )}
+  1197→                {v.status === 'SUSPENDED' && (
+  1198→                  <Button size="sm" disabled={busy} onClick={() => setApproving(v)}>
+  1199→                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Restore (approve)
+  1200→                  </Button>
+  1201→                )}
+  1202→                {v.status === 'REJECTED' && (
+  1203→                  <Button size="sm" disabled={busy} onClick={() => setApproving(v)}>
+  1204→                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Approve anyway
+  1205→                  </Button>
+  1206→                )}
+  1207→              </div>
+  1208→            </Card>
+  1209→          ))}
+  1210→        </div>
+  1211→      )}
+  1212→
+  1213→      {total > pageSize && (
+  1214→        <div className="flex items-center justify-center gap-3">
+  1215→          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+  1216→            <ChevronLeft className="h-4 w-4" aria-hidden /> Prev
+  1217→          </Button>
+  1218→          <span className="text-sm text-muted-foreground">
+  1219→            Page {page} of {Math.ceil(total / pageSize)}
+  1220→          </span>
+  1221→          <Button size="sm" variant="outline" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage((p) => p + 1)}>
+  1222→            Next <ChevronRight className="h-4 w-4" aria-hidden />
+  1223→          </Button>
+  1224→        </div>
+  1225→      )}
+  1226→
+  1227→      {/* Approve confirm */}
+  1228→      <AlertDialog open={approving !== null} onOpenChange={(open) => !open && setApproving(null)}>
+  1229→        <AlertDialogContent>
+  1230→          <AlertDialogHeader>
+  1231→            <AlertDialogTitle>Publish {approving ? vehicleTitle(approving) : 'listing'}?</AlertDialogTitle>
+  1232→            <AlertDialogDescription>
+  1233→              {approving?.refCode} goes live in the marketplace immediately and the owner is notified. This action is audit-logged.
+  1234→            </AlertDialogDescription>
+  1235→          </AlertDialogHeader>
+  1236→          <AlertDialogFooter>
+  1237→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+  1238→            <AlertDialogAction
+  1239→              disabled={busy}
+  1240→              onClick={() => {
+  1241→                if (approving) act({ id: approving.id, action: 'approve' }, 'Listing approved and published.')
+  1242→                setApproving(null)
+  1243→              }}
+  1244→            >
+  1245→              Publish listing
+  1246→            </AlertDialogAction>
+  1247→          </AlertDialogFooter>
+  1248→        </AlertDialogContent>
+  1249→      </AlertDialog>
+  1250→
+  1251→      {/* Reject dialog */}
+  1252→      <Dialog open={rejecting !== null} onOpenChange={(open) => !open && setRejecting(null)}>
+  1253→        <DialogContent className="sm:max-w-md">
+  1254→          <DialogHeader>
+  1255→            <DialogTitle>Reject {rejecting ? vehicleTitle(rejecting) : 'listing'}</DialogTitle>
+  1256→            <DialogDescription>The owner receives the reason by notification. Minimum 10 characters.</DialogDescription>
+  1257→          </DialogHeader>
+  1258→          <Textarea value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="e.g. Photos do not match the stated condition — please retake and resubmit." rows={3} />
+  1259→          <DialogFooter>
+  1260→            <Button variant="outline" onClick={() => setRejecting(null)}>
+  1261→              Cancel
+  1262→            </Button>
+  1263→            <Button
+  1264→              variant="destructive"
+  1265→              disabled={busy || rejectNote.trim().length < 10}
+  1266→              onClick={() => {
+  1267→                if (rejecting) act({ id: rejecting.id, action: 'reject', note: rejectNote.trim() }, 'Listing rejected — owner notified.')
+  1268→                setRejecting(null)
+  1269→              }}
+  1270→            >
+  1271→              Confirm rejection
+  1272→            </Button>
+  1273→          </DialogFooter>
+  1274→        </DialogContent>
+  1275→      </Dialog>
+  1276→
+  1277→      {/* Suspend dialog */}
+  1278→      <Dialog open={suspending !== null} onOpenChange={(open) => !open && setSuspending(null)}>
+  1279→        <DialogContent className="sm:max-w-md">
+  1280→          <DialogHeader>
+  1281→            <DialogTitle>Suspend {suspending ? vehicleTitle(suspending) : 'listing'}</DialogTitle>
+  1282→            <DialogDescription>The listing is hidden from the marketplace. A reason is required.</DialogDescription>
+  1283→          </DialogHeader>
+  1284→          <Textarea value={suspendNote} onChange={(e) => setSuspendNote(e.target.value)} placeholder="e.g. Reported for suspicious pricing — suspended pending verification." rows={3} />
+  1285→          <DialogFooter>
+  1286→            <Button variant="outline" onClick={() => setSuspending(null)}>
+  1287→              Cancel
+  1288→            </Button>
+  1289→            <Button
+  1290→              variant="destructive"
+  1291→              disabled={busy || suspendNote.trim().length < 10}
+  1292→              onClick={() => {
+  1293→                if (suspending) act({ id: suspending.id, action: 'suspend', note: suspendNote.trim() }, 'Listing suspended — owner notified.')
+  1294→                setSuspending(null)
+  1295→              }}
+  1296→            >
+  1297→              Confirm suspension
+  1298→            </Button>
+  1299→          </DialogFooter>
+  1300→        </DialogContent>
+  1301→      </Dialog>
+  1302→    </div>
+  1303→  )
+  1304→}
+  1305→
+  1306→// ───────────────────────────── Users ─────────────────────────────
+  1307→
+  1308→function UsersTab({ user }: { user: CurrentUser }) {
+  1309→  const [q, setQ] = useState('')
+  1310→  const [users, setUsers] = useState<UserRow[] | null>(null)
+  1311→  const [error, setError] = useState<string | null>(null)
+  1312→  const [reload, setReload] = useState(0)
+  1313→  const [suspendTarget, setSuspendTarget] = useState<UserRow | null>(null)
+  1314→  const [note, setNote] = useState('')
+  1315→  const [activateTarget, setActivateTarget] = useState<UserRow | null>(null)
+  1316→  const [busy, setBusy] = useState(false)
+  1317→  const isAdmin = hasAnyRole(user, 'ADMIN', 'FOUNDER')
+  1318→
+  1319→  useEffect(() => {
+  1320→    let alive = true
+  1321→    const t = setTimeout(() => {
+  1322→      apiGet<{ users: UserRow[] }>(buildQuery('/api/admin/users', { q }))
+  1323→        .then((d) => {
+  1324→          if (alive) setUsers(d.users)
+  1325→        })
+  1326→        .catch((e: Error) => {
+  1327→          if (alive) setError(e.message)
+  1328→        })
+  1329→    }, 300)
+  1330→    return () => {
+  1331→      alive = false
+  1332→      clearTimeout(t)
+  1333→    }
+  1334→  }, [q, reload])
+  1335→
+  1336→  function setStatus(target: UserRow, status: 'SUSPENDED' | 'ACTIVE', reason?: string) {
+  1337→    setBusy(true)
+  1338→    apiSend<{ message: string }>('/api/admin/users', 'PATCH', { id: target.id, status, note: reason })
+  1339→      .then((d) => {
+  1340→        toast.success(d.message)
+  1341→        setReload((r) => r + 1)
+  1342→      })
+  1343→      .catch((e: Error) => toast.error(e.message))
+  1344→      .finally(() => setBusy(false))
+  1345→  }
+  1346→
+  1347→  return (
+  1348→    <div className="space-y-4">
+  1349→      <form
+  1350→        className="flex max-w-md gap-2"
+  1351→        onSubmit={(e) => {
+  1352→          e.preventDefault()
+  1353→          setReload((r) => r + 1)
+  1354→        }}
+  1355→        role="search"
+  1356→      >
+  1357→        <div className="relative flex-1">
+  1358→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+  1359→          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email…" className="pl-8" aria-label="Search users" />
+  1360→        </div>
+  1361→        <Button type="submit" variant="outline" size="sm">
+  1362→          Search
+  1363→        </Button>
+  1364→      </form>
+  1365→
+  1366→      {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
+  1367→      {!error && !users && <LoadingCards n={3} />}
+  1368→      {users && users.length === 0 && <EmptyState message={`No users match "${q}".`} />}
+  1369→
+  1370→      {users && users.length > 0 && (
+  1371→        <div className="overflow-hidden rounded-xl border">
+  1372→          <div className="max-h-[70vh] overflow-y-auto">
+  1373→            <Table>
+  1374→              <TableHeader className="sticky top-0 bg-card">
+  1375→                <TableRow>
+  1376→                  <TableHead>User</TableHead>
+  1377→                  <TableHead>Roles</TableHead>
+  1378→                  <TableHead>Organisations</TableHead>
+  1379→                  <TableHead>Status</TableHead>
+  1380→                  <TableHead>Joined</TableHead>
+  1381→                  {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+  1382→                </TableRow>
+  1383→              </TableHeader>
+  1384→              <TableBody>
+  1385→                {users.map((u) => (
+  1386→                  <TableRow key={u.id}>
+  1387→                    <TableCell>
+  1388→                      <p className="font-medium">{u.name}</p>
+  1389→                      <p className="text-xs text-muted-foreground">{u.email}{u.phone ? ` · ${u.phone}` : ''}</p>
+  1390→                    </TableCell>
+  1391→                    <TableCell>
+  1392→                      <div className="flex max-w-[220px] flex-wrap gap-1">
+  1393→                        {u.roles.map((r) => (
+  1394→                          <Badge key={r} variant="outline" className={`text-[10px] ${STAFF_ROLES_CLIENT.includes(r as (typeof STAFF_ROLES_CLIENT)[number]) ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border bg-muted text-muted-foreground'}`}>
+  1395→                            {r.replaceAll('_', ' ').toLowerCase()}
+  1396→                          </Badge>
+  1397→                        ))}
+  1398→                      </div>
+  1399→                    </TableCell>
+  1400→                    <TableCell className="text-xs text-muted-foreground">
+  1401→                      {u.memberships.length === 0
+  1402→                        ? '—'
+  1403→                        : u.memberships.map((m) => `${m.orgName} (${m.role.toLowerCase()})`).join(', ')}
+  1404→                    </TableCell>
+  1405→                    <TableCell>
+  1406→                      <StatusBadge status={u.status} />
+  1407→                    </TableCell>
+  1408→                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{dateLabel(u.createdAt)}</TableCell>
+  1409→                    {isAdmin && (
+  1410→                      <TableCell className="text-right">
+  1411→                        {u.id !== user.id && !u.roles.includes('FOUNDER') ? (
+  1412→                          u.status === 'ACTIVE' ? (
+  1413→                            <Button size="sm" variant="outline" disabled={busy} onClick={() => { setSuspendTarget(u); setNote('') }}>
+  1414→                              Suspend
+  1415→                            </Button>
+  1416→                          ) : (
+  1417→                            <Button size="sm" variant="outline" disabled={busy} onClick={() => setActivateTarget(u)}>
+  1418→                              Activate
+  1419→                            </Button>
+  1420→                          )
+  1421→                        ) : (
+  1422→                          <span className="text-xs text-muted-foreground">Protected</span>
+  1423→                        )}
+  1424→                      </TableCell>
+  1425→                    )}
+  1426→                  </TableRow>
+  1427→                ))}
+  1428→              </TableBody>
+  1429→            </Table>
+  1430→          </div>
+  1431→        </div>
+  1432→      )}
+  1433→
+  1434→      {/* Suspend confirm */}
+  1435→      <Dialog open={suspendTarget !== null} onOpenChange={(open) => !open && setSuspendTarget(null)}>
+  1436→        <DialogContent className="sm:max-w-md">
+  1437→          <DialogHeader>
+  1438→            <DialogTitle>Suspend {suspendTarget?.name}?</DialogTitle>
+  1439→            <DialogDescription>
+  1440→              They immediately lose API access (the session check rejects suspended accounts), and they see a suspension notice on next sign-in.
+  1441→            </DialogDescription>
+  1442→          </DialogHeader>
+  1443→          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason (recommended for the audit trail)…" rows={3} />
+  1444→          <DialogFooter>
+  1445→            <Button variant="outline" onClick={() => setSuspendTarget(null)}>
+  1446→              Cancel
+  1447→            </Button>
+  1448→            <Button
+  1449→              variant="destructive"
+  1450→              disabled={busy}
+  1451→              onClick={() => {
+  1452→                if (suspendTarget) setStatus(suspendTarget, 'SUSPENDED', note.trim() || undefined)
+  1453→                setSuspendTarget(null)
+  1454→              }}
+  1455→            >
+  1456→              Suspend account
+  1457→            </Button>
+  1458→          </DialogFooter>
+  1459→        </DialogContent>
+  1460→      </Dialog>
+  1461→
+  1462→      {/* Activate confirm */}
+  1463→      <AlertDialog open={activateTarget !== null} onOpenChange={(open) => !open && setActivateTarget(null)}>
+  1464→        <AlertDialogContent>
+  1465→          <AlertDialogHeader>
+  1466→            <AlertDialogTitle>Reactivate {activateTarget?.name}?</AlertDialogTitle>
+  1467→            <AlertDialogDescription>The account regains full access immediately.</AlertDialogDescription>
+  1468→          </AlertDialogHeader>
+  1469→          <AlertDialogFooter>
+  1470→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+  1471→            <AlertDialogAction
+  1472→              disabled={busy}
+  1473→              onClick={() => {
+  1474→                if (activateTarget) setStatus(activateTarget, 'ACTIVE')
+  1475→                setActivateTarget(null)
+  1476→              }}
+  1477→            >
+  1478→              Activate
+  1479→            </AlertDialogAction>
+  1480→          </AlertDialogFooter>
+  1481→        </AlertDialogContent>
+  1482→      </AlertDialog>
+  1483→    </div>
+  1484→  )
+  1485→}
+  1486→
+  1487→// ───────────────────────────── Reports ─────────────────────────────
+  1488→
+  1489→function ReportsTab() {
+  1490→  const [statusFilter, setStatusFilter] = useState('OPEN')
+  1491→  const [reports, setReports] = useState<ReportRow[] | null>(null)
+  1492→  const [error, setError] = useState<string | null>(null)
+  1493→  const [reload, setReload] = useState(0)
+  1494→  const [resolveTarget, setResolveTarget] = useState<ReportRow | null>(null)
+  1495→  const [note, setNote] = useState('')
+  1496→  const [dismissTarget, setDismissTarget] = useState<ReportRow | null>(null)
+  1497→  const [busy, setBusy] = useState(false)
+  1498→
+  1499→  useEffect(() => {
+  1500→    let alive = true
+  1501→    apiGet<{ reports: ReportRow[] }>(buildQuery('/api/reports', { status: statusFilter }))
+  1502→      .then((d) => {
+  1503→        if (alive) setReports(d.reports)
+  1504→      })
+  1505→      .catch((e: Error) => {
+  1506→        if (alive) setError(e.message)
+  1507→      })
+  1508→    return () => {
+  1509→      alive = false
+  1510→    }
+  1511→  }, [statusFilter, reload])
+  1512→
+  1513→  function patch(body: Record<string, unknown>, msg: string) {
+  1514→    setBusy(true)
+  1515→    apiSend('/api/reports', 'PATCH', body)
+  1516→      .then(() => {
+  1517→        toast.success(msg)
+  1518→        setReload((r) => r + 1)
+  1519→      })
+  1520→      .catch((e: Error) => toast.error(e.message))
+  1521→      .finally(() => setBusy(false))
+  1522→  }
+  1523→
+  1524→  return (
+  1525→    <div className="space-y-4">
+  1526→      <div className="flex items-center gap-3">
+  1527→        <Select value={statusFilter} onValueChange={setStatusFilter}>
+  1528→          <SelectTrigger className="w-[180px]" aria-label="Filter reports by status">
+  1529→            <SelectValue />
+  1530→          </SelectTrigger>
+  1531→          <SelectContent>
+  1532→            <SelectItem value="OPEN">Open</SelectItem>
+  1533→            <SelectItem value="RESOLVED">Resolved</SelectItem>
+  1534→            <SelectItem value="DISMISSED">Dismissed</SelectItem>
+  1535→            <SelectItem value="ALL">All</SelectItem>
+  1536→          </SelectContent>
+  1537→        </Select>
+  1538→        <p className="text-sm text-muted-foreground">{reports ? `${reports.length} report(s)` : 'Loading…'}</p>
+  1539→      </div>
+  1540→
+  1541→      {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
+  1542→      {!error && !reports && <LoadingCards n={3} />}
+  1543→      {reports && reports.length === 0 && (
+  1544→        <EmptyState message={statusFilter === 'OPEN' ? 'No open reports — the community report queue is clear.' : 'No reports with this status.'} />
+  1545→      )}
+  1546→
+  1547→      {reports && reports.length > 0 && (
+  1548→        <div className="grid gap-3 md:grid-cols-2">
+  1549→          {reports.map((r) => (
+  1550→            <Card key={r.id} className="p-4">
+  1551→              <div className="flex items-start justify-between gap-2">
+  1552→                <div>
+  1553→                  <StatusBadge status={r.status} />
+  1554→                  <Badge variant="outline" className="ml-2 border-border bg-muted text-muted-foreground">{r.targetType.toLowerCase()}</Badge>
+  1555→                </div>
+  1556→                <span className="text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
+  1557→              </div>
+  1558→              <h3 className="mt-2 font-semibold">{r.reason}</h3>
+  1559→              {r.details ? <p className="mt-1 text-sm text-muted-foreground">{r.details}</p> : null}
+  1560→              <p className="mt-1 font-mono text-xs text-muted-foreground">target: {r.targetId}</p>
+  1561→              {r.resolutionNote ? <p className="mt-1 rounded bg-muted px-2 py-1 text-xs">Resolution: {r.resolutionNote}</p> : null}
+  1562→              {r.status === 'OPEN' && (
+  1563→                <div className="mt-3 flex gap-2">
+  1564→                  <Button size="sm" disabled={busy} onClick={() => { setResolveTarget(r); setNote('') }}>
+  1565→                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Resolve
+  1566→                  </Button>
+  1567→                  <Button size="sm" variant="outline" disabled={busy} onClick={() => setDismissTarget(r)}>
+  1568→                    Dismiss
+  1569→                  </Button>
+  1570→                </div>
+  1571→              )}
+  1572→            </Card>
+  1573→          ))}
+  1574→        </div>
+  1575→      )}
+  1576→
+  1577→      <Dialog open={resolveTarget !== null} onOpenChange={(open) => !open && setResolveTarget(null)}>
+  1578→        <DialogContent className="sm:max-w-md">
+  1579→          <DialogHeader>
+  1580→            <DialogTitle>Resolve report</DialogTitle>
+  1581→            <DialogDescription>Record what was done about the reported content.</DialogDescription>
+  1582→          </DialogHeader>
+  1583→          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Listing suspended pending document re-verification." rows={3} />
+  1584→          <DialogFooter>
+  1585→            <Button variant="outline" onClick={() => setResolveTarget(null)}>
+  1586→              Cancel
+  1587→            </Button>
+  1588→            <Button
+  1589→              disabled={busy}
+  1590→              onClick={() => {
+  1591→                if (resolveTarget) patch({ id: resolveTarget.id, status: 'RESOLVED', resolutionNote: note.trim() || undefined }, 'Report resolved.')
+  1592→                setResolveTarget(null)
+  1593→              }}
+  1594→            >
+  1595→              Resolve
+  1596→            </Button>
+  1597→          </DialogFooter>
+  1598→        </DialogContent>
+  1599→      </Dialog>
+  1600→
+  1601→      <AlertDialog open={dismissTarget !== null} onOpenChange={(open) => !open && setDismissTarget(null)}>
+  1602→        <AlertDialogContent>
+  1603→          <AlertDialogHeader>
+  1604→            <AlertDialogTitle>Dismiss this report?</AlertDialogTitle>
+  1605→            <AlertDialogDescription>The report is closed as not actionable. This is recorded with your name.</AlertDialogDescription>
+  1606→          </AlertDialogHeader>
+  1607→          <AlertDialogFooter>
+  1608→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+  1609→            <AlertDialogAction
+  1610→              disabled={busy}
+  1611→              onClick={() => {
+  1612→                if (dismissTarget) patch({ id: dismissTarget.id, status: 'DISMISSED' }, 'Report dismissed.')
+  1613→                setDismissTarget(null)
+  1614→              }}
+  1615→            >
+  1616→              Dismiss
+  1617→            </AlertDialogAction>
+  1618→          </AlertDialogFooter>
+  1619→        </AlertDialogContent>
+  1620→      </AlertDialog>
+  1621→    </div>
+  1622→  )
+  1623→}
+  1624→
+  1625→// ───────────────────────────── Billing ─────────────────────────────
+  1626→
+  1627→const INVOICE_TYPE_LABELS: Record<string, string> = { SUBSCRIPTION: 'Subscription', CAMPAIGN: 'Campaign', LEAD_FEE: 'Lead fee' }
+  1628→
+  1629→function BillingTab({ user }: { user: CurrentUser }) {
+  1630→  const [overview, setOverview] = useState<OverviewData | null>(null)
+  1631→  const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null)
+  1632→  const [statusFilter, setStatusFilter] = useState('ALL')
+  1633→  const [error, setError] = useState<string | null>(null)
+  1634→  const [reload, setReload] = useState(0)
+  1635→  const [markTarget, setMarkTarget] = useState<InvoiceRow | null>(null)
+  1636→  const [note, setNote] = useState('')
+  1637→  const [busy, setBusy] = useState(false)
+  1638→  const canFinance = hasAnyRole(user, 'FINANCE', 'ADMIN', 'FOUNDER')
+  1639→
+  1640→  useEffect(() => {
+  1641→    let alive = true
+  1642→    apiGet<OverviewData>('/api/admin/overview')
+  1643→      .then((d) => {
+  1644→        if (alive) setOverview(d)
+  1645→      })
+  1646→      .catch(() => {})
+  1647→    return () => {
+  1648→      alive = false
+  1649→    }
+  1650→  }, [reload])
+  1651→
+  1652→  useEffect(() => {
+  1653→    let alive = true
+  1654→    apiGet<{ invoices: InvoiceRow[] }>(buildQuery('/api/billing/invoices', { status: statusFilter }))
+  1655→      .then((d) => {
+  1656→        if (alive) setInvoices(d.invoices)
+  1657→      })
+  1658→      .catch((e: Error) => {
+  1659→        if (alive) setError(e.message)
+  1660→      })
+  1661→    return () => {
+  1662→      alive = false
+  1663→    }
+  1664→  }, [statusFilter, reload])
+  1665→
+  1666→  function markPaid() {
+  1667→    if (!markTarget) return
+  1668→    setBusy(true)
+  1669→    apiSend<{ invoice: InvoiceRow; warning: string }>(`/api/billing/invoices/${markTarget.id}/mark-paid`, 'POST', { note: note.trim() })
+  1670→      .then((d) => {
+  1671→        toast.success(`Invoice ${d.invoice.refCode} marked paid.`)
+  1672→        toast.warning(d.warning)
+  1673→        setReload((r) => r + 1)
+  1674→      })
+  1675→      .catch((e: Error) => toast.error(e.message))
+  1676→      .finally(() => setBusy(false))
+  1677→  }
+  1678→
+  1679→  return (
+  1680→    <div className="space-y-4">
+  1681→      {overview ? (
+  1682→        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+  1683→          <StatCard label="Paid revenue" value={compactMoney(overview.revenue.paidTotalMinor)} sub="M-Pesa + reconciled" tone="green" />
+  1684→          <StatCard label="Pending" value={compactMoney(overview.revenue.pendingTotalMinor)} sub={`${overview.revenue.pendingCount} invoice(s)`} tone="gold" />
+  1685→          <StatCard label="Campaigns live" value={overview.campaigns.active} sub={`${overview.campaigns.pendingPayment} awaiting payment`} />
+  1686→          <StatCard label="Failed payments" value={overview.ops.failedPayments} sub="attempts recorded honestly" tone={overview.ops.failedPayments > 0 ? 'red' : undefined} />
+  1687→        </section>
+  1688→      ) : (
+  1689→        <LoadingCards n={4} />
+  1690→      )}
+  1691→
+  1692→      <div className="flex flex-wrap items-center gap-3">
+  1693→        <Select value={statusFilter} onValueChange={setStatusFilter}>
+  1694→          <SelectTrigger className="w-[180px]" aria-label="Filter invoices by status">
+  1695→            <SelectValue />
+  1696→          </SelectTrigger>
+  1697→          <SelectContent>
+  1698→            <SelectItem value="ALL">All statuses</SelectItem>
+  1699→            <SelectItem value="PENDING">Pending</SelectItem>
+  1700→            <SelectItem value="PAID">Paid</SelectItem>
+  1701→            <SelectItem value="OVERDUE">Overdue</SelectItem>
+  1702→            <SelectItem value="CANCELLED">Cancelled</SelectItem>
+  1703→            <SelectItem value="REFUNDED">Refunded</SelectItem>
+  1704→          </SelectContent>
+  1705→        </Select>
+  1706→        <p className="text-sm text-muted-foreground">{invoices ? `${invoices.length} invoice(s)` : 'Loading…'}</p>
+  1707→      </div>
+  1708→
+  1709→      {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
+  1710→      {!error && !invoices && <LoadingCards n={3} />}
+  1711→      {invoices && invoices.length === 0 && <EmptyState message="No invoices with this status yet." />}
+  1712→
+  1713→      {invoices && invoices.length > 0 && (
+  1714→        <div className="overflow-hidden rounded-xl border">
+  1715→          <div className="max-h-[60vh] overflow-y-auto">
+  1716→            <Table>
+  1717→              <TableHeader className="sticky top-0 bg-card">
+  1718→                <TableRow>
+  1719→                  <TableHead>Invoice</TableHead>
+  1720→                  <TableHead>Organisation</TableHead>
+  1721→                  <TableHead>Type</TableHead>
+  1722→                  <TableHead className="text-right">Amount</TableHead>
+  1723→                  <TableHead>Status</TableHead>
+  1724→                  <TableHead>Issued / due</TableHead>
+  1725→                  {canFinance && <TableHead className="text-right">Action</TableHead>}
+  1726→                </TableRow>
+  1727→              </TableHeader>
+  1728→              <TableBody>
+  1729→                {invoices.map((inv) => (
+  1730→                  <TableRow key={inv.id}>
+  1731→                    <TableCell>
+  1732→                      <p className="font-mono text-xs font-medium">{inv.refCode}</p>
+  1733→                      <p className="max-w-[220px] truncate text-xs text-muted-foreground" title={inv.description}>{inv.description}</p>
+  1734→                      {inv.payments.length > 0 ? (
+  1735→                        <p className="text-[11px] text-muted-foreground">
+  1736→                          {inv.payments.length} payment attempt(s)
+  1737→                          {inv.payments.some((p) => p.status === 'FAILED') ? ' · includes failed' : ''}
+  1738→                        </p>
+  1739→                      ) : null}
+  1740→                    </TableCell>
+  1741→                    <TableCell className="text-sm">{inv.org ? inv.org.name : '—'}</TableCell>
+  1742→                    <TableCell>
+  1743→                      <Badge variant="outline" className="border-border bg-muted text-muted-foreground">{INVOICE_TYPE_LABELS[inv.type] ?? inv.type}</Badge>
+  1744→                    </TableCell>
+  1745→                    <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">{money(inv.amountMinor, inv.currency)}</TableCell>
+  1746→                    <TableCell>
+  1747→                      <StatusBadge status={inv.status} />
+  1748→                      {inv.paidVia ? <p className="text-[11px] text-muted-foreground">via {inv.paidVia === 'MPESA' ? 'M-Pesa' : inv.paidVia}</p> : null}
+  1749→                    </TableCell>
+  1750→                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+  1751→                      {dateLabel(inv.issuedAt)}
+  1752→                      {inv.dueDate ? ` · due ${dateLabel(inv.dueDate)}` : ''}
+  1753→                    </TableCell>
+  1754→                    {canFinance && (
+  1755→                      <TableCell className="text-right">
+  1756→                        {inv.status === 'PENDING' || inv.status === 'OVERDUE' ? (
+  1757→                          <Button size="sm" variant="outline" disabled={busy} onClick={() => { setMarkTarget(inv); setNote('') }}>
+  1758→                            Mark paid
+  1759→                          </Button>
+  1760→                        ) : null}
+  1761→                      </TableCell>
+  1762→                    )}
+  1763→                  </TableRow>
+  1764→                ))}
+  1765→              </TableBody>
+  1766→            </Table>
+  1767→          </div>
+  1768→        </div>
+  1769→      )}
+  1770→
+  1771→      {!canFinance && <p className="text-xs text-muted-foreground">Marking invoices paid requires FINANCE, ADMIN or FOUNDER role.</p>}
+  1772→
+  1773→      {/* Mark paid confirm */}
+  1774→      <Dialog open={markTarget !== null} onOpenChange={(open) => !open && setMarkTarget(null)}>
+  1775→        <DialogContent className="sm:max-w-md">
+  1776→          <DialogHeader>
+  1777→            <DialogTitle>Mark {markTarget?.refCode} as paid</DialogTitle>
+  1778→            <DialogDescription>
+  1779→              Manual reconciliation for money received outside M-Pesa (bank transfer, cash, cheque). A written note is mandatory and audit-logged with your name. When M-Pesa callbacks are configured, automatic verification is preferred.
+  1780→            </DialogDescription>
+  1781→          </DialogHeader>
+  1782→          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={'e.g. Received via bank transfer — reconciled by ' + (user.name ?? 'finance')} rows={3} />
+  1783→          <DialogFooter>
+  1784→            <Button variant="outline" onClick={() => setMarkTarget(null)}>
+  1785→              Cancel
+  1786→            </Button>
+  1787→            <Button disabled={busy || note.trim().length < 5} onClick={() => { markPaid(); setMarkTarget(null) }}>
+  1788→              Confirm payment received
+  1789→            </Button>
+  1790→          </DialogFooter>
+  1791→        </DialogContent>
+  1792→      </Dialog>
+  1793→    </div>
+  1794→  )
+  1795→}
+  1796→
+  1797→// ───────────────────────────── Campaigns ─────────────────────────────
+  1798→
+  1799→function CampaignsTab() {
+  1800→  const [campaigns, setCampaigns] = useState<CampaignRow[] | null>(null)
+  1801→  const [error, setError] = useState<string | null>(null)
+  1802→  const [reload, setReload] = useState(0)
+  1803→  const [confirm, setConfirm] = useState<{ row: CampaignRow; action: 'activate' | 'end' | 'cancel' } | null>(null)
+  1804→  const [busy, setBusy] = useState(false)
+  1805→
+  1806→  useEffect(() => {
+  1807→    let alive = true
+  1808→    apiGet<{ campaigns: CampaignRow[] }>('/api/admin/campaigns')
+  1809→      .then((d) => {
+  1810→        if (alive) setCampaigns(d.campaigns)
+  1811→      })
+  1812→      .catch((e: Error) => {
+  1813→        if (alive) setError(e.message)
+  1814→      })
+  1815→    return () => {
+  1816→      alive = false
+  1817→    }
+  1818→  }, [reload])
+  1819→
+  1820→  function run() {
+  1821→    if (!confirm) return
+  1822→    const { row, action } = confirm
+  1823→    setBusy(true)
+  1824→    apiSend('/api/admin/campaigns', 'PATCH', { id: row.id, action })
+  1825→      .then(() => {
+  1826→        toast.success(`Campaign ${row.refCode} ${action === 'activate' ? 'activated' : action + 'ed'}.`)
+  1827→        setReload((r) => r + 1)
+  1828→      })
+  1829→      .catch((e: Error) => toast.error(e.message))
+  1830→      .finally(() => setBusy(false))
+  1831→  }
+  1832→
+  1833→  return (
+  1834→    <div className="space-y-4">
+  1835→      <Alert>
+  1836→        <Megaphone className="h-4 w-4" aria-hidden />
+  1837→        <AlertTitle>Campaign lifecycle</AlertTitle>
+  1838→        <AlertDescription>
+  1839→          Campaigns activate only when their linked invoice is genuinely PAID (M-Pesa callback or reconciled manually). Impression and click numbers are real counters.
+  1840→        </AlertDescription>
+  1841→      </Alert>
+  1842→
+  1843→      {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
+  1844→      {!error && !campaigns && <LoadingCards n={3} />}
+  1845→      {campaigns && campaigns.length === 0 && <EmptyState message="No campaigns yet — dealers create them from their dashboard." />}
+  1846→
+  1847→      {campaigns && campaigns.length > 0 && (
+  1848→        <div className="overflow-hidden rounded-xl border">
+  1849→          <div className="max-h-[60vh] overflow-y-auto">
+  1850→            <Table>
+  1851→              <TableHeader className="sticky top-0 bg-card">
+  1852→                <TableRow>
+  1853→                  <TableHead>Campaign</TableHead>
+  1854→                  <TableHead>Listing</TableHead>
+  1855→                  <TableHead>Package</TableHead>
+  1856→                  <TableHead>Status</TableHead>
+  1857→                  <TableHead className="text-right">Impr. / clicks</TableHead>
+  1858→                  <TableHead>Window</TableHead>
+  1859→                  <TableHead className="text-right">Actions</TableHead>
+  1860→                </TableRow>
+  1861→              </TableHeader>
+  1862→              <TableBody>
+  1863→                {campaigns.map((c) => (
+  1864→                  <TableRow key={c.id}>
+  1865→                    <TableCell>
+  1866→                      <p className="font-mono text-xs font-medium">{c.refCode}</p>
+  1867→                      <p className="text-xs text-muted-foreground">{c.org.name}</p>
+  1868→                      {c.invoice ? (
+  1869→                        <p className="text-[11px] text-muted-foreground">
+  1870→                          {c.invoice.refCode} · {c.invoice.status.toLowerCase()}
+  1871→                        </p>
+  1872→                      ) : (
+  1873→                        <p className="text-[11px] text-red-600 dark:text-red-400">no invoice linked</p>
+  1874→                      )}
+  1875→                    </TableCell>
+  1876→                    <TableCell className="text-sm">
+  1877→                      <p>{vehicleTitle(c.vehicle)}</p>
+  1878→                      <p className="font-mono text-xs text-muted-foreground">{c.vehicle.refCode}</p>
+  1879→                    </TableCell>
+  1880→                    <TableCell className="text-sm">
+  1881→                      <p>{c.packageName}</p>
+  1882→                      <p className="text-xs text-muted-foreground">{c.packagePriceMinor !== null ? money(c.packagePriceMinor) : '—'} · {c.packageDays ?? '?'} days</p>
+  1883→                    </TableCell>
+  1884→                    <TableCell>
+  1885→                      <StatusBadge status={c.status} />
+  1886→                    </TableCell>
+  1887→                    <TableCell className="text-right tabular-nums">
+  1888→                      {c.impressions} / {c.clicks}
+  1889→                    </TableCell>
+  1890→                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+  1891→                      {c.startsAt ? `${dateLabel(c.startsAt)} → ${c.endsAt ? dateLabel(c.endsAt) : '?'}` : '—'}
+  1892→                    </TableCell>
+  1893→                    <TableCell className="text-right">
+  1894→                      <div className="flex justify-end gap-1.5">
+  1895→                        {c.status === 'PENDING_PAYMENT' && (
+  1896→                          <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm({ row: c, action: 'activate' })}>
+  1897→                            Activate
+  1898→                          </Button>
+  1899→                        )}
+  1900→                        {c.status === 'ACTIVE' && (
+  1901→                          <>
+  1902→                            <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm({ row: c, action: 'end' })}>
+  1903→                              End
+  1904→                            </Button>
+  1905→                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirm({ row: c, action: 'cancel' })}>
+  1906→                              Cancel
+  1907→                            </Button>
+  1908→                          </>
+  1909→                        )}
+  1910→                      </div>
+  1911→                    </TableCell>
+  1912→                  </TableRow>
+  1913→                ))}
+  1914→              </TableBody>
+  1915→            </Table>
+  1916→          </div>
+  1917→        </div>
+  1918→      )}
+  1919→
+  1920→      <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
+  1921→        <AlertDialogContent>
+  1922→          <AlertDialogHeader>
+  1923→            <AlertDialogTitle>
+  1924→              {confirm?.action === 'activate' ? 'Activate campaign' : confirm?.action === 'end' ? 'End campaign' : 'Cancel campaign'} {confirm?.row.refCode}?
+  1925→            </AlertDialogTitle>
+  1926→            <AlertDialogDescription>
+  1927→              {confirm?.action === 'activate'
+  1928→                ? `Activation requires the linked invoice to be PAID — the server verifies this and refuses otherwise. The campaign runs for ${confirm?.row.packageDays ?? 7} days from now.`
+  1929→                : confirm?.action === 'end'
+  1930→                  ? 'The campaign stops immediately and is marked ENDED.'
+  1931→                  : 'The campaign is cancelled. If it was unpaid, the invoice stays pending for follow-up.'}
+  1932→            </AlertDialogDescription>
+  1933→          </AlertDialogHeader>
+  1934→          <AlertDialogFooter>
+  1935→            <AlertDialogCancel>Back</AlertDialogCancel>
+  1936→            <AlertDialogAction
+  1937→              disabled={busy}
+  1938→              onClick={() => {
+  1939→                run()
+  1940→                setConfirm(null)
+  1941→              }}
+  1942→            >
+  1943→              Confirm
+  1944→            </AlertDialogAction>
+  1945→          </AlertDialogFooter>
+  1946→        </AlertDialogContent>
+  1947→      </AlertDialog>
+  1948→    </div>
+  1949→  )
+  1950→}
+  1951→
+  1952→// ───────────────────────────── Support ─────────────────────────────
+  1953→
+  1954→function SupportTab() {
+  1955→  const [statusFilter, setStatusFilter] = useState('ALL')
+  1956→  const [tickets, setTickets] = useState<TicketRow[] | null>(null)
+  1957→  const [error, setError] = useState<string | null>(null)
+  1958→  const [reload, setReload] = useState(0)
+  1959→  const [openTicket, setOpenTicket] = useState<TicketRow | null>(null)
+  1960→  const [response, setResponse] = useState('')
+  1961→  const [busy, setBusy] = useState(false)
+  1962→
+  1963→  useEffect(() => {
+  1964→    let alive = true
+  1965→    apiGet<{ tickets: TicketRow[] }>(buildQuery('/api/admin/tickets', { status: statusFilter }))
+  1966→      .then((d) => {
+  1967→        if (alive) setTickets(d.tickets)
+  1968→      })
+  1969→      .catch((e: Error) => {
+  1970→        if (alive) setError(e.message)
+  1971→      })
+  1972→    return () => {
+  1973→      alive = false
+  1974→    }
+  1975→  }, [statusFilter, reload])
+  1976→
+  1977→  function patch(body: Record<string, unknown>, msg: string) {
+  1978→    setBusy(true)
+  1979→    apiSend('/api/admin/tickets', 'PATCH', body)
+  1980→      .then(() => {
+  1981→        toast.success(msg)
+  1982→        setOpenTicket(null)
+  1983→        setReload((r) => r + 1)
+  1984→      })
+  1985→      .catch((e: Error) => toast.error(e.message))
+  1986→      .finally(() => setBusy(false))
+  1987→  }
+  1988→
+  1989→  return (
+  1990→    <div className="space-y-4">
+  1991→      <div className="flex items-center gap-3">
+  1992→        <Select value={statusFilter} onValueChange={setStatusFilter}>
+  1993→          <SelectTrigger className="w-[180px]" aria-label="Filter tickets by status">
+  1994→            <SelectValue />
+  1995→          </SelectTrigger>
+  1996→          <SelectContent>
+  1997→            <SelectItem value="ALL">All</SelectItem>
+  1998→            <SelectItem value="OPEN">Open</SelectItem>
+  1999→            <SelectItem value="IN_PROGRESS">In progress</SelectItem>
+  2000→            <SelectItem value="RESOLVED">Resolved</SelectItem>
+
+[showing lines 1-2000 of 2405; use offset=2001 with limit to continue reading]

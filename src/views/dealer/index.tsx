@@ -43,6 +43,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { MessagesTab, useUnreadConversations } from '@/components/messaging/conversation-panel'
+import { PromotionsSection } from '@/components/billing/promotions-section'
 
 // ───────────────────────────── Types ─────────────────────────────
 
@@ -2050,6 +2051,9 @@ function BillingTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboard
           )}
         </section>
       )}
+
+      {/* Promotions — buy/manage listing campaigns (same M-Pesa flow) */}
+      <PromotionsSection />
 
       {/* M-Pesa payment dialog */}
       <Dialog open={Boolean(payInvoice)} onOpenChange={(o) => { if (!o) setPayInvoice(null) }}>

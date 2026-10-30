@@ -24,6 +24,15 @@ type HomeData = {
   stats: { publishedListings: number; verifiedDealers: number; garages: number }
 }
 
+/** Admin-configurable hero copy (SystemSetting "home_hero"). */
+type HeroCopy = { headline: string; subheadline: string; ctaLabel?: string; ctaHref?: string }
+
+/** Built-in copy — shown verbatim whenever no admin has configured the hero. */
+const DEFAULT_HERO: HeroCopy = {
+  headline: 'Find your next car with confidence.',
+  subheadline: 'Verified dealers, honest listings, trusted garages and real ownership tools — one ecosystem, built for Kenya.',
+}
+
 const MODULES = [
   { icon: GitCompareArrows, title: 'Sell your car', desc: 'Free private listings with optional dealer matching — compare real offers.', href: '/sell', cta: 'List your car' },
   { icon: GitCompareArrows, title: 'Compare vehicles', desc: 'Shortlist and compare up to 3 vehicles side by side — specs, price and mileage.', href: '/cars', cta: 'Compare cars' },
@@ -49,6 +58,7 @@ export default function HomeView() {
   const [bodyType, setBodyType] = useState('')
   const [county, setCounty] = useState('')
   const [data, setData] = useState<HomeData | null>(null)
+  const [hero, setHero] = useState<HeroCopy>(DEFAULT_HERO)
   const heroRef = useRef<HTMLElement>(null)
   const reduce = useReducedMotion()
 
@@ -62,7 +72,19 @@ export default function HomeView() {
     apiGet<HomeData>('/api/vehicles/home')
       .then(setData)
       .catch(() => setData({ recent: [], featured: [], stats: { publishedListings: 0, verifiedDealers: 0, garages: 0 } }))
+    // Optional admin-configured hero copy — falls back to DEFAULT_HERO when unset.
+    apiGet<{ hero: HeroCopy | null }>('/api/settings/home-hero')
+      .then((d) => {
+        if (d.hero) setHero(d.hero)
+      })
+      .catch(() => {})
   }, [])
+
+  // Two-tone headline: every word except the last rises in white, the final
+  // word is the gold accent (same pattern as the built-in hero).
+  const headlineWords = hero.headline.split(' ')
+  const headlineMain = headlineWords.slice(0, -1).join(' ')
+  const headlineAccent = headlineWords[headlineWords.length - 1] ?? ''
 
   function search(e?: React.FormEvent) {
     e?.preventDefault()
@@ -89,9 +111,10 @@ export default function HomeView() {
         <motion.div style={{ y: fgY, opacity: fgFade }} className="relative mx-auto flex w-full max-w-7xl flex-col justify-center px-4 py-16 sm:px-6 sm:py-24 lg:py-32">
           <Badge className="cmz-float w-fit border-none bg-accent/90 text-accent-foreground">Kenya&apos;s connected automotive ecosystem</Badge>
           <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-tight text-white sm:text-5xl">
-            <WordRise text="Find your next car with" delay={0.12} />{' '}
+            {headlineMain ? <WordRise text={headlineMain} delay={0.12} /> : null}
+            {headlineMain ? ' ' : null}
             <span className="text-[#D9B878]">
-              <WordRise text="confidence." delay={0.12 + 5 * 0.055} />
+              <WordRise text={headlineAccent} delay={0.12 + (headlineWords.length - 1) * 0.055} />
             </span>
           </h1>
           <motion.p
@@ -100,8 +123,24 @@ export default function HomeView() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.25, ease: [0.22, 0.61, 0.36, 1] }}
           >
-            Verified dealers, honest listings, trusted garages and real ownership tools — one ecosystem, built for Kenya.
+            {hero.subheadline}
           </motion.p>
+
+          {hero.ctaLabel && hero.ctaHref ? (
+            <motion.div
+              initial={reduce ? false : { opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.32, ease: [0.22, 0.61, 0.36, 1] }}
+            >
+              <Button
+                size="lg"
+                className="mt-4 h-11 bg-accent text-accent-foreground transition-transform hover:bg-accent/90 active:scale-[0.97]"
+                onClick={() => navigate(hero.ctaHref as string)}
+              >
+                {hero.ctaLabel} <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </motion.div>
+          ) : null}
 
           {/* Prominent search */}
           <motion.form

@@ -1,0 +1,649 @@
+     1→'use client'
+     2→
+     3→/* CARMAZE — Vehicle detail (#/vehicle-detail/<id>)
+     4→ * Gallery, full specification, safety guidance, honest seller card,
+     5→ * save / share / report / enquire actions and similar listings.
+     6→ */
+     7→
+     8→import { useEffect, useState } from 'react'
+     9→import { motion } from 'framer-motion'
+    10→import {
+    11→  Heart, Share2, Flag, Mail, BadgeCheck, MapPin, Gauge, Fuel, Cog, Car,
+    12→  Palette, CalendarDays, Eye, Hash, ShieldAlert, ArrowLeft, MessageSquareText, Phone,
+    13→  CalendarCheck, MessageCircle,
+    14→} from 'lucide-react'
+    15→import { Button } from '@/components/ui/button'
+    16→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    17→import { Badge } from '@/components/ui/badge'
+    18→import { Input } from '@/components/ui/input'
+    19→import { Label } from '@/components/ui/label'
+    20→import { Textarea } from '@/components/ui/textarea'
+    21→import { Checkbox } from '@/components/ui/checkbox'
+    22→import { Skeleton } from '@/components/ui/skeleton'
+    23→import { Separator } from '@/components/ui/separator'
+    24→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    25→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    26→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    27→import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
+    28→import { Reveal, Stagger, StaggerItem } from '@/components/motion/reveal'
+    29→import { MessageDialog, TestDriveDialog } from '@/components/storefront/dialogs'
+    30→import { useHashRoute } from '@/hooks/use-hash-route'
+    31→import { useAuth } from '@/stores/auth'
+    32→import { apiGet, apiSend, navigate } from '@/lib/client'
+    33→import { money, timeAgo, CONDITION_LABELS, VEHICLE_STATUS_LABELS, vehicleTitle } from '@/lib/format'
+    34→import { toast } from 'sonner'
+    35→
+    36→type VehicleDetail = {
+    37→  id: string
+    38→  refCode: string
+    39→  make: string
+    40→  model: string
+    41→  year: number
+    42→  priceMinor: number
+    43→  currency: string
+    44→  mileageKm: number
+    45→  fuel: string
+    46→  transmission: string
+    47→  bodyType: string
+    48→  engineCc: number | null
+    49→  condition: string
+    50→  county: string
+    51→  town: string | null
+    52→  color: string
+    53→  description: string
+    54→  sellerType: string
+    55→  status: string
+    56→  featured: boolean
+    57→  views: number
+    58→  matchWithDealers: boolean
+    59→  createdAt: string
+    60→  photos: { url: string; order: number }[]
+    61→  owner: { name: string }
+    62→  org?: {
+    63→    id: string
+    64→    name: string
+    65→    county: string
+    66→    town: string | null
+    67→    phone: string | null
+    68→    location: string | null
+    69→    description: string | null
+    70→    status: string
+    71→  } | null
+    72→}
+    73→
+    74→type DetailResponse = { vehicle: VehicleDetail; similar: VehicleCardData[] }
+    75→
+    76→const REPORT_REASONS = [
+    77→  'Suspected scam or fraud',
+    78→  'Price looks wrong or misleading',
+    79→  'Vehicle already sold',
+    80→  'Duplicate listing',
+    81→  'Prohibited or stolen vehicle',
+    82→  'Other',
+    83→]
+    84→
+    85→export default function View() {
+    86→  const route = useHashRoute()
+    87→  const id = route.segments[1] ?? ''
+    88→  const { user } = useAuth()
+    89→
+    90→  const [vehicle, setVehicle] = useState<VehicleDetail | null>(null)
+    91→  const [similar, setSimilar] = useState<VehicleCardData[]>([])
+    92→  const [notFound, setNotFound] = useState(false)
+    93→  const [error, setError] = useState<string | null>(null)
+    94→  const [activePhoto, setActivePhoto] = useState(0)
+    95→  const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
+    96→
+    97→  const [enquiryOpen, setEnquiryOpen] = useState(false)
+    98→  const [enquiryMsg, setEnquiryMsg] = useState('')
+    99→  const [phoneShare, setPhoneShare] = useState(true)
+   100→  const [phone, setPhone] = useState('')
+   101→  const [sendingEnquiry, setSendingEnquiry] = useState(false)
+   102→
+   103→  const [reportOpen, setReportOpen] = useState(false)
+   104→  const [reportReason, setReportReason] = useState<string>('')
+   105→  const [reportDetails, setReportDetails] = useState('')
+   106→  const [sendingReport, setSendingReport] = useState(false)
+   107→
+   108→  // Storefront actions (dealer listings with an org): test drive / vehicle enquiry
+   109→  const [storefrontAction, setStorefrontAction] = useState<'message' | 'test-drive' | null>(null)
+   110→
+   111→  // ── Load detail (and reset view-local state per vehicle) ──
+   112→  useEffect(() => {
+   113→    if (!id) return
+   114→    let active = true
+   115→    Promise.resolve().then(() => {
+   116→      if (!active) return
+   117→      setVehicle(null)
+   118→      setNotFound(false)
+   119→      setError(null)
+   120→      setActivePhoto(0)
+   121→    })
+   122→    apiGet<DetailResponse>(`/api/vehicles/${id}`)
+   123→      .then((d) => {
+   124→        if (!active) return
+   125→        setVehicle(d.vehicle)
+   126→        setSimilar(d.similar ?? [])
+   127→      })
+   128→      .catch((e: { status?: number; message: string }) => {
+   129→        if (!active) return
+   130→        if (e.status === 404) setNotFound(true)
+   131→        else setError(e.message)
+   132→      })
+   133→    return () => { active = false }
+   134→  }, [id])
+   135→
+   136→  // ── Fire-and-forget view ping (server dedupes per IP) ──
+   137→  useEffect(() => {
+   138→    if (!id) return
+   139→    apiSend(`/api/vehicles/${id}/view`, 'POST').catch(() => {})
+   140→  }, [id])
+   141→
+   142→  // ── Saved vehicles (for the heart) ──
+   143→  useEffect(() => {
+   144→    if (!user) {
+   145→      const t = setTimeout(() => setSavedIds(new Set()), 0)
+   146→      return () => clearTimeout(t)
+   147→    }
+   148→    let active = true
+   149→    apiGet<{ saved: { vehicle: VehicleCardData }[] }>('/api/saved-vehicles')
+   150→      .then((d) => { if (active) setSavedIds(new Set(d.saved.map((s) => s.vehicle.id))) })
+   151→      .catch(() => {})
+   152→    return () => { active = false }
+   153→  }, [user])
+   154→
+   155→  // ── Document title ──
+   156→  useEffect(() => {
+   157→    if (vehicle) document.title = `${vehicleTitle(vehicle)} | CARMAZE`
+   158→    return () => { document.title = 'CARMAZE' }
+   159→  }, [vehicle])
+   160→
+   161→  // ── Prefill the enquiry phone from the session ──
+   162→  useEffect(() => {
+   163→    if (user) {
+   164→      const t = setTimeout(() => setPhone(user.phone ?? ''), 0)
+   165→      return () => clearTimeout(t)
+   166→    }
+   167→  }, [user])
+   168→
+   169→  function toggleSaved() {
+   170→    if (!vehicle) return
+   171→    if (!user) {
+   172→      toast.info('Sign in to save vehicles')
+   173→      navigate('signin')
+   174→      return
+   175→    }
+   176→    const isSaved = savedIds.has(vehicle.id)
+   177→    setSavedIds((prev) => {
+   178→      const next = new Set(prev)
+   179→      if (isSaved) next.delete(vehicle.id)
+   180→      else next.add(vehicle.id)
+   181→      return next
+   182→    })
+   183→    const done = isSaved
+   184→      ? apiSend(`/api/saved-vehicles?vehicleId=${vehicle.id}`, 'DELETE')
+   185→      : apiSend('/api/saved-vehicles', 'POST', { vehicleId: vehicle.id })
+   186→    done
+   187→      .then(() => toast.success(isSaved ? 'Removed from your shortlist' : 'Saved to your shortlist'))
+   188→      .catch((e: Error) => {
+   189→        setSavedIds((prev) => {
+   190→          const next = new Set(prev)
+   191→          if (isSaved) next.add(vehicle.id)
+   192→          else next.delete(vehicle.id)
+   193→          return next
+   194→        })
+   195→        toast.error(e.message)
+   196→      })
+   197→  }
+   198→
+   199→  function share() {
+   200→    const url = window.location.href
+   201→    const done = navigator.clipboard?.writeText(url)
+   202→    Promise.resolve(done)
+   203→      .then(() => toast.success('Link copied to clipboard'))
+   204→      .catch(() => toast.info('Copy this link', { description: url }))
+   205→  }
+   206→
+   207→  function sendEnquiry() {
+   208→    if (!vehicle) return
+   209→    if (enquiryMsg.trim().length < 10) { toast.error('Please write a message (at least 10 characters)'); return }
+   210→    if (phoneShare && phone.trim() && !/^[+\d][\d\s-]{6,}$/.test(phone.trim())) {
+   211→      toast.error('Enter a valid phone number')
+   212→      return
+   213→    }
+   214→    setSendingEnquiry(true)
+   215→    apiSend<{ enquiry: { id: string; refCode: string } }>('/api/enquiries', 'POST', {
+   216→      vehicleId: vehicle.id,
+   217→      message: enquiryMsg.trim(),
+   218→      phoneShare,
+   219→      phone: phoneShare ? (phone.trim() || undefined) : undefined,
+   220→    })
+   221→      .then((res) => {
+   222→        setEnquiryOpen(false)
+   223→        setEnquiryMsg('')
+   224→        toast.success('Enquiry sent to the seller', {
+   225→          description: `Reference ${res.enquiry.refCode}. Track replies under Account → Enquiries.`,
+   226→          action: { label: 'View', onClick: () => navigate('account') },
+   227→        })
+   228→      })
+   229→      .catch((e: Error) => toast.error(e.message))
+   230→      .finally(() => setSendingEnquiry(false))
+   231→  }
+   232→
+   233→  function sendReport() {
+   234→    if (!vehicle) return
+   235→    if (!user) {
+   236→      toast.info('Sign in to report a listing')
+   237→      navigate('signin')
+   238→      return
+   239→    }
+   240→    if (!reportReason) { toast.error('Choose a reason'); return }
+   241→    setSendingReport(true)
+   242→    apiSend('/api/reports', 'POST', {
+   243→      targetType: 'LISTING',
+   244→      targetId: vehicle.id,
+   245→      reason: reportReason,
+   246→      details: reportDetails.trim() || undefined,
+   247→    })
+   248→      .then(() => {
+   249→        setReportOpen(false)
+   250→        setReportDetails('')
+   251→        setReportReason('')
+   252→        toast.success('Report submitted', { description: 'Our moderation team will review it shortly.' })
+   253→      })
+   254→      .catch((e: Error) => toast.error(e.message))
+   255→      .finally(() => setSendingReport(false))
+   256→  }
+   257→
+   258→  if (notFound) {
+   259→    return (
+   260→      <div className="mx-auto w-full max-w-2xl px-4 py-20 text-center">
+   261→        <Car className="mx-auto h-12 w-12 text-muted-foreground" />
+   262→        <h1 className="mt-4 text-2xl font-bold">This listing is not available</h1>
+   263→        <p className="mt-2 text-sm text-muted-foreground">
+   264→          It may have been sold, removed or is still awaiting review.
+   265→        </p>
+   266→        <Button className="mt-6 h-11 px-6" onClick={() => navigate('cars')}>
+   267→          <ArrowLeft className="h-4 w-4" /> Browse all cars
+   268→        </Button>
+   269→      </div>
+   270→    )
+   271→  }
+   272→
+   273→  if (error) {
+   274→    return (
+   275→      <div className="mx-auto w-full max-w-2xl px-4 py-20 text-center">
+   276→        <p className="font-medium">Something went wrong loading this listing.</p>
+   277→        <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+   278→        <Button variant="outline" className="mt-6 h-11 px-6" onClick={() => navigate('cars')}>Back to marketplace</Button>
+   279→      </div>
+   280→    )
+   281→  }
+   282→
+   283→  if (!vehicle) {
+   284→    return (
+   285→      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6" aria-busy="true">
+   286→        <Skeleton className="h-8 w-72" />
+   287→        <div className="grid gap-6 lg:grid-cols-3">
+   288→          <Skeleton className="aspect-[16/10] w-full rounded-xl lg:col-span-2" />
+   289→          <div className="space-y-4">
+   290→            <Skeleton className="h-24 w-full rounded-xl" />
+   291→            <Skeleton className="h-40 w-full rounded-xl" />
+   292→          </div>
+   293→        </div>
+   294→      </div>
+   295→    )
+   296→  }
+   297→
+   298→  const title = vehicleTitle(vehicle)
+   299→  const photos = vehicle.photos ?? []
+   300→  const location = [vehicle.town, vehicle.county].filter(Boolean).join(', ')
+   301→  const isDealer = vehicle.sellerType === 'DEALER'
+   302→
+   303→  const specs = [
+   304→    { icon: Gauge, label: 'Mileage', value: `${vehicle.mileageKm.toLocaleString()} km` },
+   305→    { icon: Fuel, label: 'Fuel', value: vehicle.fuel.charAt(0) + vehicle.fuel.slice(1).toLowerCase() },
+   306→    { icon: Cog, label: 'Transmission', value: vehicle.transmission === 'AUTOMATIC' ? 'Automatic' : 'Manual' },
+   307→    { icon: Car, label: 'Body', value: vehicle.bodyType.charAt(0) + vehicle.bodyType.slice(1).toLowerCase() },
+   308→    { icon: Cog, label: 'Engine', value: vehicle.engineCc ? `${vehicle.engineCc.toLocaleString()} cc` : '—' },
+   309→    { icon: Palette, label: 'Colour', value: vehicle.color },
+   310→    { icon: MapPin, label: 'Location', value: location || '—' },
+   311→    { icon: CalendarDays, label: 'Listed', value: timeAgo(vehicle.createdAt) },
+   312→    { icon: Hash, label: 'Ref', value: vehicle.refCode },
+   313→    { icon: Eye, label: 'Views', value: vehicle.views.toLocaleString() },
+   314→  ]
+   315→
+   316→  return (
+   317→    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
+   318→      <Button variant="ghost" className="mb-4 h-11 px-3 -ml-3" onClick={() => navigate('cars')}>
+   319→        <ArrowLeft className="h-4 w-4" /> Back to marketplace
+   320→      </Button>
+   321→
+   322→      <div className="grid gap-6 lg:grid-cols-3">
+   323→        {/* Gallery */}
+   324→        <Reveal className="lg:col-span-2" blur={false}>
+   325→          <div className="overflow-hidden rounded-xl border border-border bg-muted">
+   326→            {photos.length > 0 ? (
+   327→              <motion.img
+   328→                key={activePhoto}
+   329→                src={photos[activePhoto]?.url ?? photos[0].url}
+   330→                alt={`${title} — photo ${activePhoto + 1} of ${photos.length}`}
+   331→                className="aspect-[16/10] w-full object-cover"
+   332→                initial={{ opacity: 0.35, scale: 1.035 }}
+   333→                animate={{ opacity: 1, scale: 1 }}
+   334→                transition={{ duration: 0.45, ease: [0.22, 0.61, 0.36, 1] }}
+   335→              />
+   336→            ) : (
+   337→              <div className="flex aspect-[16/10] w-full items-center justify-center text-sm text-muted-foreground">
+   338→                No photos provided
+   339→              </div>
+   340→            )}
+   341→          </div>
+   342→          {photos.length > 1 && (
+   343→            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-thin" role="tablist" aria-label="Vehicle photos">
+   344→              {photos.map((p, i) => (
+   345→                <motion.button
+   346→                  key={p.url}
+   347→                  role="tab"
+   348→                  aria-selected={i === activePhoto}
+   349→                  aria-label={`Show photo ${i + 1}`}
+   350→                  onClick={() => setActivePhoto(i)}
+   351→                  whileHover={{ scale: 1.05 }}
+   352→                  whileTap={{ scale: 0.94 }}
+   353→                  transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+   354→                  className={`h-16 w-24 shrink-0 overflow-hidden rounded-lg border-2 transition-colors ${
+   355→                    i === activePhoto ? 'border-accent' : 'border-transparent hover:border-border'
+   356→                  }`}
+   357→                >
+   358→                  <img src={p.url} alt="" className="h-full w-full object-cover" />
+   359→                </motion.button>
+   360→              ))}
+   361→            </div>
+   362→          )}
+   363→
+   364→          {/* Description */}
+   365→          <Card className="mt-6">
+   366→            <CardHeader>
+   367→              <CardTitle className="text-lg">Description</CardTitle>
+   368→            </CardHeader>
+   369→            <CardContent>
+   370→              <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">{vehicle.description}</p>
+   371→            </CardContent>
+   372→          </Card>
+   373→
+   374→          <Alert className="mt-4 border-amber-600/30 bg-amber-50/60 text-amber-950 [&>svg]:text-amber-700">
+   375→            <ShieldAlert className="h-4 w-4" />
+   376→            <AlertTitle>Stay safe when buying</AlertTitle>
+   377→            <AlertDescription>
+   378→              Never pay a &ldquo;release fee&rdquo; or deposit to a stranger before seeing the vehicle. Inspect in
+   379→              person (or via a trusted agent) before paying. Report suspicious listings using the Report button.
+   380→            </AlertDescription>
+   381→          </Alert>
+   382→        </Reveal>
+   383→
+   384→        {/* Summary sidebar */}
+   385→        <div className="space-y-4">
+   386→          <Card>
+   387→            <CardContent className="p-6">
+   388→              <div className="flex flex-wrap items-center gap-2">
+   389→                {vehicle.featured && <Badge className="border-none bg-accent text-accent-foreground">Featured</Badge>}
+   390→                <Badge variant="secondary">{CONDITION_LABELS[vehicle.condition] ?? vehicle.condition}</Badge>
+   391→                {vehicle.status !== 'PUBLISHED' && (
+   392→                  <Badge variant={vehicle.status === 'SOLD' ? 'destructive' : 'outline'}>
+   393→                    {VEHICLE_STATUS_LABELS[vehicle.status] ?? vehicle.status}
+   394→                  </Badge>
+   395→                )}
+   396→                {isDealer ? (
+   397→                  <Badge variant="outline" className="gap-1"><BadgeCheck className="h-3.5 w-3.5 text-primary" /> Dealer</Badge>
+   398→                ) : (
+   399→                  <Badge variant="outline">Private seller</Badge>
+   400→                )}
+   401→              </div>
+   402→              <h1 className="mt-3 text-2xl font-bold leading-tight">{title}</h1>
+   403→              <p className="mt-1 text-3xl font-extrabold text-primary">{money(vehicle.priceMinor, vehicle.currency)}</p>
+   404→              <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+   405→                <MapPin className="h-4 w-4" /> {location || 'Kenya'}
+   406→              </p>
+   407→
+   408→              <div className="mt-4 grid grid-cols-2 gap-2">
+   409→                <Button
+   410→                  className="h-11 flex-col gap-0.5"
+   411→                  onClick={() => setEnquiryOpen(true)}
+   412→                  disabled={vehicle.status === 'SOLD'}
+   413→                >
+   414→                  <Mail className="h-4 w-4" />
+   415→                  <span className="text-xs">{vehicle.status === 'SOLD' ? 'Sold' : 'Enquire'}</span>
+   416→                </Button>
+   417→                <Button
+   418→                  variant="outline"
+   419→                  className="h-11 flex-col gap-0.5"
+   420→                  onClick={toggleSaved}
+   421→                  aria-pressed={savedIds.has(vehicle.id)}
+   422→                >
+   423→                  <Heart className={`h-4 w-4 ${savedIds.has(vehicle.id) ? 'fill-[#D9B878] text-[#D9B878]' : ''}`} />
+   424→                  <span className="text-xs">{savedIds.has(vehicle.id) ? 'Saved' : 'Save'}</span>
+   425→                </Button>
+   426→                <Button variant="outline" className="h-11 flex-col gap-0.5" onClick={share}>
+   427→                  <Share2 className="h-4 w-4" /><span className="text-xs">Share</span>
+   428→                </Button>
+   429→                <Button variant="outline" className="h-11 flex-col gap-0.5" onClick={() => setReportOpen(true)}>
+   430→                  <Flag className="h-4 w-4" /><span className="text-xs">Report</span>
+   431→                </Button>
+   432→              </div>
+   433→
+   434→              {vehicle.org?.id && (
+   435→                <div className="mt-2 grid gap-2 border-t border-border pt-3">
+   436→                  <Button
+   437→                    variant="outline"
+   438→                    className="h-11 justify-start gap-2"
+   439→                    onClick={() => setStorefrontAction('test-drive')}
+   440→                    disabled={vehicle.status === 'SOLD'}
+   441→                  >
+   442→                    <CalendarCheck className="h-4 w-4 text-primary" /> Book test drive
+   443→                  </Button>
+   444→                  <Button
+   445→                    variant="outline"
+   446→                    className="h-11 justify-start gap-2"
+   447→                    onClick={() => setStorefrontAction('message')}
+   448→                    disabled={vehicle.status === 'SOLD'}
+   449→                  >
+   450→                    <MessageCircle className="h-4 w-4 text-primary" /> Ask about this vehicle
+   451→                  </Button>
+   452→                </div>
+   453→              )}
+   454→            </CardContent>
+   455→          </Card>
+   456→
+   457→          {/* Seller card — honest about seller type */}
+   458→          <Card>
+   459→            <CardHeader>
+   460→              <CardTitle className="text-base">{isDealer ? 'Sold by' : 'Private seller'}</CardTitle>
+   461→            </CardHeader>
+   462→            <CardContent className="space-y-2">
+   463→              {isDealer && vehicle.org ? (
+   464→                <>
+   465→                  <p className="flex items-center gap-1.5 font-semibold">
+   466→                    {vehicle.org.name}
+   467→                    <BadgeCheck className="h-4.5 w-4.5 text-primary" aria-label="Verified dealer" />
+   468→                  </p>
+   469→                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+   470→                    <MapPin className="h-4 w-4" />
+   471→                    {[vehicle.org.location, vehicle.org.town, vehicle.org.county].filter(Boolean).join(', ')}
+   472→                  </p>
+   473→                  {vehicle.org.description && (
+   474→                    <p className="text-sm text-muted-foreground">{vehicle.org.description}</p>
+   475→                  )}
+   476→                  {vehicle.org.phone && (
+   477→                    <p className="flex items-center gap-1.5 pt-1 text-sm font-medium">
+   478→                      <Phone className="h-4 w-4 text-primary" />
+   479→                      <a href={`tel:${vehicle.org.phone}`} className="hover:underline">{vehicle.org.phone}</a>
+   480→                    </p>
+   481→                  )}
+   482→                  <p className="text-xs text-muted-foreground">Business contact — call during working hours.</p>
+   483→                </>
+   484→              ) : (
+   485→                <>
+   486→                  <p className="font-semibold">{vehicle.owner?.name ?? 'Private seller'}</p>
+   487→                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+   488→                    <MapPin className="h-4 w-4" /> {location || 'Kenya'}
+   489→                  </p>
+   490→                  <p className="text-xs text-muted-foreground">
+   491→                    Contact details stay private. Send an enquiry and the seller can reply securely.
+   492→                  </p>
+   493→                </>
+   494→              )}
+   495→            </CardContent>
+   496→          </Card>
+   497→
+   498→          {/* Specs */}
+   499→          <Card>
+   500→            <CardHeader>
+   501→              <CardTitle className="text-base">Specification</CardTitle>
+   502→            </CardHeader>
+   503→            <CardContent className="grid grid-cols-2 gap-x-4 gap-y-3">
+   504→              {specs.map((s) => (
+   505→                <div key={s.label} className="flex items-start gap-2">
+   506→                  <s.icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+   507→                  <div className="min-w-0">
+   508→                    <p className="text-xs text-muted-foreground">{s.label}</p>
+   509→                    <p className="truncate text-sm font-medium" title={s.value}>{s.value}</p>
+   510→                  </div>
+   511→                </div>
+   512→              ))}
+   513→            </CardContent>
+   514→          </Card>
+   515→        </div>
+   516→      </div>
+   517→
+   518→      {/* Similar listings */}
+   519→      {similar.length > 0 && (
+   520→        <section className="mt-10">
+   521→          <Separator className="mb-6" />
+   522→          <Reveal>
+   523→            <h2 className="mb-4 text-xl font-bold">Similar vehicles</h2>
+   524→          </Reveal>
+   525→          <Stagger className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+   526→            {similar.map((v) => (
+   527→              <StaggerItem key={v.id}>
+   528→                <VehicleCard v={v} />
+   529→              </StaggerItem>
+   530→            ))}
+   531→          </Stagger>
+   532→        </section>
+   533→      )}
+   534→
+   535→      {/* Enquiry dialog */}
+   536→      <Dialog open={enquiryOpen} onOpenChange={setEnquiryOpen}>
+   537→        <DialogContent className="max-w-md">
+   538→          <DialogHeader>
+   539→            <DialogTitle>Enquire about the {title}</DialogTitle>
+   540→            <DialogDescription>
+   541→              Your message goes straight to {isDealer && vehicle.org ? vehicle.org.name : 'the seller'}. Ask about
+   542→              availability, inspection or service history.
+   543→            </DialogDescription>
+   544→          </DialogHeader>
+   545→          <div className="space-y-4">
+   546→            <div className="space-y-1.5">
+   547→              <Label htmlFor="enq-msg">Message</Label>
+   548→              <Textarea
+   549→                id="enq-msg"
+   550→                rows={4}
+   551→                placeholder="Hi, is this still available? I'd like to book a viewing…"
+   552→                value={enquiryMsg}
+   553→                onChange={(e) => setEnquiryMsg(e.target.value)}
+   554→              />
+   555→            </div>
+   556→            <label className="flex cursor-pointer items-start gap-2 text-sm">
+   557→              <Checkbox
+   558→                checked={phoneShare}
+   559→                onCheckedChange={(c) => setPhoneShare(c === true)}
+   560→                className="mt-0.5"
+   561→              />
+   562→              <span>Share my phone number with the seller for faster replies</span>
+   563→            </label>
+   564→            {phoneShare && (
+   565→              <div className="space-y-1.5">
+   566→                <Label htmlFor="enq-phone">Phone number</Label>
+   567→                <Input
+   568→                  id="enq-phone"
+   569→                  inputMode="tel"
+   570→                  placeholder="+254 7XX XXX XXX"
+   571→                  value={phone}
+   572→                  onChange={(e) => setPhone(e.target.value)}
+   573→                />
+   574→                <p className="text-xs text-muted-foreground">Only visible to this seller.</p>
+   575→              </div>
+   576→            )}
+   577→          </div>
+   578→          <DialogFooter>
+   579→            <Button variant="ghost" className="h-11" onClick={() => setEnquiryOpen(false)}>Cancel</Button>
+   580→            <Button className="h-11 px-5" onClick={sendEnquiry} disabled={sendingEnquiry}>
+   581→              <MessageSquareText className="h-4 w-4" /> {sendingEnquiry ? 'Sending…' : 'Send enquiry'}
+   582→            </Button>
+   583→          </DialogFooter>
+   584→        </DialogContent>
+   585→      </Dialog>
+   586→
+   587→      {/* Storefront dialogs — dealer listings */}
+   588→      {vehicle.org?.id && (
+   589→        <>
+   590→          <MessageDialog
+   591→            open={storefrontAction === 'message'}
+   592→            onOpenChange={(open) => { if (!open) setStorefrontAction(null) }}
+   593→            org={{ id: vehicle.org.id, name: vehicle.org.name }}
+   594→            vehicleId={vehicle.id}
+   595→            kind="VEHICLE_ENQUIRY"
+   596→            subject={`Enquiry: ${title}`}
+   597→          />
+   598→          <TestDriveDialog
+   599→            open={storefrontAction === 'test-drive'}
+   600→            onOpenChange={(open) => { if (!open) setStorefrontAction(null) }}
+   601→            org={{ id: vehicle.org.id, name: vehicle.org.name }}
+   602→            vehicleId={vehicle.id}
+   603→            vehicleLabel={title}
+   604→          />
+   605→        </>
+   606→      )}
+   607→
+   608→      {/* Report dialog */}
+   609→      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+   610→        <DialogContent className="max-w-md">
+   611→          <DialogHeader>
+   612→            <DialogTitle>Report this listing</DialogTitle>
+   613→            <DialogDescription>
+   614→              Tell us what looks wrong. Reports are reviewed by our moderation team.
+   615→            </DialogDescription>
+   616→          </DialogHeader>
+   617→          <div className="space-y-4">
+   618→            <div className="space-y-1.5">
+   619→              <Label>Reason</Label>
+   620→              <Select value={reportReason} onValueChange={setReportReason}>
+   621→                <SelectTrigger className="w-full"><SelectValue placeholder="Choose a reason" /></SelectTrigger>
+   622→                <SelectContent>
+   623→                  {REPORT_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+   624→                </SelectContent>
+   625→              </Select>
+   626→            </div>
+   627→            <div className="space-y-1.5">
+   628→              <Label htmlFor="report-details">Details (optional)</Label>
+   629→              <Textarea
+   630→                id="report-details"
+   631→                rows={3}
+   632→                placeholder="Anything that helps us investigate…"
+   633→                value={reportDetails}
+   634→                onChange={(e) => setReportDetails(e.target.value)}
+   635→              />
+   636→            </div>
+   637→          </div>
+   638→          <DialogFooter>
+   639→            <Button variant="ghost" className="h-11" onClick={() => setReportOpen(false)}>Cancel</Button>
+   640→            <Button variant="destructive" className="h-11 px-5" onClick={sendReport} disabled={sendingReport}>
+   641→              {sendingReport ? 'Submitting…' : 'Submit report'}
+   642→            </Button>
+   643→          </DialogFooter>
+   644→        </DialogContent>
+   645→      </Dialog>
+   646→    </div>
+   647→  )
+   648→}
+   649→
