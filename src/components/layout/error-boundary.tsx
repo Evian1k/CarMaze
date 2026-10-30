@@ -3,14 +3,47 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
+import { localGet, localSet } from '@/lib/safe-storage'
 
 type Props = { children: ReactNode }
 type State = { error: Error | null }
 
+/** Detects "stale chunk" failures — the tab held old build references while
+ * the dev server (or a deploy) swapped assets underneath it. The fix is one
+ * hard reload; the session guard prevents a reload loop. */
+let lastBoundaryError: unknown = null
+
+function isChunkLoadError(error: unknown): boolean {
+  const msg = error instanceof Error ? `${error.name} ${error.message}` : String(error)
+  return (
+    /ChunkLoadError/i.test(msg) ||
+    /Loading chunk [\d]+ failed/i.test(msg) ||
+    /dynamically imported module/i.test(msg) ||
+    /Failed to fetch dynamically imported module/i.test(msg) ||
+    /error loading dynamically imported module/i.test(msg)
+  )
+}
+
+/** One-shot auto-recovery for stale-chunk crashes. Returns true when a reload
+ * has been triggered so the boundary can skip rendering the fallback. */
+function recoverChunkError(): boolean {
+  if (!isChunkLoadError(lastBoundaryError)) return false
+  try {
+    if (localGet('carmaze_chunk_recovered') === '1') return false
+    localSet('carmaze_chunk_recovered', '1')
+  } catch {
+    /* storage blocked — still attempt the single reload */
+  }
+  window.location.reload()
+  return true
+}
+
 /**
  * Top-level render error boundary. Guarantees the user never sees a white
- * void: render-time crashes resolve to a branded recovery panel with a
- * one-click reload. (Event-handler/async errors are handled at call sites.)
+ * void or a raw "Application error" screen:
+ *  - stale-chunk failures (dev recompiles / deploys) auto-reload once
+ *  - any other render crash resolves to a branded recovery panel
+ * (Event-handler/async errors are handled at call sites.)
  */
 export class AppErrorBoundary extends Component<Props, State> {
   state: State = { error: null }
@@ -22,6 +55,8 @@ export class AppErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     // Surface in devtools for debugging; never rethrow.
     console.error('[CARMAZE] render error captured by boundary:', error, info.componentStack)
+    lastBoundaryError = error
+    recoverChunkError()
   }
 
   private reload = () => {

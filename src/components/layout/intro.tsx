@@ -145,16 +145,33 @@ export function Intro({ onDone }: { onDone: () => void }) {
     return () => timers.forEach((t) => window.clearTimeout(t))
   }, [])
 
-  // Probe the cinematic video asset; fall back to the still + CSS layers.
+  // Probe the cinematic video CHEAPLY (metadata only, after first paint) so
+  // the ~1MB clip never competes with the app shell for bandwidth; the video
+  // element itself streams once mounted. Data-saver / 2g users get the
+  // lightweight image fallback instead. Falls back to still + CSS layers.
   useEffect(() => {
-    const v = document.createElement('video')
-    v.oncanplaythrough = () => setVideoOk(true)
-    v.onerror = () => setVideoOk(false)
-    v.src = '/video/intro.mp4'
-    v.load()
-    const img = new Image()
-    img.onerror = () => setImgOk(false)
-    img.src = '/images/intro-road.png'
+    let cancelled = false
+    const raf = requestAnimationFrame(() => {
+      window.setTimeout(() => {
+        if (cancelled) return
+        // Data-saver / 2g users skip straight to the lightweight image
+        // fallback — the ~1MB clip never enters their download queue.
+        const conn = (navigator as Navigator & {
+          connection?: { saveData?: boolean; effectiveType?: string }
+        }).connection
+        if (conn?.saveData || /^(slow-)?2g$/.test(conn?.effectiveType ?? '')) return
+        const v = document.createElement('video')
+        v.preload = 'metadata'
+        v.onloadedmetadata = () => { if (!cancelled) setVideoOk(true) }
+        v.onerror = () => { if (!cancelled) setVideoOk(false) }
+        v.src = '/video/intro.mp4'
+        v.load()
+        const img = new Image()
+        img.onerror = () => { if (!cancelled) setImgOk(false) }
+        img.src = '/images/intro-road.png'
+      }, 120)
+    })
+    return () => { cancelled = true; cancelAnimationFrame(raf) }
   }, [])
 
   return (
