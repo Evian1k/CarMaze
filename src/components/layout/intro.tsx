@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Volume2, VolumeX } from 'lucide-react'
+import { sessionSet } from '@/lib/safe-storage'
 
 /**
  * Cinematic intro — luxury-commercial sequence built as layered motion:
@@ -118,8 +119,12 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const finish = useCallback(() => {
     if (finished.current) return
     finished.current = true
-    rumble.stop()
-    sessionStorage.setItem('carmaze_intro_seen', '1')
+    try {
+      rumble.stop()
+    } catch { /* audio teardown must never block dismissal */ }
+    try {
+      sessionSet('carmaze_intro_seen', '1')
+    } catch { /* blocked storage — intro will simply replay next visit */ }
     setLeaving(true)
     window.setTimeout(onDone, 620)
   }, [onDone, rumble])

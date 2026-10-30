@@ -65,6 +65,26 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         {children}
+        <noscript>
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#ffffff',
+              padding: '1.5rem',
+              textAlign: 'center',
+            }}
+          >
+            <p style={{ maxWidth: '28rem', fontSize: '0.9rem', lineHeight: 1.6, color: '#374151' }}>
+              CARMAZE needs JavaScript to run. Please enable JavaScript in your
+              browser settings and reload the page.
+            </p>
+          </div>
+        </noscript>
         <Toaster position="top-center" richColors />
       </body>
     </html>
