@@ -420,7 +420,7 @@ export default function View() {
   if (!user || !isStaff) return <Restricted />
 
   return (
-    <div className="min-h-screen bg-[#f7f6f2] dark:bg-background">
+    <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6">
         <header>
           <div className="flex flex-wrap items-start justify-between gap-3">
