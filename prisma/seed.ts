@@ -14,6 +14,7 @@
  */
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { seedSupply } from './seed-supply'
 
 const db = new PrismaClient()
 
@@ -76,6 +77,39 @@ async function main() {
   await db.applicationEvent.deleteMany()
   await db.application.deleteMany()
   await db.orgMember.deleteMany()
+  // Supply network + business programmes (children before parents)
+  await db.membershipRedemption.deleteMany()
+  await db.businessMembership.deleteMany()
+  await db.membershipTier.deleteMany()
+  await db.trustMember.deleteMany()
+  await db.trustProgramme.deleteMany()
+  await db.creditEntry.deleteMany()
+  await db.creditFacility.deleteMany()
+  await db.vehicleTransferEvent.deleteMany()
+  await db.vehicleTransfer.deleteMany()
+  await db.disputeEvent.deleteMany()
+  await db.dispute.deleteMany()
+  await db.deliveryEvent.deleteMany()
+  await db.delivery.deleteMany()
+  await db.pOEvent.deleteMany()
+  await db.pORevision.deleteMany()
+  await db.pOItem.deleteMany()
+  await db.paymentAuthorization.deleteMany()
+  await db.refund.deleteMany()
+  await db.warrantyClaim.deleteMany()
+  await db.partReturn.deleteMany()
+  await db.quoteOffer.deleteMany()
+  await db.quoteRequest.deleteMany()
+  await db.garageStockAlert.deleteMany()
+  await db.savedSupplyItem.deleteMany()
+  await db.productReview.deleteMany()
+  await db.productPriceHistory.deleteMany()
+  await db.stockMovement.deleteMany()
+  await db.productStock.deleteMany()
+  await db.productCompatibility.deleteMany()
+  await db.product.deleteMany()
+  await db.productCategory.deleteMany()
+  await db.orgBranch.deleteMany()
   await db.org.deleteMany()
   await db.partnerRequest.deleteMany()
   await db.partner.deleteMany()
@@ -804,6 +838,16 @@ async function main() {
       { incidentId: incResolved.id, type: 'CREATED', actorId: customer.id, actorName: customer.name, note: 'Incident reported (DAMAGE_IN_CUSTODY).', createdAt: daysFromNow(-9) },
       { incidentId: incResolved.id, type: 'RESOLUTION', actorId: ops.id, actorName: ops.name, note: 'Garage accepted liability and refurbished the wheel at no cost. Customer confirmed satisfied and closed the case.', createdAt: daysFromNow(-6) },
     ],
+  })
+
+  // ───────────── Automotive Supply Network + business programmes ─────────────
+  await seedSupply(db, {
+    PASSWORD,
+    bcrypt,
+    adminId: admin.id,
+    customerId: customer.id,
+    garageOrgId: garageOrg.id,
+    dealerOrgId: dealerOrg.id,
   })
 
   console.log('Seed complete.')

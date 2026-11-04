@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ListingAssistant } from '@/components/ai/listing-assistant'
+import { VerificationPanel } from '@/components/seller/verification-panel'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useAuth } from '@/stores/auth'
 import { apiGet, apiSend, apiUpload, navigate } from '@/lib/client'
@@ -307,6 +308,11 @@ export default function View() {
               : 'Free to list. Reviewed within 24 business hours. Your phone stays private until you accept an enquiry.'}
           </p>
         </header>
+      </Reveal>
+
+      {/* Seller verification — manual document review that adds the verified trust marker */}
+      <Reveal className="mb-6">
+        <VerificationPanel />
       </Reveal>
 
       {editError && (

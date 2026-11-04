@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { audit } from '@/lib/audit'
-import { notifyMany } from '@/lib/notify'
+import { notifyMany, notify } from '@/lib/notify'
+import { refCode } from '@/lib/ids'
 
 /**
  * Audit helper for confirmed payments. Safe to call from both the automatic
@@ -45,6 +46,8 @@ export async function activatePaidInvoice(
 ): Promise<{
   activatedSubscription: string | null
   activatedCampaign: string | null
+  activatedMembership: string | null
+  protectedOrder: string | null
   invoice: { id: string; refCode: string; amountMinor: number; currency: string; type: string }
 }> {
   const invoice = await db.invoice.findUnique({ where: { id: invoiceId } })
@@ -57,6 +60,8 @@ export async function activatePaidInvoice(
 
   let activatedSubscription: string | null = null
   let activatedCampaign: string | null = null
+  let activatedMembership: string | null = null
+  let protectedOrder: string | null = null
 
   if (invoice.type === 'SUBSCRIPTION' && invoice.orgId) {
     // planCode is embedded by subscribe route as "[plan:<code>]" in the description
@@ -92,6 +97,51 @@ export async function activatePaidInvoice(
     }
   }
 
+  // Business membership: activate only on real payment confirmation.
+  if (invoice.type === 'MEMBERSHIP') {
+    const match = /\[membership:([^\]]+)\]/.exec(invoice.description)
+    const membershipId = match?.[1]
+    if (membershipId) {
+      const membership = await db.businessMembership.findUnique({ where: { id: membershipId }, include: { tier: { select: { name: true } }, org: { select: { name: true, type: true } } } })
+      if (membership && membership.status === 'PENDING_PAYMENT') {
+        const periodEnd = invoice.periodEnd ?? new Date(Date.now() + 30 * 24 * 3600 * 1000)
+        await db.businessMembership.update({
+          where: { id: membership.id },
+          data: { status: 'ACTIVE', startedAt: new Date(), currentPeriodEnd: periodEnd },
+        })
+        activatedMembership = membership.refCode
+        // Notify business staff + customer
+        const staff = await db.orgMember.findMany({ where: { orgId: membership.orgId }, select: { userId: true } })
+        await notifyMany(staff.map((m) => m.userId), {
+          type: 'MEMBERSHIP_ACTIVE',
+          title: `Membership active — ${membership.tier.name}`,
+          body: `${invoice.refCode} paid. New member joined ${membership.tier.name}.`,
+          link: membership.org.type === 'GARAGE' ? '/garage-dashboard?tab=memberships' : '/dealer?tab=memberships',
+        })
+        await notify({ userId: membership.customerId, type: 'MEMBERSHIP_ACTIVE', title: `Membership active — ${membership.tier.name}`, body: 'Your membership is now active. Benefits are available at participating branches.', link: '/account?tab=subscriptions' })
+      }
+    }
+  }
+
+  // Protected order payment: only a provider-confirmed payment sets PROTECTED.
+  if (invoice.type === 'ORDER_PAYMENT') {
+    const order = await db.purchaseOrder.findFirst({ where: { invoiceId: invoice.id } })
+    if (order && order.paymentStatus !== 'PROTECTED' && order.paymentStatus !== 'RELEASED') {
+      await db.paymentAuthorization.upsert({
+        where: { orderId: order.id },
+        create: {
+          refCode: refCode('PAY', 6), orderId: order.id, provider: 'MPESA_DARAJA', status: 'PROTECTED',
+          amountMinor: order.totalMinor, protectedAt: new Date(), resultDesc: 'Confirmed via payment callback',
+        },
+        update: { status: 'PROTECTED', protectedAt: new Date(), resultDesc: 'Confirmed via payment callback' },
+      })
+      await db.purchaseOrder.update({ where: { id: order.id }, data: { paymentStatus: 'PROTECTED' } })
+      protectedOrder = order.refCode
+      const garageMembers = await db.orgMember.findMany({ where: { orgId: order.garageOrgId, role: { in: ['OWNER', 'GM', 'PROCUREMENT'] } }, select: { userId: true } })
+      await notifyMany(garageMembers.map((m) => m.userId), { type: 'ORDER_PAYMENT', title: `Payment protected — ${order.refCode}`, body: 'Provider confirmed the payment. The supplier can now dispatch; funds release after your inspection.', link: '/procurement?tab=orders' })
+    }
+  }
+
   // Notify org members about the confirmed payment
   if (invoice.orgId) {
     const members = await db.orgMember.findMany({ where: { orgId: invoice.orgId }, select: { userId: true } })
@@ -112,6 +162,8 @@ export async function activatePaidInvoice(
   return {
     activatedSubscription,
     activatedCampaign,
+    activatedMembership,
+    protectedOrder,
     invoice: { id: invoice.id, refCode: invoice.refCode, amountMinor: invoice.amountMinor, currency: invoice.currency, type: invoice.type },
   }
 }

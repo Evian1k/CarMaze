@@ -9,18 +9,19 @@ import { audit } from '@/lib/audit'
 import { getSessionUser, hasRole, STAFF_ROLES } from '@/lib/auth'
 
 const submitSchema = z.object({
-  type: z.enum(['DEALER', 'GARAGE']),
+  type: z.enum(['DEALER', 'GARAGE', 'SELLER', 'LOGISTICS']),
   status: z.enum(['DRAFT', 'SUBMITTED']).default('SUBMITTED'),
-  orgName: z.string().trim().min(2, 'Business name is required').max(120),
-  regNo: z.string().trim().max(60).optional().or(z.literal('')),
+  // For SELLER applications this is the applicant's full legal name (no business).
+  orgName: z.string().trim().min(2, 'Full name is required').max(120),
+  regNo: z.string().trim().max(60).optional().or(z.literal('')), // SELLER: national ID / passport number
   county: z.string().trim().min(2, 'County is required').max(60),
   town: z.string().trim().max(60).optional().or(z.literal('')),
   physicalAddress: z.string().trim().max(200).optional().or(z.literal('')),
-  phone: z.string().trim().min(9, 'Business phone is required').max(20),
-  email: z.string().trim().email('Enter a valid business email').optional().or(z.literal('')),
+  phone: z.string().trim().min(9, 'Phone number is required').max(20),
+  email: z.string().trim().email('Enter a valid email').optional().or(z.literal('')),
   representative: z.string().trim().min(2, 'Authorised representative is required').max(80),
-  accountType: z.string().trim().max(40).optional().or(z.literal('')),
-  categories: z.string().trim().max(300).optional().or(z.literal('')),
+  accountType: z.string().trim().max(40).optional().or(z.literal('')), // LOGISTICS: COMPANY | INDEPENDENT
+  categories: z.string().trim().max(300).optional().or(z.literal('')), // garage: services · LOGISTICS: capabilities
   documents: z.array(z.object({ name: z.string().max(200), url: z.string().max(300) })).max(10).default([]),
   consent: z.boolean(),
   notes: z.string().trim().max(2000).optional().or(z.literal('')),
@@ -71,22 +72,30 @@ export const POST = route(async (req: NextRequest) => {
 
   const body = await parseBody(req, submitSchema)
   if (body.status === 'SUBMITTED' && !body.consent) {
-    return fail(400, 'CONSENT_REQUIRED', 'You must accept the dealer/provider terms and privacy notice.')
+    return fail(400, 'CONSENT_REQUIRED', 'You must accept the terms and privacy notice.')
   }
   if (body.type === 'GARAGE' && body.status === 'SUBMITTED' && !body.categories) {
     return fail(400, 'CATEGORIES_REQUIRED', 'Select at least one service category.')
   }
+  // SELLER (individual KYC) and LOGISTICS applications require identity
+  // documents before submission — uploads alone never constitute verification.
+  if ((body.type === 'SELLER' || body.type === 'LOGISTICS') && body.status === 'SUBMITTED' && body.documents.length === 0) {
+    return fail(400, 'DOCUMENTS_REQUIRED', 'Upload at least one identity or supporting document for review.')
+  }
 
+  const typeLabel: Record<string, string> = { DEALER: 'dealer', GARAGE: 'garage', SELLER: 'seller verification', LOGISTICS: 'delivery partner' }
   const existingActive = await db.application.findFirst({
     where: { userId: user.id, type: body.type, status: { in: REVIEWABLE } },
   })
   if (existingActive && body.status === 'SUBMITTED') {
-    return fail(409, 'APPLICATION_EXISTS', `You already have a ${body.type === 'DEALER' ? 'dealer' : 'garage'} application in progress (ref ${existingActive.refCode}).`)
+    return fail(409, 'APPLICATION_EXISTS', `You already have a ${typeLabel[body.type]} application in progress (ref ${existingActive.refCode}).`)
   }
+
+  const refPrefix: Record<string, string> = { DEALER: 'DLA', GARAGE: 'GRA', SELLER: 'SVA', LOGISTICS: 'LGA' }
 
   const app = await db.application.create({
     data: {
-      refCode: refCode(body.type === 'DEALER' ? 'DLA' : 'GRA', 6),
+      refCode: refCode(refPrefix[body.type] ?? 'APP', 6),
       type: body.type,
       userId: user.id,
       orgName: body.orgName,
@@ -116,16 +125,17 @@ export const POST = route(async (req: NextRequest) => {
   })
 
   if (body.status === 'SUBMITTED') {
+    const links: Record<string, string> = { DEALER: '/dealer', GARAGE: '/garage-dashboard', SELLER: '/sell', LOGISTICS: '/logistics' }
     await notify({
       userId: user.id,
       type: 'APPLICATION_RECEIVED',
       title: `Application received — ${app.refCode}`,
-      body: `Thank you. Your ${body.type === 'DEALER' ? 'dealership' : 'garage'} application is in the review queue. Initial review target: within ${app.reviewSlaHours} business hours.`,
-      link: body.type === 'DEALER' ? '/dealer' : '/garage-dashboard',
+      body: `Thank you. Your ${typeLabel[body.type]} application is in the review queue. Initial review target: within ${app.reviewSlaHours} business hours. Verification is completed by our review team — uploading documents never self-verifies an account.`,
+      link: links[body.type] ?? '/account',
     })
     await notifyMany(await reviewerIds(), {
       type: 'APPLICATION_REVIEW_REQUESTED',
-      title: `New ${body.type.toLowerCase()} application to review`,
+      title: `New ${typeLabel[body.type]} application to review`,
       body: `${body.orgName} (${app.refCode}) submitted from ${body.county}. SLA: ${app.reviewSlaHours}h.`,
       link: '/admin?tab=applications',
     })

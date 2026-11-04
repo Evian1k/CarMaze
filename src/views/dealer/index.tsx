@@ -44,6 +44,8 @@ import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { MessagesTab, useUnreadConversations } from '@/components/messaging/conversation-panel'
 import { PromotionsSection } from '@/components/billing/promotions-section'
+import { BranchManager } from '@/components/branches/branch-manager'
+import { MembershipsManager } from '@/components/biz/memberships-manager'
 
 // ───────────────────────────── Types ─────────────────────────────
 
@@ -220,7 +222,7 @@ type InvoiceItem = {
 
 // ───────────────────────────── Constants ─────────────────────────────
 
-const TABS = ['overview', 'inventory', 'enquiries', 'inbox', 'offers', 'testdrives', 'buying', 'staff', 'billing', 'profile'] as const
+const TABS = ['overview', 'inventory', 'branches', 'enquiries', 'inbox', 'offers', 'testdrives', 'buying', 'memberships', 'staff', 'billing', 'profile'] as const
 type TabKey = (typeof TABS)[number]
 
 const REVIEWABLE_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'RESUBMITTED']
@@ -1141,7 +1143,9 @@ function VehicleRowActions({ v, onDone }: { v: VehicleItem; onDone: () => void }
 }
 
 function InventoryTab({ orgId, dash }: { orgId: string; dash: FetchState<DashboardData> }) {
-  const vehicles = useFetch<{ vehicles: VehicleItem[] }>('/api/vehicles?org=1')
+  // Org-scoped "mine" query — orgId is validated server-side against the
+  // caller's memberships, so this only ever returns this org's vehicles.
+  const vehicles = useFetch<{ vehicles: VehicleItem[] }>(orgId ? `/api/vehicles?mine=1&orgId=${encodeURIComponent(orgId)}` : null)
   const usage = dash.data?.listingUsage ?? null
 
   const moduleMissing = vehicles.error?.status === 404
@@ -2267,11 +2271,13 @@ function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
           {([
             ['overview', 'Overview'],
             ['inventory', 'Inventory'],
+            ['branches', 'Branches & transfers'],
             ['enquiries', 'Enquiries'],
             ['inbox', 'Inbox'],
             ['offers', 'Offers'],
             ['testdrives', 'Test drives'],
             ['buying', 'Buying board'],
+            ['memberships', 'Memberships'],
             ['staff', 'Staff'],
             ['billing', 'Billing'],
             ['profile', 'Profile'],
@@ -2298,6 +2304,12 @@ function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
         </TabsContent>
         <TabsContent value="inventory" className="mt-4">
           <InventoryTab key={activeOrgId} orgId={activeOrgId} dash={dash} />
+        </TabsContent>
+        <TabsContent value="branches" className="mt-4">
+          <FadeIn><BranchManager orgId={activeOrgId} orgType="DEALER" /></FadeIn>
+        </TabsContent>
+        <TabsContent value="memberships" className="mt-4">
+          <FadeIn><MembershipsManager orgId={activeOrgId} orgType="DEALER" /></FadeIn>
         </TabsContent>
         <TabsContent value="enquiries" className="mt-4">
           <EnquiriesTab key={activeOrgId} orgId={activeOrgId} />

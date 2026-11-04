@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { verifyPassword, createSession } from '@/lib/auth'
+import { signMfaChallenge } from '@/lib/totp'
 import { route, ok, fail, parseBody, getIp } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/audit'
@@ -25,6 +26,14 @@ export const POST = route(async (req: NextRequest) => {
   }
   if (user.status !== 'ACTIVE') {
     return fail(403, 'ACCOUNT_SUSPENDED', 'This account is suspended. Contact support@carmaze.co.ke.')
+  }
+
+  // MFA-enabled accounts get a short-lived challenge instead of a session —
+  // the client completes sign-in via POST /api/auth/mfa/verify.
+  if (user.mfaEnabled && user.totpSecret) {
+    const mfaToken = await signMfaChallenge(user.id)
+    await audit({ actorId: user.id, actorName: user.name, action: 'MFA_CHALLENGE', targetType: 'USER', targetId: user.id, metadata: { ip } })
+    return ok({ mfaRequired: true, mfaToken })
   }
 
   await createSession(user.id)

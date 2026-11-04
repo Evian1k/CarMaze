@@ -135,12 +135,17 @@ export const GET = route(async (req: NextRequest) => {
   const params = new URL(req.url).searchParams
 
   // Seller dashboard listing (own + org vehicles, any status, with counts).
+  // Optional orgId narrows to a single membership org (DealerOS inventory).
   if (params.get('mine') === '1') {
     const user = await requireUser()
     const memberships = await db.orgMember.findMany({ where: { userId: user.id }, select: { orgId: true } })
     const myOrgIds = memberships.map((m) => m.orgId)
+    const wantedOrgId = params.get('orgId')?.trim()
+    const orgScope = wantedOrgId && myOrgIds.includes(wantedOrgId) ? wantedOrgId : null
     const rows = await db.vehicle.findMany({
-      where: { OR: [{ ownerId: user.id }, { orgId: { in: myOrgIds } }] },
+      where: orgScope
+        ? { orgId: orgScope }
+        : { OR: [{ ownerId: user.id }, { orgId: { in: myOrgIds } }] },
       include: {
         photos: { orderBy: { order: 'asc' as const } },
         org: { select: { id: true, name: true } },

@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Car, Inbox, Tag, Eye, Send, X, CircleCheck, Ban, DollarSign, LockKeyhole,
-  ChevronDown, Loader2, RefreshCw, Plus, MessageSquareText,
+  ChevronDown, Loader2, RefreshCw, Plus, MessageSquareText, ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,7 +19,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
-import { useAuth } from '@/stores/auth'
+import { SELLER_ACTIVE_STATUSES, useSellerApplication } from '@/components/seller/verification-panel'
+import { hasAnyRole, useAuth } from '@/stores/auth'
 import { apiGet, apiSend, navigate } from '@/lib/client'
 import { money, timeAgo, dateLabel, VEHICLE_STATUS_LABELS } from '@/lib/format'
 import { toast } from 'sonner'
@@ -78,6 +79,11 @@ function statusBadgeVariant(status: string): 'default' | 'secondary' | 'destruct
 
 export default function View() {
   const { user, loading: authLoading } = useAuth()
+
+  // Seller verification status — drives the banner under the page header.
+  const sellerVerified = hasAnyRole(user, 'SELLER_VERIFIED')
+  const { app: sellerApp, loading: sellerAppLoading } = useSellerApplication(!!user && !sellerVerified)
+  const sellerAppActive = sellerApp !== null && SELLER_ACTIVE_STATUSES.includes(sellerApp.status)
 
   const [vehicles, setVehicles] = useState<MyVehicle[] | null>(null)
   const [offers, setOffers] = useState<OfferRow[] | null>(null)
@@ -238,6 +244,45 @@ export default function View() {
           <Plus className="h-4 w-4" /> New listing
         </Button>
       </header>
+
+      {/* Seller verification banner — the full workflow lives on #/sell */}
+      {!user || sellerVerified || sellerAppLoading ? null : sellerAppActive && sellerApp ? (
+        sellerApp.status === 'MORE_INFO_REQUIRED' ? (
+          <div className="mb-6 flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+              <p className="text-sm leading-relaxed">
+                Seller verification needs your attention — ref{' '}
+                <span className="font-mono font-semibold">{sellerApp.refCode}</span>. The review team requested more
+                information before your account can be verified.
+              </p>
+            </div>
+            <Button className="h-11 shrink-0 self-start px-5 sm:h-9 sm:self-auto" onClick={() => navigate('sell')}>
+              Open verification
+            </Button>
+          </div>
+        ) : (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4 text-sm sm:items-center">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground sm:mt-0" aria-hidden="true" />
+            <p className="leading-relaxed">
+              Seller verification in review — ref <span className="font-mono font-semibold">{sellerApp.refCode}</span>
+            </p>
+          </div>
+        )
+      ) : (
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+            <p className="text-sm leading-relaxed">
+              Your listings are reviewed before going live. Complete seller verification to add a verified trust marker
+              to your listings.
+            </p>
+          </div>
+          <Button className="h-11 shrink-0 self-start px-5 sm:h-9 sm:self-auto" onClick={() => navigate('sell')}>
+            Get verified
+          </Button>
+        </div>
+      )}
 
       <Tabs defaultValue="listings">
         <TabsList className="h-auto w-full flex-wrap justify-start sm:w-auto">

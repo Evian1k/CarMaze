@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireUser, ApiError } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
+import { refCode } from '@/lib/ids'
 import { notify, notifyMany } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 
@@ -128,12 +129,88 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         type: 'APPLICATION_INFO_REQUIRED',
         title: `Action required on ${app.refCode}`,
         body: `${body.infoMessage} Please respond before ${due.toLocaleDateString('en-KE')}.`,
-        link: app.type === 'DEALER' ? '/dealer' : '/garage-dashboard',
+        link: app.type === 'DEALER' ? '/dealer' : app.type === 'SELLER' ? '/sell' : app.type === 'LOGISTICS' ? '/logistics' : '/garage-dashboard',
       })
       await audit({ actorId: user.id, actorName: user.name, action: 'APPLICATION_INFO_REQUESTED', targetType: 'APPLICATION', targetId: id })
       return ok({ application: updated })
     }
     case 'approve': {
+      // ── SELLER (individual KYC): grant the verified-seller role — no org ──
+      if (app.type === 'SELLER') {
+        const dbUser = await db.user.findUnique({ where: { id: app.userId } })
+        if (dbUser && !dbUser.roles.split(',').includes('SELLER_VERIFIED')) {
+          await db.user.update({ where: { id: app.userId }, data: { roles: `${dbUser.roles},SELLER_VERIFIED` } })
+        }
+        const updated = await db.application.update({
+          where: { id },
+          data: {
+            status: 'APPROVED',
+            decisionNote: body.decisionNote ?? null,
+            events: { create: { type: 'APPROVED', actorId: user.id, actorName: user.name, note: body.decisionNote || 'Identity and authority-to-sell documents verified.' } },
+          },
+        })
+        await notify({
+          userId: app.userId,
+          type: 'APPLICATION_APPROVED',
+          title: `Seller verification approved — ${app.refCode}`,
+          body: 'Your identity verification is complete. Your listings now carry the verified-seller trust marker.',
+          link: '/sell',
+        })
+        await audit({ actorId: user.id, actorName: user.name, action: 'APPLICATION_APPROVED', targetType: 'APPLICATION', targetId: id, metadata: { type: 'SELLER' } })
+        return ok({ application: updated })
+      }
+
+      // ── LOGISTICS: create the approved delivery partner — no dealer org ──
+      if (app.type === 'LOGISTICS') {
+        if (app.orgId) throw new ApiError(409, 'ALREADY_APPROVED', 'This application already resulted in a delivery partner.')
+        const partner = await db.logisticsPartner.create({
+          data: {
+            refCode: refCode('LGP', 6),
+            ownerUserId: app.userId,
+            name: app.orgName,
+            partnerType: app.accountType === 'INDEPENDENT' ? 'INDEPENDENT' : 'COMPANY',
+            regNo: app.regNo,
+            county: app.county,
+            town: app.town,
+            phone: app.phone,
+            email: app.email,
+            representative: app.representative,
+            capabilities: app.categories || null,
+            documents: app.documents,
+            consent: true,
+            status: 'APPROVED',
+            verified: true,
+            appliedAt: app.submittedAt,
+            reviewedAt: new Date(),
+            reviewedByName: user.name,
+            events: { create: { type: 'APPROVED', actorId: user.id, actorName: user.name, note: body.decisionNote || 'Delivery partner approved after document review.' } },
+          },
+        })
+        const dbUser = await db.user.findUnique({ where: { id: app.userId } })
+        if (dbUser && !dbUser.roles.split(',').includes('LOGISTICS_OWNER')) {
+          await db.user.update({ where: { id: app.userId }, data: { roles: `${dbUser.roles},LOGISTICS_OWNER` } })
+        }
+        const updated = await db.application.update({
+          where: { id },
+          data: {
+            status: 'APPROVED',
+            orgId: partner.id,
+            decisionNote: body.decisionNote ?? null,
+            events: { create: { type: 'APPROVED', actorId: user.id, actorName: user.name, note: body.decisionNote || 'Application approved after review.' } },
+          },
+        })
+        await notify({
+          userId: app.userId,
+          type: 'APPLICATION_APPROVED',
+          title: `Delivery partner approved — welcome to the network`,
+          body: `${partner.name} is now a verified delivery partner. Your LogisticsOS dashboard is ready.`,
+          link: '/logistics',
+        })
+        await audit({ actorId: user.id, actorName: user.name, action: 'APPLICATION_APPROVED', targetType: 'APPLICATION', targetId: id, metadata: { type: 'LOGISTICS', partnerId: partner.id } })
+        return ok({ application: updated, partner })
+      }
+
+      // ── DEALER / GARAGE: create the business org ──
       if (app.orgId) throw new ApiError(409, 'ALREADY_APPROVED', 'This application already resulted in an organisation.')
       const org = await db.org.create({
         data: {
@@ -191,7 +268,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         type: 'APPLICATION_REJECTED',
         title: `Application ${app.refCode} was not approved`,
         body: body.decisionNote,
-        link: app.type === 'DEALER' ? '/dealer' : '/garage-dashboard',
+        link: app.type === 'DEALER' ? '/dealer' : app.type === 'SELLER' ? '/sell' : app.type === 'LOGISTICS' ? '/logistics' : '/garage-dashboard',
       })
       await audit({ actorId: user.id, actorName: user.name, action: 'APPLICATION_REJECTED', targetType: 'APPLICATION', targetId: id })
       return ok({ application: updated })
@@ -212,7 +289,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         type: `APPLICATION_${body.action.toUpperCase()}`,
         title: `Application ${app.refCode} ${body.action === 'suspend' ? 'suspended' : 'revoked'}`,
         body: body.decisionNote,
-        link: app.type === 'DEALER' ? '/dealer' : '/garage-dashboard',
+        link: app.type === 'DEALER' ? '/dealer' : app.type === 'SELLER' ? '/sell' : app.type === 'LOGISTICS' ? '/logistics' : '/garage-dashboard',
       })
       await audit({ actorId: user.id, actorName: user.name, action: `APPLICATION_${body.action.toUpperCase()}`, targetType: 'APPLICATION', targetId: id })
       return ok({ application: updated })

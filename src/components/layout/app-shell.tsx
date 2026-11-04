@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Bell, ChevronDown, LayoutDashboard, LogOut, Menu, Search, Settings, User, Wrench } from 'lucide-react'
+import { Bell, ChevronDown, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingCart, User, Wrench } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -34,8 +34,9 @@ const NAV = [
   { label: 'Cars', href: '/cars' },
   { label: 'Sell a Car', href: '/sell' },
   { label: 'Showrooms', href: '/showrooms' },
-  { label: 'Customizer', href: '/customizer' },
+  { label: 'Supply Network', href: '/supply' },
   { label: 'Garages', href: '/garages' },
+  { label: 'Memberships', href: '/memberships' },
   { label: 'Partners', href: '/partners' },
   { label: 'Roadside Help', href: '/roadside' },
   { label: 'Community', href: '/community' },
@@ -113,6 +114,17 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
                 {item.label}
               </button>
             ))}
+            {hasAnyRole(user, 'LOGISTICS_OWNER') && (
+              <button
+                onClick={() => go('/logistics')}
+                className={cn(
+                  'rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                  active('/logistics') && 'bg-muted text-foreground'
+                )}
+              >
+                LogisticsOS
+              </button>
+            )}
           </nav>
 
           <div className="flex flex-1 items-center justify-end gap-1.5 lg:flex-none">
@@ -202,6 +214,16 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
                         <Wrench className="mr-2 h-4 w-4" /> Garage Dashboard
                       </DropdownMenuItem>
                     )}
+                    {hasAnyRole(user, 'SUPPLIER_OWNER', 'SUPPLIER_STAFF') && (
+                      <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('supplier')}>
+                        <Package className="mr-2 h-4 w-4" /> Supplier Portal
+                      </DropdownMenuItem>
+                    )}
+                    {hasAnyRole(user, 'GARAGE_OWNER', 'GARAGE_STAFF') && (
+                      <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('procurement')}>
+                        <ShoppingCart className="mr-2 h-4 w-4" /> Procurement
+                      </DropdownMenuItem>
+                    )}
                     {isStaffUser(user) && (
                       <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('admin')}>
                         <Settings className="mr-2 h-4 w-4" /> Control Center
@@ -275,7 +297,7 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
       </main>
 
       <footer className="mt-auto border-t border-border bg-card pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-4">
+        <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-5">
           <div>
             <Logo size="lg" showTagline />
             <p className="mt-3 max-w-56 text-xs leading-relaxed text-muted-foreground">
@@ -299,6 +321,16 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
               <li><button className="hover:text-foreground" onClick={() => navigate('partners')}>Partner network</button></li>
               <li><button className="hover:text-foreground" onClick={() => navigate('my-garage')}>My Garage records</button></li>
               <li><button className="hover:text-foreground" onClick={() => navigate('dealer')}>DealerOS for dealers</button></li>
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">For Business</h3>
+            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+              <li><button className="hover:text-foreground" onClick={() => navigate('supply')}>Automotive Supply Network</button></li>
+              <li><button className="hover:text-foreground" onClick={() => navigate('procurement')}>Garage procurement</button></li>
+              <li><button className="hover:text-foreground" onClick={() => navigate('supplier')}>Supplier portal</button></li>
+              <li><button className="hover:text-foreground" onClick={() => navigate('logistics')}>Delivery Network</button></li>
+              <li><button className="hover:text-foreground" onClick={() => navigate('memberships')}>Business memberships</button></li>
             </ul>
           </div>
           <div>

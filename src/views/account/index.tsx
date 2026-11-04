@@ -1,11 +1,11 @@
 'use client'
 
-/* Account — profile, phone verification, saved vehicles, enquiries,
- * service requests, saved searches and notifications. */
+/* Account — profile, phone & email verification, two-factor authentication (TOTP),
+ * saved vehicles, enquiries, service requests, saved searches and notifications. */
 
 import { useEffect, useCallback, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Heart, MailCheck, Bell, MessageSquareText, Wrench, Search, PhoneCall, Copy, ShieldCheck, KeyRound, MessagesSquare, Gift } from 'lucide-react'
+import { Heart, MailCheck, Bell, MessageSquareText, Wrench, Search, PhoneCall, Copy, ShieldCheck, KeyRound, MessagesSquare, Gift, CreditCard, Smartphone } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,7 @@ import { MessagesTab } from '@/components/messaging/conversation-panel'
 import { VehicleProtection } from '@/components/protection/vehicle-protection'
 import { RewardsPanel } from '@/components/loyalty/rewards-panel'
 import { CustomerTestDrives } from '@/components/protection/customer-test-drives'
+import { SubscriptionsPanel } from '@/components/account/subscriptions-panel'
 import { useAuth } from '@/stores/auth'
 import { navigate, apiGet, apiSend } from '@/lib/client'
 import { useHashRoute } from '@/hooks/use-hash-route'
@@ -39,7 +40,7 @@ type RequestItem = {
 type SavedSearchItem = { id: string; name: string; query: string; createdAt: string }
 type NotificationItem = { id: string; title: string; body: string | null; link: string | null; readAt: string | null; createdAt: string }
 
-const TABS = ['profile', 'saved', 'enquiries', 'messages', 'requests', 'searches', 'rewards', 'protection', 'testdrives', 'notifications'] as const
+const TABS = ['profile', 'saved', 'enquiries', 'messages', 'requests', 'searches', 'rewards', 'protection', 'testdrives', 'subscriptions', 'notifications'] as const
 
 export default function AccountView() {
   const route = useHashRoute()
@@ -58,6 +59,15 @@ export default function AccountView() {
   const [devCode, setDevCode] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [newSearch, setNewSearch] = useState('')
+  // Email verification
+  const [emailDevCode, setEmailDevCode] = useState<string | null>(null)
+  const [emailCode, setEmailCode] = useState('')
+  const [emailBusy, setEmailBusy] = useState(false)
+  // Two-factor authentication (TOTP)
+  const [mfaSetup, setMfaSetup] = useState<{ secret: string; uri: string } | null>(null)
+  const [mfaCode, setMfaCode] = useState('')
+  const [mfaPassword, setMfaPassword] = useState('')
+  const [mfaBusy, setMfaBusy] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) navigate('signin', { replace: true })
@@ -110,6 +120,76 @@ export default function AccountView() {
       setCode('')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Verification failed')
+    }
+  }
+
+  async function requestEmailCode() {
+    setEmailBusy(true)
+    try {
+      const d = await apiSend<{ devCode?: string; message: string }>('/api/auth/verify-email', 'POST', { action: 'request' })
+      setEmailDevCode(d.devCode ?? null)
+      toast.info(d.message)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not send code')
+    } finally {
+      setEmailBusy(false)
+    }
+  }
+
+  async function confirmEmailCode() {
+    setEmailBusy(true)
+    try {
+      await apiSend('/api/auth/verify-email', 'POST', { action: 'confirm', code: emailCode })
+      await refresh()
+      toast.success('Email verified')
+      setEmailDevCode(null)
+      setEmailCode('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Verification failed')
+    } finally {
+      setEmailBusy(false)
+    }
+  }
+
+  async function startMfaSetup() {
+    setMfaBusy(true)
+    try {
+      const d = await apiSend<{ secret: string; uri: string }>('/api/auth/mfa/setup', 'POST')
+      setMfaSetup(d)
+      setMfaCode('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Setup failed')
+    } finally {
+      setMfaBusy(false)
+    }
+  }
+
+  async function confirmMfaEnable() {
+    setMfaBusy(true)
+    try {
+      await apiSend('/api/auth/mfa/enable', 'POST', { code: mfaCode })
+      await refresh()
+      toast.success('Two-factor authentication enabled')
+      setMfaSetup(null)
+      setMfaCode('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not enable two-factor authentication')
+    } finally {
+      setMfaBusy(false)
+    }
+  }
+
+  async function disableMfa() {
+    setMfaBusy(true)
+    try {
+      await apiSend('/api/auth/mfa/disable', 'POST', { password: mfaPassword })
+      await refresh()
+      toast.success('Two-factor authentication disabled')
+      setMfaPassword('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not disable two-factor authentication')
+    } finally {
+      setMfaBusy(false)
     }
   }
 
@@ -193,6 +273,7 @@ export default function AccountView() {
           <TabsTrigger value="searches" className="gap-1.5"><Search className="h-4 w-4" /> Searches</TabsTrigger>
           <TabsTrigger value="rewards" className="gap-1.5"><Gift className="h-4 w-4" /> Rewards</TabsTrigger>
           <TabsTrigger value="protection" className="gap-1.5"><ShieldCheck className="h-4 w-4" /> Vehicle protection</TabsTrigger>
+          <TabsTrigger value="subscriptions" className="gap-1.5"><CreditCard className="h-4 w-4" /> Memberships & credit</TabsTrigger>
           <TabsTrigger value="testdrives" className="gap-1.5"><KeyRound className="h-4 w-4" /> Test drives</TabsTrigger>
           <TabsTrigger value="notifications" className="gap-1.5"><Bell className="h-4 w-4" /> Alerts</TabsTrigger>
         </TabsList>
@@ -244,6 +325,88 @@ export default function AccountView() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Email verification</CardTitle>
+              <CardDescription>Confirming your email helps with account recovery and keeps seller and staff accounts secure.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {user.emailVerified ? (
+                <Badge className="w-fit gap-1 bg-emerald-600 text-white"><ShieldCheck className="h-3.5 w-3.5" /> Verified</Badge>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="gap-1 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"><ShieldCheck className="h-3.5 w-3.5" /> Not verified</Badge>
+                    <Button variant="outline" size="sm" onClick={requestEmailCode} disabled={emailBusy}>{emailBusy ? 'Please wait…' : 'Send code'}</Button>
+                  </div>
+                  {emailDevCode && (
+                    <div className="rounded-md border border-dashed p-2 text-xs">
+                      <p className="flex items-center justify-between">
+                        <span>Dev code: <strong className="font-mono">{emailDevCode}</strong></span>
+                        <button className="inline-flex items-center gap-1 text-primary hover:underline" onClick={() => { navigator.clipboard?.writeText(emailDevCode); toast.success('Copied') }}>
+                          <Copy className="h-3 w-3" /> copy
+                        </button>
+                      </p>
+                      <p className="mt-1 text-muted-foreground">Email delivery not configured on this deployment — code shown here instead of a real email.</p>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Input value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+                    <Button size="sm" variant="outline" onClick={confirmEmailCode} disabled={emailBusy || emailCode.length !== 6}>Verify</Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Two-factor authentication (TOTP)</CardTitle>
+              <CardDescription>
+                Add a second sign-in step with an authenticator app (Google Authenticator, Authy, 1Password…). Codes rotate every 30 seconds and are required at every sign-in. Staff accounts should enable this.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {user.mfaEnabled ? (
+                <div className="space-y-3">
+                  <Badge className="w-fit gap-1 bg-emerald-600 text-white"><Smartphone className="h-3.5 w-3.5" /> Enabled</Badge>
+                  <p className="text-sm text-muted-foreground">To turn this off, confirm your password. We recommend keeping two-factor authentication on.</p>
+                  <div className="flex max-w-sm gap-2">
+                    <Input type="password" value={mfaPassword} onChange={(e) => setMfaPassword(e.target.value)} placeholder="Current password" autoComplete="current-password" />
+                    <Button variant="destructive" onClick={disableMfa} disabled={mfaBusy || !mfaPassword}>{mfaBusy ? 'Please wait…' : 'Disable'}</Button>
+                  </div>
+                </div>
+              ) : mfaSetup ? (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-medium">1. Add the secret to your authenticator app</p>
+                    <p className="text-xs text-muted-foreground">Paste the key below, or scan/use the otpauth link with an app that supports manual setup.</p>
+                    <div className="flex items-center justify-between gap-2 rounded-md border border-dashed p-2">
+                      <code className="select-all break-all font-mono text-sm">{mfaSetup.secret}</code>
+                      <button className="inline-flex shrink-0 items-center gap-1 text-primary hover:underline" onClick={() => { navigator.clipboard?.writeText(mfaSetup.secret); toast.success('Copied') }}>
+                        <Copy className="h-3 w-3" /> copy
+                      </button>
+                    </div>
+                    <p className="select-all break-all font-mono text-[11px] text-muted-foreground">{mfaSetup.uri}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-medium">2. Enter the current 6-digit code</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Input value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+                      <Button size="sm" onClick={confirmMfaEnable} disabled={mfaBusy || mfaCode.length !== 6}>Confirm & enable</Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setMfaSetup(null); setMfaCode('') }}>Cancel</Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Badge variant="outline" className="w-fit gap-1 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"><Smartphone className="h-3.5 w-3.5" /> Not enabled</Badge>
+                  <div>
+                    <Button variant="outline" size="sm" onClick={startMfaSetup} disabled={mfaBusy}>{mfaBusy ? 'Please wait…' : 'Set up authenticator app'}</Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -400,6 +563,11 @@ export default function AccountView() {
         {/* Test drives */}
         <TabsContent value="testdrives" className="mt-4">
           <FadeIn><CustomerTestDrives /></FadeIn>
+        </TabsContent>
+
+        {/* Memberships & credit */}
+        <TabsContent value="subscriptions" className="mt-4">
+          <FadeIn><SubscriptionsPanel /></FadeIn>
         </TabsContent>
 
         {/* Notifications */}

@@ -67,7 +67,7 @@ export const GET = route(async (req: NextRequest, ctx: Ctx) => {
     where: { id },
     include: {
       photos: { orderBy: { order: 'asc' as const } },
-      owner: { select: { id: true, name: true } },
+      owner: { select: { id: true, name: true, roles: true } },
       org: {
         select: { id: true, name: true, county: true, town: true, phone: true, location: true, description: true, status: true },
       },
@@ -162,8 +162,12 @@ export const GET = route(async (req: NextRequest, ctx: Ctx) => {
     views: vehicle.views,
     createdAt: vehicle.createdAt,
     photos: vehicle.photos.map((p) => ({ url: p.url, order: p.order })),
-    // Private sellers are never exposed with contact details.
-    owner: { name: vehicle.owner.name },
+    // Private sellers are never exposed with contact details. The verified
+    // marker reflects an approved SELLER (KYC) application — never a self-claim.
+    owner: {
+      name: vehicle.owner.name,
+      verifiedSeller: vehicle.owner.roles.split(',').includes('SELLER_VERIFIED'),
+    },
     // Business contact for dealer listings (org phone, not a personal number).
     org: vehicle.org,
     // Internal review feedback only reaches the seller side.

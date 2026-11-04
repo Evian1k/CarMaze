@@ -1,0 +1,528 @@
+     1→// CARMAZE — Automotive Supply Network seed section.
+     2→// Called from prisma/seed.ts with the seeded base users/orgs so the demo
+     3→// ecosystem is connected end-to-end (real rows in the real database).
+     4→import { PrismaClient } from '@prisma/client'
+     5→
+     6→type Db = PrismaClient
+     7→
+     8→export function daysFromNow(d: number): Date {
+     9→  return new Date(Date.now() + d * 24 * 60 * 60 * 1000)
+    10→}
+    11→
+    12→export async function seedSupply(
+    13→  db: Db,
+    14→  ctx: {
+    15→    PASSWORD: string
+    16→    bcrypt: { hashSync(p: string, r: number): string }
+    17→    adminId: string
+    18→    customerId: string
+    19→    garageOrgId: string
+    20→    dealerOrgId: string
+    21→  }
+    22→) {
+    23→  console.log('Seeding Automotive Supply Network…')
+    24→
+    25→  // ───────────── Product categories (full catalogue taxonomy) ─────────────
+    26→  const categoryDefs: { slug: string; name: string; parent?: string }[] = [
+    27→    { slug: 'tyres-wheels', name: 'Tyres & Wheels' },
+    28→    { slug: 'rims-accessories', name: 'Rims & Accessories' },
+    29→    { slug: 'engines-components', name: 'Engines & Components' },
+    30→    { slug: 'gearboxes-transmissions', name: 'Gearboxes & Transmissions' },
+    31→    { slug: 'brake-systems', name: 'Brake Systems' },
+    32→    { slug: 'suspension', name: 'Suspension Systems' },
+    33→    { slug: 'steering', name: 'Steering Systems' },
+    34→    { slug: 'batteries', name: 'Batteries' },
+    35→    { slug: 'electrical', name: 'Electrical Systems' },
+    36→    { slug: 'alternators-starters', name: 'Alternators & Starters' },
+    37→    { slug: 'ecu-sensors', name: 'ECUs & Sensors' },
+    38→    { slug: 'filters', name: 'Filters' },
+    39→    { slug: 'oils-lubricants', name: 'Oils & Lubricants' },
+    40→    { slug: 'coolants-fluids', name: 'Coolants & Fluids' },
+    41→    { slug: 'fuel-system', name: 'Fuel-System Components' },
+    42→    { slug: 'exhaust', name: 'Exhaust Systems' },
+    43→    { slug: 'clutches', name: 'Clutches' },
+    44→    { slug: 'radiators', name: 'Radiators & Cooling' },
+    45→    { slug: 'air-conditioning', name: 'Air-Conditioning Components' },
+    46→    { slug: 'body-parts', name: 'Body Parts' },
+    47→    { slug: 'lighting', name: 'Lighting' },
+    48→    { slug: 'paint-bodyshop', name: 'Paint & Bodywork Materials' },
+    49→    { slug: 'diagnostics', name: 'Diagnostic Scanners' },
+    50→    { slug: 'workshop-equipment', name: 'Workshop Equipment & Machinery' },
+    51→    { slug: 'tools', name: 'Hand & Power Tools' },
+    52→    { slug: 'safety', name: 'Safety Equipment' },
+    53→    { slug: 'cleaning-detailing', name: 'Cleaning & Detailing Supplies' },
+    54→    { slug: 'garage-furniture', name: 'Garage Furniture' },
+    55→    { slug: 'accessories', name: 'Automotive Accessories' },
+    56→    { slug: 'used-refurbished', name: 'Used & Refurbished Components' },
+    57→  ]
+    58→  for (const [i, c] of categoryDefs.entries()) {
+    59→    await db.productCategory.upsert({
+    60→      where: { slug: c.slug },
+    61→      create: { slug: c.slug, name: c.name, sortOrder: i },
+    62→      update: { name: c.name, sortOrder: i },
+    63→    })
+    64→  }
+    65→  const catId = (slug: string) => db.productCategory.findUnique({ where: { slug } }).then((c) => c!.id)
+    66→
+    67→  // ───────────── Supplier businesses ─────────────
+    68→  const supplierUsers: Record<string, string> = {}
+    69→
+    70→  async function ensureUser(email: string, name: string, role: string, phone: string) {
+    71→    const existing = await db.user.findUnique({ where: { email } })
+    72→    if (existing) return existing
+    73→    return db.user.create({
+    74→      data: {
+    75→        email, name, phone,
+    76→        passwordHash: ctx.bcrypt.hashSync(ctx.PASSWORD, 10),
+    77→        roles: role,
+    78→        referralCode: email.split('@')[0].toUpperCase().slice(0, 8),
+    79→      },
+    80→    })
+    81→  }
+    82→
+    83→  const supplierOwner1 = await ensureUser('supplier@carmaze.co.ke', 'Peter Mwangi', 'CUSTOMER,SUPPLIER_OWNER', '+254711000301')
+    84→  const supplierOwner2 = await ensureUser('tyres@carmaze.co.ke', 'Grace Achieng', 'CUSTOMER,SUPPLIER_OWNER', '+254711000302')
+    85→  const supplierOwner3 = await ensureUser('equipment@carmaze.co.ke', 'David Omondi', 'CUSTOMER,SUPPLIER_OWNER', '+254711000303')
+    86→  supplierUsers.supplier = supplierOwner1.id
+    87→  supplierUsers.tyres = supplierOwner2.id
+    88→  supplierUsers.equipment = supplierOwner3.id
+    89→
+    90→  async function ensureSupplierOrg(opts: {
+    91→    name: string; regNo: string; county: string; town: string; description: string
+    92→    verified: boolean; rating: number; ownerId: string; ownerName: string
+    93→    specialities: string[]; risk?: number
+    94→  }) {
+    95→    let org = await db.org.findFirst({ where: { name: opts.name, type: 'SUPPLIER' } })
+    96→    if (!org) {
+    97→      org = await db.org.create({
+    98→        data: {
+    99→          type: 'SUPPLIER', name: opts.name, regNo: opts.regNo, county: opts.county, town: opts.town,
+   100→          description: opts.description, verified: opts.verified, supplierRating: opts.rating,
+   101→          supplierRiskScore: opts.risk ?? 0,
+   102→          phone: '+254711000300', email: `sales@${opts.name.toLowerCase().replace(/[^a-z]+/g, '')}.co.ke`,
+   103→          specialities: JSON.stringify(opts.specialities),
+   104→          serviceAreas: JSON.stringify(['Nairobi', 'Kiambu', 'Machakos', 'Nakuru', 'Mombasa']),
+   105→          openingHours: JSON.stringify({ mon: ['08:00', '18:00'], tue: ['08:00', '18:00'], wed: ['08:00', '18:00'], thu: ['08:00', '18:00'], fri: ['08:00', '18:00'], sat: ['09:00', '14:00'], sun: null }),
+   106→          responseMinutes: 45,
+   107→        },
+   108→      })
+   109→    }
+   110→    await db.orgMember.upsert({
+   111→      where: { orgId_userId: { orgId: org.id, userId: opts.ownerId } },
+   112→      create: { orgId: org.id, userId: opts.ownerId, role: 'OWNER' },
+   113→      update: {},
+   114→    })
+   115→    return org
+   116→  }
+   117→
+   118→  const partsSupplier = await ensureSupplierOrg({
+   119→    name: 'Sifa Auto Spares Ltd', regNo: 'C.123456', county: 'Nairobi', town: 'Industrial Area',
+   120→    description: 'Genuine and OEM-equivalent spare parts for Japanese and European vehicles. Authorised distributor for major filtration and brake brands with batch-traced stock.',
+   121→    verified: true, rating: 4.7, ownerId: supplierOwner1.id, ownerName: 'Peter Mwangi',
+   122→    specialities: ['Spare parts', 'Filtration', 'Brakes', 'Electrical'],
+   123→  })
+   124→  const tyreSupplier = await ensureSupplierOrg({
+   125→    name: 'Highway Tyre Distributors', regNo: 'C.234567', county: 'Nairobi', town: 'Ngong Road',
+   126→    description: 'Wholesale tyres, rims and wheel accessories. Official distribution for premium and mid-tier tyre brands with fitment support.',
+   127→    verified: true, rating: 4.5, ownerId: supplierOwner2.id, ownerName: 'Grace Achieng',
+   128→    specialities: ['Tyres', 'Rims', 'Wheel alignment'],
+   129→  })
+   130→  const equipmentSupplier = await ensureSupplierOrg({
+   131→    name: 'GaragePro Equipment Kenya', regNo: 'C.345678', county: 'Nairobi', town: 'Mombasa Road',
+   132→    description: 'Workshop machinery, diagnostic scanners, hydraulic lifts, air compressors and garage furniture for professional workshops.',
+   133→    verified: true, rating: 4.3, ownerId: supplierOwner3.id, ownerName: 'David Omondi',
+   134→    specialities: ['Workshop equipment', 'Diagnostics', 'Lifts', 'Tools'],
+   135→  })
+   136→  // A pending (unverified) supplier — demonstrates that unverified businesses never show as verified
+   137→  await ensureSupplierOrg({
+   138→    name: 'Rapid Parts East Africa', regNo: 'C.456789', county: 'Machakos', town: 'Athi River',
+   139→    description: 'Application under review — body parts and lighting importer.',
+   140→    verified: false, rating: null, ownerId: supplierOwner1.id, ownerName: 'Peter Mwangi',
+   141→    specialities: ['Body parts', 'Lighting'],
+   142→  })
+   143→
+   144→  // ───────────── Warehouses ─────────────
+   145→  async function ensureBranch(orgId: string, name: string, code: string, kind: 'BRANCH' | 'WAREHOUSE', county: string, town: string, lat: number, lng: number, isPrimary = false) {
+   146→    const existing = await db.orgBranch.findUnique({ where: { orgId_code: { orgId, code } } })
+   147→    if (existing) return existing
+   148→    return db.orgBranch.create({
+   149→      data: { orgId, name, code, kind, isPrimary, county, town, lat, lng, address: `${town}, ${county}`, phone: '+254711000300', managerName: 'Store Manager', deliveryAreas: JSON.stringify(['Nairobi', 'Kiambu', 'Machakos', 'Nakuru', 'Mombasa']) },
+   150→    })
+   151→  }
+   152→  const sifaWh1 = await ensureBranch(partsSupplier.id, 'Sifa HQ Warehouse', 'SIFA-WH1', 'WAREHOUSE', 'Nairobi', 'Industrial Area', -1.2977, 36.8328, true)
+   153→  const sifaWh2 = await ensureBranch(partsSupplier.id, 'Sifa Nakuru Depot', 'SIFA-WH2', 'WAREHOUSE', 'Nakuru', 'Nakuru Town', -0.3031, 36.08)
+   154→  const hwyWh1 = await ensureBranch(tyreSupplier.id, 'Highway Central Warehouse', 'HWY-WH1', 'WAREHOUSE', 'Nairobi', 'Ngong Road', -1.3002, 36.7819, true)
+   155→  const gpWh1 = await ensureBranch(equipmentSupplier.id, 'GaragePro Main Store', 'GP-WH1', 'WAREHOUSE', 'Nairobi', 'Mombasa Road', -1.3197, 36.8247, true)
+   156→
+   157→  // Garage branch (destination for demo orders)
+   158→  const garageBranch = await db.orgBranch.findFirst({ where: { orgId: ctx.garageOrgId } })
+   159→  const garageBranchId = garageBranch?.id ?? (await db.orgBranch.create({
+   160→    data: { orgId: ctx.garageOrgId, name: 'Main Workshop', code: 'PM-01', kind: 'BRANCH', isPrimary: true, county: 'Nairobi', town: 'Westlands', address: 'Rhapta Road, Westlands, Nairobi', lat: -1.2649, lng: 36.804 },
+   161→  })).id
+   162→  const dealerBranch = await db.orgBranch.findFirst({ where: { orgId: ctx.dealerOrgId } })
+   163→  if (!dealerBranch) {
+   164→    await db.orgBranch.create({ data: { orgId: ctx.dealerOrgId, name: 'Showroom HQ', code: 'NAH-01', kind: 'BRANCH', isPrimary: true, county: 'Nairobi', town: 'Mombasa Road', address: 'Mombasa Road, Nairobi', lat: -1.318, lng: 36.826 } })
+   165→  }
+   166→  await db.orgBranch.create({ data: { orgId: ctx.dealerOrgId, name: 'Karen Branch', code: 'NAH-02', kind: 'BRANCH', county: 'Nairobi', town: 'Karen', address: 'Karen Road, Nairobi', lat: -1.3197, lng: 36.7078 } }).catch(() => {})
+   167→
+   168→  // ───────────── Products ─────────────
+   169→  type ProductSeed = {
+   170→    sku: string; name: string; brand: string; cat: string; price: number; wholesale?: number; wsMin?: number
+   171→    mpn?: string; oem?: string; condition?: 'NEW' | 'REFURBISHED' | 'USED'; warranty?: number; returnable?: boolean
+   172→    makes?: string[]; compat?: { make: string; model?: string; yf?: number; yt?: number; engine?: string }[]
+   173→    stock: { branch: string; qty: number; reorder?: number }[]
+   174→    batch?: boolean; serial?: boolean; authentic?: boolean; featured?: boolean
+   175→    desc: string
+   176→  }
+   177→  const productDefs: { supplier: typeof partsSupplier; wh: Record<string, string>; items: ProductSeed[] }[] = [
+   178→    {
+   179→      supplier: partsSupplier,
+   180→      wh: { 'SIFA-WH1': sifaWh1.id, 'SIFA-WH2': sifaWh2.id },
+   181→      items: [
+   182→        {
+   183→          sku: 'SIF-FLT-OIL-TY', name: 'Toyota Oil Filter (OEM-spec)', brand: 'Denso', cat: 'filters', price: 65000, wholesale: 52000, wsMin: 12,
+   184→          mpn: '90915-YZZE1', oem: '90915-YZZE1', makes: ['Toyota', 'Lexus'],
+   185→          compat: [{ make: 'Toyota', model: 'Prado', yf: 2009, yt: 2021, engine: '2.7L 2TR-FE' }, { make: 'Toyota', model: 'Harrier', yf: 2014, yt: 2020, engine: '2.0L 3ZR-FE' }, { make: 'Toyota', model: 'Vitz', yf: 2011, yt: 2019, engine: '1.0L 1KR-FE' }],
+   186→          stock: [{ branch: 'SIFA-WH1', qty: 240, reorder: 60 }, { branch: 'SIFA-WH2', qty: 80 }], batch: true, authentic: true, featured: true,
+   187→          desc: 'Genuine-spec oil filter covering popular Toyota engines. Batch-traced stock with manufacturer authorisation evidence on file.',
+   188→        },
+   189→        {
+   190→          sku: 'SIF-BRK-PAD-FR', name: 'Front Brake Pad Set — Ceramic', brand: 'Brembo', cat: 'brake-systems', price: 480000, wholesale: 410000, wsMin: 6,
+   191→          mpn: 'P85020', makes: ['Toyota', 'Nissan', 'Subaru'],
+   192→          compat: [{ make: 'Toyota', model: 'Prado', yf: 2010, yt: 2021 }, { make: 'Nissan', model: 'X-Trail', yf: 2015, yt: 2022 }, { make: 'Subaru', model: 'Forester', yf: 2013, yt: 2019 }],
+   193→          stock: [{ branch: 'SIFA-WH1', qty: 60, reorder: 15 }, { branch: 'SIFA-WH2', qty: 22 }], authentic: true,
+   194→          desc: 'Low-dust ceramic front pads for SUVs and crossovers. Fitted by leading Nairobi garages; warranty-backed.',
+   195→        },
+   196→        {
+   197→          sku: 'SIF-BAT-70AH', name: 'Heavy-Duty Battery 70Ah 12V', brand: 'Chloride Exide', cat: 'batteries', price: 1350000, wholesale: 1180000, wsMin: 4,
+   198→          mpn: 'NS70-70AH', warranty: 24, makes: ['Toyota', 'Nissan', 'Isuzu', 'Mitsubishi'],
+   199→          compat: [{ make: 'Toyota', model: 'Hilux / D-Max class', yf: 2006, yt: 2024 }, { make: 'Isuzu', model: 'D-Max', yf: 2012, yt: 2024 }],
+   200→          stock: [{ branch: 'SIFA-WH1', qty: 35, reorder: 10 }], serial: true, authentic: true,
+   201→          desc: 'Maintenance-free 70Ah battery with 24-month warranty. Serial-traced against grey imports.',
+   202→        },
+   203→        {
+   204→          sku: 'SIF-ALT-TR', name: 'Alternator 12V 90A (Rebuilt)', brand: 'Denso', cat: 'alternators-starters', price: 1450000, condition: 'REFURBISHED', warranty: 6,
+   205→          mpn: '27060-0C070', makes: ['Toyota'],
+   206→          compat: [{ make: 'Toyota', model: 'Hilux', yf: 2005, yt: 2015, engine: '2.5L/3.0L D-4D' }],
+   207→          stock: [{ branch: 'SIFA-WH1', qty: 8 }], serial: true,
+   208→          desc: 'Professionally rebuilt alternator, bench-tested at 90A. Six-month supply warranty; cores accepted.',
+   209→        },
+   210→        {
+   211→          sku: 'SIF-SNS-O2', name: 'Oxygen Sensor (Upstream)', brand: 'NTK', cat: 'ecu-sensors', price: 720000, wholesale: 640000, wsMin: 5,
+   212→          mpn: '89467-48020', warranty: 12, makes: ['Toyota', 'Lexus'],
+   213→          compat: [{ make: 'Toyota', model: 'Harrier', yf: 2014, yt: 2019, engine: '2.0L' }, { make: 'Toyota', model: 'Noah', yf: 2014, yt: 2021 }],
+   214→          stock: [{ branch: 'SIFA-WH1', qty: 26, reorder: 8 }],
+   215→          desc: 'Genuine NTK upstream O2 sensor. Plugs match OEM harness; no splicing required.',
+   216→        },
+   217→        {
+   218→          sku: 'SIF-COOL-LONG', name: 'Long-Life Coolant 4L (Pink)', brand: 'Toyota Genuine', cat: 'coolants-fluids', price: 185000, wholesale: 150000, wsMin: 12,
+   219→          mpn: '08889-80072', makes: ['Toyota', 'Lexus', 'Hino'],
+   220→          stock: [{ branch: 'SIFA-WH1', qty: 150, reorder: 40 }, { branch: 'SIFA-WH2', qty: 55 }],
+   221→          desc: 'Toyota Genuine Long Life Coolant (SLLC), pre-mixed. Protects aluminium radiators to 160,000 km.',
+   222→        },
+   223→        {
+   224→          sku: 'SIF-SUS-KIT-PR', name: 'Front Suspension Bush Kit', brand: '555', cat: 'suspension', price: 640000, wholesale: 560000, wsMin: 4,
+   225→          mpn: 'SBA-48815', makes: ['Toyota'],
+   226→          compat: [{ make: 'Toyota', model: 'Prado 120/150', yf: 2003, yt: 2021 }],
+   227→          stock: [{ branch: 'SIFA-WH1', qty: 18, reorder: 5 }],
+   228→          desc: 'Complete 555 (Sankei) front bush kit for Prado platforms — the三家 fitment reference for East African conditions.'.replace('三家', 'trusted'),
+   229→        },
+   230→        {
+   231→          sku: 'SIF-RAD-ALU-HR', name: 'Aluminium Radiator — Harrier 2.0', brand: 'Koyorad', cat: 'radiators', price: 2250000, wholesale: 1980000, wsMin: 2,
+   232→          mpn: '16400-20120', warranty: 12, makes: ['Toyota'],
+   233→          compat: [{ make: 'Toyota', model: 'Harrier', yf: 2014, yt: 2020, engine: '2.0L' }],
+   234→          stock: [{ branch: 'SIFA-WH1', qty: 6, reorder: 2 }],
+   235→          desc: 'Koyorad all-aluminium radiator, pressure-tested. Includes drain plug and mounting set.',
+   236→        },
+   237→      ],
+   238→    },
+   239→    {
+   240→      supplier: tyreSupplier,
+   241→      wh: { 'HWY-WH1': hwyWh1.id },
+   242→      items: [
+   243→        {
+   244→          sku: 'HWY-TYR-2656517', name: '265/65R17 Highway Terrain Tyre', brand: 'Bridgestone', cat: 'tyres-wheels', price: 1850000, wholesale: 1680000, wsMin: 4,
+   245→          mpn: 'DUELER-HT684II', warranty: 12, makes: ['Toyota', 'Ford', 'Mitsubishi'],
+   246→          compat: [{ make: 'Toyota', model: 'Prado', yf: 2010, yt: 2024 }, { make: 'Ford', model: 'Ranger', yf: 2012, yt: 2024 }, { make: 'Mitsubishi', model: 'L200', yf: 2015, yt: 2024 }],
+   247→          stock: [{ branch: 'HWY-WH1', qty: 64, reorder: 16 }], batch: true, authentic: true, featured: true,
+   248→          desc: 'Bridgestone Dueler H/T 684II — the fleet-standard highway terrain tyre. DOT-dated stock, batch traced.',
+   249→        },
+   250→        {
+   251→          sku: 'HWY-TYR-1956515', name: '195/65R15 Comfort Tyre', brand: 'Yokohama', cat: 'tyres-wheels', price: 820000, wholesale: 730000, wsMin: 8,
+   252→          mpn: 'BLUEARTH-ES32', makes: ['Toyota', 'Nissan', 'Mazda', 'Honda'],
+   253→          compat: [{ make: 'Toyota', model: 'Vitz', yf: 2011, yt: 2024 }, { make: 'Toyota', model: 'Axio', yf: 2012, yt: 2024 }, { make: 'Nissan', model: 'Note', yf: 2013, yt: 2024 }],
+   254→          stock: [{ branch: 'HWY-WH1', qty: 120, reorder: 30 }],
+   255→          desc: 'Yokohama BluEarth ES32 — fuel-efficient comfort tyre for saloons and hatchbacks.',
+   256→        },
+   257→        {
+   258→          sku: 'HWY-RIM-AL-17', name: '17" Alloy Wheel — 6x139.7', brand: 'Enkei', cat: 'rims-accessories', price: 2600000, wholesale: 2350000, wsMin: 4,
+   259→          mpn: 'ENK-GX17', makes: ['Toyota'],
+   260→          compat: [{ make: 'Toyota', model: 'Hilux', yf: 2016, yt: 2024 }, { make: 'Toyota', model: 'Prado', yf: 2010, yt: 2024 }],
+   261→          stock: [{ branch: 'HWY-WH1', qty: 16, reorder: 4 }], serial: true,
+   262→          desc: 'Enkei GX-series 17-inch alloy, load-rated for African roads. Sold per wheel; hub-centric rings included.',
+   263→        },
+   264→        {
+   265→          sku: 'HWY-WAL-NUTS', name: 'Wheel Nut Set (Locking)', brand: 'McGard', cat: 'rims-accessories', price: 320000,
+   266→          mpn: 'MG-24137SU', makes: ['Toyota', 'Nissan', 'Subaru'],
+   267→          stock: [{ branch: 'HWY-WH1', qty: 40, reorder: 10 }],
+   268→          desc: 'McGard locking wheel nut set with dual-hex security key. Anti-theft for alloys.',
+   269→        },
+   270→      ],
+   271→    },
+   272→    {
+   273→      supplier: equipmentSupplier,
+   274→      wh: { 'GP-WH1': gpWh1.id },
+   275→      items: [
+   276→        {
+   277→          sku: 'GPR-SCN-LAUNCH', name: 'Professional Diagnostic Scanner', brand: 'Launch', cat: 'diagnostics', price: 8900000, wholesale: 8200000, wsMin: 1,
+   278→          mpn: 'X431-PRO5', warranty: 12, serial: true, authentic: true, featured: true,
+   279→          stock: [{ branch: 'GP-WH1', qty: 7, reorder: 2 }],
+   280→          desc: 'Launch X-431 PRO5 bi-directional scanner with wide OBD coverage, actuation tests and 2-year free updates.',
+   281→        },
+   282→        {
+   283→          sku: 'GPR-LFT-4T', name: '4-Ton Two-Post Hydraulic Lift', brand: 'Torin', cat: 'workshop-equipment', price: 46500000, wholesale: 43000000, wsMin: 1,
+   284→          mpn: 'TRN-4T2P', warranty: 24, serial: true,
+   285→          stock: [{ branch: 'GP-WH1', qty: 3, reorder: 1 }],
+   286→          desc: 'Certified 4-ton two-post lift with mechanical safety locks. Installation and commissioning included within Nairobi.',
+   287→        },
+   288→        {
+   289→          sku: 'GPR-CMP-500L', name: '500L Belt-Drive Air Compressor', brand: 'ABAC', cat: 'workshop-equipment', price: 18500000, wholesale: 17000000, wsMin: 1,
+   290→          mpn: 'ABAC-500L', warranty: 12,
+   291→          stock: [{ branch: 'GP-WH1', qty: 4, reorder: 1 }],
+   292→          desc: 'ABAC 500-litre belt-drive compressor, 10 bar — runs impact guns, tyre machines and spray booths.',
+   293→        },
+   294→        {
+   295→          sku: 'GPR-TCH-MOBILE', name: 'Mobile Tyre Changer', brand: 'Corghi', cat: 'workshop-equipment', price: 24800000, wholesale: 22900000, wsMin: 1,
+   296→          mpn: 'COR-EM955', warranty: 12, serial: true,
+   297→          stock: [{ branch: 'GP-WH1', qty: 2, reorder: 1 }],
+   298→          desc: 'Corghi EM955 mobile tyre changer for 12"–26" rims. Ideal for roadside fleets and multi-bay workshops.',
+   299→        },
+   300→        {
+   301→          sku: 'GPR-TLS-DECK', name: 'Mechanic Tool Set (150 pc)', brand: 'Stanley', cat: 'tools', price: 3200000, wholesale: 2850000, wsMin: 3,
+   302→          mpn: 'STMT-82927', warranty: 12,
+   303→          stock: [{ branch: 'GP-WH1', qty: 14, reorder: 4 }],
+   304→          desc: 'Stanley 150-piece CRV mechanic set in blow-mould case — sockets, spanners, torx and hex.',
+   305→        },
+   306→        {
+   307→          sku: 'GPR-SAF-KIT', name: 'Workshop Safety Kit (PPE bundle)', brand: '3M', cat: 'safety', price: 640000, wholesale: 540000, wsMin: 10,
+   308→          mpn: '3M-PPE-K2',
+   309→          stock: [{ branch: 'GP-WH1', qty: 55, reorder: 15 }],
+   310→          desc: 'PPE bundle: respirators, cut-resistant gloves, goggles and ear defenders. KEBS-compliant markings.',
+   311→        },
+   312→      ],
+   313→    },
+   314→  ]
+   315→
+   316→  const productIds: { id: string; sku: string; supplierOrgId: string; unitPriceMinor: number; name: string }[] = []
+   317→  for (const group of productDefs) {
+   318→    for (const def of group.items) {
+   319→      const exists = await db.product.findUnique({ where: { supplierOrgId_sku: { supplierOrgId: group.supplier.id, sku: def.sku } } })
+   320→      if (exists) {
+   321→        productIds.push({ id: exists.id, sku: def.sku, supplierOrgId: group.supplier.id, unitPriceMinor: exists.unitPriceMinor, name: exists.name })
+   322→        continue
+   323→      }
+   324→      const product = await db.product.create({
+   325→        data: {
+   326→          refCode: `PRD-${def.sku.replace(/[^A-Z0-9]/g, '').slice(-6)}`,
+   327→          supplierOrgId: group.supplier.id,
+   328→          categoryId: await catId(def.cat),
+   329→          name: def.name,
+   330→          sku: def.sku,
+   331→          mpn: def.mpn ?? null,
+   332→          oemRef: def.oem ?? null,
+   333→          brand: def.brand,
+   334→          description: def.desc,
+   335→          condition: def.condition ?? 'NEW',
+   336→          unitPriceMinor: def.price,
+   337→          wholesalePriceMinor: def.wholesale ?? null,
+   338→          wholesaleMinQty: def.wsMin ?? 0,
+   339→          taxRatePct: 16,
+   340→          warrantyMonths: def.warranty ?? 0,
+   341→          returnable: def.returnable ?? true,
+   342→          tags: JSON.stringify([def.brand, ...((def.makes ?? []).slice(0, 2))]),
+   343→          vehicleMakes: JSON.stringify(def.makes ?? []),
+   344→          batchTracked: def.batch ?? false,
+   345→          serialTracked: def.serial ?? false,
+   346→          provenance: JSON.stringify({ provenanceNote: 'Supplier declaration + invoice documentation on file', authenticator: def.authentic ? 'ADMIN' : null }),
+   347→          authenticityVerified: Boolean(def.authentic),
+   348→          status: 'PUBLISHED',
+   349→          featured: Boolean(def.featured),
+   350→          ratingAvg: 4 + Math.random(),
+   351→          ratingCount: Math.floor(Math.random() * 20) + 3,
+   352→          priceHistory: { create: { priceMinor: def.price, reason: 'LIST' } },
+   353→          compat: {
+   354→            create: (def.compat ?? []).map((c) => ({
+   355→              make: c.make, model: c.model ?? null, yearFrom: c.yf ?? null, yearTo: c.yt ?? null,
+   356→              engine: c.engine ?? null, source: 'SUPPLIER', verified: true,
+   357→            })),
+   358→          },
+   359→          stocks: {
+   360→            create: def.stock.map((s) => ({ branchId: group.wh[s.branch], qtyOnHand: s.qty, reorderLevel: s.reorder ?? 0 })),
+   361→          },
+   362→        },
+   363→      })
+   364→      productIds.push({ id: product.id, sku: def.sku, supplierOrgId: group.supplier.id, unitPriceMinor: def.price, name: def.name })
+   365→    }
+   366→  }
+   367→
+   368→  // ───────────── Supplier subscription plans ─────────────
+   369→  for (const plan of [
+   370→    { code: 'supplier-starter', name: 'Supplier Starter', priceMinor: 149900, features: ['Up to 50 products', '1 warehouse', 'Order inbox', 'Quote requests'], staffLimit: 3 },
+   371→    { code: 'supplier-pro', name: 'Supplier Professional', priceMinor: 399900, features: ['Up to 500 products', '5 warehouses', 'Featured placement slots', 'Procurement analytics', 'Priority support'], staffLimit: 12 },
+   372→    { code: 'supplier-enterprise', name: 'Supplier Enterprise', priceMinor: 899900, features: ['Unlimited products', 'Unlimited warehouses', 'Dedicated account manager', 'API integrations', 'Bulk-order partnerships'], staffLimit: 50 },
+   373→  ]) {
+   374→    await db.plan.upsert({
+   375→      where: { code: plan.code },
+   376→      create: { code: plan.code, name: plan.name, audience: 'SUPPLIER', priceMinor: plan.priceMinor, listingLimit: 500, featuredLimit: 3, staffLimit: plan.staffLimit, features: JSON.stringify(plan.features) },
+   377→      update: {},
+   378→    })
+   379→  }
+   380→
+   381→  // ───────────── Business memberships (garage + showroom programmes) ─────────────
+   382→  const garageTierBasic = await db.membershipTier.upsert({
+   383→    where: { id: 'tier-garage-basic' },
+   384→    create: {
+   385→      id: 'tier-garage-basic',
+   386→      orgId: ctx.garageOrgId,
+   387→      name: 'Basic Care',
+   388→      description: 'Core maintenance membership for regular customers of Premium Motors Garage.',
+   389→      priceMonthlyMinor: 150000,
+   390→      priceYearlyMinor: 1500000,
+   391→      benefits: JSON.stringify(['5% monthly service discount', 'Maintenance reminders', 'Priority booking window']),
+   392→      memberLimit: 200,
+   393→      discountCapPct: 5,
+   394→      branchScope: 'ALL',
+   395→      terms: 'Membership applies at Premium Motors Garage branches. Benefits are personal and non-transferable. Cancel anytime; fees for the current period are not refunded.',
+   396→    },
+   397→    update: {},
+   398→  })
+   399→  const garageTierPlus = await db.membershipTier.upsert({
+   400→    where: { id: 'tier-garage-plus' },
+   401→    create: {
+   402→      id: 'tier-garage-plus',
+   403→      orgId: ctx.garageOrgId,
+   404→      name: 'Plus Care',
+   405→      description: 'For drivers who want priority service and bigger savings.',
+   406→      priceMonthlyMinor: 350000,
+   407→      priceYearlyMinor: 3500000,
+   408→      benefits: JSON.stringify(['12% labour discount', 'Preferred appointment access', 'Free seasonal inspection', 'Member-only promotions']),
+   409→      memberLimit: 120,
+   410→      discountCapPct: 12,
+   411→      branchScope: 'ALL',
+   412→      terms: 'Labour discount applies to qualifying services; parts excluded. Free inspection once per membership year.',
+   413→    },
+   414→    update: {},
+   415→  })
+   416→  await db.membershipTier.upsert({
+   417→    where: { id: 'tier-dealer-basic' },
+   418→    create: {
+   419→      id: 'tier-dealer-basic',
+   420→      orgId: ctx.dealerOrgId,
+   421→      name: 'Insider Alerts',
+   422→      description: 'Nairobi Auto Hub insiders get first look at incoming units.',
+   423→      priceMonthlyMinor: 99000,
+   424→      priceYearlyMinor: 990000,
+   425→      benefits: JSON.stringify(['New vehicle alerts before listing', 'Priority test-drive bookings', 'Exclusive offers']),
+   426→      memberLimit: 500,
+   427→      discountCapPct: 0,
+   428→      branchScope: 'ALL',
+   429→      terms: 'Alerts are informational. Test-drive priority is subject to vehicle availability at participating branches.',
+   430→    },
+   431→    update: {},
+   432→  })
+   433→
+   434→  // An active demo membership (invoice paid) for the customer
+   435→  const existingMembership = await db.businessMembership.findFirst({ where: { customerId: ctx.customerId, orgId: ctx.garageOrgId } })
+   436→  if (!existingMembership) {
+   437→    const memInvoice = await db.invoice.create({
+   438→      data: {
+   439→        refCode: 'INV-MEM01', orgId: ctx.garageOrgId, userId: ctx.customerId, type: 'MEMBERSHIP',
+   440→        description: `Plus Care membership (monthly) — Premium Motors Garage [membership:seed-mem]`,
+   441→        amountMinor: garageTierPlus.priceMonthlyMinor, status: 'PAID', paidAt: daysFromNow(-10), paidVia: 'MPESA',
+   442→        periodStart: daysFromNow(-10), periodEnd: daysFromNow(20), dueDate: daysFromNow(-10),
+   443→      },
+   444→    })
+   445→    // create real membership row then point invoice marker at it
+   446→    const mem = await db.businessMembership.create({
+   447→      data: {
+   448→        refCode: 'MEM-DEMO01', tierId: garageTierPlus.id, orgId: ctx.garageOrgId, customerId: ctx.customerId,
+   449→        billingPeriod: 'MONTHLY', status: 'ACTIVE', startedAt: daysFromNow(-10), currentPeriodEnd: daysFromNow(20), invoiceId: memInvoice.id,
+   450→      },
+   451→    })
+   452→    await db.invoice.update({ where: { id: memInvoice.id }, data: { description: memInvoice.description.replace('[membership:seed-mem]', `[membership:${mem.id}]`) } })
+   453→    await db.membershipRedemption.create({
+   454→      data: { membershipId: mem.id, benefit: 'Preferred appointment access', periodKey: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`, refType: 'BOOKING' },
+   455→    }).catch(() => {})
+   456→  }
+   457→
+   458→  // ───────────── Trust programme (garage, private) ─────────────
+   459→  const existingTrust = await db.trustProgramme.findUnique({ where: { orgId: ctx.garageOrgId } })
+   460→  if (!existingTrust) {
+   461→    const programme = await db.trustProgramme.create({
+   462→      data: {
+   463→        orgId: ctx.garageOrgId,
+   464→        name: 'Premium Motors Trusted Customers',
+   465→        description: 'Invitation-only programme for our long-standing customers.',
+   466→        terms: 'Trusted status is an internal relationship label managed by Premium Motors Garage. It is not a credit rating and is not shared with other businesses. Benefits are set by the garage and may change with notice.',
+   467→      },
+   468→    })
+   469→    await db.trustMember.create({
+   470→      data: { programmeId: programme.id, customerId: ctx.customerId, label: 'PREFERRED', invitedById: ctx.adminId, approvedAt: daysFromNow(-30), termsAcceptedAt: daysFromNow(-29), note: 'Regular customer since 2023; always collects on time.' },
+   471→    })
+   472→  }
+   473→
+   474→  // ───────────── Demo credit facility (garage-issued, active) ─────────────
+   475→  const existingFacility = await db.creditFacility.findUnique({ where: { orgId_customerId: { orgId: ctx.garageOrgId, customerId: ctx.customerId } } })
+   476→  if (!existingFacility) {
+   477→    const facility = await db.creditFacility.create({
+   478→      data: {
+   479→        refCode: 'CRD-DEMO01', orgId: ctx.garageOrgId, customerId: ctx.customerId,
+   480→        limitMinor: 1500000, depositMinor: 0, status: 'ACTIVE',
+   481→        terms: 'Service credit up to KES 15,000. Repay within 30 days of each charge. The facility is issued and managed by Premium Motors Garage; CARMAZE provides the record-keeping technology only and is not a lender.',
+   482→        approvedAt: daysFromNow(-21), termsAcceptedAt: daysFromNow(-20),
+   483→      },
+   484→    })
+   485→    await db.creditEntry.create({ data: { facilityId: facility.id, kind: 'CHARGE', amountMinor: 850000, balanceAfterMinor: 850000, refType: 'SERVICE', dueDate: daysFromNow(9), note: 'Full service — Toyota Harrier', actorName: 'Premium Motors Garage' } })
+   486→    await db.creditEntry.create({ data: { facilityId: facility.id, kind: 'REPAYMENT', amountMinor: -400000, balanceAfterMinor: 450000, paidAt: daysFromNow(-5), note: 'Part payment via M-Pesa', actorName: 'Customer' } })
+   487→  }
+   488→
+   489→  // ───────────── Demo purchase order (SUBMITTED — awaiting supplier) ─────────────
+   490→  const existingPO = await db.purchaseOrder.findUnique({ where: { refCode: 'PO-DEMO01' } })
+   491→  if (!existingPO) {
+   492→    const oilFilter = productIds.find((p) => p.sku === 'SIF-FLT-OIL-TY')!
+   493→    const brakePads = productIds.find((p) => p.sku === 'SIF-BRK-PAD-FR')!
+   494→    const garageUser = await db.orgMember.findFirst({ where: { orgId: ctx.garageOrgId, role: 'OWNER' } })
+   495→    const subtotal = 65000 * 24 + 480000 * 2
+   496→    await db.purchaseOrder.create({
+   497→      data: {
+   498→        refCode: 'PO-DEMO01',
+   499→        garageOrgId: ctx.garageOrgId,
+   500→        supplierOrgId: partsSupplier.id,
+   501→        destinationBranchId: garageBranchId,
+   502→        createdById: garageUser!.userId,
+   503→        status: 'SUBMITTED',
+   504→        subtotalMinor: subtotal,
+   505→        taxMinor: Math.round(subtotal * 0.16),
+   506→        totalMinor: subtotal + Math.round(subtotal * 0.16),
+   507→        items: {
+   508→          create: [
+   509→            { productId: oilFilter.id, qty: 24, unitPriceMinor: 52000, lineTotalMinor: 52000 * 24, fulfilBranchId: sifaWh1.id },
+   510→            { productId: brakePads.id, qty: 2, unitPriceMinor: 480000, lineTotalMinor: 960000 },
+   511→          ],
+   512→        },
+   513→        events: { create: { type: 'CREATED', actorId: garageUser!.userId, actorName: 'Premium Motors Garage', actorSide: 'GARAGE', note: 'Wholesale replenishment order — filters and pads.' } },
+   514→      },
+   515→    })
+   516→  }
+   517→
+   518→  // Platform fee configuration (admin-editable)
+   519→  await db.systemSetting.upsert({
+   520→    where: { key: 'platform_fees' },
+   521→    create: { key: 'platform_fees', value: JSON.stringify({ supplyCommissionPct: 3, deliveryCommissionPct: 5, minCommissionMinor: 5000, vehicleSaleCommissionPct: 1.5, bookingCommissionPct: 2, membershipPlatformFeePct: 5 }) },
+   522→    update: {},
+   523→  })
+   524→
+   525→  console.log('Supply network seeded:', productIds.length, 'products, 4 supplier orgs, memberships + credit demo data.')
+   526→  return { productIds, partsSupplierId: partsSupplier.id }
+   527→}
+   528→

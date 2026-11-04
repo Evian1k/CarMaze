@@ -10,6 +10,7 @@ import {
   Wrench, MapPin, Star, Plus, Pencil, Send, CalendarClock, Play, CheckCircle2, XCircle,
   ClipboardList, ShieldCheck, Building2, FileText, Upload, MessageSquareText, Settings2, RefreshCw,
   Inbox, ClipboardCheck, KeyRound, PackageCheck, Gauge, StickyNote, Ban, CarFront, Loader2,
+  ShoppingCart, Package, GitBranch, Users,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CountUp, Stagger, StaggerItem } from '@/components/motion/reveal'
 import { MessagesTab, useUnreadConversations } from '@/components/messaging/conversation-panel'
 import { PromotionsSection } from '@/components/billing/promotions-section'
+import { BranchManager } from '@/components/branches/branch-manager'
+import { MembershipsManager } from '@/components/biz/memberships-manager'
 import { useAuth } from '@/stores/auth'
 import { navigate, apiGet, apiSend, apiUpload, buildQuery } from '@/lib/client'
 import { useHashRoute } from '@/hooks/use-hash-route'
@@ -170,7 +173,7 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
   initialTab: string
   onRefresh: () => void
 }) {
-  const TABS = ['overview', 'services', 'requests', 'quotes', 'bookings', 'custody', 'inbox', 'reviews', 'profile'] as const
+  const TABS = ['overview', 'services', 'requests', 'quotes', 'bookings', 'custody', 'procurement', 'branches', 'memberships', 'inbox', 'reviews', 'profile'] as const
   const [tab, setTab] = useState<string>(TABS.includes(initialTab as (typeof TABS)[number]) ? initialTab : 'overview')
   const unreadMessages = useUnreadConversations('org')
 
@@ -209,6 +212,9 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
           <TabsTrigger value="quotes" className="gap-1.5"><Send className="h-4 w-4" /> Quotes</TabsTrigger>
           <TabsTrigger value="bookings" className="gap-1.5"><CalendarClock className="h-4 w-4" /> Bookings</TabsTrigger>
           <TabsTrigger value="custody" className="gap-1.5"><KeyRound className="h-4 w-4" /> Vehicle custody</TabsTrigger>
+          <TabsTrigger value="procurement" className="gap-1.5"><ShoppingCart className="h-4 w-4" /> Procurement</TabsTrigger>
+          <TabsTrigger value="branches" className="gap-1.5"><GitBranch className="h-4 w-4" /> Branches</TabsTrigger>
+          <TabsTrigger value="memberships" className="gap-1.5"><Users className="h-4 w-4" /> Memberships</TabsTrigger>
           <TabsTrigger value="inbox" className="gap-1.5">
             <Inbox className="h-4 w-4" /> Inbox
             {unreadMessages > 0 && (
@@ -227,6 +233,20 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
         <TabsContent value="quotes" className="mt-4"><QuotesTab orgId={activeOrgId} /></TabsContent>
         <TabsContent value="bookings" className="mt-4"><BookingsTab orgId={activeOrgId} onChanged={onRefresh} /></TabsContent>
         <TabsContent value="custody" className="mt-4"><FadeIn><CustodyTab /></FadeIn></TabsContent>
+        <TabsContent value="procurement" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Procurement workbench</CardTitle>
+              <CardDescription>Buy parts from verified suppliers on the Automotive Supply Network — protected payments, delivery verification, quote requests and spending analytics.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button onClick={() => navigate('procurement')}><Package className="mr-2 h-4 w-4" /> Open Procurement Portal</Button>
+              <Button variant="outline" onClick={() => navigate('supply')}>Browse Supply Network</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="branches" className="mt-4"><FadeIn><BranchManager orgId={activeOrgId} orgType="GARAGE" /></FadeIn></TabsContent>
+        <TabsContent value="memberships" className="mt-4"><FadeIn><MembershipsManager orgId={activeOrgId} orgType="GARAGE" /></FadeIn></TabsContent>
         <TabsContent value="inbox" className="mt-4"><FadeIn><MessagesTab scope="org" /></FadeIn></TabsContent>
         <TabsContent value="reviews" className="mt-4"><ReviewsTab orgId={activeOrgId} rating={activeGarage.rating} /></TabsContent>
         <TabsContent value="profile" className="mt-4">

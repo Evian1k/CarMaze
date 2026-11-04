@@ -22,6 +22,11 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const key = `vehicle:${id}:${ipHash}`
 
   try {
+    // Check first so repeat views (the common case) don't throw a P2002 that
+    // Prisma's error logger would print for every refresh. The create is kept
+    // as the write path; the catch only guards the rare concurrent race.
+    const seen = await db.viewEvent.findUnique({ where: { key }, select: { key: true } })
+    if (seen) return ok({ views: vehicle.views })
     await db.viewEvent.create({ data: { key } })
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {

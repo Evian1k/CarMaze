@@ -14,10 +14,14 @@ const secret = new TextEncoder().encode(
 export const ROLE = {
   CUSTOMER: 'CUSTOMER',
   SELLER: 'SELLER',
+  SELLER_VERIFIED: 'SELLER_VERIFIED',
   DEALER_OWNER: 'DEALER_OWNER',
   DEALER_STAFF: 'DEALER_STAFF',
   GARAGE_OWNER: 'GARAGE_OWNER',
   GARAGE_STAFF: 'GARAGE_STAFF',
+  SUPPLIER_OWNER: 'SUPPLIER_OWNER',
+  SUPPLIER_STAFF: 'SUPPLIER_STAFF',
+  LOGISTICS_OWNER: 'LOGISTICS_OWNER',
   SUPPORT: 'SUPPORT',
   REVIEWER: 'REVIEWER',
   MODERATOR: 'MODERATOR',
@@ -65,6 +69,9 @@ export type SessionUser = {
   name: string
   phone: string | null
   phoneVerified: boolean
+  emailVerified: boolean
+  mfaEnabled: boolean
+  department: string | null
   roles: string[]
   status: string
 }
@@ -85,6 +92,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       name: user.name,
       phone: user.phone,
       phoneVerified: user.phoneVerified,
+      emailVerified: user.emailVerified,
+      mfaEnabled: user.mfaEnabled,
+      department: user.department,
       roles: user.roles.split(',').filter(Boolean),
       status: user.status,
     }

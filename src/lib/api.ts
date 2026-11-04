@@ -49,6 +49,16 @@ export async function requireUser(): Promise<SessionUser> {
   return user
 }
 
+/** Session user or null — for endpoints that change for signed-in users but
+ * also work anonymously (e.g. product detail). */
+export async function requireUserOptional(): Promise<SessionUser | null> {
+  try {
+    return await getSessionUser()
+  } catch {
+    return null
+  }
+}
+
 export async function requireRole(...roles: string[]): Promise<SessionUser> {
   const user = await requireUser()
   if (!hasRole(user, ...roles)) {

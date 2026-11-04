@@ -10,6 +10,9 @@ export type CurrentUser = {
   name: string
   phone: string | null
   phoneVerified: boolean
+  emailVerified?: boolean
+  mfaEnabled?: boolean
+  department?: string | null
   roles: string[]
   status: string
 }

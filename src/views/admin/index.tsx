@@ -23,18 +23,23 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Copy,
   ExternalLink,
   Handshake,
   Inbox,
+  KeyRound,
   LifeBuoy,
   Megaphone,
+  MoreHorizontal,
   RefreshCw,
   Save,
   Search,
   Send,
   ShieldAlert,
   Star,
+  Truck,
   Undo2,
+  UserPlus,
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -53,7 +58,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { AdminSupplyConsole } from '@/components/admin/supply-console'
+import { AdminRevenueDashboard } from '@/components/admin/revenue-dashboard'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   AlertDialog,
@@ -74,8 +82,9 @@ const GOLD = '#D9B878'
 const PIE_COLORS = ['#315E4B', '#D9B878', '#7FA08E', '#6E6E67', '#B0A284', '#5C8A73', '#C9B285', '#8FA99F']
 
 const TABS = [
-  'overview', 'applications', 'listings', 'users', 'reports', 'billing',
+  'overview', 'applications', 'listings', 'users', 'staff', 'reports', 'billing',
   'campaigns', 'partners', 'support', 'notifications', 'settings', 'audit',
+  'supply', 'revenue',
 ] as const
 type TabKey = (typeof TABS)[number]
 
@@ -84,6 +93,7 @@ const TAB_LABELS: Record<TabKey, string> = {
   applications: 'Applications',
   listings: 'Listings',
   users: 'Users',
+  staff: 'Staff',
   reports: 'Reports',
   billing: 'Billing',
   campaigns: 'Campaigns',
@@ -92,9 +102,32 @@ const TAB_LABELS: Record<TabKey, string> = {
   notifications: 'Notifications',
   settings: 'Settings',
   audit: 'Audit',
+  supply: 'Supply Network',
+  revenue: 'Revenue',
 }
 
 const STAFF_ROLES_CLIENT = ['SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER'] as const
+
+const DEPARTMENT_LABELS: Record<string, string> = {
+  BUSINESS_VERIFICATION: 'Business verification',
+  SUPPORT: 'Support',
+  FINANCE: 'Finance',
+  DISPUTES: 'Disputes',
+  FRAUD: 'Fraud',
+  MODERATION: 'Moderation',
+  TECHNICAL: 'Technical',
+}
+
+// Per-tab role gates — tabs without an entry are visible to all staff.
+// Server APIs enforce the same rules; this is UX only.
+const TAB_ROLES: Partial<Record<TabKey, readonly string[]>> = {
+  staff: ['ADMIN', 'FOUNDER'],
+}
+
+function tabVisibleFor(user: CurrentUser | null, t: TabKey): boolean {
+  const roles = TAB_ROLES[t]
+  return !roles || hasAnyRole(user, ...roles)
+}
 
 type Tone = 'green' | 'gold' | 'red' | 'neutral'
 
@@ -388,9 +421,21 @@ export default function View() {
   const [health, setHealth] = useState<Health | null>(null)
   const [sweeping, setSweeping] = useState(false)
 
-  const tabParam = route.query.get('tab')
-  const tab: TabKey = (TABS as readonly string[]).includes(tabParam ?? '') ? (tabParam as TabKey) : 'overview'
+  const tabParamRaw = route.query.get('tab')
+  // 'disputes' deep-link alias — some notifications link to /admin?tab=disputes,
+  // but disputes live INSIDE the Supply Network console (its own internal tab).
+  // AdminSupplyConsole keeps its own tab state and accepts no initial-subtab
+  // prop, so the alias safely maps to the 'supply' tab; the Disputes sub-view
+  // is one click inside it.
+  const tabParam = tabParamRaw === 'disputes' ? 'supply' : tabParamRaw
+  let tab: TabKey = (TABS as readonly string[]).includes(tabParam ?? '') ? (tabParam as TabKey) : 'overview'
+  // Role-gated tabs fall back to the overview when the signed-in staff member
+  // lacks the required role (e.g. ?tab=staff as plain SUPPORT).
+  if (!tabVisibleFor(user, tab)) tab = 'overview'
   const isStaff = hasAnyRole(user, ...STAFF_ROLES_CLIENT)
+  // Exposed by the auth layer for staff accounts; guarded so the view works
+  // before/without it too.
+  const staffDepartment = (user as (CurrentUser & { department?: string | null }) | null)?.department ?? null
 
   useEffect(() => {
     let alive = true
@@ -425,9 +470,14 @@ export default function View() {
         <header>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
+              <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
                 CARMAZE Control Center
                 <ShieldAlert className="h-5 w-5 text-primary" aria-hidden />
+                {staffDepartment ? (
+                  <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                    {DEPARTMENT_LABELS[staffDepartment] ?? staffDepartment.replaceAll('_', ' ').toLowerCase()}
+                  </Badge>
+                ) : null}
               </h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Platform operations, verification and billing — live aggregates, honest payment states.
@@ -443,7 +493,7 @@ export default function View() {
           </div>
 
           <nav aria-label="Control Center sections" className="mt-5 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:thin]">
-            {TABS.map((t) => (
+            {TABS.filter((t) => tabVisibleFor(user, t)).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -464,6 +514,7 @@ export default function View() {
           {tab === 'applications' && <ApplicationsTab user={user} />}
           {tab === 'listings' && <ListingsTab />}
           {tab === 'users' && <UsersTab user={user} />}
+          {tab === 'staff' && <StaffTab user={user} />}
           {tab === 'reports' && <ReportsTab />}
           {tab === 'billing' && <BillingTab user={user} />}
           {tab === 'campaigns' && <CampaignsTab />}
@@ -472,6 +523,8 @@ export default function View() {
           {tab === 'notifications' && <NotificationsTab user={user} />}
           {tab === 'settings' && <SettingsTab user={user} />}
           {tab === 'audit' && <AuditTab />}
+          {tab === 'supply' && <AdminSupplyConsole />}
+          {tab === 'revenue' && <AdminRevenueDashboard />}
         </div>
       </main>
     </div>
@@ -707,6 +760,16 @@ function OpsFlag({ label, count, tab }: { label: string; count: number; tab: Tab
 
 // ───────────────────────────── Applications ─────────────────────────────
 
+/** Honest type label — LOGISTICS/SELLER applications were previously
+ * mislabelled as "Garage" in this queue. */
+function applicationTypeLabel(type: string): string {
+  if (type === 'DEALER') return 'Dealership'
+  if (type === 'GARAGE') return 'Garage'
+  if (type === 'LOGISTICS') return 'Delivery partner'
+  if (type === 'SELLER') return 'Seller verification'
+  return type
+}
+
 function ApplicationsTab({ user }: { user: CurrentUser }) {
   const [apps, setApps] = useState<QueueApplication[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -771,7 +834,7 @@ function ApplicationsTab({ user }: { user: CurrentUser }) {
                   <div className="flex flex-col items-end gap-1">
                     <StatusBadge status={app.status} label={APPLICATION_STATUS_LABELS[app.status] ?? app.status} />
                     <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
-                      {app.type === 'DEALER' ? 'Dealership' : 'Garage'}
+                      {applicationTypeLabel(app.type)}
                     </Badge>
                   </div>
                 </div>
@@ -803,6 +866,9 @@ function ApplicationsTab({ user }: { user: CurrentUser }) {
           }}
         />
       )}
+
+      {/* Delivery-partner oversight (ADMIN/FOUNDER — the API enforces it too). */}
+      {hasAnyRole(user, 'ADMIN', 'FOUNDER') && <LogisticsPartnersSection />}
     </div>
   )
 }
@@ -876,7 +942,7 @@ function ApplicationDetail({ id, user, onClose }: { id: string; user: CurrentUse
             {app?.escalated ? <StatusBadge status="FAILED" label="escalated" /> : null}
           </DialogTitle>
           <DialogDescription>
-            {app ? `${app.orgName} — ${app.type === 'DEALER' ? 'dealership' : 'garage'} verification` : 'Loading…'}
+            {app ? `${app.orgName} — ${applicationTypeLabel(app.type)}${app.type === 'SELLER' ? '' : ' verification'}` : 'Loading…'}
           </DialogDescription>
         </DialogHeader>
 
@@ -1106,6 +1172,279 @@ function Detail({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="break-words">{value}</p>
     </div>
+  )
+}
+
+// ─────────────────────────── Logistics partners (delivery) ───────────────────────────
+
+type LogisticsNote = { by: string | null; at: string; text: string }
+
+type LogisticsPartnerStats = { total: number; completed: number; failed: number; active: number }
+
+type LogisticsPartnerRow = {
+  id: string
+  refCode: string
+  name: string
+  partnerType: string
+  county: string
+  status: string
+  verified: boolean
+  ownerEmail: string
+  jobsTotal: number
+  jobsCompleted: number
+  jobsFailed: number
+  notes: LogisticsNote[]
+  createdAt: string
+}
+
+type LogisticsSummary = { total: number; pending: number; approved: number; suspended: number; rejected: number }
+
+/** Delivery-partner oversight, rendered inside the Applications tab for
+ * ADMIN/FOUNDER. Suspension is an operational kill-switch (no new jobs);
+ * approval of NEW partners stays in the applications review queue above. */
+function LogisticsPartnersSection() {
+  const [partners, setPartners] = useState<LogisticsPartnerRow[] | null>(null)
+  const [summary, setSummary] = useState<LogisticsSummary | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+  const [busy, setBusy] = useState(false)
+
+  // suspend / reinstate reason dialog
+  const [reasonAction, setReasonAction] = useState<'suspend' | 'reinstate' | null>(null)
+  const [reasonTarget, setReasonTarget] = useState<LogisticsPartnerRow | null>(null)
+  const [reason, setReason] = useState('')
+  // view + add internal notes
+  const [noteTarget, setNoteTarget] = useState<LogisticsPartnerRow | null>(null)
+  const [noteText, setNoteText] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    apiGet<{ partners: (Omit<LogisticsPartnerRow, 'jobsTotal' | 'jobsCompleted' | 'jobsFailed'> & { stats?: LogisticsPartnerStats })[]; summary: LogisticsSummary }>('/api/admin/logistics')
+      .then((d) => {
+        if (alive) {
+          // API nests job counters under `stats` — flatten for the table shape.
+          setPartners(d.partners.map((p) => ({ ...p, jobsTotal: p.stats?.total ?? 0, jobsCompleted: p.stats?.completed ?? 0, jobsFailed: p.stats?.failed ?? 0 })))
+          setSummary(d.summary)
+        }
+      })
+      .catch((e: Error) => {
+        if (alive) setError(e.message)
+      })
+    return () => {
+      alive = false
+    }
+  }, [reload])
+
+  function act(target: LogisticsPartnerRow, body: Record<string, unknown>, msg: string, closeDialog: () => void) {
+    setBusy(true)
+    apiSend<{ message?: string }>(`/api/admin/logistics/${target.id}`, 'PATCH', body)
+      .then((d) => {
+        toast.success(d.message ?? msg)
+        closeDialog()
+        setReload((r) => r + 1)
+      })
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <section aria-label="Logistics partners" className="space-y-3 border-t pt-5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <Truck className="h-4 w-4 text-primary" aria-hidden /> Logistics partners
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Delivery partner oversight — suspend or reinstate accounts, keep internal notes. New partner approvals happen through the review queue above.
+          </p>
+        </div>
+        {summary ? (
+          <div className="flex flex-wrap gap-1.5" role="status" aria-label="Partner counts">
+            <Badge variant="outline" className="border-border bg-muted text-muted-foreground">{summary.total} total</Badge>
+            <Badge variant="outline" className={TONE_CLASSES.green}>{summary.approved} approved</Badge>
+            {summary.suspended > 0 ? <Badge variant="outline" className={TONE_CLASSES.red}>{summary.suspended} suspended</Badge> : null}
+          </div>
+        ) : null}
+      </div>
+
+      {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
+      {!error && !partners && <LoadingCards n={2} />}
+      {partners && partners.length === 0 && (
+        <EmptyState message="No logistics partners yet — approved delivery partner applications appear here." />
+      )}
+
+      {partners && partners.length > 0 && (
+        <div className="overflow-hidden rounded-xl border">
+          <div className="max-h-[60vh] overflow-y-auto">
+            <Table>
+              <TableHeader className="sticky top-0 bg-card">
+                <TableRow>
+                  <TableHead>Partner</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>County</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Verified</TableHead>
+                  <TableHead>Jobs</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {partners.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>
+                      <p className="font-medium">{p.name}</p>
+                      <p className="font-mono text-xs text-muted-foreground">{p.refCode}</p>
+                      <p className="text-xs text-muted-foreground">{p.ownerEmail}</p>
+                    </TableCell>
+                    <TableCell className="text-sm capitalize">{p.partnerType.toLowerCase()}</TableCell>
+                    <TableCell className="text-sm">{p.county}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={p.status} />
+                    </TableCell>
+                    <TableCell>
+                      {p.verified ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                          <BadgeCheck className="h-4 w-4 text-[#c9a94e]" aria-hidden />
+                          <span className="sr-only">Verified</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not verified</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                      {p.jobsTotal} total · {p.jobsCompleted} delivered · {p.jobsFailed} failed
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{dateLabel(p.createdAt)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        {p.status === 'APPROVED' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => {
+                              setReasonTarget(p)
+                              setReasonAction('suspend')
+                              setReason('')
+                            }}
+                          >
+                            Suspend
+                          </Button>
+                        )}
+                        {p.status === 'SUSPENDED' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => {
+                              setReasonTarget(p)
+                              setReasonAction('reinstate')
+                              setReason('')
+                            }}
+                          >
+                            Reinstate
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setNoteTarget(p); setNoteText('') }} aria-label={`Notes for ${p.name}`}>
+                          Notes
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+      {partners && partners.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Showing {partners.length} partner{partners.length === 1 ? '' : 's'} — job counts are live aggregates from delivery records.
+        </p>
+      )}
+
+      {/* Suspend / Reinstate — shared reason dialog */}
+      <Dialog open={reasonAction !== null} onOpenChange={(open) => !open && setReasonAction(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{reasonAction === 'suspend' ? `Suspend ${reasonTarget?.name}` : `Reinstate ${reasonTarget?.name}`}</DialogTitle>
+            <DialogDescription>
+              {reasonAction === 'suspend'
+                ? 'The partner is removed from job assignment immediately and their verified marker is cleared. A reason is mandatory for the audit trail.'
+                : 'The partner returns to APPROVED and becomes eligible for job assignment again. A reason is mandatory for the audit trail.'}
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={reasonAction === 'suspend' ? 'e.g. Repeated failed deliveries without proof-of-delivery evidence.' : 'e.g. Suspension reviewed — corrective plan accepted.'}
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReasonAction(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant={reasonAction === 'suspend' ? 'destructive' : 'default'}
+              disabled={busy || reason.trim().length < 10}
+              onClick={() => {
+                if (!reasonTarget) return
+                act(
+                  reasonTarget,
+                  { action: reasonAction, note: reason.trim() },
+                  reasonAction === 'suspend' ? 'Partner suspended.' : 'Partner reinstated.',
+                  () => setReasonAction(null)
+                )
+              }}
+            >
+              Confirm {reasonAction === 'suspend' ? 'suspension' : 'reinstatement'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Internal notes — view history + add */}
+      <Dialog open={noteTarget !== null} onOpenChange={(open) => !open && setNoteTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Internal notes — {noteTarget?.name}</DialogTitle>
+            <DialogDescription>Staff-only notes on this delivery partner. Never shown publicly or to the partner.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-60 space-y-2 overflow-y-auto">
+            {(noteTarget?.notes ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No internal notes yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {noteTarget?.notes.map((n, i) => (
+                  <li key={i} className="rounded-md bg-muted p-3">
+                    <p className="whitespace-pre-wrap text-sm">{n.text}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {n.by ?? 'staff'} · {timeAgo(n.at)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="e.g. Called the owner — driver onboarding in progress." rows={3} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNoteTarget(null)}>
+              Close
+            </Button>
+            <Button
+              disabled={busy || noteText.trim().length < 2}
+              onClick={() => {
+                if (!noteTarget) return
+                act(noteTarget, { action: 'note', note: noteText.trim() }, 'Internal note added.', () => setNoteTarget(null))
+              }}
+            >
+              Save note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </section>
   )
 }
 
@@ -1522,6 +1861,463 @@ function UsersTab({ user }: { user: CurrentUser }) {
               }}
             >
               Activate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
+
+// ───────────────────────────── Company staff ─────────────────────────────
+
+const ASSIGNABLE_STAFF_ROLES = ['SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE'] as const
+
+const ROLE_LABELS: Record<string, string> = {
+  SUPPORT: 'Support',
+  REVIEWER: 'Reviewer',
+  MODERATOR: 'Moderator',
+  FINANCE: 'Finance',
+}
+
+type StaffRow = {
+  id: string
+  name: string
+  email: string
+  roles: string[]
+  department: string | null
+  status: string
+  createdAt: string
+}
+
+type StaffAction = 'set_department' | 'set_role' | 'suspend' | 'reactivate' | 'remove_staff'
+
+/** Company staff management (ADMIN/FOUNDER only — both the nav gate and the
+ * APIs enforce it). Invite generates a one-time password that is shown exactly
+ * once; row actions cover department, role, suspension and access removal. */
+function StaffTab({ user }: { user: CurrentUser }) {
+  const [staff, setStaff] = useState<StaffRow[] | null>(null)
+  const [departments, setDepartments] = useState<string[]>(Object.keys(DEPARTMENT_LABELS))
+  const [error, setError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+  const [busy, setBusy] = useState(false)
+
+  // invite dialog + one-time password reveal
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteName, setInviteName] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('')
+  const [inviteDept, setInviteDept] = useState('')
+  const [invitePhone, setInvitePhone] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [createdInvite, setCreatedInvite] = useState<{ name: string; email: string; oneTimePassword: string } | null>(null)
+
+  // row action dialogs
+  const [action, setAction] = useState<StaffAction | null>(null)
+  const [actionTarget, setActionTarget] = useState<StaffRow | null>(null)
+  const [actionDept, setActionDept] = useState('')
+  const [actionRole, setActionRole] = useState('')
+  const [actionNote, setActionNote] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    apiGet<{ staff: StaffRow[]; departments: string[] }>('/api/admin/staff')
+      .then((d) => {
+        if (alive) {
+          setStaff(d.staff)
+          if (Array.isArray(d.departments) && d.departments.length > 0) setDepartments(d.departments)
+        }
+      })
+      .catch((e: Error) => {
+        if (alive) setError(e.message)
+      })
+    return () => {
+      alive = false
+    }
+  }, [reload])
+
+  async function copyText(text: string, successMessage: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(successMessage)
+    } catch {
+      toast.error('Could not copy — please copy it manually')
+    }
+  }
+
+  function openAction(target: StaffRow, kind: StaffAction) {
+    setActionTarget(target)
+    setAction(kind)
+    setActionDept(target.department ?? '')
+    setActionRole(ASSIGNABLE_STAFF_ROLES.find((r) => target.roles.includes(r)) ?? '')
+    setActionNote('')
+  }
+
+  function submitInvite() {
+    setInviting(true)
+    apiSend<{ user: { name: string; email: string }; oneTimePassword: string }>('/api/admin/staff', 'POST', {
+      name: inviteName.trim(),
+      email: inviteEmail.trim(),
+      role: inviteRole,
+      department: inviteDept,
+      phone: invitePhone.trim() || undefined,
+    })
+      .then((d) => {
+        setInviteOpen(false)
+        setCreatedInvite({ name: d.user.name, email: d.user.email, oneTimePassword: d.oneTimePassword })
+        setInviteName('')
+        setInviteEmail('')
+        setInviteRole('')
+        setInviteDept('')
+        setInvitePhone('')
+        setReload((r) => r + 1)
+      })
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setInviting(false))
+  }
+
+  function runAction() {
+    if (!actionTarget || !action) return
+    const body: Record<string, unknown> = { action }
+    if (action === 'set_department') body.department = actionDept
+    if (action === 'set_role') body.role = actionRole
+    if (action === 'suspend') body.note = actionNote.trim() || undefined
+    setBusy(true)
+    apiSend<{ message: string }>(`/api/admin/staff/${actionTarget.id}`, 'PATCH', body)
+      .then((d) => {
+        toast.success(d.message)
+        setAction(null)
+        setActionTarget(null)
+        setReload((r) => r + 1)
+      })
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold">Company staff</h2>
+          <p className="text-xs text-muted-foreground">
+            Operations team accounts, departments and access. ADMIN/FOUNDER accounts are managed by the Super Admin outside this console.
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setInviteOpen(true)}>
+          <UserPlus className="mr-1.5 h-4 w-4" aria-hidden /> Invite staff member
+        </Button>
+      </div>
+
+      {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
+      {!error && !staff && <LoadingCards n={3} />}
+      {staff && staff.length === 0 && <EmptyState message="No staff accounts yet — invite your first team member." />}
+
+      {staff && staff.length > 0 && (
+        <div className="overflow-hidden rounded-xl border">
+          <div className="max-h-[70vh] overflow-y-auto">
+            <Table>
+              <TableHeader className="sticky top-0 bg-card">
+                <TableRow>
+                  <TableHead>Member</TableHead>
+                  <TableHead>Role(s)</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {staff.map((s) => {
+                  const isFounder = s.roles.includes('FOUNDER')
+                  const isSelf = s.id === user.id
+                  return (
+                    <TableRow key={s.id}>
+                      <TableCell>
+                        <p className="font-medium">
+                          {s.name}
+                          {isSelf ? <span className="ml-1.5 text-xs text-muted-foreground">(you)</span> : null}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{s.email}</p>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex max-w-[220px] flex-wrap gap-1">
+                          {s.roles.map((r) => (
+                            <Badge key={r} variant="outline" className={`text-[10px] ${STAFF_ROLES_CLIENT.includes(r as (typeof STAFF_ROLES_CLIENT)[number]) ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border bg-muted text-muted-foreground'}`}>
+                              {r.replaceAll('_', ' ').toLowerCase()}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {s.department ? (
+                          <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
+                            {DEPARTMENT_LABELS[s.department] ?? s.department.replaceAll('_', ' ').toLowerCase()}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={s.status} />
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{dateLabel(s.createdAt)}</TableCell>
+                      <TableCell className="text-right">
+                        {isFounder ? (
+                          <span className="text-xs text-muted-foreground">Protected</span>
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="sm" variant="outline" aria-label={`Manage ${s.name}`}>
+                                <MoreHorizontal className="h-4 w-4" aria-hidden />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => openAction(s, 'set_department')}>Change department</DropdownMenuItem>
+                              {!s.roles.includes('ADMIN') && (
+                                <DropdownMenuItem onSelect={() => openAction(s, 'set_role')}>Change role</DropdownMenuItem>
+                              )}
+                              {isSelf ? null : s.status === 'ACTIVE' ? (
+                                <DropdownMenuItem className="text-red-600 dark:text-red-400" onSelect={() => openAction(s, 'suspend')}>
+                                  Suspend
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onSelect={() => openAction(s, 'reactivate')}>Reactivate</DropdownMenuItem>
+                              )}
+                              {isSelf ? null : (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-red-600 dark:text-red-400" onSelect={() => openAction(s, 'remove_staff')}>
+                                    Remove staff access
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* Invite staff member */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite staff member</DialogTitle>
+            <DialogDescription>
+              Creates a CARMAZE account with an operational staff role and department. A one-time password is generated — share it through a secure channel.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="staff-invite-name">Full name</Label>
+              <Input id="staff-invite-name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="e.g. Amina Wanjiru" autoComplete="off" />
+            </div>
+            <div>
+              <Label htmlFor="staff-invite-email">Work email</Label>
+              <Input id="staff-invite-email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="name@carmaze.co.ke" autoComplete="off" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>Role</Label>
+                <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <SelectTrigger aria-label="Staff role">
+                    <SelectValue placeholder="Select role…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ASSIGNABLE_STAFF_ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {ROLE_LABELS[r]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Department</Label>
+                <Select value={inviteDept} onValueChange={setInviteDept}>
+                  <SelectTrigger aria-label="Department">
+                    <SelectValue placeholder="Select department…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {DEPARTMENT_LABELS[d] ?? d.replaceAll('_', ' ').toLowerCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="staff-invite-phone">Phone (optional)</Label>
+              <Input id="staff-invite-phone" value={invitePhone} onChange={(e) => setInvitePhone(e.target.value)} placeholder="+254…" autoComplete="off" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={inviting || inviteName.trim().length < 2 || !inviteEmail.includes('@') || !inviteRole || !inviteDept}
+              onClick={submitInvite}
+            >
+              Create staff account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* One-time password — shown ONCE, never stored in plaintext, never re-displayed */}
+      <Dialog open={createdInvite !== null} onOpenChange={(open) => !open && setCreatedInvite(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-gold-ink dark:text-[#d9b878]" aria-hidden /> Staff account created
+            </DialogTitle>
+            <DialogDescription>
+              {createdInvite?.name} ({createdInvite?.email}) can now sign in with the one-time password below.
+            </DialogDescription>
+          </DialogHeader>
+          <Alert>
+            <AlertTriangle className="h-4 w-4" aria-hidden />
+            <AlertTitle>Share this securely — it will not be shown again.</AlertTitle>
+            <AlertDescription>
+              Production email delivery is not configured yet, so the password is shown here once. Copy it now and hand it over through a secure channel.
+            </AlertDescription>
+          </Alert>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-md bg-muted px-3 py-2 text-center font-mono text-lg tracking-widest">{createdInvite?.oneTimePassword}</code>
+            <Button variant="outline" onClick={() => createdInvite && copyText(createdInvite.oneTimePassword, 'One-time password copied')}>
+              <Copy className="mr-1.5 h-4 w-4" aria-hidden /> Copy
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setCreatedInvite(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change department / role */}
+      <Dialog open={action === 'set_department' || action === 'set_role'} onOpenChange={(open) => !open && setAction(null)}>
+        <DialogContent className="sm:max-w-md">
+          {action === 'set_department' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Change department — {actionTarget?.name}</DialogTitle>
+                <DialogDescription>Which team this staff member sits in.</DialogDescription>
+              </DialogHeader>
+              <Select value={actionDept} onValueChange={setActionDept}>
+                <SelectTrigger aria-label="Department">
+                  <SelectValue placeholder="Select department…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {DEPARTMENT_LABELS[d] ?? d.replaceAll('_', ' ').toLowerCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAction(null)}>
+                  Cancel
+                </Button>
+                <Button disabled={busy || !actionDept} onClick={runAction}>
+                  Save department
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Change role — {actionTarget?.name}</DialogTitle>
+                <DialogDescription>Swaps their operational staff role. Only the four operational roles can be assigned here.</DialogDescription>
+              </DialogHeader>
+              <Select value={actionRole} onValueChange={setActionRole}>
+                <SelectTrigger aria-label="Staff role">
+                  <SelectValue placeholder="Select role…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ASSIGNABLE_STAFF_ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {ROLE_LABELS[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAction(null)}>
+                  Cancel
+                </Button>
+                <Button disabled={busy || !actionRole} onClick={runAction}>
+                  Save role
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Suspend — with reason for the audit trail */}
+      <Dialog open={action === 'suspend'} onOpenChange={(open) => !open && setAction(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Suspend {actionTarget?.name}?</DialogTitle>
+            <DialogDescription>
+              They immediately lose staff access — the session check rejects suspended accounts on every request, so this takes effect despite stateless sessions.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea value={actionNote} onChange={(e) => setActionNote(e.target.value)} placeholder="Reason (recommended for the audit trail)…" rows={3} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAction(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={busy} onClick={runAction}>
+              Suspend staff access
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reactivate confirm */}
+      <AlertDialog open={action === 'reactivate'} onOpenChange={(open) => !open && setAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reactivate {actionTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>The account regains full staff access immediately.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={busy} onClick={runAction}>
+              Reactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Remove staff access confirm */}
+      <AlertDialog open={action === 'remove_staff'} onOpenChange={(open) => !open && setAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove staff access for {actionTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All staff roles are stripped and their department is cleared — the account continues as a regular customer account. This is audit-logged and the member is notified.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-600/90"
+              disabled={busy}
+              onClick={runAction}
+            >
+              Remove staff access
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

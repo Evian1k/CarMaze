@@ -8,7 +8,7 @@ import { useTheme } from 'next-themes'
 import {
   Car, Wrench, LifeBuoy, Users, Sparkles, Store, LayoutDashboard, User,
   Search, LogIn, LogOut, KeyRound, Settings, FolderKanban, Home, CircleHelp, Handshake,
-  SunMoon,
+  SunMoon, Package, ShoppingCart, Truck,
 } from 'lucide-react'
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty,
@@ -54,12 +54,17 @@ export function CommandPalette() {
     { icon: Car, label: 'Browse cars', href: '/cars' },
     { icon: KeyRound, label: 'Sell a car', href: '/sell' },
     { icon: Store, label: 'Showrooms', href: '/showrooms' },
+    { icon: Package, label: 'Supply Network', href: '/supply' },
+    { icon: Truck, label: 'Logistics Network — delivery partners & delivery requests', href: '/logistics' },
+    { icon: Users, label: 'Business Memberships', href: '/memberships' },
     { icon: Sparkles, label: '3D customizer', href: '/customizer' },
     { icon: Wrench, label: 'Find a garage', href: '/garages' },
     { icon: LifeBuoy, label: 'Roadside help', href: '/roadside' },
     { icon: Handshake, label: 'Partner network', href: '/partners' },
     { icon: Users, label: 'Community', href: '/community' },
     { icon: FolderKanban, label: 'My Garage', href: '/my-garage' },
+    { icon: ShoppingCart, label: 'Procurement (GarageOS)', href: '/procurement' },
+    { icon: Package, label: 'Supplier Portal', href: '/supplier' },
     { icon: LayoutDashboard, label: 'My Listings', href: '/my-listings' },
     { icon: User, label: 'My Account', href: '/account' },
     { icon: CircleHelp, label: 'FAQ & Help', href: '/info?view=faq' },
@@ -97,7 +102,7 @@ export function CommandPalette() {
           ))}
         </CommandGroup>
 
-        {(hasAnyRole(user ?? null, 'DEALER_OWNER', 'DEALER_STAFF') || hasAnyRole(user ?? null, 'GARAGE_OWNER', 'GARAGE_STAFF') || isStaffUser(user ?? null)) && (
+        {(hasAnyRole(user ?? null, 'DEALER_OWNER', 'DEALER_STAFF') || hasAnyRole(user ?? null, 'GARAGE_OWNER', 'GARAGE_STAFF') || hasAnyRole(user ?? null, 'LOGISTICS_OWNER') || isStaffUser(user ?? null)) && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Workspaces">
@@ -109,6 +114,11 @@ export function CommandPalette() {
               {hasAnyRole(user ?? null, 'GARAGE_OWNER', 'GARAGE_STAFF') && (
                 <CommandItem value="Garage dashboard" onSelect={() => go('/garage-dashboard')}>
                   <Wrench className="mr-2 h-4 w-4 text-muted-foreground" /> Garage Dashboard
+                </CommandItem>
+              )}
+              {hasAnyRole(user ?? null, 'LOGISTICS_OWNER') && (
+                <CommandItem value="LogisticsOS delivery operations" onSelect={() => go('/logistics')}>
+                  <Truck className="mr-2 h-4 w-4 text-muted-foreground" /> LogisticsOS — delivery operations
                 </CommandItem>
               )}
               {isStaffUser(user ?? null) && (

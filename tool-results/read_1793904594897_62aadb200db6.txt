@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→/* Garage Dashboard — GarageOS for approved garages, plus the garage
+     4→ * application wizard for new providers. Real data via /api/garages?mine=1,
+     5→ * /api/service-requests?org=1, /api/quotes, /api/bookings, /api/reviews. */
+     6→
+     7→import { useCallback, useEffect, useState } from 'react'
+     8→import { motion, useReducedMotion } from 'framer-motion'
+     9→import {
+    10→  Wrench, MapPin, Star, Plus, Pencil, Send, CalendarClock, Play, CheckCircle2, XCircle,
+    11→  ClipboardList, ShieldCheck, Building2, FileText, Upload, MessageSquareText, Settings2, RefreshCw,
+    12→  Inbox, ClipboardCheck, KeyRound, PackageCheck, Gauge, StickyNote, Ban, CarFront, Loader2,
+    13→} from 'lucide-react'
+    14→import { toast } from 'sonner'
+    15→import { Button } from '@/components/ui/button'
+    16→import { Input } from '@/components/ui/input'
+    17→import { Label } from '@/components/ui/label'
+    18→import { Badge } from '@/components/ui/badge'
+    19→import { Skeleton } from '@/components/ui/skeleton'
+    20→import { Textarea } from '@/components/ui/textarea'
+    21→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    22→import { Checkbox } from '@/components/ui/checkbox'
+    23→import { Separator } from '@/components/ui/separator'
+    24→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    25→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    26→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    27→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    28→import { CountUp, Stagger, StaggerItem } from '@/components/motion/reveal'
+    29→import { MessagesTab, useUnreadConversations } from '@/components/messaging/conversation-panel'
+    30→import { PromotionsSection } from '@/components/billing/promotions-section'
+    31→import { useAuth } from '@/stores/auth'
+    32→import { navigate, apiGet, apiSend, apiUpload, buildQuery } from '@/lib/client'
+    33→import { useHashRoute } from '@/hooks/use-hash-route'
+    34→import {
+    35→  money, timeAgo, dateLabel, KENYA_COUNTIES, SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS,
+    36→} from '@/lib/format'
+    37→
+    38→// ─────────────────────────── Types ───────────────────────────
+    39→
+    40→type ServiceRow = { id: string; category: string; title: string; description: string | null; priceFromMinor: number | null; active: boolean }
+    41→type MyGarage = {
+    42→  org: { id: string; name: string; county: string; town: string | null; location: string | null; description: string | null; phone: string | null; status: string }
+    43→  services: ServiceRow[]
+    44→  rating: { avg: number; count: number }
+    45→  stats: { openRequests: number; quoted: number; booked: number; completed: number; pendingBookings: number }
+    46→  subscription: { planCode: string; status: string; currentPeriodEnd: string } | null
+    47→}
+    48→type MyQuote = { id: string; amountMinor: number; leadDays: number | null; message: string | null; status: string; createdAt: string }
+    49→type LeadRequest = {
+    50→  id: string; refCode: string; category: string; vehicleDesc: string | null; description: string
+    51→  county: string; town: string | null; status: string; configId: string | null; createdAt: string
+    52→  customer: { name: string }
+    53→  myQuote: MyQuote | null
+    54→}
+    55→type ReviewRow = { id: string; rating: number; comment: string | null; createdAt: string; author: { name: string } }
+    56→type AppEvent = { id: string; type: string; actorName: string | null; note: string | null; createdAt: string }
+    57→type GarageApplication = {
+    58→  id: string; refCode: string; status: string; orgName: string; createdAt: string; orgId: string | null
+    59→  type?: string
+    60→  events: AppEvent[]
+    61→  decisionNote?: string | null
+    62→}
+    63→
+    64→const REVIEWABLE = ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'RESUBMITTED']
+    65→
+    66→/** KES major-unit input → integer minor units (×100). Returns null when invalid. */
+    67→function kesToMinor(input: string): number | null {
+    68→  const v = input.trim().replace(/,/g, '')
+    69→  if (!/^\d+(\.\d{1,2})?$/.test(v)) return null
+    70→  const minor = Math.round(parseFloat(v) * 100)
+    71→  return Number.isFinite(minor) && minor > 0 ? minor : null
+    72→}
+    73→
+    74→const REQUEST_STATUS_LABELS: Record<string, string> = {
+    75→  OPEN: 'Open', QUOTING: 'Quoting', BOOKED: 'Booked', IN_PROGRESS: 'In progress',
+    76→  COMPLETED: 'Completed', CANCELLED: 'Cancelled', EXPIRED: 'Expired',
+    77→}
+    78→const BOOKING_STATUS_LABELS: Record<string, string> = {
+    79→  CONFIRMED: 'Confirmed', IN_PROGRESS: 'In progress', COMPLETED: 'Completed', CANCELLED: 'Cancelled',
+    80→}
+    81→
+    82→export default function GarageDashboardView() {
+    83→  const { user, loading } = useAuth()
+    84→  const route = useHashRoute()
+    85→  const [phase, setPhase] = useState<'loading' | 'wizard' | 'application' | 'dashboard'>('loading')
+    86→  const [garages, setGarages] = useState<MyGarage[]>([])
+    87→  const [activeOrgId, setActiveOrgId] = useState<string>('')
+    88→  const [application, setApplication] = useState<GarageApplication | null>(null)
+    89→
+    90→  const activeGarage = garages.find((g) => g.org.id === activeOrgId) ?? garages[0] ?? null
+    91→
+    92→  // ── Bootstrap: which phase are we in? ──
+    93→  const bootstrap = useCallback(() => {
+    94→    if (!user) return
+    95→    let appsFetched: GarageApplication[] | null = null
+    96→    let mineFetched: MyGarage[] | null = null
+    97→    const decide = () => {
+    98→      if (appsFetched === null || mineFetched === null) return
+    99→      if (mineFetched.length > 0) {
+   100→        setGarages(mineFetched)
+   101→        setActiveOrgId(mineFetched[0].org.id)
+   102→        setPhase('dashboard')
+   103→      } else {
+   104→        const app = appsFetched.find((a) => a.type === 'GARAGE') ?? null
+   105→        setApplication(app)
+   106→        setPhase(app ? 'application' : 'wizard')
+   107→      }
+   108→    }
+   109→    apiGet<{ applications: (GarageApplication & { type: string })[] }>('/api/applications')
+   110→      .then((d) => { appsFetched = d.applications; decide() })
+   111→      .catch(() => { appsFetched = []; decide() })
+   112→    apiGet<{ garages: MyGarage[] }>('/api/garages?mine=1')
+   113→      .then((d) => { mineFetched = d.garages; decide() })
+   114→      .catch(() => { mineFetched = []; decide() })
+   115→  }, [user])
+   116→
+   117→  useEffect(() => {
+   118→    if (!loading && user) bootstrap()
+   119→  }, [loading, user, bootstrap])
+   120→
+   121→  // ─────────────────────────── Gate: signed out ───────────────────────────
+   122→  if (!loading && !user) {
+   123→    return (
+   124→      <div className="mx-auto max-w-md px-4 py-20 text-center">
+   125→        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary"><Wrench className="h-7 w-7" /></div>
+   126→        <h1 className="mt-4 text-2xl font-bold">Garage Dashboard</h1>
+   127→        <p className="mt-2 text-sm text-muted-foreground">Sign in with your garage account to manage services, quotes, bookings and reviews.</p>
+   128→        <Button className="mt-6" onClick={() => navigate('signin')}>Sign in</Button>
+   129→      </div>
+   130→    )
+   131→  }
+   132→
+   133→  if (loading || phase === 'loading') {
+   134→    return (
+   135→      <div className="mx-auto max-w-5xl space-y-4 p-6">
+   136→        <Skeleton className="h-8 w-64" />
+   137→        <Skeleton className="h-24 rounded-xl" />
+   138→        <Skeleton className="h-64 rounded-xl" />
+   139→      </div>
+   140→    )
+   141→  }
+   142→
+   143→  // ─────────────────────────── Gate: application wizard ───────────────────────────
+   144→  if (phase === 'wizard') {
+   145→    return <ApplicationWizard user={user!} onDone={bootstrap} />
+   146→  }
+   147→
+   148→  // ─────────────────────────── Gate: application under review ───────────────────────────
+   149→  if (phase === 'application' && application) {
+   150→    return (
+   151→      <ApplicationStatus
+   152→        application={application}
+   153→        onResubmitted={bootstrap}
+   154→        onNewApplication={() => { setApplication(null); setPhase('wizard') }}
+   155→      />
+   156→    )
+   157→  }
+   158→
+   159→  // ─────────────────────────── Dashboard ───────────────────────────
+   160→  return <Dashboard garages={garages} activeGarage={activeGarage!} activeOrgId={activeOrgId} onOrgChange={setActiveOrgId} initialTab={route.query.get('tab') ?? 'overview'} onRefresh={bootstrap} />
+   161→}
+   162→
+   163→// ═══════════════════════════ Dashboard (approved garage) ═══════════════════════════
+   164→
+   165→function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab, onRefresh }: {
+   166→  garages: MyGarage[]
+   167→  activeGarage: MyGarage
+   168→  activeOrgId: string
+   169→  onOrgChange: (id: string) => void
+   170→  initialTab: string
+   171→  onRefresh: () => void
+   172→}) {
+   173→  const TABS = ['overview', 'services', 'requests', 'quotes', 'bookings', 'custody', 'inbox', 'reviews', 'profile'] as const
+   174→  const [tab, setTab] = useState<string>(TABS.includes(initialTab as (typeof TABS)[number]) ? initialTab : 'overview')
+   175→  const unreadMessages = useUnreadConversations('org')
+   176→
+   177→  return (
+   178→    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+   179→      {/* Header */}
+   180→      <div className="flex flex-wrap items-start justify-between gap-3">
+   181→        <div>
+   182→          <div className="flex items-center gap-2">
+   183→            <h1 className="text-2xl font-bold">{activeGarage.org.name}</h1>
+   184→            <Badge variant="outline" className="gap-1 border-primary/40 text-primary"><ShieldCheck className="h-3 w-3" /> Approved garage</Badge>
+   185→          </div>
+   186→          <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+   187→            <MapPin className="h-3.5 w-3.5" />
+   188→            {[activeGarage.org.town, activeGarage.org.county].filter(Boolean).join(', ')}
+   189→            {activeGarage.subscription && ` · ${activeGarage.subscription.planCode} plan`}
+   190→          </p>
+   191→        </div>
+   192→        {garages.length > 1 && (
+   193→          <Select value={activeOrgId} onValueChange={onOrgChange}>
+   194→            <SelectTrigger className="w-64" aria-label="Switch garage">
+   195→              <SelectValue placeholder="Choose garage" />
+   196→            </SelectTrigger>
+   197→            <SelectContent>
+   198→              {garages.map((g) => <SelectItem key={g.org.id} value={g.org.id}>{g.org.name}</SelectItem>)}
+   199→            </SelectContent>
+   200→          </Select>
+   201→        )}
+   202→      </div>
+   203→
+   204→      <Tabs value={tab} onValueChange={setTab} className="mt-6">
+   205→        <TabsList className="scrollbar-thin h-auto w-full justify-start overflow-x-auto py-0.5">
+   206→          <TabsTrigger value="overview" className="gap-1.5"><Building2 className="h-4 w-4" /> Overview</TabsTrigger>
+   207→          <TabsTrigger value="services" className="gap-1.5"><Wrench className="h-4 w-4" /> Services</TabsTrigger>
+   208→          <TabsTrigger value="requests" className="gap-1.5"><ClipboardList className="h-4 w-4" /> Requests</TabsTrigger>
+   209→          <TabsTrigger value="quotes" className="gap-1.5"><Send className="h-4 w-4" /> Quotes</TabsTrigger>
+   210→          <TabsTrigger value="bookings" className="gap-1.5"><CalendarClock className="h-4 w-4" /> Bookings</TabsTrigger>
+   211→          <TabsTrigger value="custody" className="gap-1.5"><KeyRound className="h-4 w-4" /> Vehicle custody</TabsTrigger>
+   212→          <TabsTrigger value="inbox" className="gap-1.5">
+   213→            <Inbox className="h-4 w-4" /> Inbox
+   214→            {unreadMessages > 0 && (
+   215→              <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground" aria-label={`${unreadMessages} unread`}>
+   216→                {unreadMessages > 9 ? '9+' : unreadMessages}
+   217→              </span>
+   218→            )}
+   219→          </TabsTrigger>
+   220→          <TabsTrigger value="reviews" className="gap-1.5"><MessageSquareText className="h-4 w-4" /> Reviews</TabsTrigger>
+   221→          <TabsTrigger value="profile" className="gap-1.5"><Settings2 className="h-4 w-4" /> Profile</TabsTrigger>
+   222→        </TabsList>
+   223→
+   224→        <TabsContent value="overview" className="mt-4"><OverviewTab garage={activeGarage} onGo={setTab} /></TabsContent>
+   225→        <TabsContent value="services" className="mt-4"><ServicesTab orgId={activeOrgId} services={activeGarage.services} onChanged={onRefresh} /></TabsContent>
+   226→        <TabsContent value="requests" className="mt-4"><RequestsTab orgId={activeOrgId} services={activeGarage.services} /></TabsContent>
+   227→        <TabsContent value="quotes" className="mt-4"><QuotesTab orgId={activeOrgId} /></TabsContent>
+   228→        <TabsContent value="bookings" className="mt-4"><BookingsTab orgId={activeOrgId} onChanged={onRefresh} /></TabsContent>
+   229→        <TabsContent value="custody" className="mt-4"><FadeIn><CustodyTab /></FadeIn></TabsContent>
+   230→        <TabsContent value="inbox" className="mt-4"><FadeIn><MessagesTab scope="org" /></FadeIn></TabsContent>
+   231→        <TabsContent value="reviews" className="mt-4"><ReviewsTab orgId={activeOrgId} rating={activeGarage.rating} /></TabsContent>
+   232→        <TabsContent value="profile" className="mt-4">
+   233→          <div className="space-y-6">
+   234→            <ProfileTab garage={activeGarage} onSaved={onRefresh} />
+   235→            {/* Billing — promotions (garage packages apply to the org, same M-Pesa flow) */}
+   236→            <PromotionsSection />
+   237→          </div>
+   238→        </TabsContent>
+   239→      </Tabs>
+   240→    </div>
+   241→  )
+   242→}
+   243→
+   244→// ─────────────────────────── Overview ───────────────────────────
+   245→
+   246→function OverviewTab({ garage, onGo }: { garage: MyGarage; onGo: (tab: string) => void }) {
+   247→  const stats = garage.stats
+   248→  const activeServices = garage.services.filter((s) => s.active)
+   249→  return (
+   250→    <div className="space-y-4">
+   251→      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+   252→        <StatCard label="Eligible open requests" value={stats.openRequests} hint="Leads in your categories" onClick={() => onGo('requests')} />
+   253→        <StatCard label="Quotes sent" value={stats.quoted} hint="All time" onClick={() => onGo('quotes')} />
+   254→        <StatCard label="Active bookings" value={stats.booked} hint="Confirmed or in progress" onClick={() => onGo('bookings')} />
+   255→        <StatCard label="Services completed" value={stats.completed} hint="All time" onClick={() => onGo('bookings')} />
+   256→      </div>
+   257→
+   258→      <div className="grid gap-4 lg:grid-cols-2">
+   259→        <Card>
+   260→          <CardHeader className="pb-2"><CardTitle className="text-base">Rating</CardTitle></CardHeader>
+   261→          <CardContent className="flex items-center gap-4">
+   262→            <div className="text-4xl font-bold">{garage.rating.count > 0 ? garage.rating.avg.toFixed(1) : '—'}</div>
+   263→            <div>
+   264→              <Stars avg={garage.rating.avg} />
+   265→              <p className="mt-1 text-xs text-muted-foreground">
+   266→                {garage.rating.count > 0 ? `${garage.rating.count} verified review${garage.rating.count === 1 ? '' : 's'} from completed bookings` : 'No reviews yet — they come from completed bookings.'}
+   267→              </p>
+   268→            </div>
+   269→          </CardContent>
+   270→        </Card>
+   271→
+   272→        <Card>
+   273→          <CardHeader className="pb-2"><CardTitle className="text-base">Request pipeline</CardTitle></CardHeader>
+   274→          <CardContent className="space-y-2 text-sm">
+   275→            <PipelineRow label="Open / quoting leads available to you" value={stats.openRequests} onClick={() => onGo('requests')} />
+   276→            <PipelineRow label="Bookings awaiting schedule or start" value={stats.pendingBookings} onClick={() => onGo('bookings')} />
+   277→            <PipelineRow label="Active services listed" value={activeServices.length} onClick={() => onGo('services')} />
+   278→            <PipelineRow label="Inactive services" value={garage.services.length - activeServices.length} onClick={() => onGo('services')} />
+   279→          </CardContent>
+   280→        </Card>
+   281→      </div>
+   282→
+   283→      <Alert>
+   284→        <ClipboardList className="h-4 w-4" />
+   285→        <AlertTitle>How leads work</AlertTitle>
+   286→        <AlertDescription>
+   287→          You see requests whose category matches an <strong>active service</strong> you list, plus every request you already quoted.
+   288→          Send quotes from the Requests tab — customers accept in their account and a booking is created automatically.
+   289→        </AlertDescription>
+   290→      </Alert>
+   291→    </div>
+   292→  )
+   293→}
+   294→
+   295→function StatCard({ label, value, hint, onClick }: { label: string; value: number; hint: string; onClick: () => void }) {
+   296→  return (
+   297→    <button onClick={onClick} className="rounded-xl border bg-card p-4 text-left transition-colors hover:bg-muted/50">
+   298→      <p className="text-3xl font-bold">{value}</p>
+   299→      <p className="mt-1 text-sm font-medium">{label}</p>
+   300→      <p className="text-xs text-muted-foreground">{hint}</p>
+   301→    </button>
+   302→  )
+   303→}
+   304→
+   305→function PipelineRow({ label, value, onClick }: { label: string; value: number; onClick: () => void }) {
+   306→  return (
+   307→    <button onClick={onClick} className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted/60">
+   308→      <span className="text-muted-foreground">{label}</span>
+   309→      <Badge variant="secondary">{value}</Badge>
+   310→    </button>
+   311→  )
+   312→}
+   313→
+   314→// ─────────────────────────── Services ───────────────────────────
+   315→
+   316→function ServicesTab({ orgId, services, onChanged }: { orgId: string; services: ServiceRow[]; onChanged: () => void }) {
+   317→  const [dialogOpen, setDialogOpen] = useState(false)
+   318→  const [editing, setEditing] = useState<ServiceRow | null>(null)
+   319→  const [category, setCategory] = useState<string>('GENERAL_SERVICE')
+   320→  const [title, setTitle] = useState('')
+   321→  const [description, setDescription] = useState('')
+   322→  const [price, setPrice] = useState('')
+   323→  const [saving, setSaving] = useState(false)
+   324→
+   325→  function openCreate() {
+   326→    setEditing(null)
+   327→    setCategory('GENERAL_SERVICE')
+   328→    setTitle('')
+   329→    setDescription('')
+   330→    setPrice('')
+   331→    setDialogOpen(true)
+   332→  }
+   333→
+   334→  function openEdit(s: ServiceRow) {
+   335→    setEditing(s)
+   336→    setCategory(s.category)
+   337→    setTitle(s.title)
+   338→    setDescription(s.description ?? '')
+   339→    setPrice(s.priceFromMinor ? String(s.priceFromMinor / 100) : '')
+   340→    setDialogOpen(true)
+   341→  }
+   342→
+   343→  const priceMinor = price.trim() ? kesToMinor(price) : null
+   344→  const priceInvalid = price.trim() !== '' && priceMinor === null
+   345→
+   346→  function save() {
+   347→    if (title.trim().length < 3) { toast.error('Give the service a clear title'); return }
+   348→    if (priceInvalid) { toast.error('Price must be a KES amount like 3500 or 3500.50'); return }
+   349→    setSaving(true)
+   350→    const payload = {
+   351→      category,
+   352→      title: title.trim(),
+   353→      description: description.trim() || null,
+   354→      priceFromMinor: priceMinor,
+   355→    }
+   356→    const call = editing
+   357→      ? apiSend(`/api/garage-services?id=${editing.id}`, 'PATCH', payload)
+   358→      : apiSend('/api/garage-services', 'POST', { ...payload, orgId })
+   359→    call
+   360→      .then(() => {
+   361→        toast.success(editing ? 'Service updated' : 'Service added')
+   362→        setDialogOpen(false)
+   363→        onChanged()
+   364→      })
+   365→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not save service'))
+   366→      .finally(() => setSaving(false))
+   367→  }
+   368→
+   369→  function toggleActive(s: ServiceRow) {
+   370→    apiSend(`/api/garage-services?id=${s.id}`, 'PATCH', { active: !s.active })
+   371→      .then(() => { toast.success(s.active ? 'Service deactivated' : 'Service activated'); onChanged() })
+   372→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not update service'))
+   373→  }
+   374→
+   375→  return (
+   376→    <div className="space-y-4">
+   377→      <div className="flex flex-wrap items-center justify-between gap-2">
+   378→        <p className="text-sm text-muted-foreground">Active services decide which customer requests you see. Deactivate instead of deleting to keep history.</p>
+   379→        <Button onClick={openCreate} className="gap-1.5"><Plus className="h-4 w-4" /> Add service</Button>
+   380→      </div>
+   381→
+   382→      {services.length === 0 ? (
+   383→        <EmptyBlock icon={<Wrench className="h-6 w-6" />} title="No services yet" desc="Add the categories you cover — e.g. general servicing, tyres, or modifications — so matching requests reach you." />
+   384→      ) : (
+   385→        <div className="grid gap-3 md:grid-cols-2">
+   386→          {services.map((s) => (
+   387→            <Card key={s.id} className={`p-4 ${!s.active ? 'opacity-60' : ''}`}>
+   388→              <div className="flex items-start justify-between gap-2">
+   389→                <div className="min-w-0">
+   390→                  <div className="flex flex-wrap items-center gap-2">
+   391→                    <h4 className="font-semibold">{s.title}</h4>
+   392→                    <Badge variant={s.active ? 'secondary' : 'outline'}>{s.active ? 'Active' : 'Inactive'}</Badge>
+   393→                  </div>
+   394→                  <p className="mt-0.5 text-xs text-muted-foreground">{SERVICE_CATEGORY_LABELS[s.category] ?? s.category}</p>
+   395→                  {s.description && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{s.description}</p>}
+   396→                  <p className="mt-2 text-sm font-medium">{s.priceFromMinor ? `from ${money(s.priceFromMinor)}` : 'Price on quote'}</p>
+   397→                </div>
+   398→                <div className="flex shrink-0 flex-col gap-1.5">
+   399→                  <Button size="sm" variant="outline" className="gap-1" onClick={() => openEdit(s)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+   400→                  <Button size="sm" variant="ghost" onClick={() => toggleActive(s)}>{s.active ? 'Deactivate' : 'Activate'}</Button>
+   401→                </div>
+   402→              </div>
+   403→            </Card>
+   404→          ))}
+   405→        </div>
+   406→      )}
+   407→
+   408→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   409→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+   410→          <DialogHeader>
+   411→            <DialogTitle>{editing ? 'Edit service' : 'Add a service'}</DialogTitle>
+   412→            <DialogDescription>Shown on your public garage profile. &quot;From&quot; pricing sets customer expectations.</DialogDescription>
+   413→          </DialogHeader>
+   414→          <div className="space-y-4">
+   415→            <div className="space-y-1.5">
+   416→              <Label htmlFor="svc-category">Category</Label>
+   417→              <Select value={category} onValueChange={setCategory}>
+   418→                <SelectTrigger id="svc-category"><SelectValue /></SelectTrigger>
+   419→                <SelectContent>
+   420→                  {SERVICE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{SERVICE_CATEGORY_LABELS[c]}</SelectItem>)}
+   421→                </SelectContent>
+   422→              </Select>
+   423→            </div>
+   424→            <div className="space-y-1.5">
+   425→              <Label htmlFor="svc-title">Title</Label>
+   426→              <Input id="svc-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Full engine service" />
+   427→            </div>
+   428→            <div className="space-y-1.5">
+   429→              <Label htmlFor="svc-desc">Description (optional)</Label>
+   430→              <Textarea id="svc-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's included, warranties, turnaround…" />
+   431→            </div>
+   432→            <div className="space-y-1.5">
+   433→              <Label htmlFor="svc-price">Price from (KES, optional)</Label>
+   434→              <div className="flex gap-2">
+   435→                <Input id="svc-price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g. 6500" className="max-w-40" />
+   436→                {priceMinor !== null && <Badge variant="secondary" className="self-center">{money(priceMinor)}</Badge>}
+   437→              </div>
+   438→              {priceInvalid && <p className="text-xs text-destructive">Enter a valid KES amount, e.g. 6500 or 6500.50</p>}
+   439→            </div>
+   440→          </div>
+   441→          <DialogFooter>
+   442→            <Button variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
+   443→            <Button onClick={save} disabled={saving || title.trim().length < 3 || priceInvalid}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Add service'}</Button>
+   444→          </DialogFooter>
+   445→        </DialogContent>
+   446→      </Dialog>
+   447→    </div>
+   448→  )
+   449→}
+   450→
+   451→// ─────────────────────────── Requests (leads) + Quotes ───────────────────────────
+   452→
+   453→function useOrgRequests(orgId: string) {
+   454→  const [feed, setFeed] = useState<{ orgId: string; requests: LeadRequest[]; tick: number } | null>(null)
+   455→  const [tick, setTick] = useState(0)
+   456→  useEffect(() => {
+   457→    let cancelled = false
+   458→    apiGet<{ requests: LeadRequest[] }>(buildQuery('/api/service-requests', { org: 1, orgId }))
+   459→      .then((d) => { if (!cancelled) setFeed({ orgId, requests: d.requests, tick }) })
+   460→      .catch(() => { if (!cancelled) setFeed({ orgId, requests: [], tick }) })
+   461→    return () => { cancelled = true }
+   462→  }, [orgId, tick])
+   463→  const refresh = useCallback(() => setTick((t) => t + 1), [])
+   464→  // Stale while switching orgs or refetching — renders as loading.
+   465→  const requests = feed && feed.orgId === orgId && feed.tick === tick ? feed.requests : null
+   466→  return { requests, refresh }
+   467→}
+   468→
+   469→function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[] }) {
+   470→  const { requests, refresh } = useOrgRequests(orgId)
+   471→  const [quoteFor, setQuoteFor] = useState<LeadRequest | null>(null)
+   472→  const [amount, setAmount] = useState('')
+   473→  const [leadDays, setLeadDays] = useState('')
+   474→  const [message, setMessage] = useState('')
+   475→  const [sending, setSending] = useState(false)
+   476→
+   477→  const activeCategories = new Set(services.filter((s) => s.active).map((s) => s.category))
+   478→
+   479→  function openQuote(r: LeadRequest) {
+   480→    setQuoteFor(r)
+   481→    setAmount('')
+   482→    setLeadDays('')
+   483→    setMessage('')
+   484→  }
+   485→
+   486→  const amountMinor = amount.trim() ? kesToMinor(amount) : null
+   487→  const amountInvalid = amount.trim() !== '' && amountMinor === null
+   488→  const leadInvalid = leadDays.trim() !== '' && !/^\d{1,3}$/.test(leadDays.trim())
+   489→
+   490→  function sendQuote() {
+   491→    if (!quoteFor) return
+   492→    if (amountMinor === null) { toast.error('Enter a valid KES amount, e.g. 12000'); return }
+   493→    setSending(true)
+   494→    apiSend('/api/quotes', 'POST', {
+   495→      requestId: quoteFor.id,
+   496→      orgId,
+   497→      amountMinor,
+   498→      leadDays: leadDays.trim() ? parseInt(leadDays.trim(), 10) : undefined,
+   499→      message: message.trim() || undefined,
+   500→    })
+   501→      .then(() => {
+   502→        toast.success(`Quote sent to ${quoteFor.customer.name}`)
+   503→        setQuoteFor(null)
+   504→        refresh()
+   505→      })
+   506→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not send quote'))
+   507→      .finally(() => setSending(false))
+   508→  }
+   509→
+   510→  return (
+   511→    <div className="space-y-4">
+   512→      <p className="text-sm text-muted-foreground">
+   513→        Eligible requests match your active service categories. Sending another quote updates your previous one — customers never see other garages&apos; prices.
+   514→      </p>
+   515→
+   516→      {requests === null ? (
+   517→        <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
+   518→      ) : requests.length === 0 ? (
+   519→        <EmptyBlock
+   520→          icon={<ClipboardList className="h-6 w-6" />}
+   521→          title="No eligible requests right now"
+   522→          desc="Add more service categories or check back — new requests notify garages offering that category instantly."
+   523→        />
+   524→      ) : (
+   525→        <div className="space-y-3">
+   526→          {requests.map((r) => {
+   527→            const eligible = ['OPEN', 'QUOTING'].includes(r.status) && activeCategories.has(r.category)
+   528→            return (
+   529→              <Card key={r.id} className="p-4 sm:p-5">
+   530→                <div className="flex flex-wrap items-start justify-between gap-2">
+   531→                  <div className="min-w-0">
+   532→                    <div className="flex flex-wrap items-center gap-2">
+   533→                      <h4 className="font-semibold">{SERVICE_CATEGORY_LABELS[r.category] ?? r.category}</h4>
+   534→                      <Badge variant="outline">{REQUEST_STATUS_LABELS[r.status] ?? r.status}</Badge>
+   535→                      {r.configId && (
+   536→                        <button
+   537→                          className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-primary hover:bg-muted"
+   538→                          onClick={() => navigate(`customizer?cfg=${r.configId}`)}
+   539→                        >
+   540→                          <Settings2 className="h-3 w-3" /> 3D configuration
+   541→                        </button>
+   542→                      )}
+   543→                    </div>
+   544→                    <p className="mt-1 text-xs text-muted-foreground">
+   545→                      {r.refCode} · {r.county}{r.town ? ` · ${r.town}` : ''} · {timeAgo(r.createdAt)} · requested by {r.customer.name}
+   546→                    </p>
+   547→                  </div>
+   548→                  {eligible && (
+   549→                    <Button size="sm" className="gap-1.5" onClick={() => openQuote(r)}>
+   550→                      <Send className="h-3.5 w-3.5" /> {r.myQuote ? 'Update quote' : 'Send quote'}
+   551→                    </Button>
+   552→                  )}
+   553→                </div>
+   554→                <p className="mt-2 text-sm text-muted-foreground">{r.description}</p>
+   555→                {r.vehicleDesc && <p className="mt-1 text-xs text-muted-foreground">Vehicle: {r.vehicleDesc}</p>}
+   556→                {r.myQuote && (
+   557→                  <div className={`mt-3 rounded-lg border p-3 text-sm ${r.myQuote.status === 'ACCEPTED' ? 'border-primary/40 bg-primary/5' : ''}`}>
+   558→                    <div className="flex flex-wrap items-center justify-between gap-2">
+   559→                      <span className="font-medium">Your quote: <span className="font-bold text-primary">{money(r.myQuote.amountMinor)}</span>
+   560→                        {r.myQuote.leadDays !== null && <span className="ml-2 text-xs text-muted-foreground">· {r.myQuote.leadDays} day{r.myQuote.leadDays === 1 ? '' : 's'} lead</span>}
+   561→                      </span>
+   562→                      <Badge variant={r.myQuote.status === 'ACCEPTED' ? 'default' : r.myQuote.status === 'PENDING' ? 'secondary' : 'outline'} className={r.myQuote.status === 'ACCEPTED' ? 'bg-primary text-primary-foreground' : ''}>
+   563→                        {r.myQuote.status}
+   564→                      </Badge>
+   565→                    </div>
+   566→                    {r.myQuote.message && <p className="mt-1 text-xs text-muted-foreground">{r.myQuote.message}</p>}
+   567→                    <p className="mt-1 text-[10px] text-muted-foreground">sent {timeAgo(r.myQuote.createdAt)}</p>
+   568→                  </div>
+   569→                )}
+   570→              </Card>
+   571→            )
+   572→          })}
+   573→        </div>
+   574→      )}
+   575→
+   576→      {/* Quote dialog */}
+   577→      <Dialog open={quoteFor !== null} onOpenChange={(open) => { if (!open) setQuoteFor(null) }}>
+   578→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+   579→          <DialogHeader>
+   580→            <DialogTitle>Send quote</DialogTitle>
+   581→            <DialogDescription>
+   582→              {quoteFor && `${quoteFor.refCode} · ${SERVICE_CATEGORY_LABELS[quoteFor.category] ?? quoteFor.category} · ${quoteFor.county}`}
+   583→            </DialogDescription>
+   584→          </DialogHeader>
+   585→          <div className="space-y-4">
+   586→            <div className="space-y-1.5">
+   587→              <Label htmlFor="q-amount">Amount (KES)</Label>
+   588→              <div className="flex gap-2">
+   589→                <Input id="q-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 12500" className="max-w-40" />
+   590→                {amountMinor !== null && <Badge variant="secondary" className="self-center">{money(amountMinor)}</Badge>}
+   591→              </div>
+   592→              {amountInvalid && <p className="text-xs text-destructive">Enter a valid KES amount, e.g. 12500 or 12500.50</p>}
+   593→            </div>
+   594→            <div className="space-y-1.5">
+   595→              <Label htmlFor="q-lead">Lead time in days (optional)</Label>
+   596→              <Input id="q-lead" inputMode="numeric" value={leadDays} onChange={(e) => setLeadDays(e.target.value)} placeholder="e.g. 2" className="max-w-24" />
+   597→              {leadInvalid && <p className="text-xs text-destructive">Whole days, e.g. 2</p>}
+   598→            </div>
+   599→            <div className="space-y-1.5">
+   600→              <Label htmlFor="q-msg">Message (optional)</Label>
+   601→              <Textarea id="q-msg" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="What the quote includes, parts, warranty…" />
+   602→            </div>
+   603→          </div>
+   604→          <DialogFooter>
+   605→            <Button variant="ghost" onClick={() => setQuoteFor(null)}>Cancel</Button>
+   606→            <Button onClick={sendQuote} disabled={sending || amountMinor === null || amountInvalid || leadInvalid}>
+   607→              {sending ? 'Sending…' : quoteFor?.myQuote ? 'Update quote' : 'Send quote'}
+   608→            </Button>
+   609→          </DialogFooter>
+   610→        </DialogContent>
+   611→      </Dialog>
+   612→    </div>
+   613→  )
+   614→}
+   615→
+   616→/** Quotes tab — sent quotes derived from the org feed (own quotes only, tenant-safe). */
+   617→function QuotesTab({ orgId }: { orgId: string }) {
+   618→  const { requests } = useOrgRequests(orgId)
+   619→  const quoted = requests?.filter((r) => r.myQuote) ?? []
+   620→  const statusBadge = (status: string) =>
+   621→    status === 'ACCEPTED' ? 'default' : status === 'PENDING' ? 'secondary' : 'outline'
+   622→
+   623→  return (
+   624→    <div className="space-y-3">
+   625→      {requests === null ? (
+   626→        <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+   627→      ) : quoted.length === 0 ? (
+   628→        <EmptyBlock icon={<Send className="h-6 w-6" />} title="No quotes sent yet" desc="Quotes you send from the Requests tab appear here with their live status." />
+   629→      ) : (
+   630→        quoted.map((r) => (
+   631→          <Card key={r.id} className={`p-4 ${r.myQuote!.status === 'ACCEPTED' ? 'border-primary/50 bg-primary/5' : ''}`}>
+   632→            <div className="flex flex-wrap items-center justify-between gap-2">
+   633→              <div>
+   634→                <p className="font-medium">{r.refCode} · {SERVICE_CATEGORY_LABELS[r.category] ?? r.category}</p>
+   635→                <p className="text-xs text-muted-foreground">{r.county}{r.town ? ` · ${r.town}` : ''} · request is {REQUEST_STATUS_LABELS[r.status] ?? r.status}</p>
+   636→              </div>
+   637→              <div className="text-right">
+   638→                <p className="font-bold text-primary">{money(r.myQuote!.amountMinor)}</p>
+   639→                <Badge variant={statusBadge(r.myQuote!.status)} className={r.myQuote!.status === 'ACCEPTED' ? 'bg-primary text-primary-foreground' : ''}>{r.myQuote!.status}</Badge>
+   640→              </div>
+   641→            </div>
+   642→            {r.myQuote!.message && <p className="mt-2 text-sm text-muted-foreground">{r.myQuote!.message}</p>}
+   643→          </Card>
+   644→        ))
+   645→      )}
+   646→    </div>
+   647→  )
+   648→}
+   649→
+   650→// ─────────────────────────── Bookings ───────────────────────────
+   651→
+   652→type OrgBookingFeed = {
+   653→  id: string; scheduledAt: string | null; status: string; notes: string | null; updatedAt: string
+   654→  request: {
+   655→    refCode: string; category: string; description: string; vehicleDesc: string | null
+   656→    county: string; town: string | null; status: string
+   657→    customer: { name: string; phone: string | null }
+   658→  }
+   659→}
+   660→
+   661→function BookingsTab({ orgId, onChanged }: { orgId: string; onChanged: () => void }) {
+   662→  const [feed, setFeed] = useState<{ orgId: string; bookings: OrgBookingFeed[] } | null>(null)
+   663→  const [scheduleFor, setScheduleFor] = useState<OrgBookingFeed | null>(null)
+   664→  const [scheduleAt, setScheduleAt] = useState('')
+   665→  const [notesFor, setNotesFor] = useState<{ booking: OrgBookingFeed; action: 'complete' | 'cancel' } | null>(null)
+   666→  const [notes, setNotes] = useState('')
+   667→  const [busy, setBusy] = useState(false)
+   668→
+   669→  const load = useCallback(() => {
+   670→    apiGet<{ bookings: OrgBookingFeed[] }>(buildQuery('/api/bookings', { org: 1, orgId }))
+   671→      .then((d) => setFeed({ orgId, bookings: d.bookings }))
+   672→      .catch(() => setFeed({ orgId, bookings: [] }))
+   673→  }, [orgId])
+   674→
+   675→  useEffect(() => {
+   676→    load()
+   677→  }, [load])
+   678→
+   679→  const bookings = feed && feed.orgId === orgId ? feed.bookings : null
+   680→
+   681→  function act(booking: OrgBookingFeed, action: string, extra?: Record<string, unknown>) {
+   682→    setBusy(true)
+   683→    apiSend<{ booking: { status: string } }>(`/api/bookings?id=${booking.id}`, 'PATCH', { action, ...extra })
+   684→      .then((d) => {
+   685→        toast.success(`Booking ${d.booking.status.toLowerCase().replaceAll('_', ' ')}`)
+   686→        setScheduleFor(null); setNotesFor(null); setNotes(''); setScheduleAt('')
+   687→        load()
+   688→        onChanged()
+   689→      })
+   690→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not update booking'))
+   691→      .finally(() => setBusy(false))
+   692→  }
+   693→
+   694→  return (
+   695→    <div className="space-y-3">
+   696→      {bookings === null ? (
+   697→        <div className="space-y-3">{[0, 1].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+   698→      ) : bookings.length === 0 ? (
+   699→        <EmptyBlock
+   700→          icon={<CalendarClock className="h-6 w-6" />}
+   701→          title="No bookings yet"
+   702→          desc="When a customer accepts your quote, a confirmed booking appears here with their contact details."
+   703→        />
+   704→      ) : (
+   705→        bookings.map((b) => (
+   706→          <Card key={b.id} className="p-4 sm:p-5">
+   707→            <div className="flex flex-wrap items-start justify-between gap-2">
+   708→              <div className="min-w-0">
+   709→                <div className="flex flex-wrap items-center gap-2">
+   710→                  <h4 className="font-semibold">{b.request.refCode}</h4>
+   711→                  <Badge variant={b.status === 'COMPLETED' ? 'default' : b.status === 'CANCELLED' ? 'outline' : 'secondary'}
+   712→                    className={b.status === 'COMPLETED' ? 'bg-primary text-primary-foreground' : ''}>
+   713→                    {BOOKING_STATUS_LABELS[b.status] ?? b.status}
+   714→                  </Badge>
+   715→                  <Badge variant="outline">{SERVICE_CATEGORY_LABELS[b.request.category] ?? b.request.category}</Badge>
+   716→                </div>
+   717→                {/* Customer contact is visible here only — justified by an accepted booking. */}
+   718→                <p className="mt-1 text-xs text-muted-foreground">
+   719→                  {b.request.customer.name}{b.request.customer.phone ? ` · ${b.request.customer.phone}` : ''} · {b.request.county}{b.request.town ? ` · ${b.request.town}` : ''}
+   720→                </p>
+   721→                <p className="mt-1 text-sm text-muted-foreground">{b.request.vehicleDesc ? `${b.request.vehicleDesc} — ` : ''}{b.request.description}</p>
+   722→                <p className="mt-1 text-xs text-muted-foreground">
+   723→                  Scheduled: {b.scheduledAt ? new Date(b.scheduledAt).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' }) : 'not scheduled yet'}
+   724→                </p>
+   725→                {b.notes && <p className="mt-1 text-xs text-muted-foreground">Notes: {b.notes}</p>}
+   726→              </div>
+   727→              <div className="flex shrink-0 flex-wrap gap-2">
+   728→                {(b.status === 'CONFIRMED' || b.status === 'IN_PROGRESS') && (
+   729→                  <Button size="sm" variant="outline" className="gap-1" onClick={() => { setScheduleFor(b); setScheduleAt(b.scheduledAt ? toLocalInput(b.scheduledAt) : '') }}>
+   730→                    <CalendarClock className="h-3.5 w-3.5" /> Schedule
+   731→                  </Button>
+   732→                )}
+   733→                {b.status === 'CONFIRMED' && <Button size="sm" className="gap-1" onClick={() => act(b, 'start')} disabled={busy}><Play className="h-3.5 w-3.5" /> Start</Button>}
+   734→                {b.status === 'IN_PROGRESS' && <Button size="sm" className="gap-1" onClick={() => { setNotesFor({ booking: b, action: 'complete' }); setNotes('') }} disabled={busy}><CheckCircle2 className="h-3.5 w-3.5" /> Complete</Button>}
+   735→                {(b.status === 'CONFIRMED' || b.status === 'IN_PROGRESS') && (
+   736→                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { setNotesFor({ booking: b, action: 'cancel' }); setNotes('') }} disabled={busy}>
+   737→                    <XCircle className="h-3.5 w-3.5" /> Cancel
+   738→                  </Button>
+   739→                )}
+   740→              </div>
+   741→            </div>
+   742→          </Card>
+   743→        ))
+   744→      )}
+   745→
+   746→      {/* Schedule dialog */}
+   747→      <Dialog open={scheduleFor !== null} onOpenChange={(open) => { if (!open) setScheduleFor(null) }}>
+   748→        <DialogContent className="sm:max-w-sm">
+   749→          <DialogHeader>
+   750→            <DialogTitle>Schedule booking</DialogTitle>
+   751→            <DialogDescription>{scheduleFor?.request.refCode} — pick the date and time the customer should come in (or you go out).</DialogDescription>
+   752→          </DialogHeader>
+   753→          <div className="space-y-1.5">
+   754→            <Label htmlFor="bk-when">Date &amp; time</Label>
+   755→            <Input id="bk-when" type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} />
+   756→          </div>
+   757→          <DialogFooter>
+   758→            <Button variant="ghost" onClick={() => setScheduleFor(null)}>Cancel</Button>
+   759→            <Button
+   760→              disabled={busy || !scheduleAt}
+   761→              onClick={() => scheduleFor && act(scheduleFor, 'schedule', { scheduledAt: new Date(scheduleAt).toISOString() })}
+   762→            >
+   763→              Save schedule
+   764→            </Button>
+   765→          </DialogFooter>
+   766→        </DialogContent>
+   767→      </Dialog>
+   768→
+   769→      {/* Complete / cancel dialog */}
+   770→      <Dialog open={notesFor !== null} onOpenChange={(open) => { if (!open) setNotesFor(null) }}>
+   771→        <DialogContent className="sm:max-w-sm">
+   772→          <DialogHeader>
+   773→            <DialogTitle>{notesFor?.action === 'complete' ? 'Complete booking' : 'Cancel booking'}</DialogTitle>
+   774→            <DialogDescription>
+   775→              {notesFor?.booking.request.refCode}
+   776→              {notesFor?.action === 'complete' ? ' — the customer will be asked to leave a review.' : ' — the request is closed for quoting.'}
+   777→            </DialogDescription>
+   778→          </DialogHeader>
+   779→          <div className="space-y-1.5">
+   780→            <Label htmlFor="bk-notes">Notes (optional)</Label>
+   781→            <Textarea id="bk-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Work done, advice for the customer, reason for cancelling…" />
+   782→          </div>
+   783→          <DialogFooter>
+   784→            <Button variant="ghost" onClick={() => setNotesFor(null)}>Close</Button>
+   785→            <Button
+   786→              variant={notesFor?.action === 'cancel' ? 'destructive' : 'default'}
+   787→              disabled={busy}
+   788→              onClick={() => notesFor && act(notesFor.booking, notesFor.action, { notes: notes.trim() || undefined })}
+   789→            >
+   790→              {notesFor?.action === 'complete' ? 'Mark completed' : 'Cancel booking'}
+   791→            </Button>
+   792→          </DialogFooter>
+   793→        </DialogContent>
+   794→      </Dialog>
+   795→    </div>
+   796→  )
+   797→}
+   798→
+   799→function toLocalInput(iso: string): string {
+   800→  const d = new Date(iso)
+   801→  const pad = (n: number) => String(n).padStart(2, '0')
+   802→  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+   803→}
+   804→
+   805→// ─────────────────────────── Reviews ───────────────────────────
+   806→
+   807→function ReviewsTab({ orgId, rating }: { orgId: string; rating: { avg: number; count: number } }) {
+   808→  const [feed, setFeed] = useState<{ orgId: string; reviews: ReviewRow[] } | null>(null)
+   809→
+   810→  useEffect(() => {
+   811→    let cancelled = false
+   812→    apiGet<{ reviews: ReviewRow[] }>(buildQuery('/api/reviews', { orgId }))
+   813→      .then((d) => { if (!cancelled) setFeed({ orgId, reviews: d.reviews }) })
+   814→      .catch(() => { if (!cancelled) setFeed({ orgId, reviews: [] }) })
+   815→    return () => { cancelled = true }
+   816→  }, [orgId])
+   817→
+   818→  const reviews = feed && feed.orgId === orgId ? feed.reviews : null
+   819→
+   820→  return (
+   821→    <div className="space-y-4">
+   822→      <Card className="p-4">
+   823→        <div className="flex items-center gap-4">
+   824→          <div className="text-4xl font-bold">{rating.count > 0 ? rating.avg.toFixed(1) : '—'}</div>
+   825→          <div>
+   826→            <Stars avg={rating.avg} />
+   827→            <p className="mt-1 text-xs text-muted-foreground">
+   828→              {rating.count > 0 ? `${rating.count} review${rating.count === 1 ? '' : 's'} from completed bookings` : 'Reviews appear after customers complete booked services.'}
+   829→            </p>
+   830→          </div>
+   831→        </div>
+   832→      </Card>
+   833→
+   834→      {reviews === null ? (
+   835→        <div className="space-y-3">{[0, 1].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+   836→      ) : reviews.length === 0 ? (
+   837→        <EmptyBlock icon={<MessageSquareText className="h-6 w-6" />} title="No reviews yet" desc="Complete bookings to earn verified reviews — only customers with a completed booking can review." />
+   838→      ) : (
+   839→        reviews.map((r) => (
+   840→          <Card key={r.id} className="p-4">
+   841→            <div className="flex items-center justify-between gap-2">
+   842→              <div className="flex items-center gap-2">
+   843→                <Stars avg={r.rating} />
+   844→                <span className="text-sm font-medium">{r.author.name}</span>
+   845→              </div>
+   846→              <span className="text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
+   847→            </div>
+   848→            {r.comment && <p className="mt-2 text-sm text-muted-foreground">{r.comment}</p>}
+   849→          </Card>
+   850→        ))
+   851→      )}
+   852→    </div>
+   853→  )
+   854→}
+   855→
+   856→// ─────────────────────────── Profile ───────────────────────────
+   857→
+   858→function ProfileTab({ garage, onSaved }: { garage: MyGarage; onSaved: () => void }) {
+   859→  const [name, setName] = useState(garage.org.name)
+   860→  const [description, setDescription] = useState(garage.org.description ?? '')
+   861→  const [location, setLocation] = useState(garage.org.location ?? '')
+   862→  const [phone, setPhone] = useState(garage.org.phone ?? '')
+   863→  const [town, setTown] = useState(garage.org.town ?? '')
+   864→  const [saving, setSaving] = useState(false)
+   865→
+   866→  function save() {
+   867→    if (name.trim().length < 2) { toast.error('Garage name is too short'); return }
+   868→    setSaving(true)
+   869→    apiSend<{ org: { id: string } }>(buildQuery('/api/garages', { id: garage.org.id }), 'PATCH', {
+   870→      name: name.trim(),
+   871→      description: description.trim(),
+   872→      location: location.trim(),
+   873→      phone: phone.trim(),
+   874→      town: town.trim(),
+   875→    })
+   876→      .then(() => { toast.success('Profile updated'); onSaved() })
+   877→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not update profile'))
+   878→      .finally(() => setSaving(false))
+   879→  }
+   880→
+   881→  return (
+   882→    <Card className="p-6">
+   883→      <CardHeader className="px-0 pt-0">
+   884→        <CardTitle className="text-lg">Garage profile</CardTitle>
+   885→        <CardDescription>Shown on your public listing in the Garages directory. County was set during verification.</CardDescription>
+   886→      </CardHeader>
+   887→      <CardContent className="grid gap-4 px-0 sm:grid-cols-2">
+   888→        <div className="space-y-1.5 sm:col-span-2">
+   889→          <Label htmlFor="pf-name">Garage name</Label>
+   890→          <Input id="pf-name" value={name} onChange={(e) => setName(e.target.value)} />
+   891→        </div>
+   892→        <div className="space-y-1.5 sm:col-span-2">
+   893→          <Label htmlFor="pf-desc">Description</Label>
+   894→          <Textarea id="pf-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What your garage specialises in…" />
+   895→        </div>
+   896→        <div className="space-y-1.5">
+   897→          <Label htmlFor="pf-town">Town</Label>
+   898→          <Input id="pf-town" value={town} onChange={(e) => setTown(e.target.value)} placeholder="e.g. Westlands" />
+   899→        </div>
+   900→        <div className="space-y-1.5">
+   901→          <Label htmlFor="pf-loc">Street / landmark</Label>
+   902→          <Input id="pf-loc" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Karuna Rd, Westlands" />
+   903→        </div>
+   904→        <div className="space-y-1.5">
+   905→          <Label htmlFor="pf-phone">Business phone</Label>
+   906→          <Input id="pf-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2547…" />
+   907→        </div>
+   908→        <div className="flex items-end">
+   909→          <Button onClick={save} disabled={saving} className="gap-1.5"><RefreshCw className={`h-4 w-4 ${saving ? 'animate-spin' : ''}`} /> {saving ? 'Saving…' : 'Save profile'}</Button>
+   910→        </div>
+   911→      </CardContent>
+   912→    </Card>
+   913→  )
+   914→}
+   915→
+   916→// ═══════════════════════════ Application wizard ═══════════════════════════
+   917→
+   918→type Doc = { name: string; url: string }
+   919→
+   920→function ApplicationWizard({ user, onDone }: { user: NonNullable<ReturnType<typeof useAuth.getState>['user']>; onDone: () => void }) {
+   921→  const [step, setStep] = useState(1)
+   922→  const [orgName, setOrgName] = useState('')
+   923→  const [regNo, setRegNo] = useState('')
+   924→  const [county, setCounty] = useState('Nairobi')
+   925→  const [town, setTown] = useState('')
+   926→  const [physicalAddress, setPhysicalAddress] = useState('')
+   927→  const [phone, setPhone] = useState(user.phone ?? '')
+   928→  const [email, setEmail] = useState(user.email)
+   929→  const [representative, setRepresentative] = useState(user.name)
+   930→  const [categories, setCategories] = useState<string[]>([])
+   931→  const [docs, setDocs] = useState<Doc[]>([])
+   932→  const [uploading, setUploading] = useState(false)
+   933→  const [consent, setConsent] = useState(false)
+   934→  const [notes, setNotes] = useState('')
+   935→  const [submitting, setSubmitting] = useState(false)
+   936→
+   937→  const canStep1 = orgName.trim().length >= 2 && phone.trim().length >= 9
+   938→  const canStep2 = categories.length > 0 && representative.trim().length >= 2
+   939→  const canSubmit = canStep1 && canStep2 && consent
+   940→
+   941→  function toggleCategory(c: string) {
+   942→    setCategories((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
+   943→  }
+   944→
+   945→  function uploadDoc(file: File) {
+   946→    setUploading(true)
+   947→    const fd = new FormData()
+   948→    fd.append('file', file)
+   949→    fd.append('kind', 'document')
+   950→    apiUpload<{ url: string; name: string }>('/api/upload', fd)
+   951→      .then((d) => { setDocs((prev) => [...prev, { name: d.name, url: d.url }]); toast.success(`${d.name} uploaded`) })
+   952→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Upload failed'))
+   953→      .finally(() => setUploading(false))
+   954→  }
+   955→
+   956→  function submit() {
+   957→    setSubmitting(true)
+   958→    apiSend<{ application: GarageApplication }>('/api/applications', 'POST', {
+   959→      type: 'GARAGE',
+   960→      status: 'SUBMITTED',
+   961→      orgName: orgName.trim(),
+   962→      regNo: regNo.trim() || undefined,
+   963→      county,
+   964→      town: town.trim() || undefined,
+   965→      physicalAddress: physicalAddress.trim() || undefined,
+   966→      phone: phone.trim(),
+   967→      email: email.trim() || undefined,
+   968→      representative: representative.trim(),
+   969→      categories: categories.join(','),
+   970→      documents: docs,
+   971→      consent,
+   972→      notes: notes.trim() || undefined,
+   973→    })
+   974→      .then(() => {
+   975→        toast.success('Application submitted — review usually starts within 24 business hours')
+   976→        onDone()
+   977→      })
+   978→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not submit application'))
+   979→      .finally(() => setSubmitting(false))
+   980→  }
+   981→
+   982→  return (
+   983→    <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
+   984→      <div className="flex items-center gap-2">
+   985→        <Wrench className="h-6 w-6 text-primary" />
+   986→        <h1 className="text-2xl font-bold">List your garage on CARMAZE</h1>
+   987→      </div>
+   988→      <p className="mt-2 text-sm text-muted-foreground">
+   989→        Apply once — our team verifies your business, then your garage goes live in the directory and you start receiving quote requests.
+   990→      </p>
+   991→
+   992→      <div className="mt-6 flex items-center gap-2" aria-hidden="true">
+   993→        {[1, 2, 3].map((s) => (
+   994→          <div key={s} className={`h-1.5 flex-1 rounded-full ${s <= step ? 'bg-primary' : 'bg-muted'}`} />
+   995→        ))}
+   996→      </div>
+   997→      <p className="mt-2 text-xs text-muted-foreground">Step {step} of 3</p>
+   998→
+   999→      <Card className="mt-4 p-6">
+  1000→        {step === 1 && (
+  1001→          <div className="space-y-4">
+  1002→            <h2 className="font-semibold">Business information</h2>
+  1003→            <div className="grid gap-4 sm:grid-cols-2">
+  1004→              <div className="space-y-1.5">
+  1005→                <Label htmlFor="ap-name">Garage / business name *</Label>
+  1006→                <Input id="ap-name" value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="e.g. Premium Motors Garage" />
+  1007→              </div>
+  1008→              <div className="space-y-1.5">
+  1009→                <Label htmlFor="ap-reg">Registration no. (optional)</Label>
+  1010→                <Input id="ap-reg" value={regNo} onChange={(e) => setRegNo(e.target.value)} placeholder="e.g. BN-2014-7731" />
+  1011→              </div>
+  1012→              <div className="space-y-1.5">
+  1013→                <Label htmlFor="ap-county">County *</Label>
+  1014→                <Select value={county} onValueChange={setCounty}>
+  1015→                  <SelectTrigger id="ap-county"><SelectValue /></SelectTrigger>
+  1016→                  <SelectContent>{KENYA_COUNTIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+  1017→                </Select>
+  1018→              </div>
+  1019→              <div className="space-y-1.5">
+  1020→                <Label htmlFor="ap-town">Town</Label>
+  1021→                <Input id="ap-town" value={town} onChange={(e) => setTown(e.target.value)} placeholder="e.g. Westlands" />
+  1022→              </div>
+  1023→              <div className="space-y-1.5 sm:col-span-2">
+  1024→                <Label htmlFor="ap-addr">Physical address / landmark</Label>
+  1025→                <Input id="ap-addr" value={physicalAddress} onChange={(e) => setPhysicalAddress(e.target.value)} placeholder="e.g. Karuna Rd, Westlands, opposite X" />
+  1026→              </div>
+  1027→              <div className="space-y-1.5">
+  1028→                <Label htmlFor="ap-phone">Business phone *</Label>
+  1029→                <Input id="ap-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2547…" />
+  1030→              </div>
+  1031→              <div className="space-y-1.5">
+  1032→                <Label htmlFor="ap-email">Business email</Label>
+  1033→                <Input id="ap-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="service@yourgarage.co.ke" />
+  1034→              </div>
+  1035→            </div>
+  1036→            <div className="flex justify-end">
+  1037→              <Button disabled={!canStep1} onClick={() => setStep(2)}>Continue</Button>
+  1038→            </div>
+  1039→          </div>
+  1040→        )}
+  1041→
+  1042→        {step === 2 && (
+  1043→          <div className="space-y-4">
+  1044→            <h2 className="font-semibold">Representative &amp; services</h2>
+  1045→            <div className="space-y-1.5">
+  1046→              <Label htmlFor="ap-rep">Authorised representative *</Label>
+  1047→              <Input id="ap-rep" value={representative} onChange={(e) => setRepresentative(e.target.value)} />
+  1048→            </div>
+  1049→            <div className="space-y-1.5">
+  1050→              <Label>Service categories offered * (select all that apply)</Label>
+  1051→              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+  1052→                {SERVICE_CATEGORIES.map((c) => (
+  1053→                  <label key={c} className="flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-sm transition-colors hover:bg-muted/60">
+  1054→                    <Checkbox checked={categories.includes(c)} onCheckedChange={() => toggleCategory(c)} aria-label={SERVICE_CATEGORY_LABELS[c]} />
+  1055→                    {SERVICE_CATEGORY_LABELS[c]}
+  1056→                  </label>
+  1057→                ))}
+  1058→              </div>
+  1059→              {categories.length === 0 && <p className="text-xs text-muted-foreground">At least one category is required.</p>}
+  1060→            </div>
+  1061→            <div className="flex justify-between">
+  1062→              <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
+  1063→              <Button disabled={!canStep2} onClick={() => setStep(3)}>Continue</Button>
+  1064→            </div>
+  1065→          </div>
+  1066→        )}
+  1067→
+  1068→        {step === 3 && (
+  1069→          <div className="space-y-4">
+  1070→            <h2 className="font-semibold">Documents &amp; consent</h2>
+  1071→            <div className="space-y-2">
+  1072→              <Label>Verification documents</Label>
+  1073→              <p className="text-xs text-muted-foreground">
+  1074→                Business permit / registration certificate. JPG, PNG or PDF up to 5MB. Stored privately — only reviewers see them.
+  1075→              </p>
+  1076→              <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:bg-muted/60">
+  1077→                <Upload className="h-4 w-4" />
+  1078→                {uploading ? 'Uploading…' : 'Upload a document'}
+  1079→                <input
+  1080→                  type="file"
+  1081→                  className="sr-only"
+  1082→                  accept="image/jpeg,image/png,image/webp,application/pdf"
+  1083→                  disabled={uploading || docs.length >= 5}
+  1084→                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f); e.currentTarget.value = '' }}
+  1085→                />
+  1086→              </label>
+  1087→              {docs.length > 0 && (
+  1088→                <ul className="space-y-1">
+  1089→                  {docs.map((d, i) => (
+  1090→                    <li key={d.url} className="flex items-center justify-between rounded-md bg-muted/60 px-3 py-1.5 text-sm">
+  1091→                      <span className="flex items-center gap-2 truncate"><FileText className="h-3.5 w-3.5 shrink-0" /> {d.name}</span>
+  1092→                      <button className="text-xs text-muted-foreground hover:text-destructive" onClick={() => setDocs((prev) => prev.filter((_, j) => j !== i))}>remove</button>
+  1093→                    </li>
+  1094→                  ))}
+  1095→                </ul>
+  1096→              )}
+  1097→            </div>
+  1098→            <div className="space-y-1.5">
+  1099→              <Label htmlFor="ap-notes">Anything else reviewers should know (optional)</Label>
+  1100→              <Textarea id="ap-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+  1101→            </div>
+  1102→            <label className="flex cursor-pointer items-start gap-2 text-sm">
+  1103→              <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" aria-label="Provider terms consent" />
+  1104→              <span>
+  1105→                I confirm the information provided is accurate and I accept the CARMAZE provider terms and privacy notice,
+  1106→                including honest-quote and no-fake-dispatch rules for roadside services. *
+  1107→              </span>
+  1108→            </label>
+  1109→            <div className="flex justify-between">
+  1110→              <Button variant="ghost" onClick={() => setStep(2)}>Back</Button>
+  1111→              <Button disabled={!canSubmit || submitting || uploading} onClick={submit}>
+  1112→                {submitting ? 'Submitting…' : 'Submit application'}
+  1113→              </Button>
+  1114→            </div>
+  1115→          </div>
+  1116→        )}
+  1117→      </Card>
+  1118→    </div>
+  1119→  )
+  1120→}
+  1121→
+  1122→// ═══════════════════════════ Application status ═══════════════════════════
+  1123→
+  1124→function ApplicationStatus({ application, onResubmitted, onNewApplication }: {
+  1125→  application: GarageApplication
+  1126→  onResubmitted: () => void
+  1127→  onNewApplication: () => void
+  1128→}) {
+  1129→  const [docs, setDocs] = useState<Doc[]>([])
+  1130→  const [uploading, setUploading] = useState(false)
+  1131→  const [notes, setNotes] = useState('')
+  1132→  const [submitting, setSubmitting] = useState(false)
+  1133→  const needsInfo = application.status === 'MORE_INFO_REQUIRED'
+  1134→
+  1135→  function uploadDoc(file: File) {
+  1136→    setUploading(true)
+  1137→    const fd = new FormData()
+  1138→    fd.append('file', file)
+  1139→    fd.append('kind', 'document')
+  1140→    apiUpload<{ url: string; name: string }>('/api/upload', fd)
+  1141→      .then((d) => { setDocs((prev) => [...prev, { name: d.name, url: d.url }]); toast.success(`${d.name} uploaded`) })
+  1142→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Upload failed'))
+  1143→      .finally(() => setUploading(false))
+  1144→  }
+  1145→
+  1146→  function resubmit() {
+  1147→    setSubmitting(true)
+  1148→    apiSend(`/api/applications/${application.id}`, 'PATCH', {
+  1149→      action: 'resubmit',
+  1150→      ...(docs.length > 0 ? { documents: docs } : {}),
+  1151→      notes: notes.trim() || 'Requested information provided.',
+  1152→    })
+  1153→      .then(() => { toast.success('Resubmitted — reviewers have been notified'); onResubmitted() })
+  1154→      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not resubmit'))
+  1155→      .finally(() => setSubmitting(false))
+  1156→  }
+  1157→
+  1158→  return (
+  1159→    <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
+  1160→      <h1 className="text-2xl font-bold">Garage application</h1>
+  1161→      <p className="mt-1 text-sm text-muted-foreground">Reference {application.refCode} · submitted {timeAgo(application.createdAt)}</p>
+  1162→
+  1163→      <Alert className="mt-4">
+  1164→        <ShieldCheck className="h-4 w-4" />
+  1165→        <AlertTitle>Status: {application.status.replaceAll('_', ' ').toLowerCase()}</AlertTitle>
+  1166→        <AlertDescription>
+  1167→          {needsInfo
+  1168→            ? 'The review team needs more information before approving. Provide it below.'
+  1169→            : application.status === 'REJECTED'
+  1170→              ? 'This application was rejected. You can submit a new application with updated information.'
+  1171→              : 'Your garage application is in the review queue. You will be notified of any update.'}
+  1172→        </AlertDescription>
+  1173→      </Alert>
+  1174→
+  1175→      <Card className="mt-4 p-5">
+  1176→        <h2 className="font-semibold">Timeline</h2>
+  1177→        <Separator className="my-3" />
+  1178→        <ol className="space-y-3">
+  1179→          {application.events.map((ev) => (
+  1180→            <li key={ev.id} className="flex gap-3 text-sm">
+  1181→              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#c9a45c]" aria-hidden="true" />
+  1182→              <div>
+  1183→                <p className="font-medium">{ev.type.replaceAll('_', ' ').toLowerCase()}</p>
+  1184→                {ev.note && <p className="text-muted-foreground">{ev.note}</p>}
+  1185→                <p className="text-xs text-muted-foreground">{timeAgo(ev.createdAt)}{ev.actorName ? ` · ${ev.actorName}` : ''}</p>
+  1186→              </div>
+  1187→            </li>
+  1188→          ))}
+  1189→        </ol>
+  1190→      </Card>
+  1191→
+  1192→      {needsInfo && (
+  1193→        <Card className="mt-4 p-5">
+  1194→          <h2 className="font-semibold">Provide requested information</h2>
+  1195→          <p className="mt-1 text-xs text-muted-foreground">Attach documents if asked, and add a short note for the reviewer.</p>
+  1196→          <label className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:bg-muted/60">
+  1197→            <Upload className="h-4 w-4" />
+  1198→            {uploading ? 'Uploading…' : 'Upload document (optional)'}
+  1199→            <input
+  1200→              type="file"
+  1201→              className="sr-only"
+  1202→              accept="image/jpeg,image/png,image/webp,application/pdf"
+  1203→              disabled={uploading}
+  1204→              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f); e.currentTarget.value = '' }}
+  1205→            />
+  1206→          </label>
+  1207→          {docs.length > 0 && (
+  1208→            <ul className="mt-2 space-y-1">
+  1209→              {docs.map((d, i) => (
+  1210→                <li key={d.url} className="flex items-center justify-between rounded-md bg-muted/60 px-3 py-1.5 text-sm">
+  1211→                  <span className="flex items-center gap-2 truncate"><FileText className="h-3.5 w-3.5 shrink-0" /> {d.name}</span>
+  1212→                  <button className="text-xs text-muted-foreground hover:text-destructive" onClick={() => setDocs((prev) => prev.filter((_, j) => j !== i))}>remove</button>
+  1213→                </li>
+  1214→              ))}
+  1215→            </ul>
+  1216→          )}
+  1217→          <div className="mt-3 space-y-1.5">
+  1218→            <Label htmlFor="rs-notes">Note to reviewers</Label>
+  1219→            <Textarea id="rs-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+  1220→          </div>
+  1221→          <Button className="mt-3" onClick={resubmit} disabled={submitting || uploading}>
+  1222→            {submitting ? 'Submitting…' : 'Resubmit application'}
+  1223→          </Button>
+  1224→        </Card>
+  1225→      )}
+  1226→
+  1227→      {application.status === 'REJECTED' && (
+  1228→        <Button className="mt-4" variant="outline" onClick={onNewApplication}>Submit a new application</Button>
+  1229→      )}
+  1230→    </div>
+  1231→  )
+  1232→}
+  1233→
+  1234→// ─────────────────────────── Shared bits ───────────────────────────
+  1235→
+  1236→function Stars({ avg }: { avg: number }) {
+  1237→  const rounded = Math.round(avg)
+  1238→  return (
+  1239→    <span className="flex" aria-label={`Rated ${avg.toFixed(1)} out of 5`} role="img">
+  1240→      {[1, 2, 3, 4, 5].map((i) => (
+  1241→        <Star key={i} className={`h-3.5 w-3.5 ${i <= rounded ? 'fill-[#c9a45c] text-[#c9a45c]' : 'text-muted-foreground/40'}`} aria-hidden="true" />
+  1242→      ))}
+  1243→    </span>
+  1244→  )
+  1245→}
+  1246→
+  1247→function EmptyBlock({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
+  1248→  return (
+  1249→    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center">
+  1250→      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">{icon}</span>
+  1251→      <h3 className="mt-3 font-semibold">{title}</h3>
+  1252→      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{desc}</p>
+  1253→    </div>
+  1254→  )
+  1255→}
+  1256→
+  1257→/** Soft fade/rise for new tab panels. */
+  1258→function FadeIn({ children }: { children: React.ReactNode }) {
+  1259→  const reduce = useReducedMotion()
+  1260→  return (
+  1261→    <motion.div
+  1262→      initial={reduce ? false : { opacity: 0, y: 10 }}
+  1263→      animate={{ opacity: 1, y: 0 }}
+  1264→      transition={{ duration: 0.3, ease: 'easeOut' }}
+  1265→    >
+  1266→      {children}
+  1267→    </motion.div>
+  1268→  )
+  1269→}
+  1270→
+  1271→// ═══════════════════════════ Vehicle custody (org side) ═══════════════════════════
+  1272→
+  1273→type CustodyRow = {
+  1274→  id: string; refCode: string; status: string; vehicleDesc: string; plate: string | null
+  1275→  customerName: string; requestedWork: string | null; createdAt: string; updatedAt: string
+  1276→}
+  1277→
+  1278→type OrgRoadTest = {
+  1279→  id: string; purpose: string; driverName: string; status: string
+  1280→  startOdometerKm: number | null; endOdometerKm: number | null
+  1281→  requestedAt: string; authorisedAt: string | null; startedAt: string | null; endedAt: string | null
+  1282→  notes: string | null; incident: boolean
+  1283→}
+  1284→
+  1285→type OrgCustodyEvent = {
+  1286→  id: string; type: string; fromStatus: string | null; toStatus: string | null
+  1287→  actorName: string | null; actorSide: string; note: string | null; createdAt: string
+  1288→}
+  1289→
+  1290→type OrgCustodyDetail = CustodyRow & {
+  1291→  orgName: string
+  1292→  authorisedSpendMinor: number | null
+  1293→  roadTestAllowed: boolean
+  1294→  declaredCondition?: string | null
+  1295→  declaredMileageKm?: number | null
+  1296→  valuables?: string | null
+  1297→  completedWork?: string | null
+  1298→  finalOdometerKm?: number | null
+  1299→  finalNotes?: string | null
+  1300→  costMinor?: number | null
+  1301→  photos: string[]
+  1302→  completionPhotos: string[]
+  1303→  events: OrgCustodyEvent[]
+  1304→  roadTests: OrgRoadTest[]
+  1305→  collectionAuth: { collectorName: string; collectorPhone: string; codeHint: string; expiresAt: string; usedAt: string | null; revokedAt: string | null } | null
+  1306→}
+  1307→
+  1308→const CUSTODY_META: Record<string, { label: string; badge: string }> = {
+  1309→  HANDOVER_REQUESTED: { label: 'Handover requested', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  1310→  RECEIVED: { label: 'Received', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+  1311→  INSPECTION: { label: 'Inspection', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+  1312→  AWAITING_APPROVAL: { label: 'Awaiting customer approval', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  1313→  WORK_IN_PROGRESS: { label: 'Work in progress', badge: 'border-indigo-300 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' },
+  1314→  ROAD_TEST_REQUESTED: { label: 'Road test requested', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  1315→  READY_FOR_COLLECTION: { label: 'Ready for collection', badge: 'border-primary/50 bg-primary/10 text-primary dark:text-[#9dc3ae]' },
+  1316→  COLLECTION_PENDING: { label: 'Collection pending', badge: 'border-primary/50 bg-primary/10 text-primary dark:text-[#9dc3ae]' },
+  1317→  RETURNED: { label: 'Returned', badge: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
+  1318→  DISPUTED: { label: 'Disputed', badge: 'border-destructive/50 bg-destructive/10 text-destructive' },
+  1319→  INCIDENT: { label: 'Incident', badge: 'border-destructive/50 bg-destructive/10 text-destructive' },
+  1320→}
+  1321→
+  1322→/** Lifecycle order used to lay out the board. */
+  1323→const CUSTODY_FLOW = [
+  1324→  'HANDOVER_REQUESTED', 'RECEIVED', 'INSPECTION', 'AWAITING_APPROVAL', 'WORK_IN_PROGRESS',
+  1325→  'ROAD_TEST_REQUESTED', 'READY_FOR_COLLECTION', 'COLLECTION_PENDING', 'RETURNED', 'DISPUTED', 'INCIDENT',
+  1326→] as const
+  1327→
+  1328→const ROAD_TEST_META: Record<string, { label: string; badge: string }> = {
+  1329→  REQUESTED: { label: 'Awaiting customer authorisation', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  1330→  AUTHORISED: { label: 'Authorised — ready to start', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+  1331→  IN_PROGRESS: { label: 'On the road', badge: 'border-indigo-300 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' },
+  1332→  COMPLETED: { label: 'Completed', badge: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
+  1333→  DECLINED: { label: 'Declined by customer', badge: 'bg-muted text-muted-foreground' },
+  1334→  CANCELLED: { label: 'Cancelled', badge: 'bg-muted text-muted-foreground' },
+  1335→}
+  1336→
+  1337→/** Statuses the garage can progress from. */
+  1338→const MUTABLE_STATUSES = new Set(['RECEIVED', 'INSPECTION', 'AWAITING_APPROVAL', 'WORK_IN_PROGRESS'])
+  1339→
+  1340→function CustodyTab() {
+  1341→  const [custodies, setCustodies] = useState<CustodyRow[] | null>(null)
+  1342→  const [tick, setTick] = useState(0)
+  1343→  const [detailId, setDetailId] = useState<string | null>(null)
+  1344→
+  1345→  useEffect(() => {
+  1346→    let cancelled = false
+  1347→    apiGet<{ custodies: CustodyRow[] }>('/api/custody?org=1')
+  1348→      .then((d) => { if (!cancelled) setCustodies(d.custodies) })
+  1349→      .catch(() => { if (!cancelled) setCustodies([]) })
+  1350→    return () => { cancelled = true }
+  1351→  }, [tick])
+  1352→
+  1353→  // Poll the board every 15 seconds.
+  1354→  useEffect(() => {
+  1355→    const t = setInterval(() => setTick((k) => k + 1), 15_000)
+  1356→    return () => clearInterval(t)
+  1357→  }, [])
+  1358→
+  1359→  const reload = useCallback(() => setTick((k) => k + 1), [])
+  1360→  const list = custodies ?? []
+  1361→  const inCustody = list.filter((c) => !['RETURNED'].includes(c.status) && c.status !== 'DISPUTED' && c.status !== 'INCIDENT').length
+  1362→  const awaitingCustomer = list.filter((c) => ['AWAITING_APPROVAL', 'ROAD_TEST_REQUESTED'].includes(c.status)).length
+  1363→  const readyForCollection = list.filter((c) => ['READY_FOR_COLLECTION', 'COLLECTION_PENDING'].includes(c.status)).length
+  1364→  const disputed = list.filter((c) => ['DISPUTED', 'INCIDENT'].includes(c.status)).length
+  1365→
+  1366→  return (
+  1367→    <div className="space-y-4">
+  1368→      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+  1369→        <div className="rounded-xl border bg-card p-4">
+  1370→          <p className="text-3xl font-bold"><CountUp value={inCustody} /></p>
+  1371→          <p className="mt-1 text-sm font-medium">Vehicles in custody</p>
+  1372→          <p className="text-xs text-muted-foreground">From handover to release</p>
+  1373→        </div>
+  1374→        <div className="rounded-xl border bg-card p-4">
+  1375→          <p className="text-3xl font-bold"><CountUp value={awaitingCustomer} /></p>
+  1376→          <p className="mt-1 text-sm font-medium">Awaiting customer</p>
+  1377→          <p className="text-xs text-muted-foreground">Approvals &amp; road tests</p>
+  1378→        </div>
+  1379→        <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
+  1380→          <p className="text-3xl font-bold text-primary dark:text-[#9dc3ae]"><CountUp value={readyForCollection} /></p>
+  1381→          <p className="mt-1 text-sm font-medium">Ready for collection</p>
+  1382→          <p className="text-xs text-muted-foreground">Verify the code at release</p>
+  1383→        </div>
+  1384→        <div className={`rounded-xl border bg-card p-4 ${disputed > 0 ? 'border-destructive/40 bg-destructive/5' : ''}`}>
+  1385→          <p className={`text-3xl font-bold ${disputed > 0 ? 'text-destructive' : ''}`}><CountUp value={disputed} /></p>
+  1386→          <p className="mt-1 text-sm font-medium">Disputed / incidents</p>
+  1387→          <p className="text-xs text-muted-foreground">Frozen pending review</p>
+  1388→        </div>
+  1389→      </div>
+  1390→
+  1391→      <p className="text-sm text-muted-foreground">
+  1392→        Every vehicle handed over for work is tracked through custody. A vehicle can only be released with the
+  1393→        customer&apos;s 6-digit collection code or their personal collection confirmation — there is no way around it.
+  1394→      </p>
+  1395→
+  1396→      {custodies === null ? (
+  1397→        <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
+  1398→      ) : list.length === 0 ? (
+  1399→        <EmptyBlock
+  1400→          icon={<ClipboardCheck className="h-6 w-6" />}
+  1401→          title="No custody jobs yet"
+  1402→          desc="When a customer hands a vehicle over for booked work, it appears here with full condition records and a protected release flow."
+  1403→        />
+  1404→      ) : (
+  1405→        CUSTODY_FLOW.map((status) => {
+  1406→          const group = list.filter((c) => c.status === status)
+  1407→          if (group.length === 0) return null
+  1408→          const meta = CUSTODY_META[status] ?? { label: status, badge: 'bg-muted text-muted-foreground' }
+  1409→          return (
+  1410→            <section key={status} aria-label={meta.label}>
+  1411→              <div className="flex items-center gap-2">
+  1412→                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{meta.label}</h3>
+  1413→                <Badge variant="outline" className={meta.badge}>{group.length}</Badge>
+  1414→              </div>
+  1415→              <div className="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+  1416→                {group.map((c) => (
+  1417→                  <button
+  1418→                    key={c.id}
+  1419→                    onClick={() => setDetailId(c.id)}
+  1420→                    className="rounded-xl border bg-card p-4 text-left shadow-sm transition-all hover:shadow-md"
+  1421→                    aria-label={`Open custody job ${c.refCode}`}
+  1422→                  >
+  1423→                    <div className="flex items-start justify-between gap-2">
+  1424→                      <h4 className="flex min-w-0 items-center gap-2 font-semibold leading-tight">
+  1425→                        <CarFront className="h-4 w-4 shrink-0 text-primary" />
+  1426→                        <span className="min-w-0 truncate">{c.vehicleDesc}</span>
+  1427→                      </h4>
+  1428→                      {c.plate && <Badge variant="secondary" className="shrink-0 font-mono text-[11px]">{c.plate}</Badge>}
+  1429→                    </div>
+  1430→                    <p className="mt-1 text-xs text-muted-foreground">
+  1431→                      {c.customerName} · <span className="font-mono">{c.refCode}</span> · updated {timeAgo(c.updatedAt)}
+  1432→                    </p>
+  1433→                    {c.requestedWork && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{c.requestedWork}</p>}
+  1434→                    {['DISPUTED', 'INCIDENT'].includes(status) && (
+  1435→                      <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-destructive">
+  1436→                        <Ban className="h-3.5 w-3.5" /> Status changes locked
+  1437→                      </p>
+  1438→                    )}
+  1439→                    {status === 'READY_FOR_COLLECTION' && (
+  1440→                      <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-primary dark:text-[#9dc3ae]">
+  1441→                        <KeyRound className="h-3.5 w-3.5" /> Verify collection code to release
+  1442→                      </p>
+  1443→                    )}
+  1444→                  </button>
+  1445→                ))}
+  1446→              </div>
+  1447→            </section>
+  1448→          )
+  1449→        })
+  1450→      )}
+  1451→
+  1452→      <CustodyDetailDialog custodyId={detailId} onClose={() => setDetailId(null)} onChanged={reload} />
+  1453→    </div>
+  1454→  )
+  1455→}
+  1456→
+  1457→function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
+  1458→  custodyId: string | null
+  1459→  onClose: () => void
+  1460→  onChanged: () => void
+  1461→}) {
+  1462→  const [detail, setDetail] = useState<OrgCustodyDetail | null>(null)
+  1463→  const [loading, setLoading] = useState(false)
+  1464→  const [busy, setBusy] = useState(false)
+  1465→  const [dialog, setDialog] = useState<'receive' | 'ready' | 'note' | 'roadtest-request' | 'roadtest-start' | 'roadtest-end' | 'verify' | null>(null)
+  1466→  const [activeRoadTest, setActiveRoadTest] = useState<OrgRoadTest | null>(null)
+  1467→
+  1468→  async function load(id: string, silent = false) {
+  1469→    if (!silent) setLoading(true)
+  1470→    try {
+  1471→      const d = await apiGet<{ custody: OrgCustodyDetail }>(`/api/custody/${id}`)
+  1472→      setDetail(d.custody)
+  1473→    } catch (e) {
+  1474→      if (!silent) toast.error(e instanceof Error ? e.message : 'Could not load the custody job.')
+  1475→    } finally {
+  1476→      if (!silent) setLoading(false)
+  1477→    }
+  1478→  }
+  1479→
+  1480→  useEffect(() => {
+  1481→    if (custodyId) load(custodyId)
+  1482→    else { setDetail(null); setDialog(null); setActiveRoadTest(null) }
+  1483→     
+  1484→  }, [custodyId])
+  1485→
+  1486→  async function patchCustody(payload: Record<string, unknown>, successMsg: string): Promise<boolean> {
+  1487→    if (!custodyId) return false
+  1488→    setBusy(true)
+  1489→    try {
+  1490→      await apiSend(`/api/custody/${custodyId}`, 'PATCH', payload)
+  1491→      toast.success(successMsg)
+  1492→      setDialog(null)
+  1493→      await load(custodyId, true)
+  1494→      onChanged()
+  1495→      return true
+  1496→    } catch (e) {
+  1497→      toast.error(e instanceof Error ? e.message : 'Action failed.')
+  1498→      return false
+  1499→    } finally {
+  1500→      setBusy(false)
+  1501→    }
+  1502→  }
+  1503→
+  1504→  const meta = detail ? (CUSTODY_META[detail.status] ?? { label: detail.status, badge: 'bg-muted text-muted-foreground' }) : null
+  1505→  const disputed = detail ? (detail.status === 'DISPUTED' || detail.status === 'INCIDENT') : false
+  1506→  const canVerify = detail ? ['READY_FOR_COLLECTION', 'COLLECTION_PENDING'].includes(detail.status) : false
+  1507→  const canRequestRoadTest = detail ? detail.roadTestAllowed && MUTABLE_STATUSES.has(detail.status) : false
+  1508→  const authActive = detail?.collectionAuth && !detail.collectionAuth.usedAt && !detail.collectionAuth.revokedAt
+  1509→
+  1510→  return (
+  1511→    <>
+  1512→    <Dialog open={custodyId !== null} onOpenChange={(open) => { if (!open) onClose() }}>
+  1513→      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+  1514→        {loading || !detail || !meta ? (
+  1515→          <div className="space-y-3 py-4">
+  1516→            <Skeleton className="h-8 w-2/3" />
+  1517→            <Skeleton className="h-20 w-full" />
+  1518→            <Skeleton className="h-40 w-full" />
+  1519→          </div>
+  1520→        ) : (
+  1521→          <div className="space-y-5">
+  1522→            <DialogHeader>
+  1523→              <DialogTitle className="flex flex-wrap items-center gap-2 text-left">
+  1524→                {detail.vehicleDesc}
+  1525→                {detail.plate && <Badge variant="secondary" className="font-mono text-[11px]">{detail.plate}</Badge>}
+  1526→                <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>
+  1527→              </DialogTitle>
+  1528→              <DialogDescription className="text-left">
+  1529→                {detail.customerName} · <span className="font-mono">{detail.refCode}</span> · handover requested {timeAgo(detail.createdAt)}
+  1530→              </DialogDescription>
+  1531→            </DialogHeader>
+  1532→
+  1533→            {disputed && (
+  1534→              <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-4" role="alert">
+  1535→                <p className="flex items-center gap-2 text-sm font-semibold text-destructive">
+  1536→                  <Ban className="h-4 w-4" /> Custody disputed — incident opened.
+  1537→                </p>
+  1538→                <p className="mt-1 text-sm leading-relaxed text-destructive/90">
+  1539→                  CARMAZE security will review. You cannot close this dispute.
+  1540→                </p>
+  1541→              </div>
+  1542→            )}
+  1543→
+  1544→            {/* Job facts */}
+  1545→            <div className="grid gap-3 text-sm sm:grid-cols-2">
+  1546→              <div className="rounded-lg border p-3 sm:col-span-2">
+  1547→                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Requested work</p>
+  1548→                <p className="mt-1">{detail.requestedWork ?? '—'}</p>
+  1549→              </div>
+  1550→              <div className="rounded-lg border p-3">
+  1551→                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Authorised spend cap</p>
+  1552→                <p className="mt-1 font-semibold">{detail.authorisedSpendMinor != null ? money(detail.authorisedSpendMinor) : 'No cap set'}</p>
+  1553→              </div>
+  1554→              <div className="rounded-lg border p-3">
+  1555→                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Road tests</p>
+  1556→                <p className="mt-1 font-semibold">{detail.roadTestAllowed ? 'Authorised by customer' : 'Not authorised'}</p>
+  1557→              </div>
+  1558→              {detail.declaredMileageKm != null && (
+  1559→                <div className="rounded-lg border p-3">
+  1560→                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Odometer at handover</p>
+  1561→                  <p className="mt-1 font-semibold">{detail.declaredMileageKm.toLocaleString()} km</p>
+  1562→                </div>
+  1563→              )}
+  1564→              {detail.valuables && (
+  1565→                <div className="rounded-lg border p-3 sm:col-span-2">
+  1566→                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valuables declared</p>
+  1567→                  <p className="mt-1">{detail.valuables}</p>
+  1568→                </div>
+  1569→              )}
+  1570→              {detail.declaredCondition && (
+  1571→                <div className="rounded-lg border p-3 sm:col-span-2">
+  1572→                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Condition declared at handover</p>
+  1573→                  <p className="mt-1">{detail.declaredCondition}</p>
+  1574→                </div>
+  1575→              )}
+  1576→            </div>
+  1577→
+  1578→            {/* Declared condition photos */}
+  1579→            {detail.photos.length > 0 && (
+  1580→              <div>
+  1581→                <h4 className="text-sm font-semibold">Handover condition photos</h4>
+  1582→                <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+  1583→                  {detail.photos.map((p) => (
+  1584→                    <a key={p} href={p} target="_blank" rel="noreferrer">
+  1585→                      { }
+  1586→                      <img src={p} alt="Vehicle condition at handover" className="aspect-square w-full rounded-lg border object-cover transition-transform hover:scale-[1.03]" />
+  1587→                    </a>
+  1588→                  ))}
+  1589→                </div>
+  1590→              </div>
+  1591→            )}
+  1592→
+  1593→            {/* Lifecycle actions */}
+  1594→            {!disputed && (
+  1595→              <div className="rounded-xl border p-4">
+  1596→                <h4 className="text-sm font-semibold">Progress the job</h4>
+  1597→                <div className="mt-3 flex flex-wrap gap-2">
+  1598→                  {detail.status === 'HANDOVER_REQUESTED' && (
+  1599→                    <Button size="sm" className="min-h-11 gap-1.5" disabled={busy} onClick={() => setDialog('receive')}>
+  1600→                      <PackageCheck className="h-4 w-4" /> Receive vehicle
+  1601→                    </Button>
+  1602→                  )}
+  1603→                  {detail.status === 'RECEIVED' && (
+  1604→                    <Button size="sm" className="min-h-11 gap-1.5" disabled={busy} onClick={() => patchCustody({ action: 'status', status: 'INSPECTION' }, 'Moved to inspection')}>
+  1605→                      <ClipboardCheck className="h-4 w-4" /> Begin inspection
+  1606→                    </Button>
+  1607→                  )}
+  1608→                  {detail.status === 'INSPECTION' && (
+  1609→                    <Button size="sm" className="min-h-11 gap-1.5" disabled={busy} onClick={() => patchCustody({ action: 'status', status: 'AWAITING_APPROVAL' }, 'Sent to the customer for approval')}>
+  1610→                      <Send className="h-4 w-4" /> Submit for customer approval
+  1611→                    </Button>
+  1612→                  )}
+  1613→                  {detail.status === 'AWAITING_APPROVAL' && (
+  1614→                    <Button size="sm" className="min-h-11 gap-1.5" disabled={busy} onClick={() => patchCustody({ action: 'status', status: 'WORK_IN_PROGRESS' }, 'Work started')}>
+  1615→                      <Play className="h-4 w-4" /> Start work
+  1616→                    </Button>
+  1617→                  )}
+  1618→                  {detail.status === 'WORK_IN_PROGRESS' && (
+  1619→                    <Button size="sm" className="min-h-11 gap-1.5" disabled={busy} onClick={() => setDialog('ready')}>
+  1620→                      <CheckCircle2 className="h-4 w-4" /> Mark ready for collection
+  1621→                    </Button>
+  1622→                  )}
+  1623→                  <Button size="sm" variant="outline" className="min-h-11 gap-1.5" disabled={busy} onClick={() => setDialog('note')}>
+  1624→                    <StickyNote className="h-4 w-4" /> Add note
+  1625→                  </Button>
+  1626→                </div>
+  1627→                {detail.completedWork && (
+  1628→                  <div className="mt-3 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
+  1629→                    <p className="font-medium text-primary dark:text-[#9dc3ae]">Recorded completion</p>
+  1630→                    <p className="mt-1">{detail.completedWork}</p>
+  1631→                    <p className="mt-1 text-xs text-muted-foreground">
+  1632→                      {detail.costMinor != null && `Final cost ${money(detail.costMinor)} · `}
+  1633→                      {detail.finalOdometerKm != null && `${detail.finalOdometerKm.toLocaleString()} km · `}
+  1634→                      recorded {timeAgo(detail.updatedAt)}
+  1635→                    </p>
+  1636→                    {detail.completionPhotos.length > 0 && (
+  1637→                      <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+  1638→                        {detail.completionPhotos.map((p) => (
+  1639→                          <a key={p} href={p} target="_blank" rel="noreferrer">
+  1640→                            { }
+  1641→                            <img src={p} alt="Completed work" className="aspect-square w-full rounded-lg border object-cover" />
+  1642→                          </a>
+  1643→                        ))}
+  1644→                      </div>
+  1645→                    )}
+  1646→                  </div>
+  1647→                )}
+  1648→              </div>
+  1649→            )}
+  1650→
+  1651→            {/* Road tests */}
+  1652→            {!disputed && (
+  1653→              <div className="rounded-xl border p-4">
+  1654→                <div className="flex flex-wrap items-center justify-between gap-2">
+  1655→                  <h4 className="text-sm font-semibold">Road tests</h4>
+  1656→                  {canRequestRoadTest && (
+  1657→                    <Button size="sm" variant="outline" className="min-h-9 gap-1.5" onClick={() => setDialog('roadtest-request')}>
+  1658→                      <Gauge className="h-3.5 w-3.5" /> Request road test
+  1659→                    </Button>
+  1660→                  )}
+  1661→                </div>
+  1662→                {detail.roadTests.length === 0 ? (
+  1663→                  <p className="mt-2 text-sm text-muted-foreground">
+  1664→                    {detail.roadTestAllowed
+  1665→                      ? 'No road tests yet. Request one when the job needs an on-road check.'
+  1666→                      : 'The customer has not authorised road tests for this job.'}
+  1667→                  </p>
+  1668→                ) : (
+  1669→                  <div className="mt-2 space-y-2">
+  1670→                    {detail.roadTests.map((rt) => {
+  1671→                      const rm = ROAD_TEST_META[rt.status] ?? { label: rt.status, badge: 'bg-muted text-muted-foreground' }
+  1672→                      return (
+  1673→                        <div key={rt.id} className={rt.incident ? 'rounded-lg border border-destructive/50 bg-destructive/5 p-3' : 'rounded-lg border p-3'}>
+  1674→                          <div className="flex flex-wrap items-center justify-between gap-2">
+  1675→                            <p className="text-sm font-medium">{rt.purpose}</p>
+  1676→                            <Badge variant="outline" className={rm.badge}>{rm.label}</Badge>
+  1677→                          </div>
+  1678→                          <p className="mt-1 text-xs text-muted-foreground">
+  1679→                            Driver: {rt.driverName} · requested {timeAgo(rt.requestedAt)}
+  1680→                            {rt.startOdometerKm != null && ` · out ${rt.startOdometerKm.toLocaleString()} km`}
+  1681→                            {rt.endOdometerKm != null && ` · in ${rt.endOdometerKm.toLocaleString()} km`}
+  1682→                          </p>
+  1683→                          {rt.notes && <p className="mt-1 text-xs text-muted-foreground">Notes: {rt.notes}</p>}
+  1684→                          {rt.incident && (
+  1685→                            <p className="mt-1 flex items-center gap-1 text-xs font-medium text-destructive">
+  1686→                              <Ban className="h-3 w-3" /> Incident reported on this road test
+  1687→                            </p>
+  1688→                          )}
+  1689→                          {rt.status === 'AUTHORISED' && (
+  1690→                            <Button size="sm" className="mt-2 min-h-9 gap-1.5" onClick={() => { setActiveRoadTest(rt); setDialog('roadtest-start') }}>
+  1691→                              <Play className="h-3.5 w-3.5" /> Start (record odometer)
+  1692→                            </Button>
+  1693→                          )}
+  1694→                          {rt.status === 'IN_PROGRESS' && (
+  1695→                            <Button size="sm" className="mt-2 min-h-9 gap-1.5" onClick={() => { setActiveRoadTest(rt); setDialog('roadtest-end') }}>
+  1696→                              <CheckCircle2 className="h-3.5 w-3.5" /> End road test
+  1697→                            </Button>
+  1698→                          )}
+  1699→                        </div>
+  1700→                      )
+  1701→                    })}
+  1702→                  </div>
+  1703→                )}
+  1704→              </div>
+  1705→            )}
+  1706→
+  1707→            {/* Release verification */}
+  1708→            {canVerify && !disputed && (
+  1709→              <div className="rounded-xl border border-primary/50 bg-primary/5 p-4">
+  1710→                <h4 className="flex items-center gap-2 text-sm font-semibold text-primary dark:text-[#9dc3ae]">
+  1711→                  <KeyRound className="h-4 w-4" /> Release verification
+  1712→                </h4>
+  1713→                {authActive && detail.collectionAuth && (
+  1714→                  <div className="mt-2 rounded-lg border border-amber-300 bg-amber-500/10 p-3 text-sm">
+  1715→                    <p className="font-medium">Active collection authorisation</p>
+  1716→                    <p className="mt-0.5 text-xs text-muted-foreground">
+  1717→                      Collector: <strong className="text-foreground">{detail.collectionAuth.collectorName}</strong> · code hint{' '}
+  1718→                      <strong className="font-mono text-foreground">{detail.collectionAuth.codeHint}</strong> · valid until{' '}
+  1719→                      {dateLabel(detail.collectionAuth.expiresAt)}
+  1720→                    </p>
+  1721→                  </div>
+  1722→                )}
+  1723→                <p className="mt-2 text-sm text-muted-foreground">
+  1724→                  Ask the person collecting for their 6-digit code and enter it with their name. The vehicle is marked
+  1725→                  returned only after the code verifies — never hand over keys without it.
+  1726→                </p>
+  1727→                <Button className="mt-3 min-h-11 gap-2" onClick={() => setDialog('verify')}>
+  1728→                  <ShieldCheck className="h-4 w-4" /> Verify collection
+  1729→                </Button>
+  1730→              </div>
+  1731→            )}
+  1732→
+  1733→            {/* Timeline */}
+  1734→            <div>
+  1735→              <h4 className="text-sm font-semibold">Event timeline</h4>
+  1736→              <Stagger className="mt-2 space-y-3">
+  1737→                {detail.events.map((ev) => (
+  1738→                  <StaggerItem key={ev.id}>
+  1739→                    <div className="flex gap-3 text-sm">
+  1740→                      <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#c9a45c] ring-4 ring-[#c9a45c]/10" aria-hidden="true" />
+  1741→                      <div className="min-w-0">
+  1742→                        <p className="font-medium">{custodyEventLabel(ev)}</p>
+  1743→                        {ev.note && <p className="text-muted-foreground">{ev.note}</p>}
+  1744→                        <p className="text-xs text-muted-foreground">
+  1745→                          {timeAgo(ev.createdAt)}{ev.actorName ? ` · ${ev.actorName}` : ''}{ev.actorSide ? ` (${ev.actorSide.toLowerCase()})` : ''}
+  1746→                        </p>
+  1747→                      </div>
+  1748→                    </div>
+  1749→                  </StaggerItem>
+  1750→                ))}
+  1751→              </Stagger>
+  1752→            </div>
+  1753→          </div>
+  1754→        )}
+  1755→
+  1756→      </DialogContent>
+  1757→    </Dialog>
+  1758→
+  1759→    {/* ── Receive vehicle dialog ── */}
+  1760→    <ReceiveVehicleDialog
+  1761→      open={dialog === 'receive'}
+  1762→      busy={busy}
+  1763→      onCancel={() => setDialog(null)}
+  1764→      onSubmit={(staffName) => patchCustody({ action: 'receive', staffName }, 'Vehicle received into custody')}
+  1765→    />
+  1766→
+  1767→    {/* ── Ready for collection dialog ── */}
+  1768→    <ReadyForCollectionDialog
+  1769→      open={dialog === 'ready'}
+  1770→      busy={busy}
+  1771→      onCancel={() => setDialog(null)}
+  1772→      onSubmit={async (payload) => {
+  1773→        const ok = await patchCustody({ action: 'status', status: 'READY_FOR_COLLECTION', ...payload }, 'Marked ready for collection — the customer can now authorise release')
+  1774→        return ok
+  1775→      }}
+  1776→    />
+  1777→
+  1778→    {/* ── Note dialog ── */}
+  1779→    <NoteDialog
+  1780→      open={dialog === 'note'}
+  1781→      busy={busy}
+  1782→      onCancel={() => setDialog(null)}
+  1783→      onSubmit={(note) => patchCustody({ action: 'note', note }, 'Note added to the custody record')}
+  1784→    />
+  1785→
+  1786→    {/* ── Request road test dialog ── */}
+  1787→    <RequestRoadTestDialog
+  1788→      open={dialog === 'roadtest-request'}
+  1789→      busy={busy}
+  1790→      onCancel={() => setDialog(null)}
+  1791→      onSubmit={(purpose, driverName) => patchCustody({ action: 'request-roadtest', purpose, driverName }, 'Road test requested — awaiting customer authorisation')}
+  1792→    />
+  1793→
+  1794→    {/* ── Start road test dialog ── */}
+  1795→    <OdometerDialog
+  1796→      open={dialog === 'roadtest-start'}
+  1797→      title="Start road test"
+  1798→      description={activeRoadTest ? `${activeRoadTest.purpose} — driver ${activeRoadTest.driverName}. Record the odometer before leaving the yard.` : ''}
+  1799→      label="Odometer out (km)"
+  1800→      submitLabel="Start test"
+  1801→      busy={busy}
+  1802→      onCancel={() => setDialog(null)}
+  1803→      onSubmit={(km) => patchCustody({ action: 'start-roadtest', roadTestId: activeRoadTest?.id, startOdometerKm: km }, 'Road test started')}
+  1804→    />
+  1805→
+  1806→    {/* ── End road test dialog ── */}
+  1807→    <EndRoadTestDialog
+  1808→      open={dialog === 'roadtest-end'}
+  1809→      roadTest={activeRoadTest}
+  1810→      busy={busy}
+  1811→      onCancel={() => setDialog(null)}
+  1812→      onSubmit={(km, notes, incident) => patchCustody(
+  1813→        { action: 'end-roadtest', roadTestId: activeRoadTest?.id, endOdometerKm: km, notes: notes || undefined, incident: incident || undefined },
+  1814→        incident ? 'Road test ended — incident flagged and CARMAZE notified' : 'Road test completed',
+  1815→      )}
+  1816→    />
+  1817→
+  1818→    {/* ── Verify collection dialog ── */}
+  1819→    <VerifyCollectionDialog
+  1820→      open={dialog === 'verify'}
+  1821→      busy={busy}
+  1822→      vehicleLabel={detail ? `${detail.vehicleDesc}${detail.plate ? ` (${detail.plate})` : ''}` : ''}
+  1823→      onCancel={() => setDialog(null)}
+  1824→      onSubmit={async (collectorName, authCode) => {
+  1825→        if (!custodyId) return false
+  1826→        setBusy(true)
+  1827→        try {
+  1828→          await apiSend(`/api/custody/${custodyId}/collect`, 'POST', { collectorName, authCode })
+  1829→          toast.success('Code verified — vehicle released. Custody closed as RETURNED.')
+  1830→          setDialog(null)
+  1831→          await load(custodyId, true)
+  1832→          onChanged()
+  1833→          return true
+  1834→        } catch (e) {
+  1835→          toast.error(e instanceof Error ? e.message : 'Verification failed — check the name and code.')
+  1836→          return false
+  1837→        } finally {
+  1838→          setBusy(false)
+  1839→        }
+  1840→      }}
+  1841→    />
+  1842→    </>
+  1843→  )
+  1844→}
+  1845→
+  1846→function custodyEventLabel(ev: OrgCustodyEvent): string {
+  1847→  const labels: Record<string, string> = {
+  1848→    CREATED: 'Custody requested',
+  1849→    RECEIVE: 'Vehicle received',
+  1850→    STATUS_CHANGED: 'Status updated',
+  1851→    NOTE: 'Note added',
+  1852→    ROAD_TEST_REQUESTED: 'Road test requested',
+  1853→    ROAD_TEST_AUTHORISED: 'Road test authorised by customer',
+  1854→    ROAD_TEST_DECLINED: 'Road test declined by customer',
+  1855→    ROAD_TEST_STARTED: 'Road test started',
+  1856→    ROAD_TEST_ENDED: 'Road test ended',
+  1857→    COMPLETION_RECORDED: 'Completion recorded',
+  1858→    COLLECTION_AUTH_CREATED: 'Third-party collection authorised',
+  1859→    COLLECTION_AUTH_REVOKED: 'Collection authorisation revoked',
+  1860→    COLLECT_SELF: 'Customer confirmed personal collection',
+  1861→    COLLECTED: 'Vehicle collected — code verified',
+  1862→    DISPUTE: 'Dispute opened',
+  1863→    INCIDENT: 'Incident reported',
+  1864→  }
+  1865→  if (labels[ev.type]) return labels[ev.type]
+  1866→  if (ev.toStatus) {
+  1867→    const m = CUSTODY_META[ev.toStatus]
+  1868→    return `Moved to ${m?.label.toLowerCase() ?? ev.toStatus.toLowerCase()}`
+  1869→  }
+  1870→  return ev.type.replaceAll('_', ' ').toLowerCase()
+  1871→}
+  1872→
+  1873→// ─────────────────────────── Custody sub-dialogs ───────────────────────────
+  1874→
+  1875→function ReceiveVehicleDialog({ open, busy, onCancel, onSubmit }: {
+  1876→  open: boolean
+  1877→  busy: boolean
+  1878→  onCancel: () => void
+  1879→  onSubmit: (staffName: string) => void
+  1880→}) {
+  1881→  const [staffName, setStaffName] = useState('')
+  1882→  const valid = staffName.trim().length >= 2
+  1883→
+  1884→  return (
+  1885→    <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+  1886→      <DialogContent className="sm:max-w-sm">
+  1887→        <DialogHeader>
+  1888→          <DialogTitle>Receive the vehicle</DialogTitle>
+  1889→          <DialogDescription>Record which staff member physically checked the vehicle in.</DialogDescription>
+  1890→        </DialogHeader>
+  1891→        <div className="space-y-1.5">
+  1892→          <Label htmlFor="cu-staff">Staff member receiving *</Label>
+  1893→          <Input id="cu-staff" value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="e.g. John Mwangi" />
+  1894→        </div>
+  1895→        <DialogFooter>
+  1896→          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+  1897→          <Button disabled={busy || !valid} onClick={() => onSubmit(staffName.trim())} className="min-h-11">
+  1898→            {busy ? 'Saving…' : 'Confirm receipt'}
+  1899→          </Button>
+  1900→        </DialogFooter>
+  1901→      </DialogContent>
+  1902→    </Dialog>
+  1903→  )
+  1904→}
+  1905→
+  1906→function ReadyForCollectionDialog({ open, busy, onCancel, onSubmit }: {
+  1907→  open: boolean
+  1908→  busy: boolean
+  1909→  onCancel: () => void
+  1910→  onSubmit: (payload: { completedWork: string; finalOdometerKm?: number; finalNotes?: string; costMinor?: number; completionPhotos?: string[] }) => Promise<boolean>
+  1911→}) {
+  1912→  const [completedWork, setCompletedWork] = useState('')
+  1913→  const [finalOdometer, setFinalOdometer] = useState('')
+  1914→  const [finalNotes, setFinalNotes] = useState('')
+  1915→  const [cost, setCost] = useState('')
+  1916→  const [photos, setPhotos] = useState<{ url: string; name: string }[]>([])
+  1917→  const [uploading, setUploading] = useState(false)
+  1918→  const [saving, setSaving] = useState(false)
+  1919→
+  1920→  useEffect(() => {
+  1921→    if (open) { setCompletedWork(''); setFinalOdometer(''); setFinalNotes(''); setCost(''); setPhotos([]) }
+  1922→  }, [open])
+  1923→
+  1924→  const costMinor = cost.trim() ? kesToMinor(cost) : null
+  1925→  const costInvalid = cost.trim() !== '' && costMinor === null
+  1926→  const valid = completedWork.trim().length >= 5
+  1927→
+  1928→  async function uploadPhoto(file: File) {
+  1929→    if (photos.length >= 4) { toast.error('Up to 4 completion photos.'); return }
+  1930→    setUploading(true)
+  1931→    try {
+  1932→      const fd = new FormData()
+  1933→      fd.append('file', file)
+  1934→      const d = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
+  1935→      setPhotos((prev) => [...prev, { url: d.url, name: d.name || file.name }])
+  1936→    } catch (e) {
+  1937→      toast.error(e instanceof Error ? e.message : 'Upload failed.')
+  1938→    } finally {
+  1939→      setUploading(false)
+  1940→    }
+  1941→  }
+  1942→
+  1943→  async function submit() {
+  1944→    if (!valid) return
+  1945→    setSaving(true)
+  1946→    const ok = await onSubmit({
+  1947→      completedWork: completedWork.trim(),
+  1948→      finalOdometerKm: finalOdometer.trim() ? parseInt(finalOdometer.trim(), 10) : undefined,
+  1949→      finalNotes: finalNotes.trim() || undefined,
+  1950→      costMinor: costMinor ?? undefined,
+  1951→      completionPhotos: photos.length > 0 ? photos.map((p) => p.url) : undefined,
+  1952→    })
+  1953→    setSaving(false)
+  1954→    if (ok) setCompletedWork('')
+  1955→  }
+  1956→
+  1957→  return (
+  1958→    <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+  1959→      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+  1960→        <DialogHeader>
+  1961→          <DialogTitle>Mark ready for collection</DialogTitle>
+  1962→          <DialogDescription>Record what was done — the customer sees this before authorising release.</DialogDescription>
+  1963→        </DialogHeader>
+  1964→        <div className="space-y-3">
+  1965→          <div className="space-y-1.5">
+  1966→            <Label htmlFor="cu-done">Completed work *</Label>
+  1967→            <Textarea id="cu-done" rows={3} value={completedWork} onChange={(e) => setCompletedWork(e.target.value)} placeholder="e.g. Replaced front brake pads, full service, wheel alignment…" />
+  1968→          </div>
+  1969→          <div className="grid grid-cols-2 gap-3">
+  1970→            <div className="space-y-1.5">
+  1971→              <Label htmlFor="cu-odo">Final odometer (km)</Label>
+  1972→              <Input id="cu-odo" inputMode="numeric" value={finalOdometer} onChange={(e) => setFinalOdometer(e.target.value)} placeholder="e.g. 84210" />
+  1973→            </div>
+  1974→            <div className="space-y-1.5">
+  1975→              <Label htmlFor="cu-cost">Final cost (KES)</Label>
+  1976→              <div className="flex gap-2">
+  1977→                <Input id="cu-cost" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="e.g. 12500" />
+  1978→              </div>
+  1979→              {costInvalid && <p className="text-xs text-destructive">Enter a valid KES amount.</p>}
+  1980→              {costMinor !== null && <Badge variant="secondary">{money(costMinor)}</Badge>}
+  1981→            </div>
+  1982→          </div>
+  1983→          <div className="space-y-1.5">
+  1984→            <Label htmlFor="cu-fnotes">Notes for the customer (optional)</Label>
+  1985→            <Textarea id="cu-fnotes" rows={2} value={finalNotes} onChange={(e) => setFinalNotes(e.target.value)} placeholder="Advice, next service due, watch-outs…" />
+  1986→          </div>
+  1987→          <div className="space-y-1.5">
+  1988→            <Label>Completion photos (optional, up to 4)</Label>
+  1989→            <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:bg-muted/60">
+  1990→              <Upload className="h-4 w-4" />
+  1991→              {uploading ? 'Uploading…' : 'Upload a photo'}
+  1992→              <input
+  1993→                type="file"
+  1994→                className="sr-only"
+  1995→                accept="image/jpeg,image/png,image/webp"
+  1996→                disabled={uploading}
+  1997→                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.currentTarget.value = '' }}
+  1998→              />
+  1999→            </label>
+  2000→            {photos.length > 0 && (
+
+[showing lines 1-2000 of 2243; use offset=2001 with limit to continue reading]

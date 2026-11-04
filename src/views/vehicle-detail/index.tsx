@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
-  Heart, Share2, Flag, Mail, BadgeCheck, MapPin, Gauge, Fuel, Cog, Car,
+  Heart, Share2, Flag, Mail, BadgeCheck, ShieldCheck, MapPin, Gauge, Fuel, Cog, Car,
   Palette, CalendarDays, Eye, Hash, ShieldAlert, ArrowLeft, MessageSquareText, Phone,
   CalendarCheck, MessageCircle,
 } from 'lucide-react'
@@ -58,7 +58,7 @@ type VehicleDetail = {
   matchWithDealers: boolean
   createdAt: string
   photos: { url: string; order: number }[]
-  owner: { name: string }
+  owner: { name: string; verifiedSeller?: boolean }
   org?: {
     id: string
     name: string
@@ -484,6 +484,11 @@ export default function View() {
               ) : (
                 <>
                   <p className="font-semibold">{vehicle.owner?.name ?? 'Private seller'}</p>
+                  {vehicle.owner?.verifiedSeller && (
+                    <Badge className="mt-1 gap-1 border-transparent bg-primary/15 text-primary">
+                      <ShieldCheck className="h-3 w-3" aria-hidden /> Verified seller
+                    </Badge>
+                  )}
                   <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <MapPin className="h-4 w-4" /> {location || 'Kenya'}
                   </p>

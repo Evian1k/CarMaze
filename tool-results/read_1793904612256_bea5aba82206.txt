@@ -1,0 +1,596 @@
+     1→     1→import { NextRequest } from 'next/server'
+     2→     2→import { z } from 'zod'
+     3→     3→import bcrypt from 'bcryptjs'
+     4→     4→import { db } from '@/lib/db'
+     5→     5→import { route, ok, fail, parseBody, requireUser } from '@/lib/api'
+     6→     6→import { refCode, shareId, sixDigitCode } from '@/lib/ids'
+     7→     7→import { audit } from '@/lib/audit'
+     8→     8→import { notify, notifyMany } from '@/lib/notify'
+     9→     9→import { getMembership } from '@/lib/orgs'
+    10→    10→import {
+    11→    11→  requireOrgMember, roleCan, poEvent, deliveryEvent,
+    12→    12→  releaseReservation, fulfillStock, computeCommission, getFees, jsonParse,
+    13→    13→} from '@/lib/supply'
+    14→    14→
+    15→    15→export const dynamic = 'force-dynamic'
+    16→    16→
+    17→    17→type Ctx = { params: Promise<{ id: string }> }
+    18→    18→
+    19→    19→const schema = z.discriminatedUnion('action', [
+    20→    20→  // STEP 2 — supplier response
+    21→    21→  z.object({
+    22→    22→    action: z.literal('respond'),
+    23→    23→    decision: z.enum(['ACCEPT', 'REJECT', 'REVISE']),
+    24→    24→    note: z.string().max(500).optional().nullable(),
+    25→    25→    revision: z.object({
+    26→    26→      changes: z.array(z.object({
+    27→    27→        itemId: z.string().optional(),
+    28→    28→        productId: z.string(),
+    29→    29→        action: z.enum(['UPDATE', 'REMOVE', 'ADD']),
+    30→    30→        qty: z.number().int().min(1).max(10_000).optional(),
+    31→    31→        unitPriceMinor: z.number().int().min(100).optional(),
+    32→    32→      })).min(1),
+    33→    33→    }).optional(),
+    34→    34→  }),
+    35→    35→  // garage internal approval gate
+    36→    36→  z.object({ action: z.literal('approve'), note: z.string().max(300).optional() }),
+    37→    37→  // garage decision on supplier revision
+    38→    38→  z.object({ action: z.literal('revision-decision'), decision: z.enum(['APPROVED', 'DECLINED']), revisionId: z.string(), note: z.string().max(300).optional() }),
+    39→    39→  // garage cancels before dispatch
+    40→    40→  z.object({ action: z.literal('cancel'), reason: z.string().min(3).max(300) }),
+    41→    41→  // STEP 3 — delivery arrangement
+    42→    42→  z.object({
+    43→    43→    action: z.literal('arrange'),
+    44→    44→    method: z.enum(['DIRECT', 'COLLECTION', 'MEETUP']),
+    45→    45→    supplierBranchId: z.string().optional(),
+    46→    46→    meetup: z.object({ lat: z.number(), lng: z.number(), address: z.string().min(4).max(200) }).optional(),
+    47→    47→    scheduledFor: z.string().optional(),
+    48→    48→    windowLabel: z.string().max(60).optional(),
+    49→    49→    feeMinor: z.number().int().min(0).max(1_000_000).default(0),
+    50→    50→    courierName: z.string().max(80).optional().nullable(),
+    51→    51→  }),
+    52→    52→  z.object({ action: z.literal('agree-location'), note: z.string().max(300).optional() }),
+    53→    53→  // STEP 5 — supplier dispatch
+    54→    54→  z.object({
+    55→    55→    action: z.literal('dispatch'),
+    56→    56→    supplierBranchId: z.string().optional(),
+    57→    57→    courierName: z.string().max(80).optional().nullable(),
+    58→    58→    driverName: z.string().max(80).optional().nullable(),
+    59→    59→    driverPhone: z.string().max(20).optional().nullable(),
+    60→    60→    vehicleReg: z.string().max(20).optional().nullable(),
+    61→    61→    deliveryRef: z.string().max(60).optional().nullable(),
+    62→    62→    expectedHours: z.number().int().min(1).max(720).optional(),
+    63→    63→    evidence: z.array(z.string().max(300)).max(6).default([]),
+    64→    64→  }),
+    65→    65→  // STEP 6 — handover confirmation (supplier marks handed over; garage verifies OTP/QR)
+    66→    66→  z.object({ action: z.literal('handover'), otp: z.string().length(6).optional(), qrToken: z.string().max(20).optional(), captureLocation: z.boolean().default(false), location: z.object({ lat: z.number(), lng: z.number() }).optional(), photos: z.array(z.string().max(300)).max(6).default([]) }),
+    67→    67→  z.object({ action: z.literal('handover-confirm') }),
+    68→    68→  // STEP 7 — inspection
+    69→    69→  z.object({
+    70→    70→    action: z.literal('inspect'),
+    71→    71→    result: z.enum(['ACCEPT', 'PARTIAL', 'ISSUES']),
+    72→    72→    items: z.array(z.object({ itemId: z.string(), qtyAccepted: z.number().int().min(0), note: z.string().max(300).optional() })).default([]),
+    73→    73→    note: z.string().max(1000).optional(),
+    74→    74→    photos: z.array(z.string().max(300)).max(6).default([]),
+    75→    75→  }),
+    76→    76→  // STEP 8 — payment release request (executed against protected funds)
+    77→    77→  z.object({ action: z.literal('release'), note: z.string().max(300).optional() }),
+    78→    78→  // STEP 9 — dispute
+    79→    79→  z.object({
+    80→    80→    action: z.literal('dispute'),
+    81→    81→    reason: z.enum(['MISSING_ITEMS', 'DAMAGED', 'WRONG_ITEM', 'COUNTERFEIT', 'NOT_RECEIVED', 'OTHER']),
+    82→    82→    details: z.string().min(10).max(2000),
+    83→    83→    evidence: z.array(z.object({ url: z.string().max(300), name: z.string().max(120) })).max(6).default([]),
+    84→    84→  }),
+    85→    85→  z.object({ action: z.literal('request-return'), reason: z.string().min(5).max(300), items: z.array(z.object({ productId: z.string(), qty: z.number().int().min(1) })).min(1) }),
+    86→    86→  z.object({ action: z.literal('warranty'), productId: z.string(), issue: z.string().min(10).max(1000) }),
+    87→    87→])
+    88→    88→
+    89→    89→/** POST /api/supply/orders/[id]/action — every state transition of the
+    90→    90→ * protected supplier→garage order workflow. Permissions and allowed source
+    91→    91→ * states are enforced here for BOTH sides — the UI merely reflects them. */
+    92→    92→export const POST = route(async (req: NextRequest, ctx: Ctx) => {
+    93→    93→  const { id } = await ctx.params
+    94→    94→  const user = await requireUser()
+    95→    95→  const body = await parseBody(req, schema)
+    96→    96→
+    97→    97→  const order = await db.purchaseOrder.findUnique({
+    98→    98→    where: { id },
+    99→    99→    include: {
+   100→   100→      garage: { select: { id: true, name: true } },
+   101→   101→      supplier: { select: { id: true, name: true } },
+   102→   102→      items: { include: { product: true } }, delivery: true, payment: true,
+   103→   103→    },
+   104→   104→  })
+   105→   105→  if (!order) return fail(404, 'NOT_FOUND', 'Order not found.')
+   106→   106→
+   107→   107→  // resolve side + membership
+   108→   108→  const garageMember = await getMembership(order.garageOrgId, user.id)
+   109→   109→  const supplierMember = await getMembership(order.supplierOrgId, user.id)
+   110→   110→  const isStaff = user.roles.some((r) => ['FINANCE', 'ADMIN', 'FOUNDER'].includes(r))
+   111→   111→  if (!garageMember && !supplierMember && !isStaff) return fail(403, 'FORBIDDEN', 'You are not authorised on this order.')
+   112→   112→  const side: 'GARAGE' | 'SUPPLIER' = supplierMember ? 'SUPPLIER' : 'GARAGE'
+   113→   113→  const memberRole = side === 'SUPPLIER' ? supplierMember!.role : garageMember!.role
+   114→   114→
+   115→   115→  // permission matrix check per action
+   116→   116→  const actionPerm: Record<string, Parameters<typeof roleCan>[2]> = {
+   117→   117→    respond: 'order.respond', approve: 'order.approve', 'revision-decision': 'order.approve',
+   118→   118→    cancel: 'order.create', arrange: 'delivery.arrange', 'agree-location': 'delivery.arrange',
+   119→   119→    dispatch: 'order.respond', handover: 'order.read', 'handover-confirm': 'order.respond',
+   120→   120→    inspect: 'order.approve', release: 'payment.initiate', dispute: 'dispute.open',
+   121→   121→    'request-return': 'order.create', warranty: 'order.create',
+   122→   122→  }
+   123→   123→  const needed = actionPerm[body.action]
+   124→   124→  if (needed && !roleCan(side, memberRole, needed) && !isStaff) {
+   125→   125→    return fail(403, 'PERMISSION_DENIED', `Your role (${memberRole}) cannot perform "${body.action}" on this order.`)
+   126→   126→  }
+   127→   127→
+   128→   128→  const supplierCtx = { orgId: order.supplierOrgId, side: 'SUPPLIER' as const }
+   129→   129→  const garageCtx = { orgId: order.garageOrgId, side: 'GARAGE' as const }
+   130→   130→  const actorCtx = side === 'SUPPLIER' ? supplierCtx : garageCtx
+   131→   131→
+   132→   132→  switch (body.action) {
+   133→   133→    // ─────────── STEP 2: supplier response ───────────
+   134→   134→    case 'respond': {
+   135→   135→      if (side !== 'SUPPLIER') return fail(403, 'PERMISSION_DENIED', 'Only the supplier responds to orders.')
+   136→   136→      if (order.status !== 'SUBMITTED') return fail(409, 'INVALID_STATE', `Order is ${order.status}; expected SUBMITTED.`)
+   137→   137→      if (body.decision === 'ACCEPT') {
+   138→   138→        await db.purchaseOrder.update({ where: { id }, data: { status: 'ACCEPTED', supplierNote: body.note ?? null } })
+   139→   139→        await poEvent(id, { type: 'ACCEPTED', actorId: user.id, actorName: user.name, actorSide: 'SUPPLIER', note: body.note ?? 'Supplier accepted the order.' })
+   140→   140→        await notifyGarageMembers(order.garageOrgId, id, order.refCode, `Supplier accepted order ${order.refCode}. Arrange delivery and payment.`, 'PO_ACCEPTED')
+   141→   141→      } else if (body.decision === 'REJECT') {
+   142→   142→        await db.purchaseOrder.update({ where: { id }, data: { status: 'REJECTED', supplierNote: body.note ?? 'Rejected by supplier' } })
+   143→   143→        for (const item of order.items) {
+   144→   144→          if (item.fulfilBranchId) await releaseReservation(item.productId, item.fulfilBranchId, item.qty, { type: 'PURCHASE_ORDER', id, actorName: user.name })
+   145→   145→        }
+   146→   146→        await poEvent(id, { type: 'CANCELLED', actorId: user.id, actorName: user.name, actorSide: 'SUPPLIER', note: body.note ?? 'Order rejected by supplier.' })
+   147→   147→        await notifyGarageMembers(order.garageOrgId, id, order.refCode, `Supplier rejected order ${order.refCode}. ${body.note ?? ''}`, 'PO_REJECTED')
+   148→   148→      } else {
+   149→   149→        if (!body.revision) return fail(400, 'VALIDATION_ERROR', 'A revision proposal is required.')
+   150→   150→        // recompute totals from proposed changes
+   151→   151→        const proposed = new Map<string, { qty: number; unit: number }>()
+   152→   152→        for (const it of order.items) proposed.set(it.productId, { qty: it.qty, unit: it.unitPriceMinor })
+   153→   153→        for (const ch of body.revision.changes) {
+   154→   154→          if (ch.action === 'REMOVE') proposed.delete(ch.productId)
+   155→   155→          else proposed.set(ch.productId, { qty: ch.qty ?? proposed.get(ch.productId)?.qty ?? 1, unit: ch.unitPriceMinor ?? proposed.get(ch.productId)?.unit ?? 0 })
+   156→   156→        }
+   157→   157→        const newSubtotal = [...proposed.values()].reduce((s, v) => s + v.qty * v.unit, 0)
+   158→   158→        const revision = await db.pORevision.create({
+   159→   159→          data: {
+   160→   160→            orderId: id,
+   161→   161→            proposedBy: 'SUPPLIER',
+   162→   162→            changesJson: JSON.stringify(body.revision.changes),
+   163→   163→            newTotalMinor: newSubtotal,
+   164→   164→            note: body.note ?? null,
+   165→   165→          },
+   166→   166→        })
+   167→   167→        await db.purchaseOrder.update({ where: { id }, data: { status: 'REVISED', supplierNote: body.note ?? null, revisedBySupplier: true } })
+   168→   168→        await poEvent(id, { type: 'REVISED', actorId: user.id, actorName: user.name, actorSide: 'SUPPLIER', note: body.note ?? `Supplier proposed changes (new subtotal ${newSubtotal / 100} KES).` })
+   169→   169→        await notifyGarageMembers(order.garageOrgId, id, order.refCode, `Supplier proposed changes on ${order.refCode}. Your approval is required before the order is final.`, 'PO_REVISED')
+   170→   170→        return ok({ revisionId: revision.id, message: 'Revision proposed. The garage must approve before the order is final.' })
+   171→   171→      }
+   172→   172→      return ok({ message: 'Response recorded.' })
+   173→   173→    }
+   174→   174→
+   175→   175→    // ─────────── garage internal approval ───────────
+   176→   176→    case 'approve': {
+   177→   177→      if (side !== 'GARAGE') return fail(403, 'PERMISSION_DENIED', 'Only the garage approves internally.')
+   178→   178→      if (order.status !== 'AWAITING_APPROVAL') return fail(409, 'INVALID_STATE', `Order is ${order.status}; expected AWAITING_APPROVAL.`)
+   179→   179→      await db.purchaseOrder.update({ where: { id }, data: { status: 'SUBMITTED' } })
+   180→   180→      await poEvent(id, { type: 'APPROVED', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: body.note ?? 'Approved by management — sent to supplier.' })
+   181→   181→      await notifySupplierMembers(order.supplierOrgId, order.refCode, `${order.garage.name} approved order ${order.refCode}. It now awaits your response.`, 'PO_NEW')
+   182→   182→      return ok({ message: 'Order approved and sent to the supplier.' })
+   183→   183→    }
+   184→   184→
+   185→   185→    case 'revision-decision': {
+   186→   186→      if (side !== 'GARAGE') return fail(403, 'PERMISSION_DENIED', 'Only the garage decides on revisions.')
+   187→   187→      if (order.status !== 'REVISED') return fail(409, 'INVALID_STATE', `Order is ${order.status}; expected REVISED.`)
+   188→   188→      const revision = await db.pORevision.findUnique({ where: { id: body.revisionId } })
+   189→   189→      if (!revision || revision.orderId !== id) return fail(404, 'NOT_FOUND', 'Revision not found.')
+   190→   190→      if (revision.status !== 'PENDING') return fail(409, 'INVALID_STATE', 'Revision already decided.')
+   191→   191→
+   192→   192→      if (body.decision === 'APPROVED') {
+   193→   193→        // apply changes to items & totals; adjust reservations
+   194→   194→        const changes = jsonParse<{ action: string; productId: string; itemId?: string; qty?: number; unitPriceMinor?: number }[]>(revision.changesJson, [])
+   195→   195→        for (const ch of changes) {
+   196→   196→          const item = order.items.find((i) => i.id === ch.itemId || i.productId === ch.productId)
+   197→   197→          if (ch.action === 'REMOVE' && item) {
+   198→   198→            if (item.fulfilBranchId) await releaseReservation(item.productId, item.fulfilBranchId, item.qty, { type: 'PURCHASE_ORDER', id, actorName: user.name })
+   199→   199→            await db.pOItem.delete({ where: { id: item.id } })
+   200→   200→          } else if (item && ch.qty && ch.unitPriceMinor) {
+   201→   201→            await db.pOItem.update({ where: { id: item.id }, data: { qty: ch.qty, unitPriceMinor: ch.unitPriceMinor, lineTotalMinor: ch.qty * ch.unitPriceMinor } })
+   202→   202→          } else if (ch.action === 'ADD' && ch.qty && ch.unitPriceMinor) {
+   203→   203→            const product = await db.product.findFirst({ where: { id: ch.productId, supplierOrgId: order.supplierOrgId, status: 'PUBLISHED' } })
+   204→   204→            if (!product) return fail(400, 'INVALID_PRODUCT', 'Proposed product is unavailable.')
+   205→   205→            await db.pOItem.create({ data: { orderId: id, productId: ch.productId, qty: ch.qty, unitPriceMinor: ch.unitPriceMinor, lineTotalMinor: ch.qty * ch.unitPriceMinor } })
+   206→   206→          }
+   207→   207→        }
+   208→   208→        const items = await db.pOItem.findMany({ where: { orderId: id } })
+   209→   209→        const subtotal = items.reduce((s, i) => s + i.lineTotalMinor, 0)
+   210→   210→        await db.purchaseOrder.update({ where: { id }, data: { status: 'ACCEPTED', subtotalMinor: subtotal, totalMinor: subtotal + order.taxMinor, garageApprovedRevision: true } })
+   211→   211→        await db.pORevision.update({ where: { id: revision.id }, data: { status: 'APPROVED' } })
+   212→   212→        await poEvent(id, { type: 'REVISION_DECISION', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: body.note ?? 'Garage approved the revised quotation.' })
+   213→   213→        await notifySupplierMembers(order.supplierOrgId, order.refCode, `${order.garage.name} approved your revision on ${order.refCode}.`, 'PO_ACCEPTED')
+   214→   214→        return ok({ message: 'Revision approved — order finalised at the revised terms.' })
+   215→   215→      } else {
+   216→   216→        await db.pORevision.update({ where: { id: revision.id }, data: { status: 'DECLINED' } })
+   217→   217→        await db.purchaseOrder.update({ where: { id }, data: { status: 'SUBMITTED' } })
+   218→   218→        await poEvent(id, { type: 'REVISION_DECISION', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: body.note ?? 'Garage declined the revision — original terms stand.' })
+   219→   219→        await notifySupplierMembers(order.supplierOrgId, order.refCode, `${order.garage.name} declined your revision on ${order.refCode}. Original terms stand.`, 'PO_REVISED')
+   220→   220→        return ok({ message: 'Revision declined. The supplier may respond again on the original terms.' })
+   221→   221→      }
+   222→   222→    }
+   223→   223→
+   224→   224→    // ─────────── cancel ───────────
+   225→   225→    case 'cancel': {
+   226→   226→      if (side !== 'GARAGE') return fail(403, 'PERMISSION_DENIED', 'Only the garage cancels orders.')
+   227→   227→      if (!['SUBMITTED', 'AWAITING_APPROVAL', 'ACCEPTED', 'REVISED', 'CONFIRMED'].includes(order.status)) {
+   228→   228→        return fail(409, 'INVALID_STATE', `Order cannot be cancelled at ${order.status}.`)
+   229→   229→      }
+   230→   230→      if (order.paymentStatus === 'PROTECTED') return fail(409, 'PAYMENT_PROTECTED', 'Payment is protected — open a dispute instead.')
+   231→   231→      for (const item of order.items) {
+   232→   232→        if (item.fulfilBranchId) await releaseReservation(item.productId, item.fulfilBranchId, item.qty, { type: 'PURCHASE_ORDER', id, actorName: user.name })
+   233→   233→      }
+   234→   234→      await db.purchaseOrder.update({ where: { id }, data: { status: 'CANCELLED', cancelledReason: body.reason } })
+   235→   235→      await poEvent(id, { type: 'CANCELLED', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: body.reason })
+   236→   236→      await notifySupplierMembers(order.supplierOrgId, order.refCode, `${order.garage.name} cancelled order ${order.refCode}. Reason: ${body.reason}`, 'PO_CANCELLED')
+   237→   237→      await audit({ actorId: user.id, actorName: user.name, action: 'PO_CANCELLED', targetType: 'PURCHASE_ORDER', targetId: id, metadata: { reason: body.reason } })
+   238→   238→      return ok({ message: 'Order cancelled and stock reservations released.' })
+   239→   239→    }
+   240→   240→
+   241→   241→    // ─────────── STEP 3: delivery arrangement ───────────
+   242→   242→    case 'arrange': {
+   243→   243→      if (order.status !== 'ACCEPTED' && order.status !== 'CONFIRMED' && order.status !== 'REVISED') {
+   244→   244→        return fail(409, 'INVALID_STATE', `Delivery is arranged after acceptance (current: ${order.status}).`)
+   245→   245→      }
+   246→   246→      const method = body.method
+   247→   247→      let supplierBranchId: string | null = order.delivery?.supplierBranchId ?? null
+   248→   248→      let meetupJson: string | null = order.delivery?.meetupJson ?? null
+   249→   249→      let agreedByGarage = order.delivery?.meetupAgreedByGarage ?? false
+   250→   250→      let agreedBySupplier = order.delivery?.meetupAgreedBySupplier ?? false
+   251→   251→      let status = 'ARRANGING'
+   252→   252→      let message = ''
+   253→   253→      let changed = false
+   254→   254→
+   255→   255→      if (method === 'DIRECT') {
+   256→   256→        if (!order.destinationBranchId) return fail(400, 'NO_DESTINATION', 'Choose the garage branch receiving this delivery.')
+   257→   257→        status = 'AGREED'
+   258→   258→        message = 'Direct delivery to your branch arranged.'
+   259→   259→      } else if (method === 'COLLECTION') {
+   260→   260→        if (!body.supplierBranchId) return fail(400, 'NO_BRANCH', 'Choose the supplier warehouse for collection.')
+   261→   261→        const wb = await db.orgBranch.findFirst({ where: { id: body.supplierBranchId, orgId: order.supplierOrgId, status: 'ACTIVE' } })
+   262→   262→        if (!wb) return fail(400, 'NO_BRANCH', 'Warehouse does not belong to the supplier.')
+   263→   263→        supplierBranchId = wb.id
+   264→   264→        status = 'AGREED'
+   265→   265→        message = 'Collection from the supplier warehouse arranged.'
+   266→   266→      } else {
+   267→   267→        // MEETUP — proposed location requires BOTH parties' agreement; a new
+   268→   268→        // proposal resets the counterparty's consent.
+   269→   269→        if (!body.meetup) return fail(400, 'NO_LOCATION', 'Propose a handover location on the map.')
+   270→   270→        changed = !meetupJson || jsonParse<{ address?: string }>(meetupJson, {}).address !== body.meetup.address
+   271→   271→        if (changed) {
+   272→   272→          meetupJson = JSON.stringify(body.meetup)
+   273→   273→          if (side === 'GARAGE') { agreedByGarage = true; agreedBySupplier = false }
+   274→   274→          else { agreedBySupplier = true; agreedByGarage = false }
+   275→   275→        }
+   276→   276→        message = agreedByGarage && agreedBySupplier ? 'Handover location agreed by both parties.' : 'Location proposed — awaiting the other party\'s agreement.'
+   277→   277→        status = agreedByGarage && agreedBySupplier ? 'AGREED' : 'ARRANGING'
+   278→   278→      }
+   279→   279→
+   280→   280→      const scheduledFor = body.scheduledFor ? new Date(body.scheduledFor) : null
+   281→   281→      const delivery = await db.delivery.upsert({
+   282→   282→        where: { orderId: id },
+   283→   283→        create: {
+   284→   284→          refCode: refCode('DLV', 6),
+   285→   285→          orderId: id, method, status, supplierBranchId, meetupJson,
+   286→   286→          meetupAgreedByGarage: agreedByGarage, meetupAgreedBySupplier: agreedBySupplier,
+   287→   287→          scheduledFor, windowLabel: body.windowLabel ?? null, feeMinor: body.feeMinor,
+   288→   288→          events: { create: { type: 'ARRANGED', actorId: user.id, actorName: user.name, actorSide: side, note: `${method} delivery arranged.` } },
+   289→   289→        },
+   290→   290→        update: {
+   291→   291→          method, status, supplierBranchId, meetupJson,
+   292→   292→          meetupAgreedByGarage: agreedByGarage, meetupAgreedBySupplier: agreedBySupplier,
+   293→   293→          scheduledFor, windowLabel: body.windowLabel !== undefined ? (body.windowLabel ?? null) : (order.delivery?.windowLabel ?? null),
+   294→   294→          feeMinor: body.feeMinor,
+   295→   295→        },
+   296→   296→      })
+   297→   297→      await db.purchaseOrder.update({
+   298→   298→        where: { id },
+   299→   299→        data: {
+   300→   300→          deliveryMethod: method,
+   301→   301→          deliveryFeeMinor: body.feeMinor,
+   302→   302→          totalMinor: order.subtotalMinor + order.taxMinor + body.feeMinor,
+   303→   303→          status: status === 'AGREED' ? 'CONFIRMED' : order.status,
+   304→   304→        },
+   305→   305→      })
+   306→   306→      await deliveryEvent(delivery.id, { type: changed ? 'LOCATION_PROPOSED' : 'ARRANGED', actorId: user.id, actorName: user.name, actorSide: side, note: `${method} — ${message}` })
+   307→   307→      await poEvent(id, { type: 'NOTE', actorId: user.id, actorName: user.name, actorSide: side, note: `Delivery arrangement: ${message}` })
+   308→   308→      await notifyOtherSide(actorCtx, order, `${order.refCode}: ${message}`, 'PO_DELIVERY')
+   309→   309→      return ok({ delivery, message })
+   310→   310→    }
+   311→   311→
+   312→   312→    case 'agree-location': {
+   313→   313→      const delivery = order.delivery
+   314→   314→      if (!delivery || delivery.method !== 'MEETUP') return fail(409, 'INVALID_STATE', 'No meetup location to agree on.')
+   315→   315→      if (delivery.status === 'AGREED') return ok({ message: 'Location already agreed.' })
+   316→   316→      const updated = await db.delivery.update({
+   317→   317→        where: { id: delivery.id },
+   318→   318→        data: side === 'GARAGE' ? { meetupAgreedByGarage: true } : { meetupAgreedBySupplier: true },
+   319→   319→      })
+   320→   320→      const both = updated.meetupAgreedByGarage && updated.meetupAgreedBySupplier
+   321→   321→      if (both) {
+   322→   322→        await db.delivery.update({ where: { id: delivery.id }, data: { status: 'AGREED' } })
+   323→   323→        await db.purchaseOrder.update({ where: { id }, data: { status: 'CONFIRMED' } })
+   324→   324→      }
+   325→   325→      await deliveryEvent(delivery.id, { type: 'LOCATION_AGREED', actorId: user.id, actorName: user.name, actorSide: side, note: body.note ?? 'Agreed to the handover location.' })
+   326→   326→      await notifyOtherSide(actorCtx, order, `${order.refCode}: ${side === 'GARAGE' ? 'Garage' : 'Supplier'} agreed to the handover location${both ? ' — delivery is now locked. Location changes require a new mutual agreement.' : ''}`, 'PO_DELIVERY')
+   327→   327→      return ok({ agreed: both, message: both ? 'Both parties agreed. Location is locked.' : 'Your agreement is recorded — awaiting the other party.' })
+   328→   328→    }
+   329→   329→
+   330→   330→    // ─────────── STEP 5: dispatch ───────────
+   331→   331→    case 'dispatch': {
+   332→   332→      if (side !== 'SUPPLIER') return fail(403, 'PERMISSION_DENIED', 'Only the supplier dispatches.')
+   333→   333→      if (order.status !== 'CONFIRMED') return fail(409, 'INVALID_STATE', `Order is ${order.status}; dispatch requires CONFIRMED.`)
+   334→   334→      if (order.paymentStatus !== 'PROTECTED') {
+   335→   335→        return fail(409, 'PAYMENT_REQUIRED', 'Payment must be protected before dispatch. Funds are only released after the garage accepts the delivery.')
+   336→   336→      }
+   337→   337→      const delivery = order.delivery
+   338→   338→      if (!delivery || delivery.status !== 'AGREED') return fail(409, 'INVALID_STATE', 'Arrange and agree the delivery first.')
+   339→   339→      if (body.supplierBranchId) {
+   340→   340→        const wb = await db.orgBranch.findFirst({ where: { id: body.supplierBranchId, orgId: order.supplierOrgId, status: 'ACTIVE' } })
+   341→   341→        if (!wb) return fail(400, 'NO_BRANCH', 'Warehouse does not belong to your business.')
+   342→   342→        await db.delivery.update({ where: { id: delivery.id }, data: { supplierBranchId: wb.id } })
+   343→   343→      }
+   344→   344→      const otp = sixDigitCode()
+   345→   345→      const otpHash = await bcrypt.hash(otp, 10)
+   346→   346→      const expectedAt = new Date(Date.now() + (body.expectedHours ?? 24) * 3600 * 1000)
+   347→   347→      await db.delivery.update({
+   348→   348→        where: { id: delivery.id },
+   349→   349→        data: {
+   350→   350→          status: 'DISPATCHED',
+   351→   351→          courierName: body.courierName ?? delivery.courierName ?? 'Supplier-owned delivery',
+   352→   352→          driverName: body.driverName ?? null,
+   353→   353→          driverPhone: body.driverPhone ?? null,
+   354→   354→          vehicleReg: body.vehicleReg ?? null,
+   355→   355→          deliveryRef: body.deliveryRef ?? `DSP-${order.refCode}`,
+   356→   356→          dispatchEvidence: body.evidence.length ? JSON.stringify(body.evidence) : delivery.dispatchEvidence,
+   357→   357→          dispatchedAt: new Date(),
+   358→   358→          expectedAt,
+   359→   359→          otpHash,
+   360→   360→          otpHint: otp.slice(-2),
+   361→   361→          qrToken: shareId(14),
+   362→   362→        },
+   363→   363→      })
+   364→   364→      await db.purchaseOrder.update({ where: { id }, data: { status: 'DISPATCHED' } })
+   365→   365→      await deliveryEvent(delivery.id, { type: 'DISPATCHED', actorId: user.id, actorName: user.name, actorSide: 'SUPPLIER', note: `Dispatched${body.driverName ? ` — driver ${body.driverName}` : ''}. Expected ${expectedAt.toISOString()}` })
+   366→   366→      await poEvent(id, { type: 'DISPATCH', actorId: user.id, actorName: user.name, actorSide: 'SUPPLIER', note: body.deliveryRef ? `Delivery reference ${body.deliveryRef}` : 'Order dispatched.' })
+   367→   367→      // OTP delivered through in-app notification (SMS channel is recorded but not configured)
+   368→   368→      await notifyGarageMembers(order.garageOrgId, id, order.refCode, `Order ${order.refCode} dispatched. Handover verification code: ${otp} (valid at delivery). Do not share before handover.`, 'PO_DISPATCHED')
+   369→   369→      await audit({ actorId: user.id, actorName: user.name, action: 'PO_DISPATCHED', targetType: 'PURCHASE_ORDER', targetId: id })
+   370→   370→      return ok({ message: 'Dispatch recorded. The garage received the handover verification code.' })
+   371→   371→    }
+   372→   372→
+   373→   373→    // ─────────── STEP 6: handover ───────────
+   374→   374→    case 'handover': {
+   375→   375→      const delivery = order.delivery
+   376→   376→      if (!delivery || !['DISPATCHED', 'IN_TRANSIT'].includes(delivery.status)) {
+   377→   377→        return fail(409, 'INVALID_STATE', 'Handover verification is available after dispatch.')
+   378→   378→      }
+   379→   379→      if (side !== 'GARAGE') return fail(403, 'PERMISSION_DENIED', 'The receiving party verifies the handover.')
+   380→   380→      let verified = false
+   381→   381→      if (body.otp && delivery.otpHash) verified = await bcrypt.compare(body.otp, delivery.otpHash)
+   382→   382→      else if (body.qrToken && delivery.qrToken) verified = body.qrToken === delivery.qrToken
+   383→   383→      if (!verified) return fail(403, 'BAD_CODE', 'That verification code does not match this delivery.')
+   384→   384→
+   385→   385→      const handover = {
+   386→   386→        ...(jsonParse<Record<string, unknown>>(delivery.handoverJson ?? '{}', {})),
+   387→   387→        garageConfirmedAt: new Date().toISOString(),
+   388→   388→        captureLocation: body.captureLocation,
+   389→   389→        location: body.captureLocation && body.location ? body.location : undefined,
+   390→   390→        photos: body.photos,
+   391→   391→      }
+   392→   392→      await db.delivery.update({
+   393→   393→        where: { id: delivery.id },
+   394→   394→        data: { garageConfirmAt: new Date(), handoverJson: JSON.stringify(handover) },
+   395→   395→      })
+   396→   396→      await finaliseHandoverIfBoth(id)
+   397→   397→      await deliveryEvent(delivery.id, { type: 'DELIVERED', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: `Handover verified by garage${body.captureLocation && body.location ? ' (location shared)' : ''}.` })
+   398→   398→      return ok({ message: 'Handover verified. Record the inspection result to release payment.' })
+   399→   399→    }
+   400→   400→
+   401→   401→    case 'handover-confirm': {
+   402→   402→      if (side !== 'SUPPLIER') return fail(403, 'PERMISSION_DENIED', 'Only the supplier confirms handover.')
+   403→   403→      const delivery = order.delivery
+   404→   404→      if (!delivery || !['DISPATCHED', 'IN_TRANSIT'].includes(delivery.status)) {
+   405→   405→        return fail(409, 'INVALID_STATE', 'Handover is available after dispatch.')
+   406→   406→      }
+   407→   407→      await db.delivery.update({ where: { id: delivery.id }, data: { supplierConfirmAt: new Date() } })
+   408→   408→      await finaliseHandoverIfBoth(id)
+   409→   409→      await deliveryEvent(delivery.id, { type: 'DELIVERED', actorId: user.id, actorName: user.name, actorSide: 'SUPPLIER', note: 'Supplier confirmed handover.' })
+   410→   410→      return ok({ message: 'Handover confirmation recorded.' })
+   411→   411→    }
+   412→   412→
+   413→   413→    // ─────────── STEP 7: inspection ───────────
+   414→   414→    case 'inspect': {
+   415→   415→      if (side !== 'GARAGE') return fail(403, 'PERMISSION_DENIED', 'Only the receiving garage inspects.')
+   416→   416→      const delivery = order.delivery
+   417→   417→      if (!delivery || delivery.status !== 'DELIVERED') return fail(409, 'INVALID_STATE', 'Inspection opens after verified handover.')
+   418→   418→      const items = await db.pOItem.findMany({ where: { orderId: id } })
+   419→   419→      const acceptedMap = new Map(body.items.map((i) => [i.itemId, i]))
+   420→   420→
+   421→   421→      for (const item of items) {
+   422→   422→        const reported = acceptedMap.get(item.id)
+   423→   423→        const qtyAccepted = body.result === 'ACCEPT' ? item.qty : Math.min(reported?.qtyAccepted ?? 0, item.qty)
+   424→   424→        await db.pOItem.update({
+   425→   425→          where: { id: item.id },
+   426→   426→          data: { qtyAccepted, qtyDelivered: body.result === 'ACCEPT' ? item.qty : qtyAccepted, note: reported?.note ?? (body.result === 'ACCEPT' ? null : 'Shortfall/damage reported at inspection') },
+   427→   427→        })
+   428→   428→        if (qtyAccepted > 0 && item.fulfilBranchId) {
+   429→   429→          await fulfillStock(item.productId, item.fulfilBranchId, qtyAccepted, { type: 'PURCHASE_ORDER', id, actorName: user.name })
+   430→   430→        } else if (qtyAccepted < item.qty && item.fulfilBranchId) {
+   431→   431→          await releaseReservation(item.productId, item.fulfilBranchId, item.qty - qtyAccepted, { type: 'PURCHASE_ORDER', id, actorName: user.name })
+   432→   432→        }
+   433→   433→      }
+   434→   434→      const freshItems = await db.pOItem.findMany({ where: { orderId: id } })
+   435→   435→      const acceptedSubtotal = freshItems.reduce((s, i) => s + (i.qtyAccepted ?? 0) * i.unitPriceMinor, 0)
+   436→   436→      const acceptedTotal = acceptedSubtotal + order.taxMinor + order.deliveryFeeMinor
+   437→   437→      const inspectionStatus = body.result === 'ACCEPT' ? 'ACCEPTED' : body.result === 'PARTIAL' ? 'PARTIAL' : 'ISSUES'
+   438→   438→      await db.purchaseOrder.update({
+   439→   439→        where: { id },
+   440→   440→        data: { status: 'INSPECTED', inspectionStatus, acceptedTotalMinor: acceptedTotal },
+   441→   441→      })
+   442→   442→      // refund due for unaccepted goods
+   443→   443→      if (acceptedTotal < order.totalMinor) {
+   444→   444→        const existing = await db.refund.findFirst({ where: { orderId: id, status: { in: ['REQUESTED', 'APPROVED'] } } })
+   445→   445→        if (!existing) {
+   446→   446→          await db.refund.create({
+   447→   447→            data: {
+   448→   448→              refCode: refCode('RFD', 6),
+   449→   449→              orderId: id,
+   450→   450→              paymentAuthId: order.payment?.id ?? null,
+   451→   451→              amountMinor: order.totalMinor - acceptedTotal,
+   452→   452→              kind: 'PARTIAL',
+   453→   453→              reason: 'Partial acceptance at inspection',
+   454→   454→              requestedById: user.id,
+   455→   455→            },
+   456→   456→          })
+   457→   457→        }
+   458→   458→      }
+   459→   459→      await poEvent(id, { type: 'INSPECTED', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: `${body.note ?? `Inspection result: ${inspectionStatus}.`} Accepted value: ${(acceptedTotal / 100).toLocaleString()} KES. Photos: ${body.photos.length}` })
+   460→   460→      await notifySupplierMembers(order.supplierOrgId, order.refCode, `Garage inspected ${order.refCode}: ${inspectionStatus}. Accepted ${(acceptedTotal / 100).toLocaleString()} KES.`, 'PO_INSPECTED')
+   461→   461→      return ok({ acceptedTotalMinor: acceptedTotal, inspectionStatus, message: 'Inspection recorded. Payment release can now be requested for the accepted amount.' })
+   462→   462→    }
+   463→   463→
+   464→   464→    // ─────────── STEP 8: payment release ───────────
+   465→   465→    case 'release': {
+   466→   466→      if (!['GARAGE'].includes(side) && !isStaff) return fail(403, 'PERMISSION_DENIED', 'The receiving garage requests the release.')
+   467→   467→      if (order.status !== 'INSPECTED') return fail(409, 'INVALID_STATE', 'Release requires a recorded inspection.')
+   468→   468→      const payment = order.payment
+   469→   469→      if (!payment || payment.status !== 'PROTECTED') {
+   470→   470→        return fail(409, 'NOT_PROTECTED', 'Funds are not in a protected state. Release follows the payment provider\'s protection confirmation only.')
+   471→   471→      }
+   472→   472→      const accepted = order.acceptedTotalMinor ?? order.totalMinor
+   473→   473→      const fees = await getFees()
+   474→   474→      const commission = computeCommission(order.subtotalMinor, fees.supplyCommissionPct, fees.minCommissionMinor)
+   475→   475→      await db.paymentAuthorization.update({
+   476→   476→        where: { id: payment.id },
+   477→   477→        data: {
+   478→   478→          status: accepted < order.totalMinor ? 'PARTIALLY_RELEASED' : 'RELEASED',
+   479→   479→          releasedAmountMinor: accepted,
+   480→   480→          releasedAt: new Date(),
+   481→   481→        },
+   482→   482→      })
+   483→   483→      await db.purchaseOrder.update({
+   484→   484→        where: { id },
+   485→   485→        data: {
+   486→   486→          paymentStatus: accepted < order.totalMinor ? 'PARTIALLY_RELEASED' : 'RELEASED',
+   487→   487→          platformFeeMinor: commission,
+   488→   488→          commissionRatePct: fees.supplyCommissionPct,
+   489→   489→          status: 'COMPLETED',
+   490→   490→        },
+   491→   491→      })
+   492→   492→      if (order.invoiceId) {
+   493→   493→        await db.invoice.update({ where: { id: order.invoiceId }, data: { status: 'PAID', paidAt: new Date() } })
+   494→   494→      }
+   495→   495→      await poEvent(id, { type: 'RELEASED', actorId: user.id, actorName: user.name, actorSide: side, note: `Released ${(accepted / 100).toLocaleString()} KES to supplier. Platform commission: ${(commission / 100).toLocaleString()} KES recorded separately.` })
+   496→   496→      await audit({
+   497→   497→        actorId: user.id, actorName: user.name,
+   498→   498→        action: 'PAYMENT_RELEASED', targetType: 'PURCHASE_ORDER', targetId: id,
+   499→   499→        metadata: { released: accepted, commission, ref: order.refCode },
+   500→   500→      })
+   501→   501→      await notifySupplierMembers(order.supplierOrgId, order.refCode, `Payment released for ${order.refCode}: ${(accepted / 100).toLocaleString()} KES (commission ${(commission / 100).toLocaleString()} KES).`, 'PO_RELEASED')
+   502→   502→      return ok({ releasedMinor: accepted, commissionMinor: commission, message: 'Payment released. Receipt generated in Billing.' })
+   503→   503→    }
+   504→   504→
+   505→   505→    // ─────────── STEP 9: dispute ───────────
+   506→   506→    case 'dispute': {
+   507→   507→      const existing = await db.dispute.findFirst({ where: { orderId: id, status: { in: ['OPEN', 'UNDER_REVIEW'] } } })
+   508→   508→      if (existing) return fail(409, 'DISPUTE_EXISTS', 'An open dispute already exists for this order.')
+   509→   509→      const disputed = order.paymentStatus === 'PROTECTED' || order.paymentStatus === 'PARTIALLY_RELEASED'
+   510→   510→      const dispute = await db.dispute.create({
+   511→   511→        data: {
+   512→   512→          refCode: refCode('DSP', 6),
+   513→   513→          orderId: id,
+   514→   514→          openedById: user.id,
+   515→   515→          openedBySide: side,
+   516→   516→          reason: body.reason,
+   517→   517→          details: body.details,
+   518→   518→          evidence: body.evidence.length ? JSON.stringify(body.evidence) : null,
+   519→   519→          amountFrozenMinor: disputed ? (order.acceptedTotalMinor !== null ? order.totalMinor - order.acceptedTotalMinor : order.totalMinor) : null,
+   520→   520→          status: 'OPEN',
+   521→   521→          events: { create: { type: 'CREATED', actorId: user.id, actorName: user.name, note: `Dispute opened: ${body.reason}` } },
+   522→   522→        },
+   523→   523→      })
+   524→   524→      await db.purchaseOrder.update({ where: { id }, data: { status: 'DISPUTED' } })
+   525→   525→      await poEvent(id, { type: 'NOTE', actorId: user.id, actorName: user.name, actorSide: side, note: `Dispute ${dispute.refCode} opened (${body.reason}). Amount frozen where supported.` })
+   526→   526→      await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_OPENED', targetType: 'DISPUTE', targetId: dispute.id, metadata: { order: order.refCode, reason: body.reason } })
+   527→   527→      const { staffUserIds } = await import('@/lib/orgs')
+   528→   528→      await notifyMany(await staffUserIds('ADMIN', 'FOUNDER', 'SUPPORT'), {
+   529→   529→        type: 'DISPUTE_OPENED', title: `Dispute ${dispute.refCode} — ${order.refCode}`, body: `${body.reason}: ${body.details.slice(0, 120)}`, link: '/admin?tab=disputes',
+   530→   530→      })
+   531→   531→      return ok({ dispute, message: 'Dispute filed. Platform admins will investigate with all order, payment and delivery evidence.' }, { status: 201 })
+   532→   532→    }
+   533→   533→
+   534→   534→    case 'request-return': {
+   535→   535→      if (side !== 'GARAGE') return fail(403, 'PERMISSION_DENIED', 'The garage requests returns.')
+   536→   536→      const ret = await db.partReturn.create({
+   537→   537→        data: {
+   538→   538→          refCode: refCode('RTN', 6),
+   539→   539→          orderId: id,
+   540→   540→          reason: body.reason,
+   541→   541→          itemsJson: JSON.stringify(body.items),
+   542→   542→        },
+   543→   543→      })
+   544→   544→      await poEvent(id, { type: 'NOTE', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: `Return requested ${ret.refCode}: ${body.reason}` })
+   545→   545→      await notifySupplierMembers(order.supplierOrgId, order.refCode, `Return request ${ret.refCode} on ${order.refCode}: ${body.reason}`, 'PO_RETURN')
+   546→   546→      return ok({ ret }, { status: 201 })
+   547→   547→    }
+   548→   548→
+   549→   549→    case 'warranty': {
+   550→   550→      const product = order.items.find((i) => i.productId === body.productId)?.product
+   551→   551→      if (!product) return fail(404, 'NOT_FOUND', 'Product is not part of this order.')
+   552→   552→      if (product.warrantyMonths <= 0) return fail(409, 'NO_WARRANTY', 'This product was supplied without a warranty.')
+   553→   553→      const claim = await db.warrantyClaim.create({
+   554→   554→        data: {
+   555→   555→          refCode: refCode('WRT', 6),
+   556→   556→          orderId: id, productId: body.productId,
+   557→   557→          garageOrgId: order.garageOrgId, supplierOrgId: order.supplierOrgId,
+   558→   558→          issue: body.issue,
+   559→   559→        },
+   560→   560→      })
+   561→   561→      await poEvent(id, { type: 'NOTE', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: `Warranty claim ${claim.refCode}: ${body.issue.slice(0, 120)}` })
+   562→   562→      await notifySupplierMembers(order.supplierOrgId, order.refCode, `Warranty claim ${claim.refCode} on ${order.refCode}.`, 'PO_WARRANTY')
+   563→   563→      return ok({ claim }, { status: 201 })
+   564→   564→    }
+   565→   565→  }
+   566→   566→
+   567→   567→  return fail(400, 'UNKNOWN_ACTION', 'Unsupported action.')
+   568→   568→})
+   569→   569→
+   570→   570→async function finaliseHandoverIfBoth(orderId: string): Promise<void> {
+   571→   571→  const delivery = await db.delivery.findUnique({ where: { orderId } })
+   572→   572→  if (!delivery) return
+   573→   573→  if (delivery.garageConfirmAt && delivery.supplierConfirmAt && delivery.status !== 'DELIVERED') {
+   574→   574→    await db.delivery.update({ where: { id: delivery.id }, data: { status: 'DELIVERED', deliveredAt: new Date() } })
+   575→   575→    await db.purchaseOrder.update({ where: { id: orderId }, data: { status: 'DELIVERED' } })
+   576→   576→  } else if (delivery.status === 'DISPATCHED') {
+   577→   577→    await db.delivery.update({ where: { id: delivery.id }, data: { status: 'IN_TRANSIT' } })
+   578→   578→    await db.purchaseOrder.update({ where: { id: orderId }, data: { status: 'IN_TRANSIT' } })
+   579→   579→  }
+   580→   580→}
+   581→   581→
+   582→   582→async function notifyGarageMembers(orgId: string, orderId: string, ref: string, body: string, type: string): Promise<void> {
+   583→   583→  const members = await db.orgMember.findMany({ where: { orgId, role: { in: ['OWNER', 'GM', 'PROCUREMENT'] } }, select: { userId: true } })
+   584→   584→  await notifyMany(members.map((m) => m.userId), { type, title: `Order ${ref}`, body, link: `/procurement?tab=orders&order=${orderId}` })
+   585→   585→}
+   586→   586→
+   587→   587→async function notifySupplierMembers(orgId: string, ref: string, body: string, type: string): Promise<void> {
+   588→   588→  const members = await db.orgMember.findMany({ where: { orgId, role: { in: ['OWNER', 'OPERATIONS', 'WAREHOUSE'] } }, select: { userId: true } })
+   589→   589→  await notifyMany(members.map((m) => m.userId), { type, title: `Order ${ref}`, body, link: '/supplier?tab=orders' })
+   590→   590→}
+   591→   591→
+   592→   592→async function notifyOtherSide(actor: { orgId: string; side: 'GARAGE' | 'SUPPLIER' }, order: { id: string; refCode: string; garageOrgId: string; supplierOrgId: string }, body: string, type: string): Promise<void> {
+   593→   593→  if (actor.side === 'GARAGE') await notifySupplierMembers(order.supplierOrgId, order.refCode, body, type)
+   594→   594→  else await notifyGarageMembers(order.garageOrgId, order.id, order.refCode, body, type)
+   595→   595→}
+   596→   596→
