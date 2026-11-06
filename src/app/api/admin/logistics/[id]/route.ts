@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, parseBody, requireRole, ApiError } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { ROLE } from '@/lib/auth'
 import { audit } from '@/lib/audit'
 import { notify } from '@/lib/notify'
@@ -41,9 +42,11 @@ async function loadPartner(id: string) {
  * suspend (blocks all partner actions), reinstate, or leave a note on the
  * partner timeline. ADMIN | FOUNDER only. */
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
-  await requireRole(ROLE.ADMIN, ROLE.FOUNDER)
+  const staffUser = await requireRole(ROLE.ADMIN, ROLE.FOUNDER)
   const { id } = await ctx.params
   const partner = await loadPartner(id)
+  // DEMO SANDBOX: demo admins may only moderate demo-ecosystem partners.
+  await demoStaffMutationGuard(staffUser, { subjectUserId: partner.ownerUserId })
   const body = await parseBody(req, patchSchema)
 
   if (body.action === 'suspend') {

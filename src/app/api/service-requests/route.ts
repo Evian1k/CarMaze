@@ -7,6 +7,7 @@ import { refCode } from '@/lib/ids'
 import { notifyMany } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 import { SERVICE_CATEGORIES } from '@/lib/format'
+import { isActorDemo } from '@/lib/request-context'
 
 // ─────────────────────────── POST — customer creates a request ───────────────────────────
 
@@ -20,12 +21,14 @@ const createSchema = z.object({
   myVehicleId: z.string().trim().max(40).optional().or(z.literal('')),
 })
 
-/** Users with OWNER/MANAGER memberships on ACTIVE GARAGE orgs. */
-async function garageOwnerIds(orgFilter?: { services?: { some: { category: string; active: boolean } } }): Promise<string[]> {
+/** Users with OWNER/MANAGER memberships on ACTIVE GARAGE orgs. When the
+ * acting user is a demo account, only DEMO garages are included — a demo
+ * request must never land in a real business's work queue. */
+async function garageOwnerIds(orgFilter?: { services?: { some: { category: string; active: boolean } } }, demoOnly = false): Promise<string[]> {
   const members = await db.orgMember.findMany({
     where: {
       role: { in: ['OWNER', 'MANAGER'] },
-      org: { type: 'GARAGE', status: 'ACTIVE', ...(orgFilter ?? {}) },
+      org: { type: 'GARAGE', status: 'ACTIVE', ...(demoOnly ? { isDemo: true } : {}), ...(orgFilter ?? {}) },
     },
     select: { userId: true },
     distinct: ['userId'],
@@ -75,8 +78,10 @@ export const POST = route(async (req: NextRequest) => {
 
   // Honest notification fan-out: garages offering this category first;
   // if nobody lists that category yet, all garage owners hear about it.
-  const targeted = await garageOwnerIds({ services: { some: { category: body.category, active: true } } })
-  const recipients = targeted.length > 0 ? targeted : await garageOwnerIds()
+  // DEMO ISOLATION: demo requests fan out to demo garages only.
+  const actorDemo = await isActorDemo()
+  const targeted = await garageOwnerIds({ services: { some: { category: body.category, active: true } } }, actorDemo)
+  const recipients = targeted.length > 0 ? targeted : await garageOwnerIds(undefined, actorDemo)
   await notifyMany(recipients, {
     type: 'SERVICE_REQUEST_NEW',
     title: `New service request in ${body.county}`,

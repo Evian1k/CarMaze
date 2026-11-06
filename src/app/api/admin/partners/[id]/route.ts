@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, ApiError, parseBody, requireRole } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { STAFF_ROLES } from '@/lib/auth'
 import { notify } from '@/lib/notify'
 import { audit } from '@/lib/audit'
@@ -45,6 +46,8 @@ const patchSchema = z.discriminatedUnion('action', [
 
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const staff = await requireRole(...STAFF_ROLES)
+  // DEMO SANDBOX: partner approvals concern real external businesses.
+  await demoStaffMutationGuard(staff, { platformWide: true })
   const { id } = await ctx.params
   const body = await parseBody(req, patchSchema)
 

@@ -69,7 +69,7 @@ export const GET = route(async (req: NextRequest, ctx: Ctx) => {
       photos: { orderBy: { order: 'asc' as const } },
       owner: { select: { id: true, name: true, roles: true } },
       org: {
-        select: { id: true, name: true, county: true, town: true, phone: true, location: true, description: true, status: true },
+        select: { id: true, name: true, county: true, town: true, phone: true, location: true, description: true, status: true, isDemo: true },
       },
     },
   })

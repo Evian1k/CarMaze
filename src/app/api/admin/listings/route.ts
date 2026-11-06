@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, parseBody, requireRole, getIp } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { rateLimit } from '@/lib/rate-limit'
 import { notify } from '@/lib/notify'
 import { audit } from '@/lib/audit'
@@ -61,6 +62,8 @@ export const PATCH = route(async (req: NextRequest) => {
     include: { photos: true },
   })
   if (!vehicle) throw new ApiError(404, 'NOT_FOUND', 'Listing not found.')
+  // DEMO SANDBOX: demo moderators may only moderate demo-ecosystem listings.
+  await demoStaffMutationGuard(user, { subjectUserId: vehicle.ownerId, subjectOrgId: vehicle.orgId })
 
   switch (body.action) {
     case 'approve': {

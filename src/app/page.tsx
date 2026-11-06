@@ -17,6 +17,7 @@ import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useAuth, useAuthInit } from '@/stores/auth'
+import { checkViewAccess } from '@/lib/view-guard'
 import { sessionGet } from '@/lib/safe-storage'
 import { AppShell } from '@/components/layout/app-shell'
 import { Intro } from '@/components/layout/intro'
@@ -62,11 +63,13 @@ const VIEWS: Record<string, React.ComponentType> = {
 }
 
 const NOT_FOUND = dynamic(() => import('@/views/not-found'), { ssr, loading })
+const ACCESS_DENIED = dynamic(() => import('@/views/access-denied'), { ssr, loading })
 
 const emptySubscribe = () => () => {}
 
 export default function Page() {
   useAuthInit()
+  const { user, loading: authLoading } = useAuth()
   const route = useHashRoute()
   // Mounted gate via useSyncExternalStore: false during SSR/hydration, true after.
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
@@ -94,6 +97,21 @@ export default function Page() {
 
   if (!mounted) {
     return <BootScreen />
+  }
+
+  // Central role-aware view protection. The real boundary is backend
+  // authorisation; this renders an access-denied screen instead of a page a
+  // role must never see (and without triggering its data fetches).
+  const guard = checkViewAccess(route.view, user, authLoading)
+  if (guard.access === 'denied') {
+    const DeniedView = ACCESS_DENIED
+    return (
+      <AppErrorBoundary>
+        <AppShell route={route}>
+          <DeniedView reason={guard.reason} view={route.view || 'unknown'} />
+        </AppShell>
+      </AppErrorBoundary>
+    )
   }
 
   const View = VIEWS[route.view] ?? NOT_FOUND

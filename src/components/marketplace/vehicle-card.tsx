@@ -27,6 +27,7 @@ export type VehicleCardData = {
   photo?: string
   sellerType?: string
   orgName?: string | null
+  orgIsDemo?: boolean
 }
 
 export function VehicleCard({ v, saved, onToggleSave }: { v: VehicleCardData; saved?: boolean; onToggleSave?: (v: VehicleCardData) => void }) {
@@ -102,6 +103,11 @@ export function VehicleCard({ v, saved, onToggleSave }: { v: VehicleCardData; sa
         <p className="mt-auto flex items-center gap-1 pt-1 text-xs text-muted-foreground">
           <MapPin className="h-3.5 w-3.5" /> {v.county}
           {v.orgName && <span className="ml-auto max-w-32 truncate">· {v.orgName}</span>}
+          {v.orgIsDemo && (
+            <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="Demo listing — sample data, not real inventory">
+              Demo
+            </span>
+          )}
         </p>
       </div>
     </motion.article>

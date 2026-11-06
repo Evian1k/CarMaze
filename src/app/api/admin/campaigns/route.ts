@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, ApiError, parseBody, requireRole } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { audit } from '@/lib/audit'
 
 /**
@@ -70,6 +71,8 @@ export const PATCH = route(async (req: NextRequest) => {
 
   const campaign = await db.campaign.findUnique({ where: { id: body.id } })
   if (!campaign) throw new ApiError(404, 'NOT_FOUND', 'Campaign not found.')
+  // DEMO SANDBOX: demo staff may only manage demo businesses' campaigns.
+  await demoStaffMutationGuard(user, { subjectOrgId: campaign.orgId })
 
   switch (body.action) {
     case 'activate': {

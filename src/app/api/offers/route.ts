@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { route, ok, fail, ApiError, parseBody, requireUser } from '@/lib/api'
+import { route, ok, fail, ApiError, parseBody, requireUser, getIp } from '@/lib/api'
 import { STAFF_ROLES } from '@/lib/auth'
+import { rateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/audit'
 import { notify } from '@/lib/notify'
+import { assertDemoResourceGuard } from '@/lib/demo'
 
 // ───────────────────────── helpers ─────────────────────────
 
@@ -76,6 +78,8 @@ export const GET = route(async (req: NextRequest) => {
 // ───────────────────────── POST /api/offers ─────────────────────────
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
+  const rl = rateLimit(`offer-create:${user.id}:${getIp(req)}`, 20, 60 * 60 * 1000)
+  if (!rl.allowed) return fail(429, 'RATE_LIMITED', 'Too many offers sent. Try again later.')
 
   const body = await parseBody(
     req,
@@ -108,6 +112,9 @@ export const POST = route(async (req: NextRequest) => {
   if (vehicle.ownerId === user.id) {
     return fail(400, 'OWN_LISTING', 'You can\u2019t offer on your own listing.')
   }
+
+  // DEMO SANDBOX: demo dealer accounts may only offer on demo sellers' listings.
+  await assertDemoResourceGuard(user, { ownerId: vehicle.ownerId, orgId: vehicle.orgId })
 
   const days = body.days ?? 7
   const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000)

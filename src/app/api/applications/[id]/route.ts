@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireUser, ApiError } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { refCode } from '@/lib/ids'
 import { notify, notifyMany } from '@/lib/notify'
 import { audit } from '@/lib/audit'
@@ -80,6 +81,8 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
 
   // ── Staff actions ──
   if (!isReviewer) throw new ApiError(403, 'FORBIDDEN', 'Reviewer access required.')
+  // DEMO SANDBOX: demo reviewers may only review demo applicants' applications.
+  await demoStaffMutationGuard(user, { subjectUserId: app.userId })
   if (!REVIEWABLE.includes(app.status) && body.action !== 'note' && body.action !== 'revoke' && body.action !== 'suspend') {
     throw new ApiError(409, 'INVALID_STATE', `Action "${body.action}" is not allowed while the application is ${app.status}.`)
   }

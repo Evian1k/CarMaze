@@ -15,8 +15,12 @@ export type CurrentUser = {
   department?: string | null
   roles: string[]
   status: string
+  isDemo?: boolean
   createdAt?: string
 }
+
+/** Active demo-session scope (from the session JWT, surfaced by /api/auth/me). */
+export type DemoSessionInfo = { active: true; roleKey: string; expiresAt: string } | null
 
 export type ApplicationProgress = {
   id: string
@@ -34,6 +38,7 @@ export type ApplicationProgress = {
 type AuthState = {
   user: CurrentUser | null
   applications: ApplicationProgress[]
+  demo: DemoSessionInfo
   loading: boolean
   unreadNotifications: number
   refresh: () => Promise<void>
@@ -44,12 +49,13 @@ type AuthState = {
 export const useAuth = create<AuthState>((set) => ({
   user: null,
   applications: [],
+  demo: null,
   loading: true,
   unreadNotifications: 0,
   refresh: async () => {
     try {
-      const data = await apiGet<{ user: CurrentUser | null; applications?: ApplicationProgress[] }>('/api/auth/me')
-      set({ user: data.user, applications: data.user ? (data.applications ?? []) : [], loading: false })
+      const data = await apiGet<{ user: CurrentUser | null; applications?: ApplicationProgress[]; demo?: DemoSessionInfo }>('/api/auth/me')
+      set({ user: data.user, applications: data.user ? (data.applications ?? []) : [], demo: data.user ? (data.demo ?? null) : null, loading: false })
       if (data.user) {
         apiGet<{ unread: number }>('/api/notifications?unread=1&count=1')
           .then((d) => set({ unreadNotifications: d.unread ?? 0 }))
@@ -58,14 +64,14 @@ export const useAuth = create<AuthState>((set) => ({
         set({ unreadNotifications: 0 })
       }
     } catch {
-      set({ user: null, loading: false })
+      set({ user: null, applications: [], demo: null, loading: false })
     }
   },
   logout: async () => {
     try {
       await apiSend('/api/auth/logout', 'POST')
     } finally {
-      set({ user: null, applications: [], unreadNotifications: 0 })
+      set({ user: null, applications: [], demo: null, unreadNotifications: 0 })
       window.location.hash = '#/'
       window.location.reload()
     }

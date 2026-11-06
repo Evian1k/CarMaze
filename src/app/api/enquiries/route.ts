@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notify, notifyMany } from '@/lib/notify'
+import { assertDemoResourceGuard } from '@/lib/demo'
 
 // ───────────────────────── helpers ─────────────────────────
 
@@ -30,8 +31,8 @@ function includeForList() {
 }
 
 /** Org members allowed to see & answer enquiries for a dealer listing. */
-function sellerSideFilter(): { roles: string[] } {
-  return { roles: ['OWNER', 'MANAGER', 'SALES'] }
+function sellerSideFilter(): { role: { in: string[] } } {
+  return { role: { in: ['OWNER', 'MANAGER', 'SALES'] } }
 }
 
 async function orgIdsOf(userId: string): Promise<string[]> {
@@ -86,10 +87,20 @@ export const POST = route(async (req: NextRequest) => {
     })
   )
 
-  const vehicle = await db.vehicle.findUnique({ where: { id: body.vehicleId }, select: vehicleSelect })
+  const vehicle = await db.vehicle.findUnique({
+    where: { id: body.vehicleId },
+    select: { ...vehicleSelect, org: { select: { isDemo: true, status: true } } },
+  })
   if (!vehicle || vehicle.status !== 'PUBLISHED') {
     throw new ApiError(404, 'NOT_FOUND', 'This listing is not available for enquiries.')
   }
+  // A suspended business must not keep receiving leads.
+  if (vehicle.orgId && vehicle.org && vehicle.org.status !== 'ACTIVE') {
+    return fail(409, 'ORG_UNAVAILABLE', 'This business is not currently accepting enquiries.')
+  }
+
+  // DEMO SANDBOX: demo users may only enquire on demo-owned listings.
+  await assertDemoResourceGuard(user, { ownerId: vehicle.ownerId, orgId: vehicle.orgId })
 
   // Not on your own listing (private or dealer-side).
   if (vehicle.ownerId === user.id) {

@@ -1,10 +1,13 @@
-import { getSessionUser } from '@/lib/auth'
+import { getSessionUser, getSessionDemoInfo } from '@/lib/auth'
 import { route, ok } from '@/lib/api'
 import { db } from '@/lib/db'
 
 export const GET = route(async () => {
   const user = await getSessionUser()
   if (!user) return ok({ user: null })
+
+  // Demo-scope info for the DEMO MODE banner (decoded from the session JWT).
+  const demo = await getSessionDemoInfo()
 
   // Provide the user's organisation memberships so portals can route correctly.
   const memberships = await db.orgMember.findMany({
@@ -25,5 +28,6 @@ export const GET = route(async () => {
     user,
     memberships: memberships.map((m) => ({ orgId: m.orgId, role: m.role, org: m.org })),
     applications,
+    demo,
   })
 })

@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Logo } from '@/components/brand/logo'
+import { DemoAccountsSection } from '@/components/auth/demo-accounts'
 import { apiSend, navigate, ClientApiError } from '@/lib/client'
 import { useAuth } from '@/stores/auth'
 import { Gift, ShieldCheck, X, Info, KeyRound } from 'lucide-react'
@@ -398,6 +399,9 @@ export default function AuthView() {
           <ShieldCheck className="h-3.5 w-3.5 text-primary" />
           Passwords are hashed; sessions use secure httpOnly cookies.
         </p>
+        {/* Demo experiences — visible on the sign-in card only, below the
+            secure credential form, and never the primary action. */}
+        {flow === 'form' && mode === 'signin' && <DemoAccountsSection collapsedByDefault={false} />}
       </motion.div>
     </div>
   )

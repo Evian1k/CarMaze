@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireRole, getIp } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { STAFF_ROLES } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/audit'
@@ -129,6 +130,8 @@ async function createBroadcastNotifications(
 
 export const POST = route(async (req: NextRequest) => {
   const user = await requireRole('ADMIN', 'FOUNDER')
+  // DEMO SANDBOX: mass messaging real users is never allowed from a demo session.
+  await demoStaffMutationGuard(user, { platformWide: true })
 
   const rl = rateLimit(`broadcast:${user.id}:${getIp(req)}`, 4, 60 * 60 * 1000)
   if (!rl.allowed) {

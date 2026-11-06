@@ -75,6 +75,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { VerificationCenter } from '@/components/admin/verification-center'
+import { DemoTab } from '@/views/admin/demo-tab'
 
 // ───────────────────────────── Constants & helpers ─────────────────────────────
 
@@ -85,7 +86,7 @@ const PIE_COLORS = ['#315E4B', '#D9B878', '#7FA08E', '#6E6E67', '#B0A284', '#5C8
 const TABS = [
   'overview', 'applications', 'verification', 'listings', 'users', 'staff', 'reports', 'billing',
   'campaigns', 'partners', 'support', 'notifications', 'settings', 'audit',
-  'supply', 'revenue',
+  'supply', 'revenue', 'demo',
 ] as const
 type TabKey = (typeof TABS)[number]
 
@@ -106,6 +107,7 @@ const TAB_LABELS: Record<TabKey, string> = {
   audit: 'Audit',
   supply: 'Supply Network',
   revenue: 'Revenue',
+  demo: 'Demo',
 }
 
 const STAFF_ROLES_CLIENT = ['SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER'] as const
@@ -124,6 +126,7 @@ const DEPARTMENT_LABELS: Record<string, string> = {
 // Server APIs enforce the same rules; this is UX only.
 const TAB_ROLES: Partial<Record<TabKey, readonly string[]>> = {
   staff: ['ADMIN', 'FOUNDER'],
+  demo: ['ADMIN', 'FOUNDER'],
 }
 
 function tabVisibleFor(user: CurrentUser | null, t: TabKey): boolean {
@@ -528,6 +531,7 @@ export default function View() {
           {tab === 'audit' && <AuditTab />}
           {tab === 'supply' && <AdminSupplyConsole />}
           {tab === 'revenue' && <AdminRevenueDashboard />}
+          {tab === 'demo' && <DemoTab />}
         </div>
       </main>
     </div>

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, ApiError, parseBody, requireRole } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { STAFF_ROLES } from '@/lib/auth'
 import { notify } from '@/lib/notify'
 import { audit } from '@/lib/audit'
@@ -56,6 +57,8 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
 
   const target = await db.user.findUnique({ where: { id } })
   if (!target) throw new ApiError(404, 'NOT_FOUND', 'Staff member not found.')
+  // DEMO SANDBOX: demo admins may only manage demo-ecosystem staff accounts.
+  await demoStaffMutationGuard(user, { subjectUserId: target.id })
 
   const targetRoles = target.roles.split(',').filter(Boolean)
   if (!targetRoles.some((r) => STAFF_ROLES.includes(r))) {

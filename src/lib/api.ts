@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ZodError, ZodType } from 'zod'
 import { getSessionUser, hasRole, SessionUser } from '@/lib/auth'
+import { contextSessionUser, runWithRequestContext } from '@/lib/request-context'
 
 export class ApiError extends Error {
   status: number
@@ -23,11 +24,13 @@ export function fail(status: number, code: string, message: string, data?: Recor
 }
 
 /** Wrap a route handler with uniform error handling. Generic ctx keeps each
- * dynamic route's own params typing (e.g. { id: string }) intact. */
+ * dynamic route's own params typing (e.g. { id: string }) intact.
+ * Every handler runs inside a request context so the acting user's session
+ * (and demo status) is resolved once and shared with central guards. */
 export function route<C = RouteCtx>(handler: (req: NextRequest, ctx: C) => Promise<Response>) {
   return async (req: NextRequest, ctx: C): Promise<Response> => {
     try {
-      return await handler(req, ctx)
+      return await runWithRequestContext(() => handler(req, ctx))
     } catch (e) {
       if (e instanceof ApiError) {
         return fail(e.status, e.code, e.message, e.data)
@@ -44,7 +47,7 @@ export function route<C = RouteCtx>(handler: (req: NextRequest, ctx: C) => Promi
 export type RouteCtx = { params: Promise<Record<string, string>> }
 
 export async function requireUser(): Promise<SessionUser> {
-  const user = await getSessionUser()
+  const user = await contextSessionUser()
   if (!user) throw new ApiError(401, 'UNAUTHENTICATED', 'Please sign in to continue.')
   return user
 }
@@ -53,7 +56,7 @@ export async function requireUser(): Promise<SessionUser> {
  * also work anonymously (e.g. product detail). */
 export async function requireUserOptional(): Promise<SessionUser | null> {
   try {
-    return await getSessionUser()
+    return await contextSessionUser()
   } catch {
     return null
   }

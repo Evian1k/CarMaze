@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { isActorDemo } from '@/lib/request-context'
 
 export type NotifyInput = {
   userId: string
@@ -8,13 +9,41 @@ export type NotifyInput = {
   link?: string // hash route link e.g. /dealer
 }
 
+/** Cache of user demo flags within this process to avoid repeat lookups in
+ * notify fan-out loops. Bounded, keyed by userId; demo flags never flip for an
+ * existing user id, and a stale value only survives until the next process. */
+const demoFlagCache = new Map<string, boolean>()
+
+async function isDemoUser(userId: string): Promise<boolean> {
+  const cached = demoFlagCache.get(userId)
+  if (cached !== undefined) return cached
+  const user = await db.user.findUnique({ where: { id: userId }, select: { isDemo: true } })
+  const demo = Boolean(user?.isDemo)
+  if (demoFlagCache.size > 5000) demoFlagCache.clear()
+  demoFlagCache.set(userId, demo)
+  return demo
+}
+
 /**
  * Create an in-app notification (always "SENT") and record honest delivery
  * attempts for EMAIL / SMS channels. No email/SMS provider is configured in
  * this deployment, so those channels are recorded as FAILED with the reason —
  * we never claim an email or SMS was delivered when it was not.
+ *
+ * DEMO ISOLATION: when the acting user of the current request is a demo
+ * account, notifications to NON-demo users are skipped entirely — a demo
+ * session must never place anything in a real user's inbox. (Delivery to demo
+ * users proceeds normally, keeping demo workflows functional.)
  */
-export async function notify(input: NotifyInput): Promise<string> {
+export async function notify(input: NotifyInput): Promise<string | null> {
+  // Central demo sandbox: demo actor → real target would leak into a real
+  // user's account. Block before any record is created.
+  if (await isActorDemo()) {
+    if (!(await isDemoUser(input.userId))) {
+      return null // silently skipped — demo actions must not reach real users
+    }
+  }
+
   const notification = await db.notification.create({
     data: {
       userId: input.userId,

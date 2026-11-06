@@ -19,6 +19,7 @@ import { apiGet, apiSend } from '@/lib/client'
 import { CommandPalette, openCommandPalette } from '@/components/layout/command-palette'
 import { ThemeToggle } from '@/components/layout/theme-toggle'
 import { MobileTabBar, BackToTop } from '@/components/layout/mobile-tabbar'
+import { DemoBanner } from '@/components/layout/demo-banner'
 
 type NotificationItem = {
   id: string
@@ -232,6 +233,11 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
                         <Badge variant="secondary" className="ml-auto">staff</Badge>
                       </DropdownMenuItem>
                     )}
+                    {user.isDemo && (
+                      <DropdownMenuItem className="cursor-pointer font-medium text-amber-700 focus:text-amber-800 dark:text-amber-400" onClick={() => logout()}>
+                        <LogOut className="mr-2 h-4 w-4" /> Exit Demo
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={() => logout()}>
                       <LogOut className="mr-2 h-4 w-4" /> Sign out
@@ -294,6 +300,8 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
           </div>
         </div>
       </header>
+
+      <DemoBanner />
 
       <main id="main-content" className="flex-1">
         {children}

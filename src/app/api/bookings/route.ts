@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, requireUser, parseBody } from '@/lib/api'
+import { hasRole } from '@/lib/auth'
 import { notify, notifyMany } from '@/lib/notify'
 import { audit as writeAudit } from '@/lib/audit'
 
@@ -18,6 +19,11 @@ export const GET = route(async (req: NextRequest) => {
   // ── Garage view: bookings for my org(s), with customer contact ──
   if (url.searchParams.get('org') === '1') {
     const user = await requireUser()
+    // Authorisation requires BOTH the platform role AND an org membership —
+    // revoking either immediately removes access.
+    if (!hasRole(user, 'GARAGE_OWNER', 'GARAGE_STAFF')) {
+      throw new ApiError(403, 'ROLE_REQUIRED', 'Garage access has not been granted to this account.')
+    }
     const memberships = await db.orgMember.findMany({
       where: { userId: user.id, org: { type: 'GARAGE', status: 'ACTIVE' } },
       select: { orgId: true },

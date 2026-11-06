@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { route, ok, fail, requireUser, ApiError, parseBody } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
 import { audit } from '@/lib/audit'
@@ -82,6 +83,8 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const doc = await loadDocument(id)
   const body = await parseBody(req, actionSchema)
+  // DEMO SANDBOX: demo reviewers may only decide on demo-ecosystem documents.
+  await demoStaffMutationGuard(user, { subjectUserId: doc.ownerUserId })
 
   const ACTIVE = ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED']
 

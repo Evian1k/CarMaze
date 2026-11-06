@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireRole } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { ROLE } from '@/lib/auth'
 import { audit } from '@/lib/audit'
 import { getFees, setFees } from '@/lib/supply'
@@ -27,6 +28,8 @@ const schema = z.object({
 /** PUT — update fee configuration (fully audited). */
 export const PUT = route(async (req: NextRequest) => {
   const user = await requireRole(ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
+  // DEMO SANDBOX: platform-wide economics are never configurable from a demo session.
+  await demoStaffMutationGuard(user, { platformWide: true })
   const body = await parseBody(req, schema)
   await setFees(body)
   await audit({

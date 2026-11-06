@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, ApiError, parseBody, requireRole } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { audit } from '@/lib/audit'
 
 /** GET /api/admin/tickets?status= — support queue (any staff). */
@@ -30,6 +31,8 @@ export const PATCH = route(async (req: NextRequest) => {
 
   const ticket = await db.supportTicket.findUnique({ where: { id: body.id } })
   if (!ticket) throw new ApiError(404, 'NOT_FOUND', 'Ticket not found.')
+  // DEMO SANDBOX: demo support may only progress demo-ecosystem tickets.
+  await demoStaffMutationGuard(user, { subjectUserId: ticket.userId })
   if (ticket.status === 'RESOLVED') {
     return ok({ ticket, message: 'Ticket was already resolved.' })
   }

@@ -5,6 +5,7 @@ import { route, ok, fail, ApiError, parseBody, requireUser, getIp } from '@/lib/
 import { rateLimit } from '@/lib/rate-limit'
 import { stkPush, mpesaConfigured, MpesaNotConfiguredError } from '@/lib/mpesa'
 import { audit } from '@/lib/audit'
+import { assertNotDemoActor } from '@/lib/demo'
 
 const bodySchema = z.object({
   invoiceId: z.string().min(1),
@@ -28,6 +29,10 @@ export const POST = route(async (req: NextRequest) => {
   if (!rl.allowed) return fail(429, 'RATE_LIMITED', 'Too many payment requests. Please wait a minute and try again.')
 
   const body = await parseBody(req, bodySchema)
+
+  // DEMO SANDBOX: demo accounts never trigger real M-Pesa transactions —
+  // enforced before any payment attempt is recorded.
+  assertNotDemoActor(user, 'real M-Pesa payment')
 
   const invoice = await db.invoice.findUnique({ where: { id: body.invoiceId } })
   if (!invoice) throw new ApiError(404, 'NOT_FOUND', 'Invoice not found.')

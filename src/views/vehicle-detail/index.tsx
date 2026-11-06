@@ -465,6 +465,11 @@ export default function View() {
                   <p className="flex items-center gap-1.5 font-semibold">
                     {vehicle.org.name}
                     <BadgeCheck className="h-4.5 w-4.5 text-primary" aria-label="Verified dealer" />
+                    {(vehicle.org as { isDemo?: boolean }).isDemo && (
+                      <span className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="Demo storefront — sample data, not a real business">
+                        Demo
+                      </span>
+                    )}
                   </p>
                   <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <MapPin className="h-4 w-4" />

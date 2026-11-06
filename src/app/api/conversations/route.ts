@@ -5,6 +5,7 @@ import { route, ok, fail, ApiError, requireUser, parseBody } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
 import { notifyMany } from '@/lib/notify'
 import { INBOX_NOTIFY_ROLES, orgInboxLink } from '@/lib/orgs'
+import { assertDemoResourceGuard } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,13 +40,24 @@ export const POST = route(async (req: NextRequest) => {
     throw new ApiError(400, 'ORG_INACTIVE', 'This business is not currently accepting messages.')
   }
 
+  // DEMO SANDBOX: demo users may only open conversations with demo businesses.
+  await assertDemoResourceGuard(user, { orgId: org.id })
+
+  // A vehicle/service attached to the thread must actually belong to this org —
+  // otherwise a foreign listing could be spoofed as context in the inbox.
   if (body.vehicleId) {
-    const vehicle = await db.vehicle.findUnique({ where: { id: body.vehicleId }, select: { id: true } })
+    const vehicle = await db.vehicle.findUnique({ where: { id: body.vehicleId }, select: { id: true, orgId: true, ownerId: true } })
     if (!vehicle) throw new ApiError(404, 'NOT_FOUND', 'Vehicle not found.')
+    if (vehicle.orgId !== org.id) {
+      throw new ApiError(400, 'VEHICLE_MISMATCH', 'That vehicle does not belong to this business.')
+    }
   }
   if (body.serviceId) {
-    const service = await db.garageService.findUnique({ where: { id: body.serviceId }, select: { id: true } })
+    const service = await db.garageService.findUnique({ where: { id: body.serviceId }, select: { id: true, orgId: true } })
     if (!service) throw new ApiError(404, 'NOT_FOUND', 'Service not found.')
+    if (service.orgId !== org.id) {
+      throw new ApiError(400, 'SERVICE_MISMATCH', 'That service does not belong to this business.')
+    }
   }
 
   const kind = body.kind ?? 'GENERAL'

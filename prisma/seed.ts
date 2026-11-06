@@ -4,9 +4,13 @@
  *
  * Demo accounts — one for EVERY platform (documented for the pilot, change
  * before launch). Password for all: CarmazeDemo2025!
+ * ALL seeded users/orgs are marked isDemo=true: demo sessions are sandboxed
+ * away from real users via src/lib/demo.ts (no real notifications, no real
+ * M-Pesa, no mutations outside the demo ecosystem).
  *
  *   Platform staff (Control Center, #/admin — invited staff only):
  *     admin@carmaze.co.ke           FOUNDER/ADMIN — full Operations OS
+ *     demo.admin@carmaze.co.ke      RESTRICTED DEMO ADMIN (read-only tour)
  *     ops@carmaze.co.ke             REVIEWER/SUPPORT/MODERATOR
  *     reviewer@carmaze.co.ke        REVIEWER — business-verification department
  *     finance@carmaze.co.ke         FINANCE department
@@ -18,6 +22,7 @@
  *     dealer@carmaze.co.ke          DealerOS (Nairobi Auto Hub + Westlands Motors)
  *     staff@carmaze.co.ke           Dealer sales staff (Nairobi Auto Hub)
  *     garage@carmaze.co.ke          GarageOS (Premium Motors Garage + Mombasa Road Tyres)
+ *     garage.staff@carmaze.co.ke    Garage staff (Premium Motors Garage)
  *     supplier@carmaze.co.ke        SupplierOS (Sifa Auto Spares + unverified Rapid Parts)
  *     tyres@carmaze.co.ke           SupplierOS (Highway Tyre Distributors)
  *     equipment@carmaze.co.ke       SupplierOS (GaragePro Equipment Kenya)
@@ -51,6 +56,7 @@ function hoursAgo(h: number): Date {
 async function main() {
   console.log('Seeding CARMAZE…')
   await db.auditLog.deleteMany()
+  await db.demoAccount.deleteMany()
   await db.aiUsage.deleteMany()
   await db.notificationDelivery.deleteMany()
   await db.notification.deleteMany()
@@ -165,25 +171,34 @@ async function main() {
     data: { email: 'ops@carmaze.co.ke', name: 'Peter Otieno', passwordHash: hash, phone: '+254700333444', phoneVerified: true, roles: 'REVIEWER,SUPPORT,MODERATOR' },
   })
   const dealerOwner = await db.user.create({
-    data: { email: 'dealer@carmaze.co.ke', name: 'David Kimani', passwordHash: hash, phone: '+254711555666', phoneVerified: true, roles: 'CUSTOMER,SELLER,DEALER_OWNER' },
+    data: { email: 'dealer@carmaze.co.ke', name: 'David Kimani', passwordHash: hash, isDemo: true, phone: '+254711555666', phoneVerified: true, roles: 'CUSTOMER,SELLER,DEALER_OWNER' },
   })
   const dealerStaff = await db.user.create({
-    data: { email: 'staff@carmaze.co.ke', name: 'Brian Ochieng', passwordHash: hash, phone: '+254711777888', phoneVerified: true, roles: 'CUSTOMER,DEALER_STAFF' },
+    data: { email: 'staff@carmaze.co.ke', name: 'Brian Ochieng', passwordHash: hash, isDemo: true, phone: '+254711777888', phoneVerified: true, roles: 'CUSTOMER,DEALER_STAFF' },
   })
   const garageOwner = await db.user.create({
-    data: { email: 'garage@carmaze.co.ke', name: 'Mary Achieng', passwordHash: hash, phone: '+254722999000', phoneVerified: true, roles: 'CUSTOMER,GARAGE_OWNER' },
+    data: { email: 'garage@carmaze.co.ke', name: 'Mary Achieng', passwordHash: hash, isDemo: true, phone: '+254722999000', phoneVerified: true, roles: 'CUSTOMER,GARAGE_OWNER' },
+  })
+  const garageStaffUser = await db.user.create({
+    data: { email: 'garage.staff@carmaze.co.ke', name: 'Kevin Otieno', passwordHash: hash, isDemo: true, phone: '+254722999100', phoneVerified: true, roles: 'CUSTOMER,GARAGE_STAFF' },
   })
   const seller = await db.user.create({
-    data: { email: 'seller@carmaze.co.ke', name: 'James Mwangi', passwordHash: hash, phone: '+254733123456', phoneVerified: true, roles: 'CUSTOMER,SELLER' },
+    data: { email: 'seller@carmaze.co.ke', name: 'James Mwangi', passwordHash: hash, isDemo: true, phone: '+254733123456', phoneVerified: true, roles: 'CUSTOMER,SELLER' },
   })
   const customer = await db.user.create({
-    data: { email: 'customer@carmaze.co.ke', name: 'Amina Hassan', passwordHash: hash, phone: '+254745654321', roles: 'CUSTOMER' },
+    data: { email: 'customer@carmaze.co.ke', name: 'Amina Hassan', passwordHash: hash, isDemo: true, phone: '+254745654321', roles: 'CUSTOMER' },
   })
   const pendingDealerUser = await db.user.create({
-    data: { email: 'apply.dealer@carmaze.co.ke', name: 'Salim Yusuf', passwordHash: hash, phone: '+254799111000', roles: 'CUSTOMER,SELLER' },
+    data: { email: 'apply.dealer@carmaze.co.ke', name: 'Salim Yusuf', passwordHash: hash, isDemo: true, phone: '+254799111000', roles: 'CUSTOMER,SELLER' },
   })
   const pendingGarageUser = await db.user.create({
-    data: { email: 'apply.garage@carmaze.co.ke', name: 'Caroline Wanjiru', passwordHash: hash, phone: '+254799222000', roles: 'CUSTOMER' },
+    data: { email: 'apply.garage@carmaze.co.ke', name: 'Caroline Wanjiru', passwordHash: hash, isDemo: true, phone: '+254799222000', roles: 'CUSTOMER' },
+  })
+  // Restricted DEMO platform admin — explores the Operations OS read-only;
+  // financial, staff-management and platform-configuration actions are blocked
+  // server-side for demo accounts (never the real founder/admin account).
+  const demoAdmin = await db.user.create({
+    data: { email: 'demo.admin@carmaze.co.ke', name: 'Demo Admin', passwordHash: hash, isDemo: true, phone: '+254700000100', phoneVerified: true, roles: 'ADMIN,SUPPORT,REVIEWER,MODERATOR', department: 'OPERATIONS' },
   })
 
   // ── Referral codes (Loyalty & Referrals) ──
@@ -198,28 +213,28 @@ async function main() {
   // ── Orgs ──
   const dealerOrg = await db.org.create({
     data: {
-      type: 'DEALER', name: 'Nairobi Auto Hub', regNo: 'BN-2019-4482', county: 'Nairobi', town: 'Syokimau',
+      type: 'DEALER', name: 'Nairobi Auto Hub', isDemo: true, regNo: 'BN-2019-4482', county: 'Nairobi', town: 'Syokimau',
       location: 'Mombasa Road, Next to Gateway Mall', phone: '+254711555666', email: 'sales@nairobiautohub.co.ke',
       description: 'Verified dealership specialising in premium SUVs and executive sedans. All units fully inspected.',
     },
   })
   const dealerOrg2 = await db.org.create({
     data: {
-      type: 'DEALER', name: 'Westlands Motors', regNo: 'BN-2016-1187', county: 'Nairobi', town: 'Westlands',
+      type: 'DEALER', name: 'Westlands Motors', isDemo: true, regNo: 'BN-2016-1187', county: 'Nairobi', town: 'Westlands',
       location: 'Ring Road Parklands', phone: '+254733444555', email: 'hello@westlandsmotors.co.ke',
       description: 'Quality family cars and compact hatchbacks with trade-in options.',
     },
   })
   const garageOrg = await db.org.create({
     data: {
-      type: 'GARAGE', name: 'Premium Motors Garage', regNo: 'BN-2014-7731', county: 'Nairobi', town: 'Westlands',
+      type: 'GARAGE', name: 'Premium Motors Garage', isDemo: true, regNo: 'BN-2014-7731', county: 'Nairobi', town: 'Westlands',
       location: 'Karuna Rd, Westlands', phone: '+254722999000', email: 'service@premiummotors.co.ke',
       description: 'Full-service garage: mechanical, electrical, bodywork and performance upgrades.',
     },
   })
   const garageOrg2 = await db.org.create({
     data: {
-      type: 'GARAGE', name: 'Mombasa Road Tyres & Service', county: 'Nairobi', town: 'South C',
+      type: 'GARAGE', name: 'Mombasa Road Tyres & Service', isDemo: true, county: 'Nairobi', town: 'South C',
       location: 'Mombasa Road opposite Panari', phone: '+254720888777',
       description: 'Tyres, alignment, batteries, quick servicing and 24/7 roadside assistance & towing around Nairobi.',
     },
@@ -231,7 +246,24 @@ async function main() {
       { orgId: dealerOrg.id, userId: dealerStaff.id, role: 'SALES' },
       { orgId: dealerOrg2.id, userId: dealerOwner.id, role: 'OWNER' },
       { orgId: garageOrg.id, userId: garageOwner.id, role: 'OWNER' },
+      { orgId: garageOrg.id, userId: garageStaffUser.id, role: 'STAFF' },
       { orgId: garageOrg2.id, userId: garageOwner.id, role: 'OWNER' },
+    ],
+  })
+
+  // ── Demo account registry (powers the Sign In demo section + admin console) ──
+  // Credentials are NEVER shipped to the frontend: the demo sign-in endpoint
+  // maps roleKey → account server-side. enabled=false hides a role instantly.
+  await db.demoAccount.createMany({
+    data: [
+      { roleKey: 'customer', email: 'customer@carmaze.co.ke', label: 'Customer Demo', description: 'Browse the marketplace, save vehicles, compare, enquire, book garage services and track everything from your dashboard.', dashboard: 'cars', sessionMinutes: 240 },
+      { roleKey: 'private-seller', email: 'seller@carmaze.co.ke', label: 'Private Seller Demo', description: 'Manage your own vehicle listings, see listing approval status, handle enquiries and follow your own seller analytics.', dashboard: 'my-listings', sessionMinutes: 240 },
+      { roleKey: 'showroom-owner', email: 'dealer@carmaze.co.ke', label: 'Showroom Owner Demo', description: 'Run DealerOS for Nairobi Auto Hub: inventory, enquiries, test drives, staff, billing and business analytics.', dashboard: 'dealer', sessionMinutes: 240 },
+      { roleKey: 'showroom-staff', email: 'staff@carmaze.co.ke', label: 'Showroom Staff Demo', description: 'Work the assigned sales tools in DealerOS — enquiries, conversations and test drives — without owner-level access to billing or settings.', dashboard: 'dealer', sessionMinutes: 240 },
+      { roleKey: 'garage-owner', email: 'garage@carmaze.co.ke', label: 'Garage Owner Demo', description: 'Run GarageOS for Premium Motors Garage: quotes, bookings, technicians, procurement, subscriptions and garage analytics.', dashboard: 'garage-dashboard', sessionMinutes: 240 },
+      { roleKey: 'garage-staff', email: 'garage.staff@carmaze.co.ke', label: 'Garage Staff Demo', description: 'Assigned garage operations only — bookings, job progress and customer conversations. No billing, staff management or financials.', dashboard: 'garage-dashboard', sessionMinutes: 240 },
+      { roleKey: 'platform-support', email: 'support@carmaze.co.ke', label: 'Platform Support Demo', description: 'Support portal: customer tickets, complaint resolution and escalation workflows for the Support department.', dashboard: 'admin?tab=support', sessionMinutes: 240 },
+      { roleKey: 'platform-admin', email: 'demo.admin@carmaze.co.ke', label: 'Platform Admin Demo', description: 'Restricted admin tour of the Operations OS — verification queues, moderation and analytics. Financial and security actions are disabled in demo mode.', dashboard: 'admin', sessionMinutes: 240, restrictedNote: 'Restricted to authorised internal testing. Financial actions, staff management and platform-wide configuration are disabled for this demo account.' },
     ],
   })
 
@@ -898,7 +930,7 @@ async function main() {
   const staffFinance = await db.user.create({ data: { email: 'finance@carmaze.co.ke', name: 'Njoroge Kamau', passwordHash: hash, phone: '+254701234001', phoneVerified: true, roles: 'FINANCE', department: 'FINANCE' } })
   const staffDisputes = await db.user.create({ data: { email: 'disputes@carmaze.co.ke', name: 'Zawadi Naliaka', passwordHash: hash, phone: '+254701234002', phoneVerified: true, roles: 'MODERATOR', department: 'DISPUTES' } })
   const staffFraud = await db.user.create({ data: { email: 'fraud@carmaze.co.ke', name: 'Kipchumba Rotich', passwordHash: hash, phone: '+254701234003', phoneVerified: true, roles: 'REVIEWER,MODERATOR', department: 'FRAUD' } })
-  const staffSupport = await db.user.create({ data: { email: 'support@carmaze.co.ke', name: 'Halima Yusuf', passwordHash: hash, phone: '+254701234004', phoneVerified: true, roles: 'SUPPORT', department: 'SUPPORT' } })
+  const staffSupport = await db.user.create({ data: { email: 'support@carmaze.co.ke', name: 'Halima Yusuf', passwordHash: hash, isDemo: true, phone: '+254701234004', phoneVerified: true, roles: 'SUPPORT', department: 'SUPPORT' } })
   const staffReviewer = await db.user.create({ data: { email: 'reviewer@carmaze.co.ke', name: 'Achieng Odhiambo', passwordHash: hash, phone: '+254701234005', phoneVerified: true, roles: 'REVIEWER', department: 'BUSINESS_VERIFICATION' } })
   const referralCodes: [string, string][] = [
     [staffFinance.id, 'FIN4M8TQ'], [staffDisputes.id, 'DSP7K2WN'], [staffFraud.id, 'FRD9X4PL'],
@@ -907,7 +939,7 @@ async function main() {
   for (const [id, code] of referralCodes) await db.user.update({ where: { id }, data: { referralCode: code } })
 
   // ── LogisticsOS — approved delivery partner + fleet + live job board ──
-  const logisticsOwner = await db.user.create({ data: { email: 'logistics@carmaze.co.ke', name: 'Oscar Mutua', passwordHash: hash, phone: '+254734555777', phoneVerified: true, roles: 'CUSTOMER,LOGISTICS_OWNER' } })
+  const logisticsOwner = await db.user.create({ data: { email: 'logistics@carmaze.co.ke', name: 'Oscar Mutua', passwordHash: hash, isDemo: true, phone: '+254734555777', phoneVerified: true, roles: 'CUSTOMER,LOGISTICS_OWNER' } })
   await db.user.update({ where: { id: logisticsOwner.id }, data: { referralCode: 'LGS3N9KW' } })
 
   const logisticsApp = await db.application.create({
@@ -1050,7 +1082,7 @@ async function main() {
   })
 
   // Pending logistics application (review queue demo — uploaded ≠ verified)
-  const applyLogisticsUser = await db.user.create({ data: { email: 'apply.logistics@carmaze.co.ke', name: 'Faith Chebet', passwordHash: hash, phone: '+254799333000', roles: 'CUSTOMER' } })
+  const applyLogisticsUser = await db.user.create({ data: { email: 'apply.logistics@carmaze.co.ke', name: 'Faith Chebet', passwordHash: hash, isDemo: true, phone: '+254799333000', roles: 'CUSTOMER' } })
   await db.user.update({ where: { id: applyLogisticsUser.id }, data: { referralCode: 'LGA8Q4ZX' } })
   const pendingLogisticsApp = await db.application.create({
     data: {
@@ -1070,7 +1102,7 @@ async function main() {
   })
 
   // ── Private-seller platform — verified seller with a full KYC trail ──
-  const verifiedSeller = await db.user.create({ data: { email: 'verified.seller@carmaze.co.ke', name: 'Wanjiku Kariuki', passwordHash: hash, phone: '+254737888999', phoneVerified: true, roles: 'CUSTOMER,SELLER,SELLER_VERIFIED' } })
+  const verifiedSeller = await db.user.create({ data: { email: 'verified.seller@carmaze.co.ke', name: 'Wanjiku Kariuki', passwordHash: hash, isDemo: true, phone: '+254737888999', phoneVerified: true, roles: 'CUSTOMER,SELLER,SELLER_VERIFIED' } })
   await db.user.update({ where: { id: verifiedSeller.id }, data: { referralCode: 'VSL6H3YT' } })
   const sellerApp = await db.application.create({
     data: {
@@ -1415,6 +1447,8 @@ async function main() {
   console.log('    dealer@carmaze.co.ke     — DealerOS (Nairobi Auto Hub + Westlands Motors)')
   console.log('    staff@carmaze.co.ke      — Dealer sales staff')
   console.log('    garage@carmaze.co.ke     — GarageOS (Premium Motors Garage + Mombasa Road Tyres)')
+  console.log('    garage.staff@carmaze.co.ke — Garage staff (Premium Motors Garage)')
+  console.log('    demo.admin@carmaze.co.ke — RESTRICTED demo platform admin (read-only tour)')
   console.log('    supplier@carmaze.co.ke   — SupplierOS (Sifa Auto Spares + unverified Rapid Parts)')
   console.log('    tyres@carmaze.co.ke      — SupplierOS (Highway Tyre Distributors)')
   console.log('    equipment@carmaze.co.ke  — SupplierOS (GaragePro Equipment Kenya)')

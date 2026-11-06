@@ -183,6 +183,12 @@ export const PATCH = route(async (req: NextRequest) => {
       : memberships[0]?.org
     if (!org) throw new ApiError(404, 'NOT_FOUND', 'That garage is not among your roadside-capable memberships.')
 
+    // DEMO ISOLATION: a demo user's request may only be served by a demo org —
+    // real garages must never be dispatched for demo activity.
+    if (request.userId !== user.id && org.isDemo !== (await db.user.findUnique({ where: { id: request.userId }, select: { isDemo: true } }))?.isDemo) {
+      throw new ApiError(403, 'DEMO_SANDBOXED', 'Demo mode: demo requests can only be accepted by demo garages.')
+    }
+
     if (request.status !== 'REQUESTED') {
       throw new ApiError(409, 'INVALID_STATE', `This request is already ${request.status.toLowerCase()}.`)
     }

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { route, ok, ApiError, requireUser } from '@/lib/api'
+import { hasRole } from '@/lib/auth'
 
 const ACTIVE_LISTING_STATUSES = ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'RESERVED']
 
@@ -10,9 +11,15 @@ const ACTIVE_LISTING_STATUSES = ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'RESERV
  * from live database queries — nothing cached, nothing invented.
  * Defaults to the session's first DEALER org; pass ?orgId= to select another
  * org the user is a member of (tenant-isolated).
+ *
+ * Authorisation requires BOTH the platform role (DEALER_OWNER/DEALER_STAFF)
+ * AND an org membership — revoking either immediately removes access.
  */
 export const GET = route(async (req: NextRequest) => {
   const user = await requireUser()
+  if (!hasRole(user, 'DEALER_OWNER', 'DEALER_STAFF')) {
+    throw new ApiError(403, 'ROLE_REQUIRED', 'Dealer access has not been granted to this account.')
+  }
   const requestedOrgId = new URL(req.url).searchParams.get('orgId')
 
   const memberships = await db.orgMember.findMany({

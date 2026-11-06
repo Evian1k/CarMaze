@@ -1,0 +1,1996 @@
+     1→// CARMAZE — Automotive ecosystem schema (SQLite / Prisma)
+     2→// Money is stored as integer minor units (cents) with explicit currency (default KES).
+     3→// SQLite has no enums/arrays/JSON: use String fields (JSON stored as strings).
+     4→
+     5→generator client {
+     6→  provider = "prisma-client-js"
+     7→}
+     8→
+     9→datasource db {
+    10→  provider = "sqlite"
+    11→  url      = env("DATABASE_URL")
+    12→}
+    13→
+    14→// ───────────────────────────── Users & access ─────────────────────────────
+    15→
+    16→model User {
+    17→  id            String   @id @default(cuid())
+    18→  email         String   @unique
+    19→  passwordHash  String
+    20→  name          String
+    21→  phone         String?
+    22→  phoneVerified Boolean  @default(false)
+    23→  phoneCode     String?
+    24→  emailVerified Boolean  @default(false)
+    25→  emailCode     String?  // one-time email verification code (honest dev fallback when SMTP unconfigured)
+    26→  roles         String   @default("CUSTOMER") // comma separated: CUSTOMER,SELLER,SELLER_VERIFIED,DEALER_OWNER,DEALER_STAFF,GARAGE_OWNER,GARAGE_STAFF,SUPPLIER_OWNER,SUPPLIER_STAFF,LOGISTICS_OWNER,PROCUREMENT,FINANCE,SUPPORT,REVIEWER,MODERATOR,ADMIN,FOUNDER
+    27→  department    String?  // company staff department (BUSINESS_VERIFICATION|SUPPORT|FINANCE|DISPUTES|FRAUD|MODERATION|TECHNICAL)
+    28→  totpSecret    String?  // base32 TOTP secret for MFA (null = MFA disabled)
+    29→  mfaEnabled    Boolean  @default(false)
+    30→  status        String   @default("ACTIVE") // ACTIVE | SUSPENDED
+    31→  referralCode  String?  @unique // this user's own shareable referral code
+    32→  referredById  String?  // user who referred them (attribution — set once at registration)
+    33→  referredAt    DateTime?
+    34→  createdAt     DateTime @default(now())
+    35→  updatedAt     DateTime @updatedAt
+    36→
+    37→  vehicles         Vehicle[]        @relation("VehicleOwner")
+    38→  enquiries        Enquiry[]
+    39→  serviceRequests  ServiceRequest[]
+    40→  roadsideRequests RoadsideRequest[]
+    41→  myVehicles       MyVehicle[]
+    42→  posts            CommunityPost[]
+    43→  comments         PostComment[]
+    44→  reactions        PostReaction[]
+    45→  reports          Report[]         @relation("Reporter")
+    46→  notifications    Notification[]
+    47→  applications     Application[]
+    48→  reviews          OrgReview[]
+    49→  savedVehicles    SavedVehicle[]
+    50→  savedSearches    SavedSearch[]
+    51→  orgMemberships   OrgMember[]
+    52→  follows          Follow[]         @relation("Follower")
+    53→  followings       Follow[]         @relation("Following")
+    54→  conversations    Conversation[]   @relation("Conversations")
+    55→  custodies        VehicleCustody[] @relation("Custodies")
+    56→  testDrives       TestDrive[]      @relation("TestDrives")
+    57→  incidents        SecurityIncident[] @relation("Incidents")
+    58→  loyaltyEntries   LoyaltyLedger[]
+    59→
+    60→  // ── Supply network & business programmes ──
+    61→  businessMemberships BusinessMembership[] @relation("MembershipCustomer")
+    62→  trustMemberships    TrustMember[]
+    63→  productReviews      ProductReview[]
+    64→  savedSupplyItems    SavedSupplyItem[]
+    65→  creditFacilities    CreditFacility[]     @relation("CreditCustomer")
+    66→  authoredPOs         PurchaseOrder[]      @relation("POAuthor")
+    67→  authoredRequests    QuoteRequest[]       @relation("QuoteReqAuthor")
+    68→  customerOrders      CustomerOrder[]      @relation("CustomerOrderBuyer")
+    69→  verificationDocuments VerificationDocument[] @relation("DocumentOwner")
+    70→
+    71→  // ── Identity & security ──
+    72→  passwordResetTokens PasswordResetToken[]
+    73→
+    74→  // ── Logistics network ──
+    75→  ownedLogisticsPartner LogisticsPartner?
+    76→  deliveryJobsRequested DeliveryJob[]       @relation("DeliveryJobRequester")
+    77→}
+    78→
+    79→// ───────────────────── Identity & security ─────────────────────
+    80→
+    81→model PasswordResetToken {
+    82→  id        String    @id @default(cuid())
+    83→  userId    String
+    84→  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+    85→  tokenHash String    @unique // sha256(token) — the raw token is never stored
+    86→  expiresAt DateTime
+    87→  usedAt    DateTime?
+    88→  requestIp String?
+    89→  createdAt DateTime  @default(now())
+    90→
+    91→  @@index([userId])
+    92→  @@index([expiresAt])
+    93→}
+    94→
+    95→// ───────────────────── Logistics & delivery partners ─────────────────────
+    96→
+    97→model LogisticsPartner {
+    98→  id             String   @id @default(cuid())
+    99→  refCode        String   @unique
+   100→  ownerUserId    String   @unique // one partner per owner account
+   101→  owner          User     @relation(fields: [ownerUserId], references: [id])
+   102→  name           String
+   103→  partnerType    String   @default("COMPANY") // COMPANY | INDEPENDENT
+   104→  regNo          String?
+   105→  county         String
+   106→  town           String?
+   107→  phone          String
+   108→  email          String?
+   109→  representative String
+   110→  serviceAreas   String?  // JSON string[] — counties served
+   111→  capabilities   String?  // JSON string[] — PARCELS|VEHICLES|TOWING|PARTS
+   112→  documents      String?  // JSON [{name,url,uploadedAt}]
+   113→  consent        Boolean  @default(false)
+   114→  status         String   @default("PENDING") // PENDING|UNDER_REVIEW|MORE_INFO_REQUIRED|APPROVED|REJECTED|SUSPENDED
+   115→  verified       Boolean  @default(false) // set ONLY by staff review — never self-claimed
+   116→  decisionNote   String?
+   117→  appliedAt      DateTime?
+   118→  reviewedAt     DateTime?
+   119→  reviewedByName String?
+   120→  createdAt      DateTime @default(now())
+   121→  updatedAt      DateTime @updatedAt
+   122→
+   123→  drivers Driver[]
+   124→  jobs    DeliveryJob[]
+   125→  events  LogisticsPartnerEvent[]
+   126→
+   127→  @@index([status])
+   128→}
+   129→
+   130→model LogisticsPartnerEvent {
+   131→  id        String            @id @default(cuid())
+   132→  partnerId String
+   133→  partner   LogisticsPartner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+   134→  type      String // SUBMITTED|APPROVED|REJECTED|SUSPENDED|REINSTATED|INFO_REQUESTED|NOTE
+   135→  actorId   String?
+   136→  actorName String?
+   137→  note      String?
+   138→  createdAt DateTime          @default(now())
+   139→
+   140→  @@index([partnerId, createdAt])
+   141→}
+   142→
+   143→model Driver {
+   144→  id          String            @id @default(cuid())
+   145→  partnerId   String
+   146→  partner     LogisticsPartner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+   147→  name        String
+   148→  phone       String
+   149→  licenseNo   String?
+   150→  vehicleReg  String?
+   151→  vehicleType String? // MOTORBIKE|PICKUP|VAN|TRUCK|TOW_TRUCK
+   152→  status      String   @default("ACTIVE") // ACTIVE | INACTIVE
+   153→  createdAt   DateTime @default(now())
+   154→
+   155→  jobs DeliveryJob[]
+   156→
+   157→  @@index([partnerId])
+   158→}
+   159→
+   160→model DeliveryJob {
+   161→  id                 String            @id @default(cuid())
+   162→  refCode            String            @unique
+   163→  requestedByUserId  String
+   164→  requester          User              @relation("DeliveryJobRequester", fields: [requestedByUserId], references: [id])
+   165→  requesterOrgId     String? // when requested on behalf of a business (garage/showroom/supplier)
+   166→  requesterOrgName   String?
+   167→  partnerId          String? // assigned logistics partner
+   168→  partner            LogisticsPartner? @relation(fields: [partnerId], references: [id])
+   169→  driverId           String?
+   170→  driver             Driver?           @relation(fields: [driverId], references: [id])
+   171→  cargoDesc          String
+   172→  sizeClass          String   @default("SMALL") // SMALL|MEDIUM|LARGE
+   173→  pickupCounty       String
+   174→  pickupAddress      String
+   175→  pickupContactName  String
+   176→  pickupContactPhone String
+   177→  dropCounty         String
+   178→  dropAddress        String
+   179→  dropContactName    String
+   180→  dropContactPhone   String
+   181→  status             String   @default("OPEN") // OPEN|ASSIGNED|PICKED_UP|IN_TRANSIT|DELIVERED|FAILED|CANCELLED
+   182→  feeMinor           Int      @default(0) // quoted by the partner at acceptance
+   183→  otpHash            String? // bcrypt hash of the drop-off handover OTP
+   184→  otpHint            String? // last 2 digits for UX
+   185→  qrToken            String? @unique // requester-side QR alternative to the OTP
+   186→  podPhotos          String? // JSON string[] — proof-of-delivery evidence
+   187→  failReason         String?
+   188→  pickupAt           DateTime?
+   189→  deliveredAt        DateTime?
+   190→  createdAt          DateTime @default(now())
+   191→  updatedAt          DateTime @updatedAt
+   192→
+   193→  events DeliveryJobEvent[]
+   194→
+   195→  @@index([status, createdAt])
+   196→  @@index([requestedByUserId])
+   197→  @@index([partnerId])
+   198→}
+   199→
+   200→model DeliveryJobEvent {
+   201→  id        String      @id @default(cuid())
+   202→  jobId     String
+   203→  job       DeliveryJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   204→  type      String // CREATED|ASSIGNED|ACCEPTED|DECLINED|PICKED_UP|IN_TRANSIT|DELIVERED|FAILED|CANCELLED|NOTE
+   205→  actorId   String?
+   206→  actorName String
+   207→  actorSide String // CUSTOMER | PARTNER | STAFF | SYSTEM
+   208→  note      String?
+   209→  createdAt DateTime    @default(now())
+   210→
+   211→  @@index([jobId, createdAt])
+   212→}
+   213→
+   214→// ───────────────────── Unified messaging (customer ⇄ business) ─────────────────────
+   215→
+   216→model Conversation {
+   217→  id                 String   @id @default(cuid())
+   218→  orgId              String
+   219→  org                Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+   220→  customerId         String
+   221→  customer           User     @relation("Conversations", fields: [customerId], references: [id])
+   222→  subject            String? // e.g. "Accident repair — KDJ 345K"
+   223→  vehicleId          String? // optional vehicle listing reference
+   224→  vehicle            Vehicle? @relation(fields: [vehicleId], references: [id])
+   225→  serviceId          String? // optional garage service reference
+   226→  kind               String   @default("GENERAL") // GENERAL|QUOTE|BOOKING|VEHICLE_ENQUIRY|SUPPORT
+   227→  status             String   @default("OPEN") // OPEN|CLOSED
+   228→  lastMessageAt      DateTime @default(now())
+   229→  lastMessagePreview String?
+   230→  unreadForOrg       Boolean  @default(false)
+   231→  unreadForCustomer  Boolean  @default(false)
+   232→  orgArchived        Boolean  @default(false)
+   233→  customerArchived   Boolean  @default(false)
+   234→  createdAt          DateTime @default(now())
+   235→  updatedAt          DateTime @updatedAt
+   236→
+   237→  messages ConversationMessage[]
+   238→
+   239→  @@index([orgId, lastMessageAt])
+   240→  @@index([customerId, lastMessageAt])
+   241→}
+   242→
+   243→model ConversationMessage {
+   244→  id             String       @id @default(cuid())
+   245→  conversationId String
+   246→  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+   247→  senderId       String? // null → system note
+   248→  senderName     String
+   249→  senderSide     String // CUSTOMER|ORG|SYSTEM
+   250→  body           String
+   251→  attachments    String? // JSON string[] of attachment urls
+   252→  refType        String? // QUOTE|BOOKING|SERVICE_REQUEST|VEHICLE
+   253→  refId          String?
+   254→  createdAt      DateTime     @default(now())
+   255→
+   256→  @@index([conversationId, createdAt])
+   257→}
+   258→
+   259→// ───────────── Garage Vehicle Protection — custody / handover ─────────────
+   260→
+   261→model VehicleCustody {
+   262→  id                   String    @id @default(cuid())
+   263→  refCode              String    @unique
+   264→  orgId                String
+   265→  org                  Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+   266→  customerId           String
+   267→  customer             User      @relation("Custodies", fields: [customerId], references: [id])
+   268→  myVehicleId          String?   // link to a My Garage vehicle record
+   269→  vehicleDesc          String    // "Toyota Prado 2018, KDJ 345K"
+   270→  plate                String?
+   271→  odometerKm           Int?
+   272→  fuelLevel            String?   // E|QUARTER|HALF|THREE_QUARTER|FULL
+   273→  conditionNotes       String?   // existing damage declared by customer
+   274→  photos               String?   // JSON string[] — drop-off condition evidence
+   275→  valuables            String?   // declared personal property left inside
+   276→  requestedWork        String
+   277→  authorisedSpendMinor Int?      // agreed spending cap
+   278→  roadTestAllowed      Boolean   @default(false)
+   279→  status               String    @default("HANDOVER_REQUESTED")
+   280→  // HANDOVER_REQUESTED|RECEIVED|INSPECTION|AWAITING_APPROVAL|WORK_IN_PROGRESS|ROAD_TEST_REQUESTED|READY_FOR_COLLECTION|COLLECTION_PENDING|RETURNED|DISPUTED|INCIDENT
+   281→  receivedAt           DateTime?
+   282→  receivedByStaffName  String?
+   283→  readyAt              DateTime?
+   284→  completedWork        String?
+   285→  finalOdometerKm      Int?
+   286→  finalNotes           String?
+   287→  completionPhotos     String?   // JSON string[]
+   288→  costMinor            Int?
+   289→  collectedAt          DateTime?
+   290→  collectedByName      String?
+   291→  returnedAt           DateTime?
+   292→  createdAt            DateTime  @default(now())
+   293→  updatedAt            DateTime  @updatedAt
+   294→
+   295→  events       CustodyEvent[]
+   296→  roadTests    RoadTest[]
+   297→  collectionAuth CollectionAuthorisation?
+   298→
+   299→  @@index([orgId, status])
+   300→  @@index([customerId, status])
+   301→}
+   302→
+   303→model CustodyEvent {
+   304→  id         String         @id @default(cuid())
+   305→  custodyId  String
+   306→  custody    VehicleCustody @relation(fields: [custodyId], references: [id], onDelete: Cascade)
+   307→  type       String // STATUS_CHANGE|NOTE|ROAD_TEST|DISPUTE|INCIDENT|HANDOVER|COLLECTION
+   308→  fromStatus String?
+   309→  toStatus   String?
+   310→  actorId    String?
+   311→  actorName  String
+   312→  actorSide  String // CUSTOMER|ORG|SYSTEM
+   313→  note       String?
+   314→  createdAt  DateTime       @default(now())
+   315→
+   316→  @@index([custodyId, createdAt])
+   317→}
+   318→
+   319→model RoadTest {
+   320→  id              String         @id @default(cuid())
+   321→  custodyId       String
+   322→  custody         VehicleCustody @relation(fields: [custodyId], references: [id], onDelete: Cascade)
+   323→  purpose         String
+   324→  driverName      String
+   325→  startOdometerKm Int?
+   326→  endOdometerKm   Int?
+   327→  requestedAt     DateTime       @default(now())
+   328→  authorisedAt    DateTime? // customer approval
+   329→  startedAt       DateTime?
+   330→  endedAt         DateTime?
+   331→  status          String         @default("REQUESTED") // REQUESTED|AUTHORISED|IN_PROGRESS|COMPLETED|DECLINED
+   332→  notes           String?
+   333→  incident        Boolean        @default(false)
+   334→
+   335→  @@index([custodyId])
+   336→}
+   337→
+   338→model CollectionAuthorisation {
+   339→  id             String         @id @default(cuid())
+   340→  custodyId      String         @unique
+   341→  custody        VehicleCustody @relation(fields: [custodyId], references: [id], onDelete: Cascade)
+   342→  collectorName  String
+   343→  collectorPhone String
+   344→  authCodeHash   String // bcrypt hash of the single-use code
+   345→  codeHint       String? // last 2 chars shown for verification UX
+   346→  expiresAt      DateTime
+   347→  usedAt         DateTime?
+   348→  revokedAt      DateTime?
+   349→  createdAt      DateTime       @default(now())
+   350→}
+   351→
+   352→// ───────────── Showroom test-drive appointments ─────────────
+   353→
+   354→model TestDrive {
+   355→  id               String   @id @default(cuid())
+   356→  refCode          String   @unique
+   357→  orgId            String
+   358→  org              Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+   359→  vehicleId        String
+   360→  vehicle          Vehicle  @relation(fields: [vehicleId], references: [id])
+   361→  customerId       String
+   362→  customer         User     @relation("TestDrives", fields: [customerId], references: [id])
+   363→  scheduledAt      DateTime
+   364→  status           String   @default("REQUESTED") // REQUESTED|CONFIRMED|IN_PROGRESS|COMPLETED|NO_SHOW|CANCELLED
+   365→  licenceConfirmed Boolean  @default(false) // customer confirms valid licence
+   366→  odometerOut      Int?
+   367→  odometerIn       Int?
+   368→  fuelOut          String?
+   369→  fuelIn           String?
+   370→  conditionOut     String?
+   371→  conditionIn      String?
+   372→  releasedBy       String? // staff who authorised vehicle release
+   373→  returnedBy       String?
+   374→  startedAt        DateTime?
+   375→  endedAt          DateTime?
+   376→  notes            String?
+   377→  createdAt        DateTime @default(now())
+   378→  updatedAt        DateTime @updatedAt
+   379→
+   380→  @@index([orgId, status])
+   381→  @@index([customerId])
+   382→}
+   383→
+   384→// ───────────── Security incidents ─────────────
+   385→
+   386→model SecurityIncident {
+   387→  id             String   @id @default(cuid())
+   388→  refCode        String   @unique
+   389→  category       String
+   390→  // STOLEN_VEHICLE|MISSING_FROM_GARAGE|TEST_DRIVE_NOT_RETURNED|UNAUTHORISED_USE|UNAUTHORISED_RELEASE|DAMAGE_IN_CUSTODY|MISSING_PROPERTY|OWNERSHIP_FRAUD|FAKE_DOCS|MISCONDUCT|CUSTOMER_FRAUD|OTHER
+   391→  reporterId     String
+   392→  reporter       User     @relation("Incidents", fields: [reporterId], references: [id])
+   393→  reporterSide   String // CUSTOMER|ORG
+   394→  orgId          String? // involved business (plain ref, no cascade)
+   395→  custodyId      String?
+   396→  testDriveId    String?
+   397→  vehicleDesc    String?
+   398→  subjectDesc    String? // restricted: person/organisation under review
+   399→  title          String
+   400→  details        String
+   401→  evidence       String? // JSON [{url,name,uploadedAt}]
+   402→  status         String   @default("OPEN") // OPEN|UNDER_REVIEW|RESOLVED|DISMISSED|ESCALATED
+   403→  severity       String   @default("MEDIUM") // LOW|MEDIUM|HIGH|CRITICAL
+   404→  assignedTo     String?
+   405→  resolutionNote String?
+   406→  resolvedAt     DateTime?
+   407→  createdAt      DateTime @default(now())
+   408→  updatedAt      DateTime @updatedAt
+   409→
+   410→  timeline IncidentEvent[]
+   411→
+   412→  @@index([status, severity])
+   413→}
+   414→
+   415→model IncidentEvent {
+   416→  id         String           @id @default(cuid())
+   417→  incidentId String
+   418→  incident   SecurityIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+   419→  type       String // CREATED|NOTE|STATUS_CHANGE|EVIDENCE|ESCALATION|RESOLUTION
+   420→  actorId    String?
+   421→  actorName  String
+   422→  note       String?
+   423→  createdAt  DateTime         @default(now())
+   424→}
+   425→
+   426→model Org {
+   427→  id          String   @id @default(cuid())
+   428→  type        String // DEALER | GARAGE | SUPPLIER
+   429→  verified    Boolean  @default(false) // set when onboarding application is approved + docs reviewed
+   430→  // Garage procurement: purchase orders above this threshold require owner approval (minor units, null = no approval gate)
+   431→  poApprovalThresholdMinor Int?
+   432→  supplierRating   Float?  // cached average of OrgReview ratings
+   433→  supplierRiskScore Int    @default(0) // 0 = clean; admin raises on fraud/disputes (>=60 = high risk)
+   434→  name        String
+   435→  regNo       String?
+   436→  county      String
+   437→  town        String?
+   438→  location    String?
+   439→  phone       String?
+   440→  email       String?
+   441→  description String?
+   442→  status      String   @default("ACTIVE") // ACTIVE | SUSPENDED
+   443→  createdAt   DateTime @default(now())
+   444→  updatedAt   DateTime @updatedAt
+   445→
+   446→  members    OrgMember[]
+   447→  vehicles   Vehicle[]
+   448→  offers     Offer[]
+   449→  buyingReqs BuyingRequest[]
+   450→  services   GarageService[]
+   451→  quotes     Quote[]
+   452→  bookings   Booking[]
+   453→  reviews    OrgReview[]
+   454→  invoices   Invoice[]
+   455→  subscription Subscription?
+   456→  campaigns  Campaign[]
+   457→
+   458→  // ── Storefront (public business page) ──
+   459→  logoUrl         String?
+   460→  coverUrl        String?
+   461→  gallery         String? // JSON string[] of image urls
+   462→  openingHours    String? // JSON {"mon":["08:00","18:00"],…} null value = closed
+   463→  specialities    String? // JSON string[]
+   464→  faqs            String? // JSON [{q,a}]
+   465→  serviceAreas    String? // JSON string[] of counties/areas served
+   466→  whatsappEnabled Boolean @default(false)
+   467→  callEnabled     Boolean @default(true)
+   468→  responseMinutes Int? // expected response time in minutes (self-reported)
+   469→
+   470→  // ── Relations ──
+   471→  conversations Conversation[]
+   472→  custodies     VehicleCustody[]
+   473→  testDrives    TestDrive[]
+   474→
+   475→  // ── Supply network & multi-branch ──
+   476→  branches        OrgBranch[]
+   477→  products        Product[]
+   478→  membershipTiers MembershipTier[]
+   479→  trustProgrammes TrustProgramme[]
+   480→  creditIssued    CreditFacility[] @relation("CreditIssuer")
+   481→  poAsGarage      PurchaseOrder[]  @relation("POGarage")
+   482→  poAsSupplier    PurchaseOrder[]  @relation("POSupplier")
+   483→  quoteOffers     QuoteOffer[]
+   484→  vehicleTransfers VehicleTransfer[] @relation("TransferOwner")
+   485→  memberOrg       BusinessMembership[] @relation("MembershipOrg")
+   486→  customerOrdersAsSupplier CustomerOrder[] @relation("CustomerOrderSupplier")
+   487→  verificationDocuments VerificationDocument[] @relation("DocumentOrg")
+   488→}
+   489→
+   490→model OrgMember {
+   491→  id     String   @id @default(cuid())
+   492→  orgId  String
+   493→  userId String
+   494→  role   String // OWNER | MANAGER | SALES | FINANCE | STAFF (dealer) / OWNER | MANAGER | MECHANIC | STAFF (garage)
+   495→  org    Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+   496→  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   497→  createdAt DateTime @default(now())
+   498→
+   499→  @@unique([orgId, userId])
+   500→  @@index([userId])
+   501→}
+   502→
+   503→// ───────────────────────── Dealer / Garage onboarding ─────────────────────────
+   504→
+   505→model Application {
+   506→  id               String    @id @default(cuid())
+   507→  refCode          String    @unique
+   508→  type             String // DEALER | GARAGE | SELLER | LOGISTICS
+   509→  userId           String
+   510→  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+   511→  orgName          String
+   512→  regNo            String?
+   513→  county           String
+   514→  town             String?
+   515→  physicalAddress  String?
+   516→  phone            String
+   517→  email            String?
+   518→  representative   String
+   519→  accountType      String? // dealer plan interest
+   520→  categories       String? // garage: comma separated service categories
+   521→  documents        String? // JSON [{name,url,uploadedAt}]
+   522→  consent          Boolean   @default(false)
+   523→  notes            String?
+   524→  status           String    @default("DRAFT") // DRAFT|SUBMITTED|UNDER_REVIEW|MORE_INFO_REQUIRED|RESUBMITTED|APPROVED|REJECTED|SUSPENDED|REVOKED
+   525→  reviewSlaHours   Int       @default(24)
+   526→  submittedAt      DateTime?
+   527→  reviewOwnerId    String?
+   528→  reviewOwnerName  String?
+   529→  decisionNote     String?
+   530→  infoRequestedAt  DateTime?
+   531→  correctionsDueAt DateTime?
+   532→  lastReminderAt   DateTime?
+   533→  reminderCount    Int       @default(0)
+   534→  escalated        Boolean   @default(false)
+   535→  escalatedAt      DateTime?
+   536→  orgId            String?
+   537→  createdAt        DateTime  @default(now())
+   538→  updatedAt        DateTime  @updatedAt
+   539→
+   540→  events ApplicationEvent[]
+   541→  verificationDocuments VerificationDocument[]
+   542→
+   543→  @@index([status, submittedAt])
+   544→}
+   545→
+   546→model ApplicationEvent {
+   547→  id            String      @id @default(cuid())
+   548→  applicationId String
+   549→  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+   550→  type          String // SUBMITTED|REVIEW_ASSIGNED|INFO_REQUESTED|RESUBMITTED|REMINDER|ESCALATED|APPROVED|REJECTED|NOTE|STATUS_CHANGED
+   551→  actorId       String?
+   552→  actorName     String?
+   553→  note          String?
+   554→  createdAt     DateTime    @default(now())
+   555→}
+   556→
+   557→// ─────────────────────────────── Marketplace ───────────────────────────────
+   558→
+   559→model Vehicle {
+   560→  id               String   @id @default(cuid())
+   561→  refCode          String   @unique
+   562→  ownerId          String
+   563→  owner            User     @relation("VehicleOwner", fields: [ownerId], references: [id])
+   564→  orgId            String?
+   565→  org              Org?     @relation(fields: [orgId], references: [id])
+   566→  make             String
+   567→  model            String
+   568→  year             Int
+   569→  priceMinor       Int
+   570→  currency         String   @default("KES")
+   571→  mileageKm        Int
+   572→  fuel             String // PETROL|DIESEL|HYBRID|ELECTRIC
+   573→  transmission     String // MANUAL|AUTOMATIC
+   574→  bodyType         String // SUV|SEDAN|HATCHBACK|PICKUP|MINIVAN|COUPE|WAGON|MOTORBIKE|TRUCK
+   575→  engineCc         Int?
+   576→  condition        String // BRAND_NEW|FOREIGN_USED|LOCAL_USED
+   577→  county           String
+   578→  town             String?
+   579→  color            String
+   580→  description      String
+   581→  branchId         String?  // showroom branch holding this vehicle (single authoritative inventory record)
+   582→  branch           OrgBranch? @relation(fields: [branchId], references: [id])
+   583→  sellerType       String   @default("PRIVATE") // PRIVATE|DEALER
+   584→  status           String   @default("DRAFT") // DRAFT|PENDING_REVIEW|PUBLISHED|RESERVED|SOLD|REJECTED|SUSPENDED|EXPIRED
+   585→  reviewNote       String?
+   586→  matchWithDealers Boolean  @default(false)
+   587→  featured         Boolean  @default(false)
+   588→  views            Int      @default(0)
+   589→  createdAt        DateTime @default(now())
+   590→  updatedAt        DateTime @updatedAt
+   591→
+   592→  photos   VehiclePhoto[]
+   593→  events   ListingEvent[]
+   594→  savedBy  SavedVehicle[]
+   595→  enquiries Enquiry[]
+   596→  offers   Offer[]
+   597→  campaigns Campaign[]
+   598→  conversations Conversation[]
+   599→  testDrives    TestDrive[]
+   600→  transfers VehicleTransfer[]
+   601→
+   602→  @@index([status, make])
+   603→  @@index([status, bodyType])
+   604→  @@index([status, priceMinor])
+   605→  @@index([status, county])
+   606→  @@index([status, createdAt])
+   607→}
+   608→
+   609→model VehiclePhoto {
+   610→  id        String  @id @default(cuid())
+   611→  vehicleId String
+   612→  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+   613→  url       String
+   614→  order     Int     @default(0)
+   615→}
+   616→
+   617→model ListingEvent {
+   618→  id        String   @id @default(cuid())
+   619→  vehicleId String
+   620→  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+   621→  from      String?
+   622→  to        String
+   623→  actorId   String?
+   624→  actorName String?
+   625→  note      String?
+   626→  createdAt DateTime @default(now())
+   627→}
+   628→
+   629→model SavedVehicle {
+   630→  id        String   @id @default(cuid())
+   631→  userId    String
+   632→  vehicleId String
+   633→  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   634→  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+   635→  createdAt DateTime @default(now())
+   636→
+   637→  @@unique([userId, vehicleId])
+   638→}
+   639→
+   640→model SavedSearch {
+   641→  id        String   @id @default(cuid())
+   642→  userId    String
+   643→  name      String
+   644→  query     String
+   645→  alertsOn  Boolean  @default(true)
+   646→  createdAt DateTime @default(now())
+   647→  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   648→
+   649→  @@unique([userId, name])
+   650→}
+   651→
+   652→model Enquiry {
+   653→  id         String   @id @default(cuid())
+   654→  refCode    String   @unique
+   655→  vehicleId  String
+   656→  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+   657→  userId     String
+   658→  user       User     @relation(fields: [userId], references: [id])
+   659→  message    String
+   660→  phoneShare Boolean  @default(true)
+   661→  phone      String?
+   662→  status     String   @default("OPEN") // OPEN|ANSWERED|CLOSED
+   663→  createdAt  DateTime @default(now())
+   664→  updatedAt  DateTime @updatedAt
+   665→
+   666→  messages EnquiryMessage[]
+   667→}
+   668→
+   669→model EnquiryMessage {
+   670→  id        String   @id @default(cuid())
+   671→  enquiryId String
+   672→  enquiry   Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+   673→  senderId  String
+   674→  senderName String
+   675→  senderSide String // CUSTOMER|SELLER
+   676→  body      String
+   677→  createdAt DateTime @default(now())
+   678→}
+   679→
+   680→model Offer {
+   681→  id          String    @id @default(cuid())
+   682→  vehicleId   String
+   683→  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+   684→  orgId       String
+   685→  org         Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+   686→  amountMinor Int
+   687→  message     String?
+   688→  status      String    @default("PENDING") // PENDING|ACCEPTED|REJECTED|EXPIRED|WITHDRAWN
+   689→  expiresAt   DateTime?
+   690→  createdAt   DateTime  @default(now())
+   691→  updatedAt   DateTime  @updatedAt
+   692→}
+   693→
+   694→model BuyingRequest {
+   695→  id          String    @id @default(cuid())
+   696→  orgId       String
+   697→  org         Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+   698→  make        String
+   699→  model       String?
+   700→  yearFrom    Int?
+   701→  yearTo      Int?
+   702→  budgetMinor Int?
+   703→  notes       String?
+   704→  status      String    @default("OPEN") // OPEN|CLOSED
+   705→  createdAt   DateTime  @default(now())
+   706→}
+   707→
+   708→// ───────────────────────────── Garage & services ─────────────────────────────
+   709→
+   710→model GarageService {
+   711→  id             String   @id @default(cuid())
+   712→  orgId          String
+   713→  org            Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+   714→  category       String // GENERAL_SERVICE|MECHANICAL|ELECTRICAL|TYRES|BODYWORK|DETAILING|MODIFICATIONS|AUDIO|INSPECTION|TOWING|ROADSIDE|OTHER
+   715→  title          String
+   716→  description    String?
+   717→  priceFromMinor Int?
+   718→  active         Boolean  @default(true)
+   719→  createdAt      DateTime @default(now())
+   720→}
+   721→
+   722→model ServiceRequest {
+   723→  id          String    @id @default(cuid())
+   724→  refCode     String    @unique
+   725→  customerId  String
+   726→  customer    User      @relation(fields: [customerId], references: [id])
+   727→  category    String
+   728→  vehicleDesc String?
+   729→  description String
+   730→  county      String
+   731→  town        String?
+   732→  status      String    @default("OPEN") // OPEN|QUOTING|BOOKED|IN_PROGRESS|COMPLETED|CANCELLED|EXPIRED
+   733→  configId    String? // customizer share id if originated from a 3D configuration
+   734→  myVehicleId String?
+   735→  createdAt   DateTime  @default(now())
+   736→  updatedAt   DateTime  @updatedAt
+   737→
+   738→  quotes  Quote[]
+   739→  booking Booking?
+   740→}
+   741→
+   742→model Quote {
+   743→  id          String    @id @default(cuid())
+   744→  requestId   String
+   745→  request     ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+   746→  orgId       String
+   747→  org         Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+   748→  amountMinor Int
+   749→  leadDays    Int?
+   750→  message     String?
+   751→  status      String    @default("PENDING") // PENDING|ACCEPTED|DECLINED|EXPIRED
+   752→  createdAt   DateTime  @default(now())
+   753→
+   754→  @@unique([requestId, orgId])
+   755→}
+   756→
+   757→model Booking {
+   758→  id          String    @id @default(cuid())
+   759→  requestId   String    @unique
+   760→  request     ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+   761→  orgId       String
+   762→  org         Org       @relation(fields: [orgId], references: [id])
+   763→  scheduledAt DateTime?
+   764→  status      String    @default("CONFIRMED") // CONFIRMED|IN_PROGRESS|COMPLETED|CANCELLED
+   765→  notes       String?
+   766→  createdAt   DateTime  @default(now())
+   767→  updatedAt   DateTime  @updatedAt
+   768→}
+   769→
+   770→model OrgReview {
+   771→  id        String   @id @default(cuid())
+   772→  orgId     String
+   773→  org       Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+   774→  authorId  String
+   775→  author    User     @relation(fields: [authorId], references: [id])
+   776→  rating    Int // 1..5
+   777→  comment   String?
+   778→  createdAt DateTime @default(now())
+   779→
+   780→  @@unique([orgId, authorId])
+   781→}
+   782→
+   783→model RoadsideRequest {
+   784→  id            String    @id @default(cuid())
+   785→  refCode       String    @unique
+   786→  userId        String
+   787→  user          User      @relation(fields: [userId], references: [id])
+   788→  name          String
+   789→  phone         String
+   790→  county        String
+   791→  location      String
+   792→  issue         String // TOW|FLAT_TYRE|BATTERY|FUEL|ENGINE|LOCKOUT|OTHER
+   793→  details       String?
+   794→  status        String    @default("REQUESTED") // REQUESTED|ACCEPTED|COMPLETED|CANCELLED
+   795→  providerOrgId String?
+   796→  providerNote  String?
+   797→  acceptedAt    DateTime?
+   798→  completedAt   DateTime?
+   799→  createdAt     DateTime  @default(now())
+   800→}
+   801→
+   802→// ───────────────────────────── My Garage (owner records) ─────────────────────────────
+   803→
+   804→model MyVehicle {
+   805→  id                 String    @id @default(cuid())
+   806→  userId             String
+   807→  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+   808→  make               String
+   809→  model              String
+   810→  year               Int?
+   811→  plate              String?
+   812→  color              String?
+   813→  mileageKm          Int?
+   814→  purchaseDate       DateTime?
+   815→  purchasePriceMinor Int?
+   816→  notes              String?
+   817→  createdAt          DateTime  @default(now())
+   818→
+   819→  records ServiceRecord[]
+   820→  reminders Reminder[]
+   821→}
+   822→
+   823→model ServiceRecord {
+   824→  id          String    @id @default(cuid())
+   825→  myVehicleId String
+   826→  myVehicle   MyVehicle @relation(fields: [myVehicleId], references: [id], onDelete: Cascade)
+   827→  date        DateTime
+   828→  type        String // SERVICE|REPAIR|INSPECTION|MODIFICATION|OTHER
+   829→  description String?
+   830→  costMinor   Int?
+   831→  mileageKm   Int?
+   832→  garageOrgId String?
+   833→  receiptUrl  String?
+   834→  createdAt   DateTime  @default(now())
+   835→}
+   836→
+   837→model Reminder {
+   838→  id           String    @id @default(cuid())
+   839→  myVehicleId  String
+   840→  myVehicle    MyVehicle @relation(fields: [myVehicleId], references: [id], onDelete: Cascade)
+   841→  type         String // SERVICE|INSURANCE|INSPECTION|LICENSE|CUSTOM
+   842→  title        String
+   843→  dueDate      DateTime
+   844→  intervalDays Int?
+   845→  status       String    @default("ACTIVE") // ACTIVE|DONE|DISMISSED
+   846→  createdAt    DateTime  @default(now())
+   847→
+   848→  @@index([status, dueDate])
+   849→}
+   850→
+   851→// ───────────────────────────── 3D Customizer ─────────────────────────────
+   852→
+   853→model CustomizerConfig {
+   854→  id        String   @id @default(cuid())
+   855→  shareId   String   @unique
+   856→  modelId   String
+   857→  config    String // JSON of validated configuration
+   858→  userId    String?
+   859→  views     Int      @default(0)
+   860→  createdAt DateTime @default(now())
+   861→}
+   862→
+   863→// ───────────────────────────── Community ─────────────────────────────
+   864→
+   865→model CommunityPost {
+   866→  id          String   @id @default(cuid())
+   867→  userId      String
+   868→  user        User     @relation(fields: [userId], references: [id])
+   869→  title       String
+   870→  body        String
+   871→  category    String   @default("GENERAL") // GENERAL|QUESTION|SHOWCASE|EVENT|WANTED|FEATURE_REQUEST
+   872→  linkRef     String? // vehicle ref or other link
+   873→  pollOptions String? // JSON [{text, userIds:[]}]
+   874→  status      String   @default("PUBLISHED") // PUBLISHED|HIDDEN|FLAGGED
+   875→  isSponsored Boolean  @default(false)
+   876→  createdAt   DateTime @default(now())
+   877→  updatedAt   DateTime @updatedAt
+   878→
+   879→  comments  PostComment[]
+   880→  reactions PostReaction[]
+   881→}
+   882→
+   883→model PostComment {
+   884→  id        String        @id @default(cuid())
+   885→  postId    String
+   886→  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+   887→  userId    String
+   888→  user      User          @relation(fields: [userId], references: [id])
+   889→  body      String
+   890→  status    String        @default("PUBLISHED") // PUBLISHED|HIDDEN
+   891→  createdAt DateTime      @default(now())
+   892→}
+   893→
+   894→model PostReaction {
+   895→  id     String        @id @default(cuid())
+   896→  postId String
+   897→  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+   898→  userId String
+   899→  type   String        @default("LIKE")
+   900→  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+   901→
+   902→  @@unique([postId, userId])
+   903→}
+   904→
+   905→model Follow {
+   906→  id          String @id @default(cuid())
+   907→  followerId  String
+   908→  follower    User   @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+   909→  followingId String
+   910→  following   User   @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+   911→
+   912→  @@unique([followerId, followingId])
+   913→}
+   914→
+   915→model Report {
+   916→  id             String    @id @default(cuid())
+   917→  reporterId     String
+   918→  reporter       User      @relation("Reporter", fields: [reporterId], references: [id])
+   919→  targetType     String // LISTING|POST|COMMENT|USER
+   920→  targetId       String
+   921→  reason         String
+   922→  details        String?
+   923→  status         String    @default("OPEN") // OPEN|RESOLVED|DISMISSED
+   924→  resolvedBy     String?
+   925→  resolutionNote String?
+   926→  createdAt      DateTime  @default(now())
+   927→}
+   928→
+   929→// ───────────────────────── Notifications ─────────────────────────
+   930→
+   931→model Notification {
+   932→  id        String    @id @default(cuid())
+   933→  userId    String
+   934→  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+   935→  type      String
+   936→  title     String
+   937→  body      String?
+   938→  link      String?
+   939→  readAt    DateTime?
+   940→  createdAt DateTime  @default(now())
+   941→
+   942→  deliveries NotificationDelivery[]
+   943→
+   944→  @@index([userId, readAt])
+   945→}
+   946→
+   947→model NotificationDelivery {
+   948→  id             String       @id @default(cuid())
+   949→  notificationId String
+   950→  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+   951→  channel        String // IN_APP|EMAIL|SMS
+   952→  status         String // SENT|QUEUED|FAILED
+   953→  attempts       Int          @default(0)
+   954→  lastError      String?
+   955→  createdAt      DateTime     @default(now())
+   956→}
+   957→
+   958→// ───────────────────────── Billing & growth ─────────────────────────
+   959→
+   960→model Plan {
+   961→  code           String  @id
+   962→  name           String
+   963→  audience       String // DEALER|GARAGE
+   964→  priceMinor     Int
+   965→  currency       String  @default("KES")
+   966→  intervalMonths Int     @default(1)
+   967→  listingLimit   Int
+   968→  featuredLimit  Int
+   969→  staffLimit     Int
+   970→  features       String? // JSON string array
+   971→  active         Boolean @default(true)
+   972→}
+   973→
+   974→model Subscription {
+   975→  id               String   @id @default(cuid())
+   976→  orgId            String   @unique
+   977→  org              Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+   978→  planCode         String
+   979→  status           String   @default("ACTIVE") // ACTIVE|CANCELLED|PAST_DUE
+   980→  startedAt        DateTime @default(now())
+   981→  currentPeriodEnd DateTime
+   982→}
+   983→
+   984→model Invoice {
+   985→  id          String    @id @default(cuid())
+   986→  refCode     String    @unique
+   987→  orgId       String?
+   988→  org         Org?      @relation(fields: [orgId], references: [id])
+   989→  userId      String?
+   990→  type        String // SUBSCRIPTION|CAMPAIGN|LEAD_FEE
+   991→  description String
+   992→  amountMinor Int
+   993→  currency    String    @default("KES")
+   994→  status      String    @default("PENDING") // PENDING|PAID|OVERDUE|CANCELLED|REFUNDED
+   995→  periodStart DateTime?
+   996→  periodEnd   DateTime?
+   997→  issuedAt    DateTime  @default(now())
+   998→  dueDate     DateTime?
+   999→  paidAt      DateTime?
+  1000→  paidVia     String? // MPESA|MANUAL
+  1001→  payments    PaymentAttempt[]
+  1002→  memberships BusinessMembership[]
+  1003→  customerOrders CustomerOrder[]   @relation("CustomerOrderInvoice")
+  1004→}
+  1005→
+  1006→model PaymentAttempt {
+  1007→  id                String    @id @default(cuid())
+  1008→  invoiceId         String
+  1009→  invoice           Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  1010→  provider          String    @default("MPESA_DARAJA")
+  1011→  phone             String
+  1012→  amountMinor       Int
+  1013→  status            String    @default("INITIATED") // INITIATED|PENDING|SUCCESS|FAILED|CANCELLED
+  1014→  merchantRequestId String?
+  1015→  checkoutRequestId String?   @unique
+  1016→  resultCode        Int?
+  1017→  resultDesc        String?
+  1018→  callbackRaw       String?
+  1019→  createdAt         DateTime  @default(now())
+  1020→  updatedAt         DateTime  @updatedAt
+  1021→}
+  1022→
+  1023→model CampaignPackage {
+  1024→  code        String  @id
+  1025→  name        String
+  1026→  days        Int
+  1027→  priceMinor  Int
+  1028→  currency    String  @default("KES")
+  1029→  description String?
+  1030→  active      Boolean @default(true)
+  1031→}
+  1032→
+  1033→model Campaign {
+  1034→  id          String    @id @default(cuid())
+  1035→  refCode     String    @unique
+  1036→  orgId       String
+  1037→  org         Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  1038→  vehicleId   String
+  1039→  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  1040→  packageCode String
+  1041→  status      String    @default("PENDING_PAYMENT") // PENDING_PAYMENT|ACTIVE|ENDED|CANCELLED
+  1042→  startsAt    DateTime?
+  1043→  endsAt      DateTime?
+  1044→  impressions Int       @default(0)
+  1045→  clicks      Int       @default(0)
+  1046→  invoiceId   String?
+  1047→  createdAt   DateTime  @default(now())
+  1048→}
+  1049→
+  1050→model SupportTicket {
+  1051→  id        String    @id @default(cuid())
+  1052→  refCode   String    @unique
+  1053→  userId    String?
+  1054→  name      String
+  1055→  email     String
+  1056→  subject   String
+  1057→  message   String
+  1058→  status    String    @default("OPEN") // OPEN|IN_PROGRESS|RESOLVED
+  1059→  response  String?
+  1060→  createdAt DateTime  @default(now())
+  1061→}
+  1062→
+  1063→// ───────────────────────── Ops & auditing ─────────────────────────
+  1064→
+  1065→model AuditLog {
+  1066→  id         String   @id @default(cuid())
+  1067→  actorId    String?
+  1068→  actorName  String?
+  1069→  action     String
+  1070→  targetType String?
+  1071→  targetId   String?
+  1072→  metadata   String?
+  1073→  createdAt  DateTime @default(now())
+  1074→
+  1075→  @@index([targetType, targetId])
+  1076→  @@index([action])
+  1077→}
+  1078→
+  1079→model AiUsage {
+  1080→  id        String   @id @default(cuid())
+  1081→  userId    String?
+  1082→  feature   String
+  1083→  ok        Boolean
+  1084→  error     String?
+  1085→  createdAt DateTime @default(now())
+  1086→}
+  1087→
+  1088→model SystemSetting {
+  1089→  key       String   @id
+  1090→  value     String // JSON
+  1091→  updatedAt DateTime @updatedAt
+  1092→}
+  1093→
+  1094→model ViewEvent {
+  1095→  id        String   @id @default(cuid())
+  1096→  key       String   @unique
+  1097→  createdAt DateTime @default(now())
+  1098→}
+  1099→
+  1100→// ───────────────────────── CARMAZE Partner Network ─────────────────────────
+  1101→// Inspection, insurance, finance, towing, parts, transport partners.
+  1102→// Partners are only publicly listed after real verification (status APPROVED
+  1103→// + verified). Applications come from the public form; staff approve in the
+  1104→// Control Center. Suspended partners disappear from public listings.
+  1105→
+  1106→model Partner {
+  1107→  id           String   @id @default(cuid())
+  1108→  refCode      String   @unique
+  1109→  name         String
+  1110→  category     String   // INSPECTION | INSURANCE | FINANCE | TOWING | PARTS | TRANSPORT | OTHER
+  1111→  county       String
+  1112→  serviceAreas String?  // JSON string[] of counties/areas served
+  1113→  description  String?
+  1114→  logoUrl      String?
+  1115→  coverUrl     String?
+  1116→  phone        String?
+  1117→  email        String?
+  1118→  whatsapp     Boolean  @default(false)
+  1119→  website      String?
+  1120→  contactName  String?
+  1121→  status       String   @default("PENDING") // PENDING | APPROVED | SUSPENDED | REJECTED
+  1122→  verified     Boolean  @default(false)
+  1123→  rating       Float?   // computed from partner feedback; null = no ratings yet
+  1124→  referrals    Int      @default(0) // tracked referral requests sent via the platform
+  1125→  notes        String?  // internal staff notes — never exposed publicly
+  1126→  rejectionReason String?
+  1127→  createdAt    DateTime @default(now())
+  1128→  updatedAt    DateTime @updatedAt
+  1129→
+  1130→  requests PartnerRequest[]
+  1131→}
+  1132→
+  1133→// A customer request routed to a partner (referral tracking + audit trail).
+  1134→model PartnerRequest {
+  1135→  id        String   @id @default(cuid())
+  1136→  refCode   String   @unique
+  1137→  partnerId String
+  1138→  partner   Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  1139→  userId    String?
+  1140→  name      String
+  1141→  phone     String
+  1142→  email     String?
+  1143→  county    String
+  1144→  message   String
+  1145→  status    String   @default("NEW") // NEW | CONTACTED | CLOSED
+  1146→  createdAt DateTime @default(now())
+  1147→}
+  1148→
+  1149→// ───────────────────── CARMAZE Loyalty & Referrals ─────────────────────
+  1150→// Transparent points ledger. Points are earned through real, verifiable
+  1151→// activity (referrals that complete registration, eligible reviews,
+  1152→// completed garage services). Points are never purchasable.
+  1153→
+  1154→model LoyaltyLedger {
+  1155→  id        String   @id @default(cuid())
+  1156→  userId    String
+  1157→  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  1158→  points    Int      // positive = earned, negative = redeemed
+  1159→  reason    String   // REFERRAL_SIGNUP | REVIEW_EARNED | SERVICE_COMPLETED | ADJUSTMENT
+  1160→  refType   String?  // e.g. USER, ORG_REVIEW, BOOKING
+  1161→  refId     String?
+  1162→  note      String?
+  1163→  createdAt DateTime @default(now())
+  1164→
+  1165→  @@index([userId, createdAt])
+  1166→  @@index([reason])
+  1167→}
+  1168→
+  1169→// ═══════════════════════════════════════════════════════════════════════
+  1170→// CARMAZE AUTOMOTIVE SUPPLY NETWORK
+  1171→// Extends the platform (same Org/User identity graph) with a verified
+  1172→// B2B supply marketplace: multi-branch businesses, structured product
+  1173→// catalogue with fitment data, protected supplier→garage orders with
+  1174→// delivery verification, and governed business programmes.
+  1175→// Money stays in integer minor units. JSON is stored as strings.
+  1176→// ═══════════════════════════════════════════════════════════════════════
+  1177→
+  1178→// ───────────────────── Multi-branch infrastructure ─────────────────────
+  1179→// One branch model serves garages, showrooms and suppliers (warehouses).
+  1180→
+  1181→model OrgBranch {
+  1182→  id             String   @id @default(cuid())
+  1183→  orgId          String
+  1184→  org            Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  1185→  name           String
+  1186→  code           String   // short business-wide code, unique per org
+  1187→  kind           String   @default("BRANCH") // BRANCH | WAREHOUSE
+  1188→  isPrimary      Boolean  @default(false)
+  1189→  address        String?
+  1190→  county         String
+  1191→  town           String?
+  1192→  lat            Float?
+  1193→  lng            Float?
+  1194→  phone          String?
+  1195→  managerName    String?
+  1196→  operatingHours String?  // JSON {"mon":["08:00","18:00"],…}
+  1197→  deliveryAreas  String?  // JSON string[] of counties/areas served
+  1198→  status         String   @default("ACTIVE") // ACTIVE | CLOSED
+  1199→
+  1200→  vehicles      Vehicle[]
+  1201→  productStocks ProductStock[]
+  1202→  stockMovements StockMovement[]
+  1203→  transfersOut  VehicleTransfer[] @relation("TransferFromBranch")
+  1204→  transfersIn   VehicleTransfer[] @relation("TransferToBranch")
+  1205→  poDestinations PurchaseOrder[]  @relation("PODestinationBranch")
+  1206→  deliveriesFrom Delivery[]        @relation("DeliverySupplierBranch")
+  1207→
+  1208→  @@unique([orgId, code])
+  1209→  @@index([orgId, status])
+  1210→}
+  1211→
+  1212→// ───────────────────────── Product catalogue ─────────────────────────
+  1213→
+  1214→model ProductCategory {
+  1215→  id        String  @id @default(cuid())
+  1216→  slug      String  @unique
+  1217→  name      String
+  1218→  parentSlug String? // one-level tree via slug reference
+  1219→  sortOrder Int     @default(0)
+  1220→  active    Boolean @default(true)
+  1221→
+  1222→  products Product[]
+  1223→}
+  1224→
+  1225→model Product {
+  1226→  id                String   @id @default(cuid())
+  1227→  refCode           String   @unique
+  1228→  supplierOrgId     String
+  1229→  supplier          Org      @relation(fields: [supplierOrgId], references: [id], onDelete: Cascade)
+  1230→  categoryId        String
+  1231→  category          ProductCategory @relation(fields: [categoryId], references: [id])
+  1232→  name              String
+  1233→  sku               String   // unique per supplier
+  1234→  mpn               String?  // manufacturer part number
+  1235→  oemRef            String?  // OEM reference where available
+  1236→  brand             String?
+  1237→  description       String
+  1238→  condition         String   @default("NEW") // NEW | REFURBISHED | USED
+  1239→  unitPriceMinor    Int
+  1240→  wholesalePriceMinor Int?
+  1241→  wholesaleMinQty   Int      @default(0) // qty required to unlock wholesale price
+  1242→  currency          String   @default("KES")
+  1243→  taxRatePct        Float    @default(0)
+  1244→  warrantyMonths    Int      @default(0) // 0 = none offered
+  1245→  returnable        Boolean  @default(false)
+  1246→  images            String?  // JSON string[] of image urls
+  1247→  tags              String?  // JSON string[]
+  1248→  vehicleMakes      String?  // JSON string[] quick-filter makes
+  1249→  batchTracked      Boolean  @default(false)
+  1250→  serialTracked     Boolean  @default(false)
+  1251→  // Provenance / authenticity evidence — admin-reviewed, never supplier self-asserted.
+  1252→  // JSON { authorizationDocUrl, provenanceNote, authenticator: "ADMIN" | null }
+  1253→  provenance        String?
+  1254→  authenticityVerified Boolean @default(false) // ONLY settable by platform admins
+  1255→  status            String   @default("DRAFT") // DRAFT | PUBLISHED | SUSPENDED | REJECTED
+  1256→  featured          Boolean  @default(false)
+  1257→  ratingAvg         Float?
+  1258→  ratingCount       Int      @default(0)
+  1259→  createdAt         DateTime @default(now())
+  1260→  updatedAt         DateTime @updatedAt
+  1261→
+  1262→  stocks        ProductStock[]
+  1263→  compat        ProductCompatibility[]
+  1264→  reviews       ProductReview[]
+  1265→  priceHistory  ProductPriceHistory[]
+  1266→  poItems       POItem[]
+  1267→  stockAlerts   GarageStockAlert[]
+  1268→  customerOrderItems CustomerOrderItem[] @relation("CustomerOrderItems")
+  1269→
+  1270→  @@unique([supplierOrgId, sku])
+  1271→  @@index([status, categoryId])
+  1272→  @@index([supplierOrgId, status])
+  1273→}
+  1274→
+  1275→model ProductCompatibility {
+  1276→  id         String  @id @default(cuid())
+  1277→  productId  String
+  1278→  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  1279→  make       String
+  1280→  model      String?
+  1281→  yearFrom   Int?
+  1282→  yearTo     Int?
+  1283→  engine     String? // engine configuration where applicable
+  1284→  trim       String?
+  1285→  chassis    String? // VIN-prefix / chassis code
+  1286→  source     String  @default("SUPPLIER") // SUPPLIER | ADMIN
+  1287→  verified   Boolean @default(false) // admin-reviewed fitment
+  1288→  note       String?
+  1289→
+  1290→  @@index([productId])
+  1291→  @@index([make, model])
+  1292→}
+  1293→
+  1294→model ProductStock {
+  1295→  id           String  @id @default(cuid())
+  1296→  productId    String
+  1297→  product      Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  1298→  branchId     String
+  1299→  branch       OrgBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  1300→  qtyOnHand    Int     @default(0)
+  1301→  qtyReserved  Int     @default(0) // reserved by open orders — prevents overselling
+  1302→  reorderLevel Int     @default(0)
+  1303→
+  1304→  @@unique([productId, branchId])
+  1305→  @@index([branchId])
+  1306→}
+  1307→
+  1308→model StockMovement {
+  1309→  id        String    @id @default(cuid())
+  1310→  branchId  String
+  1311→  branch    OrgBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  1312→  productId String
+  1313→  delta     Int       // +in / -out
+  1314→  reason    String    // RESTOCK|SALE|RESERVE|RELEASE|TRANSFER_OUT|TRANSFER_IN|ADJUST|RETURN|DISPUTE_WRITEOFF
+  1315→  refType   String?   // PURCHASE_ORDER | STOCK_TRANSFER | MANUAL
+  1316→  refId     String?
+  1317→  note      String?
+  1318→  actorId   String?
+  1319→  actorName String?
+  1320→  createdAt DateTime  @default(now())
+  1321→
+  1322→  @@index([productId, createdAt])
+  1323→  @@index([branchId, createdAt])
+  1324→}
+  1325→
+  1326→model ProductPriceHistory {
+  1327→  id         String   @id @default(cuid())
+  1328→  productId  String
+  1329→  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  1330→  priceMinor Int
+  1331→  reason     String   // LIST | UPDATE | PROMO
+  1332→  createdAt  DateTime @default(now())
+  1333→
+  1334→  @@index([productId, createdAt])
+  1335→}
+  1336→
+  1337→model ProductReview {
+  1338→  id        String   @id @default(cuid())
+  1339→  productId String
+  1340→  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  1341→  authorId  String
+  1342→  author    User     @relation(fields: [authorId], references: [id])
+  1343→  rating    Int      // 1..5
+  1344→  comment   String?
+  1345→  verifiedPurchase Boolean @default(false) // linked to a completed PO item
+  1346→  refOrderId String?
+  1347→  createdAt DateTime @default(now())
+  1348→
+  1349→  @@unique([productId, authorId])
+  1350→}
+  1351→
+  1352→// ───────────────────── Purchase orders (garage ⇄ supplier) ─────────────────────
+  1353→
+  1354→model PurchaseOrder {
+  1355→  id                String   @id @default(cuid())
+  1356→  refCode           String   @unique
+  1357→  garageOrgId       String
+  1358→  garage            Org      @relation("POGarage", fields: [garageOrgId], references: [id], onDelete: Cascade)
+  1359→  supplierOrgId     String
+  1360→  supplier          Org      @relation("POSupplier", fields: [supplierOrgId], references: [id])
+  1361→  destinationBranchId String? // garage branch receiving the delivery
+  1362→  destinationBranch OrgBranch? @relation("PODestinationBranch", fields: [destinationBranchId], references: [id])
+  1363→  createdById       String
+  1364→  createdBy         User     @relation("POAuthor", fields: [createdById], references: [id])
+  1365→  status            String   @default("SUBMITTED")
+  1366→  // SUBMITTED | AWAITING_APPROVAL | ACCEPTED | REVISED | REJECTED | CONFIRMED
+  1367→  // | DISPATCHED | IN_TRANSIT | DELIVERED | INSPECTED | COMPLETED | CANCELLED | DISPUTED
+  1368→  // (AWAITING_APPROVAL = garage-internal approval gate above spending limit)
+  1369→  paymentStatus     String   @default("UNPAID") // UNPAID | PROCESSING | PROTECTED | RELEASED | PARTIALLY_RELEASED | REFUNDED | FAILED
+  1370→  inspectionStatus  String?  // ACCEPTED | PARTIAL | ISSUES (set at inspection)
+  1371→  subtotalMinor     Int      @default(0)
+  1372→  deliveryFeeMinor  Int      @default(0)
+  1373→  taxMinor          Int      @default(0)
+  1374→  platformFeeMinor  Int      @default(0) // commission recorded separately at release
+  1375→  totalMinor        Int      @default(0)
+  1376→  acceptedTotalMinor Int?    // total after inspection acceptance (partial acceptance)
+  1377→  currency          String   @default("KES")
+  1378→  supplierNote      String?  // supplier response note (accept/reject/revise)
+  1379→  revisedBySupplier Boolean  @default(false)
+  1380→  garageApprovedRevision Boolean @default(false)
+  1381→  deliveryMethod    String?  // DIRECT | COLLECTION | MEETUP (set at arrangement, both parties agree)
+  1382→  invoiceId         String?  // platform invoice for the order payment
+  1383→  deliveryOtpHash   String?  // bcrypt hash of handover OTP
+  1384→  commissionRatePct Float?   // snapshot of commission rate applied
+  1385→  cancelledReason   String?
+  1386→  createdAt         DateTime @default(now())
+  1387→  updatedAt         DateTime @updatedAt
+  1388→
+  1389→  items        POItem[]
+  1390→  revisions    PORevision[]
+  1391→  delivery     Delivery?
+  1392→  payment      PaymentAuthorization?
+  1393→  refunds      Refund[]
+  1394→  disputes     Dispute[]
+  1395→  events       POEvent[]
+  1396→
+  1397→  @@index([garageOrgId, status])
+  1398→  @@index([supplierOrgId, status])
+  1399→}
+  1400→
+  1401→model POItem {
+  1402→  id            String   @id @default(cuid())
+  1403→  orderId       String
+  1404→  order         PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  1405→  productId     String
+  1406→  product       Product  @relation(fields: [productId], references: [id])
+  1407→  qty           Int
+  1408→  unitPriceMinor Int     // agreed unit price (garage-approved)
+  1409→  lineTotalMinor Int
+  1410→  fulfilBranchId String? // supplier warehouse reserved for this line (overselling guard)
+  1411→  qtyAccepted   Int?     // set at inspection
+  1412→  qtyDelivered  Int?
+  1413→  note          String?  // e.g. issue reported at inspection
+  1414→  batchNo       String?
+  1415→  serialNo      String?
+  1416→
+  1417→  @@index([orderId])
+  1418→  @@index([productId])
+  1419→}
+  1420→
+  1421→model PORevision {
+  1422→  id          String   @id @default(cuid())
+  1423→  orderId     String
+  1424→  order       PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  1425→  proposedBy  String   // SUPPLIER
+  1426→  changesJson String   // JSON [{itemId?, productId, qty, unitPriceMinor, action: UPDATE|REMOVE|ADD}]
+  1427→  newTotalMinor Int
+  1428→  note        String?
+  1429→  status      String   @default("PENDING") // PENDING | APPROVED | DECLINED (garage decision)
+  1430→  createdAt   DateTime @default(now())
+  1431→
+  1432→  @@index([orderId, status])
+  1433→}
+  1434→
+  1435→model POEvent {
+  1436→  id        String   @id @default(cuid())
+  1437→  orderId   String
+  1438→  order     PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  1439→  type      String   // CREATED|SUBMITTED|APPROVED|ACCEPTED|REVISED|REVISION_DECISION|CONFIRMED|PAYMENT|DISPATCH|DELIVERED|INSPECTED|RELEASED|COMPLETED|CANCELLED|NOTE
+  1440→  actorId   String?
+  1441→  actorName String
+  1442→  actorSide String   // GARAGE | SUPPLIER | SYSTEM | ADMIN
+  1443→  note      String?
+  1444→  createdAt DateTime @default(now())
+  1445→
+  1446→  @@index([orderId, createdAt])
+  1447→}
+  1448→
+  1449→// ───────────────────────── Deliveries & logistics ─────────────────────────
+  1450→
+  1451→model Delivery {
+  1452→  id                String   @id @default(cuid())
+  1453→  refCode           String   @unique
+  1454→  orderId           String   @unique
+  1455→  order             PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  1456→  method            String   // DIRECT | COLLECTION | MEETUP
+  1457→  status            String   @default("ARRANGING")
+  1458→  // ARRANGING | AGREED | DISPATCHED | IN_TRANSIT | DELIVERED | FAILED | CANCELLED | RETURN_PICKUP
+  1459→  supplierBranchId  String?
+  1460→  supplierBranch    OrgBranch? @relation("DeliverySupplierBranch", fields: [supplierBranchId], references: [id])
+  1461→  meetupJson        String?  // JSON {lat,lng,address} — mutually agreed handover location
+  1462→  meetupAgreedByGarage   Boolean @default(false)
+  1463→  meetupAgreedBySupplier Boolean @default(false)
+  1464→  scheduledFor      DateTime?
+  1465→  windowLabel       String?  // e.g. "Morning (08:00–12:00)"
+  1466→  courierName       String?  // supplier-owned | third-party courier name
+  1467→  driverName        String?
+  1468→  driverPhone       String?
+  1469→  vehicleReg        String?
+  1470→  deliveryRef       String?
+  1471→  dispatchEvidence  String?  // JSON string[] of evidence urls
+  1472→  dispatchedAt      DateTime?
+  1473→  expectedAt        DateTime?
+  1474→  otpHash           String?  // bcrypt hash of 6-digit handover OTP
+  1475→  otpHint           String?  // last 2 digits for UX
+  1476→  qrToken           String?  @unique
+  1477→  deliveredAt       DateTime?
+  1478→  handoverJson      String?  // JSON {garageConfirmedAt, supplierConfirmedAt, captureLocation, location, photos[]}
+  1479→  garageConfirmAt   DateTime?
+  1480→  supplierConfirmAt DateTime?
+  1481→  failedReason      String?
+  1482→  feeMinor          Int      @default(0)
+  1483→  createdAt         DateTime @default(now())
+  1484→  updatedAt         DateTime @updatedAt
+  1485→
+  1486→  events DeliveryEvent[]
+  1487→
+  1488→  @@index([status])
+  1489→}
+  1490→
+  1491→model DeliveryEvent {
+  1492→  id         String   @id @default(cuid())
+  1493→  deliveryId String
+  1494→  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  1495→  type       String   // ARRANGED|LOCATION_PROPOSED|LOCATION_AGREED|DISPATCHED|IN_TRANSIT|DELIVERED|FAILED|CANCELLED|NOTE
+  1496→  actorId    String?
+  1497→  actorName  String
+  1498→  actorSide  String   // GARAGE | SUPPLIER | SYSTEM
+  1499→  note       String?
+  1500→  createdAt  DateTime @default(now())
+  1501→
+  1502→  @@index([deliveryId, createdAt])
+  1503→}
+  1504→
+  1505→// ───────────────── Protected payments, refunds, disputes ─────────────────
+  1506→
+  1507→model PaymentAuthorization {
+  1508→  id             String   @id @default(cuid())
+  1509→  refCode        String   @unique
+  1510→  orderId        String   @unique
+  1511→  order          PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  1512→  provider       String   @default("MPESA_DARAJA") // MPESA_DARAJA | MANUAL_RECONCILED
+  1513→  // PROTECTED is set ONLY on provider confirmation (Daraja callback / staff reconciliation).
+  1514→  // A dispatch confirmation alone can never set it.
+  1515→  status         String   @default("PENDING") // PENDING | PROCESSING | PROTECTED | RELEASED | PARTIALLY_RELEASED | REFUNDED | FAILED | CANCELLED
+  1516→  amountMinor    Int
+  1517→  currency       String   @default("KES")
+  1518→  checkoutRef    String?  @unique // provider transaction reference (CheckoutRequestID)
+  1519→  phone          String?
+  1520→  resultDesc     String?
+  1521→  webhookEvents  String?  // JSON string[] of processed webhook event keys (idempotency)
+  1522→  protectedAt    DateTime?
+  1523→  releasedAmountMinor Int  @default(0)
+  1524→  refundedAmountMinor Int  @default(0)
+  1525→  releasedAt     DateTime?
+  1526→  createdAt      DateTime @default(now())
+  1527→  updatedAt      DateTime @updatedAt
+  1528→
+  1529→  @@index([status])
+  1530→}
+  1531→
+  1532→model Refund {
+  1533→  id             String   @id @default(cuid())
+  1534→  refCode        String   @unique
+  1535→  orderId        String
+  1536→  order          PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  1537→  paymentAuthId  String?
+  1538→  amountMinor    Int
+  1539→  kind           String   // FULL | PARTIAL
+  1540→  reason         String
+  1541→  status         String   @default("REQUESTED") // REQUESTED | APPROVED | PROCESSED | REJECTED
+  1542→  requestedById  String?
+  1543→  processedBy    String?  // admin actor name
+  1544→  processedAt    DateTime?
+  1545→  providerRef    String?
+  1546→  createdAt      DateTime @default(now())
+  1547→
+  1548→  @@index([orderId])
+  1549→}
+  1550→
+  1551→model Dispute {
+  1552→  id             String   @id @default(cuid())
+  1553→  refCode        String   @unique
+  1554→  orderId        String?
+  1555→  order          PurchaseOrder? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  1556→  // Disputes can also be opened by consumers on their B2C parts orders.
+  1557→  customerOrderId String?
+  1558→  customerOrder  CustomerOrder? @relation("CustomerOrderDisputes", fields: [customerOrderId], references: [id], onDelete: Cascade)
+  1559→  openedById     String
+  1560→  openedBySide   String   // GARAGE | SUPPLIER | CUSTOMER
+  1561→  reason         String   // MISSING_ITEMS|DAMAGED|WRONG_ITEM|COUNTERFEIT|NOT_RECEIVED|OTHER
+  1562→  details        String
+  1563→  evidence       String?  // JSON [{url,name,uploadedAt}]
+  1564→  amountFrozenMinor Int?  // disputed amount frozen where provider supports it
+  1565→  status         String   @default("OPEN") // OPEN | UNDER_REVIEW | RESOLVED | CLOSED
+  1566→  resolution     String?  // REFUND_FULL | REFUND_PARTIAL | REPLACEMENT | REJECTED
+  1567→  resolutionNote String?
+  1568→  resolvedBy     String?
+  1569→  resolvedAt     DateTime?
+  1570→  createdAt      DateTime @default(now())
+  1571→  updatedAt      DateTime @updatedAt
+  1572→
+  1573→  events DisputeEvent[]
+  1574→
+  1575→  @@index([status])
+  1576→}
+  1577→
+  1578→model DisputeEvent {
+  1579→  id        String   @id @default(cuid())
+  1580→  disputeId String
+  1581→  dispute   Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  1582→  type      String   // CREATED|NOTE|EVIDENCE|STATUS_CHANGE|RESOLUTION
+  1583→  actorId   String?
+  1584→  actorName String
+  1585→  note      String?
+  1586→  createdAt DateTime @default(now())
+  1587→
+  1588→  @@index([disputeId, createdAt])
+  1589→}
+  1590→
+  1591→model WarrantyClaim {
+  1592→  id           String   @id @default(cuid())
+  1593→  refCode      String   @unique
+  1594→  orderId      String?
+  1595→  productId    String
+  1596→  garageOrgId  String
+  1597→  supplierOrgId String
+  1598→  issue        String
+  1599→  status       String   @default("OPEN") // OPEN | APPROVED | REJECTED | RESOLVED
+  1600→  resolution   String?
+  1601→  createdAt    DateTime @default(now())
+  1602→  updatedAt    DateTime @updatedAt
+  1603→
+  1604→  @@index([supplierOrgId, status])
+  1605→}
+  1606→
+  1607→model PartReturn {
+  1608→  id          String   @id @default(cuid())
+  1609→  refCode     String   @unique
+  1610→  orderId     String
+  1611→  reason      String
+  1612→  itemsJson   String   // JSON [{productId, qty}]
+  1613→  status      String   @default("REQUESTED") // REQUESTED | APPROVED | REJECTED | PICKUP_SCHEDULED | COMPLETED
+  1614→  createdAt   DateTime @default(now())
+  1615→  updatedAt   DateTime @updatedAt
+  1616→
+  1617→  @@index([orderId])
+  1618→}
+  1619→
+  1620→// ───────────────── Request-a-part quotations (garage → suppliers) ─────────────────
+  1621→
+  1622→model QuoteRequest {
+  1623→  refCode      String   @unique
+  1624→  id           String   @id @default(cuid())
+  1625→  garageOrgId  String
+  1626→  createdById  String
+  1627→  createdBy    User     @relation("QuoteReqAuthor", fields: [createdById], references: [id])
+  1628→  title        String
+  1629→  description  String
+  1630→  partNumber   String?
+  1631→  photoUrl     String?
+  1632→  vehicleJson  String?  // JSON {make, model, year, engine, trim}
+  1633→  budgetMinor  Int?
+  1634→  deliveryCounty String?
+  1635→  status       String   @default("OPEN") // OPEN | QUOTING | CLOSED
+  1636→  expiresAt    DateTime?
+  1637→  createdAt    DateTime @default(now())
+  1638→  updatedAt    DateTime @updatedAt
+  1639→
+  1640→  offers QuoteOffer[]
+  1641→
+  1642→  @@index([garageOrgId, status])
+  1643→}
+  1644→
+  1645→model QuoteOffer {
+  1646→  id            String  @id @default(cuid())
+  1647→  requestId     String
+  1648→  request       QuoteRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  1649→  supplierOrgId String
+  1650→  supplier      Org     @relation(fields: [supplierOrgId], references: [id], onDelete: Cascade)
+  1651→  amountMinor   Int
+  1652→  leadDays      Int?
+  1653→  note          String?
+  1654→  itemsJson     String? // JSON [{name, partNumber, qty, unitPriceMinor}]
+  1655→  status        String  @default("PENDING") // PENDING | ACCEPTED | DECLINED | WITHDRAWN
+  1656→  createdAt     DateTime @default(now())
+  1657→
+  1658→  @@unique([requestId, supplierOrgId])
+  1659→  @@index([supplierOrgId, status])
+  1660→}
+  1661→
+  1662→// ───────────── Business memberships (garage/showroom customer programmes) ─────────────
+  1663→
+  1664→model MembershipTier {
+  1665→  id                 String  @id @default(cuid())
+  1666→  orgId              String
+  1667→  org                Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  1668→  name               String
+  1669→  description        String?
+  1670→  priceMonthlyMinor  Int
+  1671→  priceYearlyMinor   Int?
+  1672→  benefits           String  // JSON string[] of benefit statements
+  1673→  memberLimit        Int?    // null = unlimited
+  1674→  discountCapPct     Int?    // max discount offered, transparency
+  1675→  branchScope        String  @default("ALL") // ALL | SELECTED
+  1676→  branchesJson       String? // JSON string[] of branch ids when SELECTED
+  1677→  terms              String?
+  1678→  active             Boolean @default(true)
+  1679→  createdAt          DateTime @default(now())
+  1680→  updatedAt          DateTime @updatedAt
+  1681→
+  1682→  memberships BusinessMembership[]
+  1683→
+  1684→  @@index([orgId, active])
+  1685→}
+  1686→
+  1687→model BusinessMembership {
+  1688→  id             String   @id @default(cuid())
+  1689→  refCode        String   @unique
+  1690→  tierId         String
+  1691→  tier           MembershipTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  1692→  orgId          String   // participating business (denormalised for tenancy checks)
+  1693→  org            Org      @relation("MembershipOrg", fields: [orgId], references: [id])
+  1694→  customerId     String
+  1695→  customer       User     @relation("MembershipCustomer", fields: [customerId], references: [id])
+  1696→  billingPeriod  String   // MONTHLY | YEARLY
+  1697→  status         String   @default("PENDING_PAYMENT") // PENDING_PAYMENT | ACTIVE | CANCELLED | EXPIRED
+  1698→  startedAt      DateTime?
+  1699→  currentPeriodEnd DateTime?
+  1700→  cancelledAt    DateTime?
+  1701→  invoiceId      String?
+  1702→  invoice        Invoice? @relation(fields: [invoiceId], references: [id])
+  1703→  createdAt      DateTime @default(now())
+  1704→  updatedAt      DateTime @updatedAt
+  1705→
+  1706→  redemptions MembershipRedemption[]
+  1707→
+  1708→  @@index([customerId, status])
+  1709→  @@index([orgId, status])
+  1710→}
+  1711→
+  1712→model MembershipRedemption {
+  1713→  id           String   @id @default(cuid())
+  1714→  membershipId String
+  1715→  membership   BusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  1716→  benefit      String
+  1717→  periodKey    String   // e.g. "2025-11" — one redemption per benefit per period
+  1718→  refType      String?
+  1719→  refId        String?
+  1720→  createdAt    DateTime @default(now())
+  1721→
+  1722→  @@unique([membershipId, benefit, periodKey])
+  1723→}
+  1724→
+  1725→// ───────────── Trusted Customer Programme (business-private) ─────────────
+  1726→
+  1727→model TrustProgramme {
+  1728→  id          String  @id @default(cuid())
+  1729→  orgId       String
+  1730→  org         Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  1731→  name        String
+  1732→  description String?
+  1733→  terms       String?
+  1734→  status      String  @default("ACTIVE") // ACTIVE | PAUSED
+  1735→  createdAt   DateTime @default(now())
+  1736→
+  1737→  members TrustMember[]
+  1738→
+  1739→  @@unique([orgId])
+  1740→}
+  1741→
+  1742→model TrustMember {
+  1743→  id              String   @id @default(cuid())
+  1744→  programmeId     String
+  1745→  programme       TrustProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  1746→  customerId      String
+  1747→  customer        User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  1748→  // Internal business relationship label — NOT a universal credit rating and
+  1749→  // never shared with other businesses.
+  1750→  label           String   @default("NEW") // NEW|REGULAR|LOYAL|PREFERRED|TRUSTED|SUSPENDED
+  1751→  invitedById     String?
+  1752→  approvedAt      DateTime?
+  1753→  termsAcceptedAt DateTime?
+  1754→  note            String?
+  1755→  createdAt       DateTime @default(now())
+  1756→  updatedAt       DateTime @updatedAt
+  1757→
+  1758→  @@unique([programmeId, customerId])
+  1759→}
+  1760→
+  1761→// ───────────── Business-controlled customer credit ledger ─────────────
+  1762→// Management technology only — the platform is not a lender. Each business
+  1763→// independently approves its own customers; approval never transfers between
+  1764→// businesses and is never granted because of a membership purchase.
+  1765→
+  1766→model CreditFacility {
+  1767→  id              String   @id @default(cuid())
+  1768→  refCode         String   @unique
+  1769→  orgId           String   // issuing business
+  1770→  org             Org      @relation("CreditIssuer", fields: [orgId], references: [id], onDelete: Cascade)
+  1771→  customerId      String
+  1772→  customer        User     @relation("CreditCustomer", fields: [customerId], references: [id])
+  1773→  limitMinor      Int
+  1774→  depositMinor    Int      @default(0)
+  1775→  status          String   @default("PENDING") // PENDING_APPLICATION | OFFERED | ACTIVE | SUSPENDED | CLOSED | REJECTED
+  1776→  terms           String?  // repayment terms text agreed by customer
+  1777→  approvedAt      DateTime?
+  1778→  termsAcceptedAt DateTime?
+  1779→  closedAt        DateTime?
+  1780→  createdAt       DateTime @default(now())
+  1781→  updatedAt       DateTime @updatedAt
+  1782→
+  1783→  entries CreditEntry[]
+  1784→
+  1785→  @@unique([orgId, customerId])
+  1786→}
+  1787→
+  1788→model CreditEntry {
+  1789→  id                String   @id @default(cuid())
+  1790→  facilityId        String
+  1791→  facility          CreditFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  1792→  kind              String   // CHARGE | REPAYMENT | FEE | ADJUSTMENT
+  1793→  amountMinor       Int      // CHARGE/FEE positive (increases balance), REPAYMENT negative
+  1794→  balanceAfterMinor Int
+  1795→  refType           String?  // e.g. BOOKING, SERVICE
+  1796→  refId             String?
+  1797→  dueDate           DateTime?
+  1798→  paidAt            DateTime?
+  1799→  note              String?
+  1800→  actorId           String?
+  1801→  actorName         String?
+  1802→  createdAt         DateTime @default(now())
+  1803→
+  1804→  @@index([facilityId, createdAt])
+  1805→}
+  1806→
+  1807→// ───────────── Inter-branch vehicle transfers (showrooms) ─────────────
+  1808→
+  1809→model VehicleTransfer {
+  1810→  id              String   @id @default(cuid())
+  1811→  refCode         String   @unique
+  1812→  orgId           String   // owning company
+  1813→  org             Org      @relation("TransferOwner", fields: [orgId], references: [id], onDelete: Cascade)
+  1814→  vehicleId       String
+  1815→  vehicle         Vehicle  @relation(fields: [vehicleId], references: [id])
+  1816→  fromBranchId    String
+  1817→  fromBranch      OrgBranch @relation("TransferFromBranch", fields: [fromBranchId], references: [id])
+  1818→  toBranchId      String
+  1819→  toBranch        OrgBranch @relation("TransferToBranch", fields: [toBranchId], references: [id])
+  1820→  status          String   @default("REQUESTED") // REQUESTED | APPROVED | DISPATCHED | RECEIVED | CANCELLED | REJECTED
+  1821→  conditionOutJson String? // JSON departure condition report {odometer, notes, photos[]}
+  1822→  conditionInJson  String? // JSON receipt condition report
+  1823→  dispatchRef     String?
+  1824→  requestedById   String?
+  1825→  approvedById    String?
+  1826→  receivedByName  String?
+  1827→  dispatchedAt    DateTime?
+  1828→  receivedAt      DateTime?
+  1829→  createdAt       DateTime @default(now())
+  1830→  updatedAt       DateTime @updatedAt
+  1831→
+  1832→  events VehicleTransferEvent[]
+  1833→
+  1834→  @@index([orgId, status])
+  1835→}
+  1836→
+  1837→model VehicleTransferEvent {
+  1838→  id          String   @id @default(cuid())
+  1839→  transferId  String
+  1840→  transfer    VehicleTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  1841→  type        String   // REQUESTED|APPROVED|DISPATCHED|RECEIVED|CANCELLED|REJECTED|NOTE
+  1842→  actorId     String?
+  1843→  actorName   String
+  1844→  note        String?
+  1845→  createdAt   DateTime @default(now())
+  1846→
+  1847→  @@index([transferId, createdAt])
+  1848→}
+  1849→
+  1850→// ───────────── Procurement intelligence ─────────────
+  1851→
+  1852→model GarageStockAlert {
+  1853→  id         String  @id @default(cuid())
+  1854→  garageOrgId String
+  1855→  productId  String
+  1856→  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  1857→  minQty     Int     @default(1)
+  1858→  active     Boolean @default(true)
+  1859→  createdAt  DateTime @default(now())
+  1860→
+  1861→  @@unique([garageOrgId, productId])
+  1862→}
+  1863→
+  1864→model SavedSupplyItem {
+  1865→  id         String  @id @default(cuid())
+  1866→  userId     String
+  1867→  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  1868→  targetType String  // SUPPLIER | PRODUCT
+  1869→  targetId   String
+  1870→  createdAt  DateTime @default(now())
+  1871→
+  1872→  @@unique([userId, targetType, targetId])
+  1873→  @@index([userId])
+  1874→}
+  1875→
+  1876→// ───────────── Document verification engine ─────────────
+  1877→// Every uploaded verification document lives here with an explicit state
+  1878→// machine. Uploading NEVER grants verified status — only a staff reviewer
+  1879→// decision (with note, time and actor recorded) moves a document to VERIFIED.
+  1880→
+  1881→model VerificationDocument {
+  1882→  id             String       @id @default(cuid())
+  1883→  refCode        String       @unique
+  1884→  ownerUserId    String
+  1885→  owner          User         @relation("DocumentOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  1886→  orgId          String?
+  1887→  org            Org?         @relation("DocumentOrg", fields: [orgId], references: [id], onDelete: SetNull)
+  1888→  applicationId  String?
+  1889→  application    Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  1890→  kind           String  // ID_FRONT | ID_BACK | PASSPORT | PIN_CERTIFICATE | BUSINESS_LICENSE | DIRECTOR_ID | LOGBOOK | OWNERSHIP_AUTH | DRIVER_LICENSE | INSURANCE | VEHICLE_REG | REGISTRATION_CERT | SUPPORTING | OTHER
+  1891→  label          String?
+  1892→  fileUrl        String  // /api/files/<name> — private, permissioned
+  1893→  fileName       String
+  1894→  // SUBMITTED | UNDER_REVIEW | MORE_INFO_REQUIRED | VERIFIED | REJECTED | EXPIRED | SUPERSEDED
+  1895→  status         String       @default("SUBMITTED")
+  1896→  reviewNote     String?
+  1897→  reviewedById   String?
+  1898→  reviewedByName String?
+  1899→  reviewedAt     DateTime?
+  1900→  infoRequestedAt DateTime?
+  1901→  correctionsDueAt DateTime?
+  1902→  expiresAt      DateTime?
+  1903→  supersededById String?
+  1904→  createdAt      DateTime     @default(now())
+  1905→  updatedAt      DateTime     @updatedAt
+  1906→
+  1907→  accessLogs     DocumentAccessLog[]
+  1908→
+  1909→  @@index([ownerUserId, status])
+  1910→  @@index([orgId, status])
+  1911→  @@index([applicationId])
+  1912→  @@index([status, createdAt])
+  1913→}
+  1914→
+  1915→model DocumentAccessLog {
+  1916→  id         String                @id @default(cuid())
+  1917→  documentId String
+  1918→  document   VerificationDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  1919→  viewerId   String
+  1920→  viewerName String
+  1921→  action     String  // VIEWED | DOWNLOADED | STATUS_CHANGE
+  1922→  createdAt  DateTime @default(now())
+  1923→
+  1924→  @@index([documentId, createdAt])
+  1925→}
+  1926→
+  1927→// ───────────── Consumer parts ordering (Customer Platform) ─────────────
+  1928→// Customers order products directly from verified suppliers. Deliberately
+  1929→// separate from the B2B PurchaseOrder system: simpler lifecycle, buyer is a
+  1930→// user (not an org), payment follows the same honest invoice rules.
+  1931→
+  1932→model CustomerOrder {
+  1933→  id               String   @id @default(cuid())
+  1934→  refCode          String   @unique
+  1935→  buyerUserId      String
+  1936→  buyer            User     @relation("CustomerOrderBuyer", fields: [buyerUserId], references: [id], onDelete: Cascade)
+  1937→  supplierOrgId    String
+  1938→  supplier         Org      @relation("CustomerOrderSupplier", fields: [supplierOrgId], references: [id], onDelete: Cascade)
+  1939→  // SUBMITTED | ACCEPTED | REJECTED | CONFIRMED | DISPATCHED | DELIVERED | COMPLETED | CANCELLED | DISPUTED
+  1940→  status           String   @default("SUBMITTED")
+  1941→  county           String
+  1942→  address          String
+  1943→  phone            String
+  1944→  notes            String?
+  1945→  deliveryMethod   String   @default("DIRECT") // DIRECT | COLLECTION
+  1946→  deliveryFeeMinor Int      @default(0)
+  1947→  totalMinor       Int      @default(0)
+  1948→  currency         String   @default("KES")
+  1949→  paymentStatus    String   @default("UNPAID") // UNPAID | PROCESSING | PAID | REFUNDED
+  1950→  invoiceId        String?
+  1951→  invoice          Invoice? @relation("CustomerOrderInvoice", fields: [invoiceId], references: [id])
+  1952→  otpHash          String?
+  1953→  otpHint          String?
+  1954→  courierName      String?
+  1955→  fulfillmentBranchId String?
+  1956→  rejectedReason   String?
+  1957→  deliveredAt      DateTime?
+  1958→  completedAt      DateTime?
+  1959→  createdAt        DateTime @default(now())
+  1960→  updatedAt        DateTime @updatedAt
+  1961→
+  1962→  items  CustomerOrderItem[]
+  1963→  events CustomerOrderEvent[]
+  1964→  disputes Dispute[] @relation("CustomerOrderDisputes")
+  1965→
+  1966→  @@index([buyerUserId, status])
+  1967→  @@index([supplierOrgId, status])
+  1968→}
+  1969→
+  1970→model CustomerOrderItem {
+  1971→  id             String        @id @default(cuid())
+  1972→  orderId        String
+  1973→  order          CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  1974→  productId      String
+  1975→  product        Product       @relation("CustomerOrderItems", fields: [productId], references: [id])
+  1976→  qty            Int
+  1977→  unitPriceMinor Int
+  1978→  lineTotalMinor Int
+  1979→
+  1980→  @@index([orderId])
+  1981→}
+  1982→
+  1983→model CustomerOrderEvent {
+  1984→  id        String        @id @default(cuid())
+  1985→  orderId   String
+  1986→  order     CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  1987→  type      String // CREATED | ACCEPTED | REJECTED | CONFIRMED | DISPATCHED | DELIVERED | COMPLETED | CANCELLED | NOTE | PAYMENT
+  1988→  actorSide String // CUSTOMER | SUPPLIER | SYSTEM
+  1989→  actorId   String?
+  1990→  actorName String
+  1991→  note      String?
+  1992→  createdAt DateTime      @default(now())
+  1993→
+  1994→  @@index([orderId, createdAt])
+  1995→}
+  1996→

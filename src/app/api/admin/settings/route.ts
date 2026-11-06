@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireRole } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { rateLimit } from '@/lib/rate-limit'
 import { getIp } from '@/lib/api'
 import { audit } from '@/lib/audit'
@@ -36,6 +37,8 @@ const putSchema = z.object({
  */
 export const PUT = route(async (req: NextRequest) => {
   const user = await requireRole('ADMIN', 'FOUNDER')
+  // DEMO SANDBOX: public site configuration is never editable from a demo session.
+  await demoStaffMutationGuard(user, { platformWide: true })
   const rl = rateLimit(`admin-settings:${user.id}:${getIp(req)}`, 10, 60 * 60 * 1000)
   if (!rl.allowed) return fail(429, 'RATE_LIMITED', 'Too many setting changes. Try again later.')
 

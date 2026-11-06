@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { route, ok, requireRole } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { notify, notifyMany } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 
@@ -17,7 +18,9 @@ import { audit } from '@/lib/audit'
  *    if more than 7 days overdue → escalate to reviewers too.
  */
 export const POST = route(async () => {
-  await requireRole('REVIEWER', 'ADMIN', 'FOUNDER', 'SUPPORT')
+  const staffUser = await requireRole('REVIEWER', 'ADMIN', 'FOUNDER', 'SUPPORT')
+  // DEMO SANDBOX: SLA automation is a platform-wide operation.
+  await demoStaffMutationGuard(staffUser, { platformWide: true })
 
   const now = Date.now()
   const active = await db.application.findMany({

@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { refCode } from '@/lib/ids'
 import { notifyMany } from '@/lib/notify'
 import { audit } from '@/lib/audit'
+import { isActorDemo } from '@/lib/request-context'
 
 export const dynamic = 'force-dynamic'
 
@@ -194,7 +195,7 @@ export const POST = route(async (req: NextRequest) => {
     where: {
       id: { in: productIds },
       status: 'PUBLISHED',
-      supplier: { type: 'SUPPLIER', status: 'ACTIVE', verified: true },
+      supplier: { type: 'SUPPLIER', status: 'ACTIVE', verified: true, ...(await isActorDemo() ? { isDemo: true } : {}) },
     },
     include: {
       supplier: { select: { name: true } },

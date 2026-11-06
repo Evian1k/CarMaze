@@ -2,12 +2,13 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireRole } from '@/lib/api'
-import { ROLE } from '@/lib/auth'
+import { ROLE, hasRole } from '@/lib/auth'
 import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notify, notifyMany } from '@/lib/notify'
 import { staffUserIds } from '@/lib/orgs'
 import { jsonParse, getFees, poEvent } from '@/lib/supply'
+import { assertDemoResourceGuard } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,11 +117,72 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('process-refund'), refundId: z.string().min(1), decision: z.enum(['APPROVED', 'PROCESSED', 'REJECTED']), providerRef: z.string().max(80).optional(), note: z.string().max(300).optional() }),
 ])
 
+/** Resolve the demo-ecosystem subject of a supply-console action from the
+ * database (owner user or owning org). Returns null when the record does not
+ * exist — demo sessions are then blocked rather than trusted. */
+async function supplyActionSubject(body: { action: string; orgId?: string; applicationId?: string; productId?: string; disputeId?: string; orderId?: string; refundId?: string }): Promise<{ ownerId?: string | null; orgId?: string | null } | null> {
+  switch (body.action) {
+    case 'verify-supplier':
+    case 'unverify-supplier':
+    case 'suspend-supplier':
+    case 'restore-supplier':
+    case 'risk-score':
+      return { orgId: body.orgId ?? null }
+    case 'approve-application':
+    case 'reject-application': {
+      const app = body.applicationId ? await db.application.findUnique({ where: { id: body.applicationId }, select: { userId: true } }) : null
+      return app ? { ownerId: app.userId } : null
+    }
+    case 'verify-authenticity':
+    case 'revoke-authenticity':
+    case 'suspend-product':
+    case 'republish-product': {
+      const product = body.productId ? await db.product.findUnique({ where: { id: body.productId }, select: { supplierOrgId: true } }) : null
+      return product ? { orgId: product.supplierOrgId } : null
+    }
+    case 'dispute-note':
+    case 'dispute-status':
+    case 'resolve-dispute': {
+      const dispute = body.disputeId ? await db.dispute.findUnique({ where: { id: body.disputeId }, select: { orderId: true, customerOrderId: true, order: { select: { garageOrgId: true, supplierOrgId: true } }, customerOrder: { select: { buyerUserId: true, supplierOrgId: true } } } }) : null
+      if (!dispute) return null
+      if (dispute.order) return { orgId: dispute.order.garageOrgId || dispute.order.supplierOrgId }
+      if (dispute.customerOrder) return { ownerId: dispute.customerOrder.buyerUserId, orgId: dispute.customerOrder.supplierOrgId }
+      return null
+    }
+    case 'reconcile-payment': {
+      const order = body.orderId ? await db.purchaseOrder.findUnique({ where: { id: body.orderId }, select: { garageOrgId: true, supplierOrgId: true } }) : null
+      return order ? { orgId: order.garageOrgId || order.supplierOrgId } : null
+    }
+    case 'process-refund': {
+      const refund = body.refundId ? await db.refund.findUnique({ where: { id: body.refundId }, include: { order: { select: { garageOrgId: true, supplierOrgId: true } } } }) : null
+      return refund?.order ? { orgId: refund.order.garageOrgId || refund.order.supplierOrgId } : null
+    }
+    default:
+      return null
+  }
+}
+
 /** POST — all sensitive actions are logged to the audit trail. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireRole(ROLE.SUPPORT, ROLE.REVIEWER, ROLE.MODERATOR, ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
   const body = await parseBody(req, actionSchema)
   const staffSide = 'ADMIN' as const
+
+  // FINANCE SPLIT: reconciling a payment marks an invoice PAID and processing
+  // a refund moves money state — restricted to FINANCE/ADMIN/FOUNDER instead
+  // of every staff role.
+  if ((body.action === 'reconcile-payment' || body.action === 'process-refund') && !hasRole(user, ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)) {
+    return fail(403, 'FINANCE_ONLY', 'Payment reconciliation and refunds are restricted to the Finance department.')
+  }
+
+  // DEMO SANDBOX: demo staff may only run console actions whose subject
+  // belongs to the demo ecosystem. The subject is resolved from the database,
+  // never from client-supplied ownership claims.
+  if (user.isDemo) {
+    const subject = await supplyActionSubject(body)
+    if (!subject) return fail(403, 'DEMO_SANDBOXED', 'Demo mode: the record for this action could not be resolved, so it has been blocked.')
+    await assertDemoResourceGuard(user, subject)
+  }
 
   switch (body.action) {
     case 'verify-supplier': {
@@ -254,6 +316,7 @@ export const POST = route(async (req: NextRequest) => {
       // ── Consumer (B2C) parts-order dispute ──
       if (dispute.customerOrderId) {
         const order = dispute.customerOrder
+        if (!order) return fail(404, 'NOT_FOUND', 'Dispute has no linked consumer order.')
         await db.dispute.update({
           where: { id: dispute.id },
           data: { status: 'RESOLVED', resolution: body.resolution, resolutionNote: body.note, resolvedBy: user.name, resolvedAt: new Date() },

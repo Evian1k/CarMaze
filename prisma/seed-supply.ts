@@ -74,6 +74,7 @@ export async function seedSupply(
       data: {
         email, name, phone,
         passwordHash: ctx.bcrypt.hashSync(ctx.PASSWORD, 10),
+        isDemo: true,
         roles: role,
         referralCode: email.split('@')[0].toUpperCase().slice(0, 8),
       },
@@ -96,7 +97,7 @@ export async function seedSupply(
     if (!org) {
       org = await db.org.create({
         data: {
-          type: 'SUPPLIER', name: opts.name, regNo: opts.regNo, county: opts.county, town: opts.town,
+          type: 'SUPPLIER', name: opts.name, isDemo: true, regNo: opts.regNo, county: opts.county, town: opts.town,
           description: opts.description, verified: opts.verified, supplierRating: opts.rating,
           supplierRiskScore: opts.risk ?? 0,
           phone: '+254711000300', email: `sales@${opts.name.toLowerCase().replace(/[^a-z]+/g, '')}.co.ke`,

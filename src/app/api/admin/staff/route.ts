@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, parseBody, requireRole, getIp } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { STAFF_ROLES, hashPassword } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
 import { notify } from '@/lib/notify'
@@ -97,6 +98,8 @@ function generatePassword(len = 12): string {
  */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireRole('ADMIN', 'FOUNDER')
+  // DEMO SANDBOX: inviting real staff accounts is never allowed from a demo session.
+  await demoStaffMutationGuard(user, { platformWide: true })
 
   const rl = rateLimit(`staff-invite:${user.id}`, 20, 60 * 60 * 1000)
   if (!rl.allowed) {

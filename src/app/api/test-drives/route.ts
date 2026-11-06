@@ -5,6 +5,7 @@ import { route, ok, fail, ApiError, requireUser, parseBody } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
 import { refCode } from '@/lib/ids'
 import { notifyOrgMembers } from '@/lib/orgs'
+import { assertDemoResourceGuard } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,20 @@ export const POST = route(async (req: NextRequest) => {
   if (!vehicle.orgId) {
     throw new ApiError(400, 'NOT_AVAILABLE', 'Test drives are only available for dealership vehicles.')
   }
+
+  // Suspended businesses must not keep receiving bookings.
+  const vehicleOrg = await db.org.findUnique({ where: { id: vehicle.orgId }, select: { status: true, isDemo: true } })
+  if (!vehicleOrg || vehicleOrg.status !== 'ACTIVE') {
+    throw new ApiError(400, 'NOT_AVAILABLE', 'This dealership is not currently accepting test drive requests.')
+  }
+  // Dealership staff should use the DealerOS schedule, not book their own stock.
+  const ownMembership = await db.orgMember.findFirst({ where: { orgId: vehicle.orgId, userId: user.id }, select: { id: true } })
+  if (ownMembership) {
+    throw new ApiError(400, 'OWN_ORG', 'You can\u2019t book a test drive at your own dealership.')
+  }
+
+  // DEMO SANDBOX: demo users may only book at demo dealerships.
+  await assertDemoResourceGuard(user, { orgId: vehicle.orgId })
 
   const scheduledAt = new Date(body.scheduledAt)
   const min = Date.now() + 60 * 60 * 1000

@@ -13,6 +13,25 @@ datasource db {
 
 // ───────────────────────────── Users & access ─────────────────────────────
 
+// Server-side registry of the public demo experiences shown on the Sign In
+// page. Credentials are NEVER sent to the frontend: the demo sign-in endpoint
+// maps a roleKey to its seeded account entirely server-side.
+model DemoAccount {
+  id             String   @id @default(cuid())
+  roleKey        String   @unique // customer | private-seller | showroom-owner | showroom-staff | garage-owner | garage-staff | platform-support | platform-admin
+  email          String   // demo user account this role signs in as (server-side only)
+  label          String
+  description    String
+  dashboard      String   // hash route opened after demo sign-in
+  enabled        Boolean  @default(true)
+  sessionMinutes Int      @default(240) // demo session lifetime
+  restrictedNote String?  // shown in the UI, e.g. admin demo restriction
+  lastResetAt    DateTime?
+  resetCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
@@ -27,6 +46,7 @@ model User {
   department    String?  // company staff department (BUSINESS_VERIFICATION|SUPPORT|FINANCE|DISPUTES|FRAUD|MODERATION|TECHNICAL)
   totpSecret    String?  // base32 TOTP secret for MFA (null = MFA disabled)
   mfaEnabled    Boolean  @default(false)
+  isDemo        Boolean  @default(false) // demo-experience account: sandboxed from real users/orgs, excluded from real notifications & payments
   status        String   @default("ACTIVE") // ACTIVE | SUSPENDED
   referralCode  String?  @unique // this user's own shareable referral code
   referredById  String?  // user who referred them (attribution — set once at registration)
@@ -440,6 +460,7 @@ model Org {
   email       String?
   description String?
   status      String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  isDemo      Boolean  @default(false) // demo-experience organisation: demo users can act on it; real users' data never mixes
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

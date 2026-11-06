@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, requireUser, parseBody, getIp } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/audit'
+import { assertDemoResourceGuard } from '@/lib/demo'
 
 // Reviews are earned, never bought: a customer may review a business only
 // after a real, completed engagement with it.
@@ -63,6 +64,16 @@ export const POST = route(async (req: NextRequest) => {
 
   const org = await db.org.findFirst({ where: { id: body.orgId } })
   if (!org) throw new ApiError(404, 'NOT_FOUND', 'Business not found.')
+
+  // Integrity: business members can never review their own org (a completed
+  // self-arranged booking would otherwise allow self-rating + loyalty points).
+  const memberOfOrg = await db.orgMember.findFirst({ where: { orgId: org.id, userId: user.id }, select: { id: true } })
+  if (memberOfOrg) {
+    throw new ApiError(403, 'OWN_ORG', 'You can\u2019t review your own business.')
+  }
+
+  // DEMO SANDBOX: demo users may only review demo businesses.
+  await assertDemoResourceGuard(user, { orgId: org.id })
 
   // Earned reviews only — the qualifying engagement depends on the org type.
   if (org.type === 'GARAGE') {

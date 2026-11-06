@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 
 const SESSION_COOKIE = 'carmaze_session'
 const SESSION_DAYS = 7
+/** Demo sessions are intentionally short-lived. */
+export const DEMO_SESSION_MINUTES_DEFAULT = 240
 
 // Dev fallback secret — in production always set AUTH_SECRET env var.
 const secret = new TextEncoder().encode(
@@ -42,18 +44,21 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
   return bcrypt.compare(plain, hash)
 }
 
-export async function createSession(userId: string): Promise<void> {
-  const token = await new SignJWT({ sub: userId })
+export async function createSession(userId: string, opts?: { maxAgeSeconds?: number; demoRole?: string }): Promise<void> {
+  const maxAgeSeconds = opts?.maxAgeSeconds ?? SESSION_DAYS * 24 * 60 * 60
+  const claims: Record<string, unknown> = { sub: userId }
+  if (opts?.demoRole) claims.demo = opts.demoRole
+  const token = await new SignJWT(claims)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime(`${SESSION_DAYS}d`)
+    .setExpirationTime(`${Math.floor(maxAgeSeconds)}s`)
     .sign(secret)
   const store = await cookies()
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
-    maxAge: SESSION_DAYS * 24 * 60 * 60,
+    maxAge: maxAgeSeconds,
     path: '/',
   })
 }
@@ -74,7 +79,25 @@ export type SessionUser = {
   department: string | null
   roles: string[]
   status: string
+  isDemo: boolean
   createdAt: Date
+}
+
+/** Demo-scope info carried inside the session JWT (decoded, not trusted for
+ * authorisation — role checks always re-read the user from the database). */
+export type SessionDemoInfo = { active: true; roleKey: string; expiresAt: string } | null
+
+export async function getSessionDemoInfo(): Promise<SessionDemoInfo> {
+  try {
+    const store = await cookies()
+    const token = store.get(SESSION_COOKIE)?.value
+    if (!token) return null
+    const { payload } = await jwtVerify(token, secret)
+    if (typeof payload.demo !== 'string' || !payload.exp) return null
+    return { active: true, roleKey: payload.demo, expiresAt: new Date(payload.exp * 1000).toISOString() }
+  } catch {
+    return null
+  }
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
@@ -98,6 +121,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       department: user.department,
       roles: user.roles.split(',').filter(Boolean),
       status: user.status,
+      isDemo: user.isDemo,
       createdAt: user.createdAt,
     }
   } catch {

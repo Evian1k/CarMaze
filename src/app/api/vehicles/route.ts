@@ -27,7 +27,8 @@ type VehicleWithRelations = {
   featured: boolean
   sellerType: string
   photos: { url: string; order: number }[]
-  org?: { id: string; name: string } | null
+  org?: { id: string; name: string; isDemo?: boolean } | null
+  owner?: { isDemo?: boolean } | null
 }
 
 /** Public card shape (matches the VehicleCard component contract). */
@@ -50,6 +51,7 @@ function toCard(v: VehicleWithRelations) {
     featured: v.featured,
     sellerType: v.sellerType,
     orgName: v.org?.name ?? null,
+    orgIsDemo: (v.org?.isDemo ?? false) || (v.owner?.isDemo ?? false),
     photos: v.photos,
   }
 }
@@ -148,7 +150,7 @@ export const GET = route(async (req: NextRequest) => {
         : { OR: [{ ownerId: user.id }, { orgId: { in: myOrgIds } }] },
       include: {
         photos: { orderBy: { order: 'asc' as const } },
-        org: { select: { id: true, name: true } },
+        org: { select: { id: true, name: true, isDemo: true } },
         _count: { select: { enquiries: true, offers: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -179,6 +181,7 @@ export const GET = route(async (req: NextRequest) => {
       createdAt: v.createdAt,
       orgId: v.orgId,
       orgName: v.org?.name ?? null,
+      orgIsDemo: v.org?.isDemo ?? false,
       photos: v.photos,
       enquiryCount: v._count.enquiries,
       offerCount: v._count.offers,
@@ -254,7 +257,8 @@ export const GET = route(async (req: NextRequest) => {
       where,
       include: {
         photos: { orderBy: { order: 'asc' as const } },
-        org: { select: { id: true, name: true } },
+        org: { select: { id: true, name: true, isDemo: true } },
+        owner: { select: { isDemo: true } },
       },
       orderBy,
       skip: (page - 1) * perPage,
@@ -309,7 +313,7 @@ export const POST = route(async (req: NextRequest) => {
         },
       },
     },
-    include: { photos: { orderBy: { order: 'asc' as const } }, org: { select: { id: true, name: true } } },
+    include: { photos: { orderBy: { order: 'asc' as const } }, org: { select: { id: true, name: true, isDemo: true } } },
   })
 
   await audit({

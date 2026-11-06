@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, ApiError, parseBody, requireRole } from '@/lib/api'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { notify } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 
@@ -58,6 +59,8 @@ export const PATCH = route(async (req: NextRequest) => {
 
   const target = await db.user.findUnique({ where: { id: body.id } })
   if (!target) throw new ApiError(404, 'NOT_FOUND', 'User not found.')
+  // DEMO SANDBOX: demo admins may only manage demo-ecosystem accounts.
+  await demoStaffMutationGuard(user, { subjectUserId: target.id })
   if (target.id === user.id) throw new ApiError(409, 'SELF_ACTION', 'You cannot change your own access status.')
   if (target.roles.split(',').includes('FOUNDER')) {
     throw new ApiError(403, 'FOUNDER_PROTECTED', 'Founder accounts cannot be suspended or reactivated here.')
