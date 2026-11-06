@@ -125,6 +125,32 @@ export const POST = route(async (req: NextRequest) => {
   })
 
   if (body.status === 'SUBMITTED') {
+    // Enter every submitted document into the Document Verification Engine as
+    // SUBMITTED. Uploading is never verification — these stay pending until a
+    // staff reviewer acts in the Verification Center. Kinds are inferred from
+    // position where the wizard does not collect them explicitly.
+    const inferredKind: Record<string, (i: number) => string> = {
+      SELLER: (i) => (i === 0 ? 'ID_FRONT' : i === 1 ? 'ID_BACK' : 'SUPPORTING'),
+      LOGISTICS: (i) => (i === 0 ? 'DRIVER_LICENSE' : i === 1 ? 'INSURANCE' : 'SUPPORTING'),
+      DEALER: (i) => (i === 0 ? 'BUSINESS_LICENSE' : i === 1 ? 'PIN_CERTIFICATE' : 'SUPPORTING'),
+      GARAGE: (i) => (i === 0 ? 'BUSINESS_LICENSE' : i === 1 ? 'PIN_CERTIFICATE' : 'SUPPORTING'),
+    }
+    const infer = inferredKind[body.type] ?? (() => 'SUPPORTING')
+    if (body.documents.length > 0) {
+      await db.verificationDocument.createMany({
+        data: body.documents.map((d, i) => ({
+          refCode: refCode('DOC', 6),
+          ownerUserId: user.id,
+          applicationId: app.id,
+          kind: infer(i),
+          label: d.name,
+          fileUrl: d.url,
+          fileName: d.name,
+          status: 'SUBMITTED',
+        })),
+      })
+    }
+
     const links: Record<string, string> = { DEALER: '/dealer', GARAGE: '/garage-dashboard', SELLER: '/sell', LOGISTICS: '/logistics' }
     await notify({
       userId: user.id,

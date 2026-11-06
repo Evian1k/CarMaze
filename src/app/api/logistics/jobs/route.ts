@@ -41,6 +41,7 @@ type JobRow = {
   requesterOrgName: string | null
   feeMinor: number
   otpHint: string | null
+  qrToken: string | null
   podPhotos: string | null
   failReason: string | null
   pickupAt: Date | null
@@ -97,6 +98,7 @@ function forMine(j: JobRow) {
     partner: j.partner ? { id: j.partner.id, name: j.partner.name, county: j.partner.county, phone: j.partner.phone } : null,
     driver: j.driver ?? null,
     otpHint: j.otpHint,
+    qrToken: j.qrToken,
     podPhotos: j.status === 'DELIVERED' && j.podPhotos ? parseList(j.podPhotos) : [],
     events: (j.events ?? []).map((e) => ({ id: e.id, type: e.type, actorName: e.actorName, actorSide: e.actorSide, note: e.note, createdAt: e.createdAt })),
   }

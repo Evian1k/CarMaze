@@ -1,0 +1,252 @@
+/home/z/my-project/src/views/home/index.tsx:161:                placeholder="Search make or model — e.g. Prado, Demio…"
+/home/z/my-project/src/views/home/index.tsx:162:                className="h-11 border-none bg-white/10 text-white placeholder:text-white/45 focus-visible:ring-accent"
+/home/z/my-project/src/views/account/index.tsx:299:                  <Input id="acc-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07xx xxx xxx" />
+/home/z/my-project/src/views/account/index.tsx:322:                      <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+/home/z/my-project/src/views/account/index.tsx:356:                    <Input value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+/home/z/my-project/src/views/account/index.tsx:376:                    <Input type="password" value={mfaPassword} onChange={(e) => setMfaPassword(e.target.value)} placeholder="Current password" autoComplete="current-password" />
+/home/z/my-project/src/views/account/index.tsx:396:                      <Input value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+/home/z/my-project/src/views/account/index.tsx:534:              <Input value={newSearch} onChange={(e) => setNewSearch(e.target.value)} placeholder="e.g. Family SUV under 4M" />
+/home/z/my-project/src/views/roadside/index.tsx:324:          <Input id="rs-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07xx xxx xxx" inputMode="tel" />
+/home/z/my-project/src/views/roadside/index.tsx:335:          <Input id="rs-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Uhuru Highway near Haile Selassie Ave, towards CBD" />
+/home/z/my-project/src/views/roadside/index.tsx:339:          <Textarea id="rs-details" rows={3} value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Vehicle, what led to the breakdown, safe parking spot…" />
+/home/z/my-project/src/views/logistics/index.tsx:646:              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rift Valley Movers" maxLength={120} />
+/home/z/my-project/src/views/logistics/index.tsx:665:                <Input value={regNo} onChange={(e) => setRegNo(e.target.value)} placeholder="e.g. PVT-XYZ890" maxLength={60} />
+/home/z/my-project/src/views/logistics/index.tsx:670:                <SelectTrigger aria-label="Base county"><SelectValue placeholder="Select county" /></SelectTrigger>
+/home/z/my-project/src/views/logistics/index.tsx:677:              <Input value={town} onChange={(e) => setTown(e.target.value)} placeholder="e.g. Industrial Area" maxLength={60} />
+/home/z/my-project/src/views/logistics/index.tsx:680:              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07xx xxx xxx" inputMode="tel" maxLength={20} />
+/home/z/my-project/src/views/logistics/index.tsx:686:              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.co.ke" />
+/home/z/my-project/src/views/logistics/index.tsx:689:              <Input value={representative} onChange={(e) => setRepresentative(e.target.value)} placeholder="Full name" maxLength={80} />
+/home/z/my-project/src/views/logistics/index.tsx:736:            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} maxLength={2000} placeholder="Fleet size, years operating, special equipment (flatbed, tow rig)…" />
+/home/z/my-project/src/views/logistics/index.tsx:887:            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} maxLength={2000} placeholder="What you have added or clarified…" />
+/home/z/my-project/src/views/logistics/index.tsx:1280:                    <SelectTrigger aria-label="Assign driver"><SelectValue placeholder="Select driver" /></SelectTrigger>
+/home/z/my-project/src/views/logistics/index.tsx:1295:                    placeholder="e.g. 2500"
+/home/z/my-project/src/views/logistics/index.tsx:1362:                placeholder="6 digits"
+/home/z/my-project/src/views/logistics/index.tsx:1422:          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} placeholder="e.g. Cargo was damaged during loading and the requester refused handover." />
+/home/z/my-project/src/views/logistics/index.tsx:1599:            <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Full name" />
+/home/z/my-project/src/views/logistics/index.tsx:1602:            <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" maxLength={20} placeholder="07xx xxx xxx" />
+/home/z/my-project/src/views/logistics/index.tsx:1609:              <Input value={vehicleReg} onChange={(e) => setVehicleReg(e.target.value)} maxLength={20} placeholder="e.g. KDA 123A" />
+/home/z/my-project/src/views/logistics/index.tsx:1614:              <SelectTrigger aria-label="Vehicle type"><SelectValue placeholder="Select type" /></SelectTrigger>
+/home/z/my-project/src/views/logistics/index.tsx:1856:            <Textarea value={cargoDesc} onChange={(e) => setCargoDesc(e.target.value)} rows={2} maxLength={300} placeholder="e.g. Two sealed gearboxes, approx 40 kg total" />
+/home/z/my-project/src/views/logistics/index.tsx:1872:                  <SelectTrigger aria-label="Pickup county"><SelectValue placeholder="Select county" /></SelectTrigger>
+/home/z/my-project/src/views/logistics/index.tsx:1877:                <Input value={pickupName} onChange={(e) => setPickupName(e.target.value)} maxLength={80} placeholder="Who hands over the cargo?" />
+/home/z/my-project/src/views/logistics/index.tsx:1880:                <Input value={pickupAddress} onChange={(e) => setPickupAddress(e.target.value)} maxLength={200} placeholder="Street, building, unit" />
+/home/z/my-project/src/views/logistics/index.tsx:1893:                  <SelectTrigger aria-label="Drop-off county"><SelectValue placeholder="Select county" /></SelectTrigger>
+/home/z/my-project/src/views/logistics/index.tsx:1898:                <Input value={dropName} onChange={(e) => setDropName(e.target.value)} maxLength={80} placeholder="Who receives the cargo?" />
+/home/z/my-project/src/views/logistics/index.tsx:1901:                <Input value={dropAddress} onChange={(e) => setDropAddress(e.target.value)} maxLength={200} placeholder="Street, building, unit" />
+/home/z/my-project/src/views/auth/index.tsx:266:                      <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07xx xxx xxx" />
+/home/z/my-project/src/views/auth/index.tsx:381:                    placeholder="······"
+/home/z/my-project/src/views/memberships/index.tsx:116:            placeholder="Search businesses by name…"
+/home/z/my-project/src/views/sell/index.tsx:360:                    <SelectTrigger className="w-full"><SelectValue placeholder="Select make" /></SelectTrigger>
+/home/z/my-project/src/views/sell/index.tsx:368:                  <Input id="s-model" placeholder="e.g. Harrier Premium" value={form.model} onChange={(e) => set('model', e.target.value)} />
+/home/z/my-project/src/views/sell/index.tsx:372:                  <Input id="s-year" inputMode="numeric" placeholder="2018" value={form.year} onChange={(e) => set('year', e.target.value.replace(/[^\d]/g, ''))} />
+/home/z/my-project/src/views/sell/index.tsx:377:                    <SelectTrigger className="w-full"><SelectValue placeholder="Select body" /></SelectTrigger>
+/home/z/my-project/src/views/sell/index.tsx:386:                    <SelectTrigger className="w-full"><SelectValue placeholder="Select condition" /></SelectTrigger>
+/home/z/my-project/src/views/sell/index.tsx:395:                    <SelectTrigger className="w-full"><SelectValue placeholder="Select fuel" /></SelectTrigger>
+/home/z/my-project/src/views/sell/index.tsx:404:                    <SelectTrigger className="w-full"><SelectValue placeholder="Select" /></SelectTrigger>
+/home/z/my-project/src/views/sell/index.tsx:412:                  <Input id="s-engine" inputMode="numeric" placeholder="e.g. 2000" value={form.engineCc} onChange={(e) => set('engineCc', e.target.value.replace(/[^\d]/g, ''))} />
+/home/z/my-project/src/views/sell/index.tsx:416:                  <Input id="s-color" placeholder="e.g. Pearl White" value={form.color} onChange={(e) => set('color', e.target.value)} />
+/home/z/my-project/src/views/sell/index.tsx:421:                    <SelectTrigger className="w-full"><SelectValue placeholder="Select county" /></SelectTrigger>
+/home/z/my-project/src/views/sell/index.tsx:429:                  <Input id="s-town" placeholder="e.g. Syokimau" value={form.town} onChange={(e) => set('town', e.target.value)} />
+/home/z/my-project/src/views/sell/index.tsx:443:                    placeholder="e.g. 1,250,000"
+/home/z/my-project/src/views/sell/index.tsx:453:                  <Input id="s-mileage" inputMode="numeric" placeholder="e.g. 76000" value={form.mileage} onChange={(e) => set('mileage', e.target.value.replace(/[^\d]/g, ''))} />
+/home/z/my-project/src/views/sell/index.tsx:467:                  placeholder="Describe the condition, service history, why you're selling…"
+/home/z/my-project/src/views/community/index.tsx:229:            placeholder="Search posts…"
+/home/z/my-project/src/views/community/index.tsx:575:                    placeholder="Add a comment…"
+/home/z/my-project/src/views/community/index.tsx:686:            <Input id="p-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ask or share something specific" maxLength={120} required />
+/home/z/my-project/src/views/community/index.tsx:702:              <Input id="p-link" value={linkRef} onChange={(e) => setLinkRef(e.target.value)} placeholder="e.g. VHL-3XK2Q1" maxLength={200} />
+/home/z/my-project/src/views/community/index.tsx:707:            <Textarea id="p-body" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write your post…" rows={5} maxLength={5000} required />
+/home/z/my-project/src/views/community/index.tsx:725:                    placeholder={`Option ${i + 1}`}
+/home/z/my-project/src/views/community/index.tsx:807:            <Input id="rep-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Spam, harassment, misinformation…" maxLength={80} required />
+/home/z/my-project/src/views/supplier/index.tsx:239:                <SelectValue placeholder="Business" />
+/home/z/my-project/src/views/customizer/index.tsx:590:                  <SelectValue placeholder="Select county" />
+/home/z/my-project/src/views/customizer/index.tsx:604:              <Input id="quote-town" value={quoteTown} onChange={(e) => setQuoteTown(e.target.value)} placeholder="e.g. Westlands" maxLength={60} />
+/home/z/my-project/src/views/customizer/index.tsx:617:                placeholder="Describe the work…"
+/home/z/my-project/src/views/customizer/index.tsx:624:              <Input id="quote-vehicle" value={quoteVehicle} onChange={(e) => setQuoteVehicle(e.target.value)} placeholder="e.g. 2018 Toyota Axio, silver" maxLength={120} />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:198:              <SelectValue placeholder="Choose garage" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:446:              <Input id="svc-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Full engine service" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:450:              <Textarea id="svc-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's included, warranties, turnaround…" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:455:                <Input id="svc-price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g. 6500" className="max-w-40" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:609:                <Input id="q-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 12500" className="max-w-40" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:616:              <Input id="q-lead" inputMode="numeric" value={leadDays} onChange={(e) => setLeadDays(e.target.value)} placeholder="e.g. 2" className="max-w-24" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:621:              <Textarea id="q-msg" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="What the quote includes, parts, warranty…" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:801:            <Textarea id="bk-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Work done, advice for the customer, reason for cancelling…" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:914:          <Textarea id="pf-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What your garage specialises in…" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:918:          <Input id="pf-town" value={town} onChange={(e) => setTown(e.target.value)} placeholder="e.g. Westlands" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:922:          <Input id="pf-loc" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Karuna Rd, Westlands" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:926:          <Input id="pf-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2547…" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:1026:                <Input id="ap-name" value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="e.g. Premium Motors Garage" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:1030:                <Input id="ap-reg" value={regNo} onChange={(e) => setRegNo(e.target.value)} placeholder="e.g. BN-2014-7731" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:1041:                <Input id="ap-town" value={town} onChange={(e) => setTown(e.target.value)} placeholder="e.g. Westlands" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:1045:                <Input id="ap-addr" value={physicalAddress} onChange={(e) => setPhysicalAddress(e.target.value)} placeholder="e.g. Karuna Rd, Westlands, opposite X" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:1049:                <Input id="ap-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2547…" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:1053:                <Input id="ap-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="service@yourgarage.co.ke" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:1913:          <Input id="cu-staff" value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="e.g. John Mwangi" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:1987:            <Textarea id="cu-done" rows={3} value={completedWork} onChange={(e) => setCompletedWork(e.target.value)} placeholder="e.g. Replaced front brake pads, full service, wheel alignment…" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:1992:              <Input id="cu-odo" inputMode="numeric" value={finalOdometer} onChange={(e) => setFinalOdometer(e.target.value)} placeholder="e.g. 84210" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:1997:                <Input id="cu-cost" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="e.g. 12500" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:2005:            <Textarea id="cu-fnotes" rows={2} value={finalNotes} onChange={(e) => setFinalNotes(e.target.value)} placeholder="Advice, next service due, watch-outs…" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:2066:        <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Customer called — approved extra coolant flush." aria-label="Note" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:2098:            <Input id="rt-purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Verify steering fix on rough road" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:2102:            <Input id="rt-driver" value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="e.g. Samuel Kariuki (technician)" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:2139:          <Input id="rt-odo" inputMode="numeric" value={km} onChange={(e) => setKm(e.target.value)} placeholder="e.g. 84210" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:2177:            <Input id="rt-endo" inputMode="numeric" value={km} onChange={(e) => setKm(e.target.value)} placeholder="e.g. 84265" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:2181:            <Textarea id="rt-enotes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="How the vehicle behaved…" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:2237:            <Input id="vc-name" value={collectorName} onChange={(e) => setCollectorName(e.target.value)} placeholder="Full name as authorised by the customer" />
+/home/z/my-project/src/views/garage-dashboard/index.tsx:2247:              placeholder="······"
+/home/z/my-project/src/views/seller-dashboard/index.tsx:609:                                placeholder={`Reply to ${e.refCode.replace('ENQ-', 'enquiry ')}…`}
+/home/z/my-project/src/views/dealer/index.tsx:672:                <Input id="wz-orgname" value={form.orgName} onChange={(e) => set('orgName', e.target.value)} placeholder="e.g. Nairobi Auto Hub" maxLength={120} />
+/home/z/my-project/src/views/dealer/index.tsx:676:                <Input id="wz-regno" value={form.regNo} onChange={(e) => set('regNo', e.target.value)} placeholder="e.g. BN-2019-4482" maxLength={60} />
+/home/z/my-project/src/views/dealer/index.tsx:682:                    <SelectTrigger aria-label="County"><SelectValue placeholder="Select county" /></SelectTrigger>
+/home/z/my-project/src/views/dealer/index.tsx:690:                  <Input id="wz-town" value={form.town} onChange={(e) => set('town', e.target.value)} placeholder="e.g. Syokimau" maxLength={60} />
+/home/z/my-project/src/views/dealer/index.tsx:695:                <Input id="wz-address" value={form.physicalAddress} onChange={(e) => set('physicalAddress', e.target.value)} placeholder="e.g. Mombasa Road, next to Gateway Mall" maxLength={200} />
+/home/z/my-project/src/views/dealer/index.tsx:700:                  <Input id="wz-phone" type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+254 7XX XXX XXX" maxLength={20} />
+/home/z/my-project/src/views/dealer/index.tsx:704:                  <Input id="wz-email" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="sales@yourdealership.co.ke" maxLength={120} />
+/home/z/my-project/src/views/dealer/index.tsx:714:                <Input id="wz-rep" value={form.representative} onChange={(e) => set('representative', e.target.value)} placeholder="Full name of the person CARMAZE can contact" maxLength={80} />
+/home/z/my-project/src/views/dealer/index.tsx:901:                  <Textarea id="rs-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Explain what you corrected or attached…" maxLength={2000} />
+/home/z/my-project/src/views/dealer/index.tsx:1378:                    placeholder="Reply to the customer…"
+/home/z/my-project/src/views/dealer/index.tsx:1612:                <SelectTrigger aria-label="Make"><SelectValue placeholder="Select make" /></SelectTrigger>
+/home/z/my-project/src/views/dealer/index.tsx:1620:              <Input id="br-model" value={form.model} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} placeholder="e.g. Land Cruiser Prado" maxLength={80} />
+/home/z/my-project/src/views/dealer/index.tsx:1625:                <Input id="br-yf" type="number" min={1980} max={yearNow} value={form.yearFrom} onChange={(e) => setForm((f) => ({ ...f, yearFrom: e.target.value }))} placeholder="2015" />
+/home/z/my-project/src/views/dealer/index.tsx:1629:                <Input id="br-yt" type="number" min={1980} max={yearNow} value={form.yearTo} onChange={(e) => setForm((f) => ({ ...f, yearTo: e.target.value }))} placeholder="2019" />
+/home/z/my-project/src/views/dealer/index.tsx:1634:              <Input id="br-budget" type="number" min={0} step="10000" value={form.budget} onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))} placeholder="700000" />
+/home/z/my-project/src/views/dealer/index.tsx:1638:              <Textarea id="br-notes" rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="e.g. Clean units only, mileage under 120k, any colour." maxLength={500} />
+/home/z/my-project/src/views/dealer/index.tsx:1800:              <Input id="st-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Brian Otieno" maxLength={80} />
+/home/z/my-project/src/views/dealer/index.tsx:1804:              <Input id="st-email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="name@dealership.co.ke" maxLength={120} />
+/home/z/my-project/src/views/dealer/index.tsx:2074:              <Input id="mpesa-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0712 345 678" />
+/home/z/my-project/src/views/dealer/index.tsx:2162:            <Textarea id="pf-desc" rows={4} value={form.description} onChange={(e) => set('description', e.target.value)} disabled={!canEdit} placeholder="What makes your dealership different — specialisations, warranties, trade-ins…" maxLength={2000} />
+/home/z/my-project/src/views/dealer/index.tsx:2166:            <Input id="pf-loc" value={form.location} onChange={(e) => set('location', e.target.value)} disabled={!canEdit} placeholder="e.g. Mombasa Road, next to Gateway Mall" maxLength={200} />
+/home/z/my-project/src/views/dealer/index.tsx:2254:                <SelectValue placeholder="Dealership" />
+/home/z/my-project/src/views/dealer/index.tsx:2769:              <Input id="td-odometer-out" inputMode="numeric" value={odometer} onChange={(e) => setOdometer(e.target.value)} placeholder="e.g. 64210" />
+/home/z/my-project/src/views/dealer/index.tsx:2783:            <Textarea id="td-condition-out" rows={2} value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="e.g. Small scratch on rear bumper noted with customer" />
+/home/z/my-project/src/views/dealer/index.tsx:2787:            <Input id="td-released-by" value={releasedBy} onChange={(e) => setReleasedBy(e.target.value)} placeholder="e.g. Aisha Njeri" />
+/home/z/my-project/src/views/dealer/index.tsx:2849:              <Input id="td-odometer-in" inputMode="numeric" value={odometer} onChange={(e) => setOdometer(e.target.value)} placeholder="e.g. 64265" />
+/home/z/my-project/src/views/dealer/index.tsx:2863:            <Textarea id="td-condition-in" rows={2} value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="e.g. Clean, no new damage" />
+/home/z/my-project/src/views/dealer/index.tsx:2867:            <Input id="td-returned-by" value={returnedBy} onChange={(e) => setReturnedBy(e.target.value)} placeholder="e.g. Aisha Njeri" />
+/home/z/my-project/src/views/dealer/index.tsx:2913:        <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason (optional, shared with the customer)" aria-label="Cancellation reason" />
+/home/z/my-project/src/views/vehicle-detail/index.tsx:556:                placeholder="Hi, is this still available? I'd like to book a viewing…"
+/home/z/my-project/src/views/vehicle-detail/index.tsx:575:                  placeholder="+254 7XX XXX XXX"
+/home/z/my-project/src/views/vehicle-detail/index.tsx:626:                <SelectTrigger className="w-full"><SelectValue placeholder="Choose a reason" /></SelectTrigger>
+/home/z/my-project/src/views/vehicle-detail/index.tsx:637:                placeholder="Anything that helps us investigate…"
+/home/z/my-project/src/views/admin/index.tsx:1056:                <Textarea id="info-msg" value={infoMsg} onChange={(e) => setInfoMsg(e.target.value)} placeholder="e.g. Please upload a clear photo of the business permit…" rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:1096:            <Textarea value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="Explain the decision clearly and fairly…" rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:1146:            <Textarea value={closeNote} onChange={(e) => setCloseNote(e.target.value)} placeholder="Reason (required)…" rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:1381:            placeholder={reasonAction === 'suspend' ? 'e.g. Repeated failed deliveries without proof-of-delivery evidence.' : 'e.g. Suspension reviewed — corrective plan accepted.'}
+/home/z/my-project/src/views/admin/index.tsx:1430:          <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="e.g. Called the owner — driver onboarding in progress." rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:1643:          <Textarea value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="e.g. Photos do not match the stated condition — please retake and resubmit." rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:1669:          <Textarea value={suspendNote} onChange={(e) => setSuspendNote(e.target.value)} placeholder="e.g. Reported for suspicious pricing — suspended pending verification." rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:1744:          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email…" className="pl-8" aria-label="Search users" />
+/home/z/my-project/src/views/admin/index.tsx:1828:          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason (recommended for the audit trail)…" rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:2119:              <Input id="staff-invite-name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="e.g. Amina Wanjiru" autoComplete="off" />
+/home/z/my-project/src/views/admin/index.tsx:2123:              <Input id="staff-invite-email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="name@carmaze.co.ke" autoComplete="off" />
+/home/z/my-project/src/views/admin/index.tsx:2130:                    <SelectValue placeholder="Select role…" />
+/home/z/my-project/src/views/admin/index.tsx:2145:                    <SelectValue placeholder="Select department…" />
+/home/z/my-project/src/views/admin/index.tsx:2159:              <Input id="staff-invite-phone" value={invitePhone} onChange={(e) => setInvitePhone(e.target.value)} placeholder="+254…" autoComplete="off" />
+/home/z/my-project/src/views/admin/index.tsx:2217:                  <SelectValue placeholder="Select department…" />
+/home/z/my-project/src/views/admin/index.tsx:2244:                  <SelectValue placeholder="Select role…" />
+/home/z/my-project/src/views/admin/index.tsx:2276:          <Textarea value={actionNote} onChange={(e) => setActionNote(e.target.value)} placeholder="Reason (recommended for the audit trail)…" rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:2425:          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Listing suspended pending document re-verification." rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:2751:            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Business permit could not be verified with the county registry." rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:2824:            <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="e.g. Called the business line — permit verification in progress." rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:3030:          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={'e.g. Received via bank transfer — reconciled by ' + (user.name ?? 'finance')} rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:3073:            placeholder="Reason for the refund (required, at least 10 characters) — e.g. Duplicate payment received for the same subscription period."
+/home/z/my-project/src/views/admin/index.tsx:3367:                <Textarea id="ticket-response" value={response} onChange={(e) => setResponse(e.target.value)} placeholder="Write the reply sent to the requester…" rows={3} />
+/home/z/my-project/src/views/admin/index.tsx:3598:              <Input id="broadcast-title" value={bTitle} onChange={(e) => setBTitle(e.target.value)} placeholder="e.g. Scheduled maintenance this Sunday" maxLength={120} />
+/home/z/my-project/src/views/admin/index.tsx:3602:              <Textarea id="broadcast-body" value={bBody} onChange={(e) => setBBody(e.target.value)} placeholder="What should every recipient know? (10–1000 characters)" rows={4} maxLength={1000} />
+/home/z/my-project/src/views/admin/index.tsx:3607:              <Input id="broadcast-link" value={bLink} onChange={(e) => setBLink(e.target.value)} placeholder="/cars — in-app hash route the notification opens" maxLength={200} />
+/home/z/my-project/src/views/admin/index.tsx:3806:        <Input value={action} onChange={(e) => { setAction(e.target.value); setPage(1) }} placeholder="Filter action contains…" className="w-[220px]" aria-label="Filter by action" />
+/home/z/my-project/src/views/admin/index.tsx:3807:        <Input value={targetType} onChange={(e) => { setTargetType(e.target.value); setPage(1) }} placeholder="Filter target type…" className="w-[200px]" aria-label="Filter by target type" />
+/home/z/my-project/src/views/partners/index.tsx:179:                placeholder="Search partners…"
+/home/z/my-project/src/views/garages/index.tsx:184:                <SelectValue placeholder="County" />
+/home/z/my-project/src/views/garages/index.tsx:195:                placeholder="Search garages or services…"
+/home/z/my-project/src/views/garages/index.tsx:356:                  <Input id="qr-vehicle" value={vehicleDesc} onChange={(e) => setVehicleDesc(e.target.value)} placeholder="e.g. Toyota Prado 2018" />
+/home/z/my-project/src/views/garages/index.tsx:366:                  placeholder="Describe the work — symptoms, parts, preferences. Minimum 15 characters."
+/home/z/my-project/src/views/garages/index.tsx:381:                  <Input id="qr-town" value={town} onChange={(e) => setTown(e.target.value)} placeholder="e.g. Westlands" />
+/home/z/my-project/src/components/seller/verification-panel.tsx:424:          placeholder="Explain what you corrected or attached…"
+/home/z/my-project/src/components/seller/verification-panel.tsx:565:              <Input id="sva-name" placeholder="As it appears on your ID" value={form.orgName} onChange={(e) => set('orgName', e.target.value)} />
+/home/z/my-project/src/components/seller/verification-panel.tsx:569:              <Input id="sva-reg" placeholder="e.g. 12345678" value={form.regNo} onChange={(e) => set('regNo', e.target.value)} />
+/home/z/my-project/src/components/seller/verification-panel.tsx:574:                <SelectTrigger className="w-full"><SelectValue placeholder="Select county" /></SelectTrigger>
+/home/z/my-project/src/components/seller/verification-panel.tsx:582:              <Input id="sva-town" placeholder="e.g. Syokimau" value={form.town} onChange={(e) => set('town', e.target.value)} />
+/home/z/my-project/src/components/seller/verification-panel.tsx:586:              <Input id="sva-phone" inputMode="tel" placeholder="e.g. 0712 345 678" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+/home/z/my-project/src/components/seller/verification-panel.tsx:613:              placeholder="Anything that helps the reviewer — e.g. the vehicle(s) you plan to list…"
+/home/z/my-project/src/components/account/subscriptions-panel.tsx:604:            placeholder={`Max ${(facility.outstandingMinor / 100).toLocaleString()}`}
+/home/z/my-project/src/components/account/subscriptions-panel.tsx:729:            placeholder="0712 345 678"
+/home/z/my-project/src/views/procurement/index.tsx:150:                <SelectValue placeholder="Choose garage" />
+/home/z/my-project/src/components/layout/theme-toggle.tsx:4: * cross-fade rotation. Hydration-safe: renders a stable placeholder until
+/home/z/my-project/src/views/my-garage/index.tsx:773:            placeholder="e.g. 62000"
+/home/z/my-project/src/views/my-garage/index.tsx:848:              <Input id="v-make" value={make} onChange={(e) => setMake(e.target.value)} placeholder="Toyota" required />
+/home/z/my-project/src/views/my-garage/index.tsx:852:              <Input id="v-model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Vitz 1.0" required />
+/home/z/my-project/src/views/my-garage/index.tsx:858:              <Input id="v-year" type="number" min={1950} max={new Date().getFullYear() + 2} value={year} onChange={(e) => setYear(e.target.value)} placeholder="2016" />
+/home/z/my-project/src/views/my-garage/index.tsx:862:              <Input id="v-plate" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="KCX 118R" />
+/home/z/my-project/src/views/my-garage/index.tsx:868:              <Input id="v-color" value={color} onChange={(e) => setColor(e.target.value)} placeholder="White" />
+/home/z/my-project/src/views/my-garage/index.tsx:872:              <Input id="v-mileage" type="number" min={0} value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="62000" />
+/home/z/my-project/src/views/my-garage/index.tsx:882:              <Input id="v-price" type="number" min={0} step="0.01" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} placeholder="950000" />
+/home/z/my-project/src/views/my-garage/index.tsx:887:            <Textarea id="v-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Bought from a colleague, full history available." rows={2} />
+/home/z/my-project/src/views/my-garage/index.tsx:970:            <Textarea id="r-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Engine oil and filter change, coolant top-up." rows={2} />
+/home/z/my-project/src/views/my-garage/index.tsx:975:              <Input id="r-cost" type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="3200" />
+/home/z/my-project/src/views/my-garage/index.tsx:979:              <Input id="r-km" type="number" min={0} value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="62000" />
+/home/z/my-project/src/views/my-garage/index.tsx:984:            <Input id="r-garage" value={garageRef} onChange={(e) => setGarageRef(e.target.value)} placeholder="e.g. the garage org id from a booking" />
+/home/z/my-project/src/views/my-garage/index.tsx:1072:            <Input id="m-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Comprehensive insurance renewal" required />
+/home/z/my-project/src/components/layout/command-palette.tsx:76:        placeholder="Search cars or jump to a page…"
+/home/z/my-project/src/views/marketplace/index.tsx:286:        <Input id="f-q" placeholder="e.g. Prado or Demio" value={draft.q} onChange={(e) => patchDraft({ q: e.target.value })} />
+/home/z/my-project/src/views/marketplace/index.tsx:293:            <SelectTrigger className="w-full"><SelectValue placeholder="Any make" /></SelectTrigger>
+/home/z/my-project/src/views/marketplace/index.tsx:302:          <Input id="f-model" placeholder="Any model" value={draft.model} onChange={(e) => patchDraft({ model: e.target.value })} />
+/home/z/my-project/src/views/marketplace/index.tsx:310:            <SelectTrigger className="w-full"><SelectValue placeholder="Any" /></SelectTrigger>
+/home/z/my-project/src/views/marketplace/index.tsx:320:            <SelectTrigger className="w-full"><SelectValue placeholder="Anywhere" /></SelectTrigger>
+/home/z/my-project/src/views/marketplace/index.tsx:333:            <SelectTrigger className="w-full"><SelectValue placeholder="Any" /></SelectTrigger>
+/home/z/my-project/src/views/marketplace/index.tsx:343:            <SelectTrigger className="w-full"><SelectValue placeholder="Any" /></SelectTrigger>
+/home/z/my-project/src/views/marketplace/index.tsx:356:            <SelectTrigger className="w-full"><SelectValue placeholder="Any" /></SelectTrigger>
+/home/z/my-project/src/views/marketplace/index.tsx:366:            <SelectTrigger className="w-full"><SelectValue placeholder="Anyone" /></SelectTrigger>
+/home/z/my-project/src/views/marketplace/index.tsx:379:          <Input id="f-minp" inputMode="numeric" placeholder="e.g. 500,000" value={draft.minPrice} onChange={(e) => patchDraft({ minPrice: e.target.value.replace(/[^\d]/g, '') })} />
+/home/z/my-project/src/views/marketplace/index.tsx:383:          <Input id="f-maxp" inputMode="numeric" placeholder="e.g. 4,000,000" value={draft.maxPrice} onChange={(e) => patchDraft({ maxPrice: e.target.value.replace(/[^\d]/g, '') })} />
+/home/z/my-project/src/views/marketplace/index.tsx:387:          <Input id="f-miny" inputMode="numeric" placeholder="2005" value={draft.minYear} onChange={(e) => patchDraft({ minYear: e.target.value.replace(/[^\d]/g, '') })} />
+/home/z/my-project/src/views/marketplace/index.tsx:391:          <Input id="f-maxy" inputMode="numeric" placeholder="2025" value={draft.maxYear} onChange={(e) => patchDraft({ maxYear: e.target.value.replace(/[^\d]/g, '') })} />
+/home/z/my-project/src/views/marketplace/index.tsx:397:        <Input id="f-mileage" inputMode="numeric" placeholder="e.g. 100,000" value={draft.maxMileage} onChange={(e) => patchDraft({ maxMileage: e.target.value.replace(/[^\d]/g, '') })} />
+/home/z/my-project/src/views/marketplace/index.tsx:723:              placeholder="e.g. SUVs under 4M in Nairobi"
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:338:          <Input id="trust-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Wanjiku Motors Trusted Customers" />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:342:          <Input id="trust-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Who the programme is for and what it means" />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:346:          <Textarea id="trust-terms" rows={3} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="What members can expect and what you expect from them" />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:381:            <Input id="invite-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="customer@example.com" />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:394:            <Input id="invite-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Only your team sees this" />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:745:            <Input id="credit-deposit" inputMode="decimal" value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0" />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:761:              placeholder="Rejection note (optional)"
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:815:            <Input id="charge-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(facility.availableMinor / 100).toLocaleString()} />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:829:              <Input id="charge-ref" value={refType} onChange={(e) => setRefType(e.target.value)} placeholder="e.g. SERVICE, BOOKING" />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:834:            <Input id="charge-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What the charge is for" />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:884:          <Input id="biz-repay-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(facility.outstandingMinor / 100).toLocaleString()} />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:926:          <Input id="suspend-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Contact us for details" />
+/home/z/my-project/src/components/biz/memberships-manager.tsx:543:              <Input id="tier-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Service Club" />
+/home/z/my-project/src/components/biz/memberships-manager.tsx:548:                <Input id="tier-monthly" inputMode="decimal" value={form.priceMonthly} onChange={(e) => setForm({ ...form, priceMonthly: e.target.value })} placeholder="2500" />
+/home/z/my-project/src/components/biz/memberships-manager.tsx:552:                <Input id="tier-yearly" inputMode="decimal" value={form.priceYearly} onChange={(e) => setForm({ ...form, priceYearly: e.target.value })} placeholder="optional" />
+/home/z/my-project/src/components/biz/memberships-manager.tsx:559:            <Input id="tier-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="One line explaining who this tier is for" />
+/home/z/my-project/src/components/biz/memberships-manager.tsx:569:              placeholder={'2 free oil changes per month\n10% off all parts\nPriority booking'}
+/home/z/my-project/src/components/biz/memberships-manager.tsx:577:              <Input id="tier-limit" inputMode="numeric" value={form.memberLimit} onChange={(e) => setForm({ ...form, memberLimit: e.target.value })} placeholder="unlimited" />
+/home/z/my-project/src/components/biz/memberships-manager.tsx:581:              <Input id="tier-cap" inputMode="numeric" value={form.discountCapPct} onChange={(e) => setForm({ ...form, discountCapPct: e.target.value })} placeholder="e.g. 15" />
+/home/z/my-project/src/components/biz/memberships-manager.tsx:626:              placeholder="e.g. Benefits are valid at participating branches only. Discounts cannot be combined with other promotions."
+/home/z/my-project/src/components/biz/memberships-manager.tsx:683:                  <SelectTrigger className="w-full"><SelectValue placeholder="Select the benefit being used" /></SelectTrigger>
+/home/z/my-project/src/components/biz/memberships-manager.tsx:691:                <Input id="redeem-ref" value={refType} onChange={(e) => setRefType(e.target.value)} placeholder="e.g. booking ref, invoice ref" />
+/home/z/my-project/src/components/supplier/gate.tsx:250:              <Input id="sup-orgname" value={form.orgName} onChange={(e) => set('orgName', e.target.value)} placeholder="e.g. Sifa Auto Spares Ltd" maxLength={120} />
+/home/z/my-project/src/components/supplier/gate.tsx:254:              <Input id="sup-regno" value={form.regNo} onChange={(e) => set('regNo', e.target.value)} placeholder="e.g. C.123456" maxLength={60} />
+/home/z/my-project/src/components/supplier/gate.tsx:259:                <SelectTrigger id="sup-county" aria-label="County"><SelectValue placeholder="Select county" /></SelectTrigger>
+/home/z/my-project/src/components/supplier/gate.tsx:267:              <Input id="sup-town" value={form.town} onChange={(e) => set('town', e.target.value)} placeholder="e.g. Industrial Area" maxLength={60} />
+/home/z/my-project/src/components/supplier/gate.tsx:271:              <Input id="sup-address" value={form.physicalAddress} onChange={(e) => set('physicalAddress', e.target.value)} placeholder="Street, building, plot" maxLength={200} />
+/home/z/my-project/src/components/supplier/gate.tsx:275:              <Input id="sup-phone" type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+254 7xx xxx xxx" maxLength={20} />
+/home/z/my-project/src/components/supplier/gate.tsx:279:              <Input id="sup-email" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="sales@business.co.ke" maxLength={120} />
+/home/z/my-project/src/components/supplier/gate.tsx:283:              <Input id="sup-rep" value={form.representative} onChange={(e) => set('representative', e.target.value)} placeholder="Full name of the contact person" maxLength={80} />
+/home/z/my-project/src/components/supplier/gate.tsx:287:              <Input id="sup-categories" value={form.categories} onChange={(e) => set('categories', e.target.value)} placeholder="e.g. Filters, Brakes, Oils & lubricants" maxLength={300} />
+/home/z/my-project/src/components/supplier/gate.tsx:307:              <Textarea id="sup-desc" rows={3} value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="What you supply, brands you carry, distribution coverage…" maxLength={2000} />
+/home/z/my-project/src/components/supplier/inventory.tsx:228:              placeholder="e.g. Delivery from Denso EA — invoice #4821" />
+/home/z/my-project/src/components/supplier/billing.tsx:235:            <Input id="mpesa-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0712 345 678" />
+/home/z/my-project/src/components/supplier/quotes.tsx:254:                <Input id="of-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 12500" />
+/home/z/my-project/src/components/supplier/quotes.tsx:258:                <Input id="of-lead" inputMode="numeric" value={leadDays} onChange={(e) => setLeadDays(e.target.value.replace(/[^\d]/g, ''))} placeholder="e.g. 3" />
+/home/z/my-project/src/components/supplier/quotes.tsx:264:                placeholder="Brand, condition, warranty, collection/delivery options…" />
+/home/z/my-project/src/components/supplier/quotes.tsx:272:                      <Input className="h-9" value={l.name} onChange={(e) => setLine(idx, { name: e.target.value })} placeholder="Item name" aria-label="Item name" />
+/home/z/my-project/src/components/supplier/quotes.tsx:273:                      <Input className="h-9" value={l.partNumber} onChange={(e) => setLine(idx, { partNumber: e.target.value })} placeholder="Part number (optional)" aria-label="Part number" />
+/home/z/my-project/src/components/supplier/quotes.tsx:276:                      <Input className="h-9 w-16" inputMode="numeric" value={l.qty} onChange={(e) => setLine(idx, { qty: e.target.value.replace(/[^\d]/g, '') })} placeholder="Qty" aria-label="Quantity" />
+/home/z/my-project/src/components/supplier/quotes.tsx:277:                      <Input className="h-9 w-24" inputMode="decimal" value={l.unitPrice} onChange={(e) => setLine(idx, { unitPrice: e.target.value })} placeholder="Unit KES" aria-label="Unit price" />
+/home/z/my-project/src/components/ui/textarea.tsx:10:        "border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 flex field-sizing-content min-h-16 w-full rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+/home/z/my-project/src/components/supplier/warehouses.tsx:346:            <Input id="bf-name" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Sifa HQ Warehouse" maxLength={80} />
+/home/z/my-project/src/components/supplier/warehouses.tsx:350:            <Input id="bf-code" value={form.code} onChange={(e) => set('code', e.target.value.toUpperCase())} placeholder="e.g. SIFA-WH1" maxLength={12} className="font-mono" />
+/home/z/my-project/src/components/supplier/warehouses.tsx:365:              <SelectTrigger id="bf-county" aria-label="County"><SelectValue placeholder="Select county" /></SelectTrigger>
+/home/z/my-project/src/components/supplier/warehouses.tsx:373:            <Input id="bf-town" value={form.town} onChange={(e) => set('town', e.target.value)} placeholder="e.g. Industrial Area" maxLength={60} />
+
+[Showing results with pagination = limit: 250]

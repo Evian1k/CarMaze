@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises'
 import path from 'path'
 import { route, fail, requireUser, ApiError } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
+import { db } from '@/lib/db'
 
 type Ctx = { params: Promise<{ name: string }> }
 
@@ -29,6 +30,23 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
     const data = await readFile(filePath)
     const ext = name.split('.').pop()
     const mime = ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg'
+
+    // Access history: every staff view of a verification document is logged.
+    // (Owner views are not logged — they are accessing their own file.)
+    try {
+      const doc = await db.verificationDocument.findFirst({
+        where: { fileUrl: `/api/files/${name}` },
+        select: { id: true, ownerUserId: true },
+      })
+      if (doc && doc.ownerUserId !== user.id) {
+        await db.documentAccessLog.create({
+          data: { documentId: doc.id, viewerId: user.id, viewerName: user.name, action: 'VIEWED' },
+        })
+      }
+    } catch {
+      // logging must never block serving
+    }
+
     return new NextResponse(new Uint8Array(data), {
       headers: { 'Content-Type': mime, 'Cache-Control': 'private, max-age=60' },
     })

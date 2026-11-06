@@ -1,0 +1,725 @@
+     1→'use client'
+     2→
+     3→/* Full product detail page — GET /api/supply/products/[id].
+     4→ * Real data only: spec table, recorded compatibility (with admin-verified
+     5→ * ticks or an honest "no records" message), per-warehouse availability,
+     6→ * price history, reviews with a signed-in review form, wholesale-aware
+     7→ * quantity stepper and a supplier card linking to the storefront.
+     8→ */
+     9→
+    10→import { useEffect, useState } from 'react'
+    11→import {
+    12→  ArrowLeft, ShoppingCart, Bookmark, BookmarkCheck, BadgeCheck, ShieldCheck,
+    13→  Minus, Plus, Package, MapPin, Star, Warehouse, History, CarFront, Info,
+    14→} from 'lucide-react'
+    15→import { toast } from 'sonner'
+    16→import { Button } from '@/components/ui/button'
+    17→import { Badge } from '@/components/ui/badge'
+    18→import { Card, CardContent } from '@/components/ui/card'
+    19→import { Input } from '@/components/ui/input'
+    20→import { Skeleton } from '@/components/ui/skeleton'
+    21→import { Separator } from '@/components/ui/separator'
+    22→import { Textarea } from '@/components/ui/textarea'
+    23→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    24→import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+    25→import { apiGet, apiSend, navigate } from '@/lib/client'
+    26→import { money, dateLabel, timeAgo } from '@/lib/format'
+    27→import { useAuth } from '@/stores/auth'
+    28→import { useCart } from '@/stores/cart'
+    29→import { useSavedSupply } from '@/components/supply/saved-store'
+    30→import {
+    31→  PRICE_REASON_LABELS,
+    32→  SUPPLY_CONDITION_LABELS,
+    33→  Stars,
+    34→  StockStatus,
+    35→  SupplierAvatar,
+    36→  VerifiedBadge,
+    37→} from '@/components/supply/shared'
+    38→
+    39→// ─────────────────────────── API types (route-faithful) ───────────────────────
+    40→
+    41→type DetailStock = {
+    42→  branchId: string
+    43→  branchName: string
+    44→  kind: string
+    45→  county: string
+    46→  town: string | null
+    47→  available: number
+    48→  qtyOnHand?: number
+    49→  qtyReserved?: number
+    50→  reorderLevel?: number
+    51→}
+    52→
+    53→type CompatRow = {
+    54→  id: string
+    55→  make: string
+    56→  model: string | null
+    57→  yearFrom: number | null
+    58→  yearTo: number | null
+    59→  engine: string | null
+    60→  trim: string | null
+    61→  chassis: string | null
+    62→  source: string
+    63→  verified: boolean
+    64→  note: string | null
+    65→}
+    66→
+    67→type DetailReview = {
+    68→  id: string
+    69→  rating: number
+    70→  comment: string | null
+    71→  verifiedPurchase: boolean
+    72→  author: string
+    73→  createdAt: string
+    74→}
+    75→
+    76→type PriceHistoryRow = { id: string; priceMinor: number; reason: string; createdAt: string }
+    77→
+    78→export type ProductDetailData = {
+    79→  id: string
+    80→  refCode: string
+    81→  name: string
+    82→  sku: string
+    83→  mpn: string | null
+    84→  oemRef: string | null
+    85→  brand: string | null
+    86→  description: string
+    87→  condition: string
+    88→  unitPriceMinor: number
+    89→  wholesalePriceMinor: number | null
+    90→  wholesaleMinQty: number
+    91→  currency: string
+    92→  taxRatePct: number
+    93→  warrantyMonths: number
+    94→  returnable: boolean
+    95→  images: string[]
+    96→  tags: string[]
+    97→  vehicleMakes: string[]
+    98→  batchTracked: boolean
+    99→  serialTracked: boolean
+   100→  provenance: { provenanceNote?: string } | null
+   101→  authenticityVerified: boolean
+   102→  status: string
+   103→  featured: boolean
+   104→  ratingAvg: number | null
+   105→  ratingCount: number
+   106→  createdAt: string
+   107→  stocks: DetailStock[]
+   108→  availableQty: number
+   109→  compat: CompatRow[]
+   110→  reviews: DetailReview[]
+   111→  priceHistory: PriceHistoryRow[]
+   112→  category: { slug: string; name: string } | null
+   113→  supplier: {
+   114→    id: string
+   115→    name: string
+   116→    county: string
+   117→    town: string | null
+   118→    location: string | null
+   119→    verified: boolean
+   120→    supplierRating: number | null
+   121→    logoUrl: string | null
+   122→    coverUrl: string | null
+   123→    description: string | null
+   124→    phone: string | null
+   125→    email: string | null
+   126→  }
+   127→}
+   128→
+   129→type ProductResponse = { product: ProductDetailData; isOwner: boolean }
+   130→
+   131→// ─────────────────────────────────── Component ────────────────────────────────
+   132→
+   133→export function ProductDetail({ productId }: { productId: string }) {
+   134→  const { user } = useAuth()
+   135→  const hydrateSaved = useSavedSupply((s) => s.hydrate)
+   136→  const [state, setState] = useState<{ key: string; data: ProductResponse } | null>(null)
+   137→  const [errState, setErrState] = useState<{ key: string; message: string } | null>(null)
+   138→  const [reloadKey, setReloadKey] = useState(0)
+   139→  // Derived loading/error keyed to the current request (no sync setState in effects)
+   140→  const fetchKey = `${productId}|${reloadKey}`
+   141→  const loading = state?.key !== fetchKey
+   142→  const error = errState?.key === fetchKey ? errState.message : null
+   143→  const data = state?.data ?? null
+   144→
+   145→  // Deep links skip the landing — make sure saved bookmarks are hydrated.
+   146→  useEffect(() => {
+   147→    if (user) void hydrateSaved()
+   148→  }, [user, hydrateSaved])
+   149→
+   150→  useEffect(() => {
+   151→    let active = true
+   152→    const key = `${productId}|${reloadKey}`
+   153→    apiGet<ProductResponse>(`/api/supply/products/${encodeURIComponent(productId)}`)
+   154→      .then((d) => { if (active) { setState({ key, data: d }); setErrState(null) } })
+   155→      .catch((e: Error) => { if (active) setErrState({ key, message: e.message }) })
+   156→    return () => { active = false }
+   157→  }, [productId, reloadKey])
+   158→
+   159→  if (loading) return <ProductDetailSkeleton />
+   160→  if (error || !data) {
+   161→    return (
+   162→      <div className="mx-auto w-full max-w-2xl px-4 py-20 text-center">
+   163→        <Package className="mx-auto h-10 w-10 text-muted-foreground" aria-hidden="true" />
+   164→        <p className="mt-4 font-medium">Could not load this product</p>
+   165→        <p className="mt-1 text-sm text-muted-foreground">{error ?? 'It may no longer be listed.'}</p>
+   166→        <div className="mt-6 flex justify-center gap-2">
+   167→          <Button variant="outline" className="h-11 px-6" onClick={() => setReloadKey((k) => k + 1)}>Retry</Button>
+   168→          <Button className="h-11 px-6" onClick={() => navigate('/supply')}>Back to catalogue</Button>
+   169→        </div>
+   170→      </div>
+   171→    )
+   172→  }
+   173→
+   174→  return <ProductDetailBody key={`${data.product.id}|${reloadKey}`} data={data} isOwner={data.isOwner} signedIn={Boolean(user)} onReviewed={() => setReloadKey((k) => k + 1)} />
+   175→}
+   176→
+   177→function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: ProductResponse; isOwner: boolean; signedIn: boolean; onReviewed: () => void }) {
+   178→  const p = data.product
+   179→  const toggleSaved = useSavedSupply((s) => s.toggle)
+   180→  const savedProducts = useSavedSupply((s) => s.products)
+   181→  const saved = Boolean(savedProducts[p.id])
+   182→
+   183→  const [imgIdx, setImgIdx] = useState(0)
+   184→  const [imgBroken, setImgBroken] = useState<Record<number, boolean>>({})
+   185→  const [qty, setQty] = useState(1)
+   186→  const hasWholesale = Boolean(p.wholesalePriceMinor && p.wholesaleMinQty > 0)
+   187→  const wholesaleUnlocked = hasWholesale && qty >= (p.wholesaleMinQty ?? 0)
+   188→  const maxQty = p.availableQty > 0 ? p.availableQty : 0
+   189→
+   190→  function addToCart() {
+   191→    if (maxQty <= 0) return
+   192→    const capped = Math.min(qty, maxQty)
+   193→    useCart.getState().add(
+   194→      {
+   195→        productId: p.id,
+   196→        name: p.name,
+   197→        sku: p.sku,
+   198→        unitPriceMinor: p.unitPriceMinor,
+   199→        wholesalePriceMinor: p.wholesalePriceMinor,
+   200→        wholesaleMinQty: p.wholesaleMinQty,
+   201→        supplierId: p.supplier.id,
+   202→        supplierName: p.supplier.name,
+   203→        image: p.images[0] ?? null,
+   204→        availableQty: p.availableQty,
+   205→      },
+   206→      capped
+   207→    )
+   208→    toast.success(`Added ${capped} × ${p.name} to your procurement cart`)
+   209→  }
+   210→
+   211→  function onSave() {
+   212→    if (!signedIn) {
+   213→      toast.info('Sign in to save parts for later')
+   214→      navigate('signin')
+   215→      return
+   216→    }
+   217→    void toggleSaved('PRODUCT', p.id, p.name)
+   218→  }
+   219→
+   220→  const activeImage = p.images[imgIdx] ?? null
+   221→
+   222→  return (
+   223→    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+   224→      {/* Back */}
+   225→      <Button variant="ghost" className="mb-4 h-11 gap-1.5 px-2" onClick={() => navigate('/supply')}>
+   226→        <ArrowLeft className="h-4 w-4" aria-hidden="true" /> All parts
+   227→      </Button>
+   228→
+   229→      {isOwner && (
+   230→        <Alert className="mb-4">
+   231→          <Info className="h-4 w-4" aria-hidden="true" />
+   232→          <AlertTitle>This is your listing</AlertTitle>
+   233→          <AlertDescription>You manage this product from your supplier dashboard.</AlertDescription>
+   234→        </Alert>
+   235→      )}
+   236→
+   237→      {/* Top: gallery + purchase panel */}
+   238→      <div className="grid gap-6 lg:grid-cols-2">
+   239→        {/* Gallery */}
+   240→        <div>
+   241→          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-border bg-muted">
+   242→            {activeImage && !imgBroken[imgIdx] ? (
+   243→              <img src={activeImage} alt={p.name} className="h-full w-full object-cover" onError={() => setImgBroken((m) => ({ ...m, [imgIdx]: true }))} />
+   244→            ) : (
+   245→              <span className="flex h-full w-full items-center justify-center text-muted-foreground">
+   246→                <Package className="h-12 w-12" aria-hidden="true" />
+   247→              </span>
+   248→            )}
+   249→            {p.featured && <Badge className="absolute left-3 top-3 bg-gold text-gold-foreground">Featured</Badge>}
+   250→          </div>
+   251→          {p.images.length > 1 && (
+   252→            <div className="scrollbar-thin mt-3 flex gap-2 overflow-x-auto pb-1">
+   253→              {p.images.map((img, i) => (
+   254→                <button
+   255→                  key={`${img}-${i}`}
+   256→                  onClick={() => setImgIdx(i)}
+   257→                  className={`h-16 w-20 shrink-0 overflow-hidden rounded-lg border-2 transition-colors ${i === imgIdx ? 'border-primary' : 'border-transparent hover:border-border'}`}
+   258→                  aria-label={`View image ${i + 1} of ${p.name}`}
+   259→                  aria-current={i === imgIdx}
+   260→                >
+   261→                  {img && !imgBroken[i] ? (
+   262→                    <img src={img} alt="" className="h-full w-full object-cover" onError={() => setImgBroken((m) => ({ ...m, [i]: true }))} />
+   263→                  ) : (
+   264→                    <span className="flex h-full items-center justify-center bg-muted text-muted-foreground">
+   265→                      <Package className="h-4 w-4" aria-hidden="true" />
+   266→                    </span>
+   267→                  )}
+   268→                </button>
+   269→              ))}
+   270→            </div>
+   271→          )}
+   272→        </div>
+   273→
+   274→        {/* Purchase panel */}
+   275→        <div>
+   276→          <div className="flex flex-wrap items-center gap-1.5">
+   277→            <Badge variant="secondary">{SUPPLY_CONDITION_LABELS[p.condition] ?? p.condition}</Badge>
+   278→            {p.category && <Badge variant="outline">{p.category.name}</Badge>}
+   279→            {p.authenticityVerified && (
+   280→              <Badge variant="outline" className="gap-1 border-primary/40 text-primary">
+   281→                <BadgeCheck className="h-3 w-3" aria-hidden="true" /> Authenticity verified
+   282→              </Badge>
+   283→            )}
+   284→          </div>
+   285→
+   286→          <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">{p.name}</h1>
+   287→          <p className="mt-1 text-sm text-muted-foreground">
+   288→            {p.brand ? `${p.brand} · ` : ''}SKU {p.sku}
+   289→            {p.mpn ? ` · MPN ${p.mpn}` : ''}
+   290→            {' '}· Ref {p.refCode}
+   291→          </p>
+   292→
+   293→          {(p.ratingCount > 0 && p.ratingAvg != null) ? (
+   294→            <div className="mt-2 flex items-center gap-1.5">
+   295→              <Stars avg={p.ratingAvg} size="md" />
+   296→              <span className="text-sm text-muted-foreground">{p.ratingAvg.toFixed(1)} · {p.ratingCount} review{p.ratingCount === 1 ? '' : 's'}</span>
+   297→            </div>
+   298→          ) : (
+   299→            <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
+   300→              <Star className="h-3.5 w-3.5" aria-hidden="true" /> No reviews yet
+   301→            </p>
+   302→          )}
+   303→
+   304→          {/* Price */}
+   305→          <div className="mt-4 rounded-xl border border-border bg-card p-4">
+   306→            <p className="text-3xl font-bold tracking-tight">{money(p.unitPriceMinor, p.currency)}</p>
+   307→            {p.taxRatePct > 0 && (
+   308→              <p className="mt-0.5 text-xs text-muted-foreground">Tax rate {p.taxRatePct}% where applicable</p>
+   309→            )}
+   310→            {hasWholesale && (
+   311→              <p className="mt-1 text-sm text-muted-foreground">
+   312→                Wholesale <span className="font-semibold text-foreground">{money(p.wholesalePriceMinor!, p.currency)}</span>{' '}
+   313→                per unit at {p.wholesaleMinQty}+ units
+   314→              </p>
+   315→            )}
+   316→            <div className="mt-2"><StockStatus qty={p.availableQty} /></div>
+   317→
+   318→            {/* Qty stepper */}
+   319→            <div className="mt-4 flex flex-wrap items-center gap-3">
+   320→              <div className="flex items-center rounded-lg border border-border" role="group" aria-label="Quantity">
+   321→                <button
+   322→                  className="flex h-11 w-11 items-center justify-center rounded-l-lg hover:bg-muted disabled:opacity-40"
+   323→                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+   324→                  disabled={qty <= 1}
+   325→                  aria-label="Decrease quantity"
+   326→                >
+   327→                  <Minus className="h-4 w-4" aria-hidden="true" />
+   328→                </button>
+   329→                <Input
+   330→                  className="h-11 w-14 rounded-none border-x border-y-0 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+   331→                  type="number"
+   332→                  min={1}
+   333→                  max={maxQty || undefined}
+   334→                  value={qty}
+   335→                  onChange={(e) => {
+   336→                    const n = Number(e.target.value)
+   337→                    if (Number.isNaN(n)) return
+   338→                    setQty(Math.max(1, maxQty > 0 ? Math.min(n, maxQty) : n))
+   339→                  }}
+   340→                  aria-label="Quantity"
+   341→                />
+   342→                <button
+   343→                  className="flex h-11 w-11 items-center justify-center rounded-r-lg hover:bg-muted disabled:opacity-40"
+   344→                  onClick={() => setQty((q) => (maxQty > 0 ? Math.min(maxQty, q + 1) : q + 1))}
+   345→                  disabled={maxQty > 0 && qty >= maxQty}
+   346→                  aria-label="Increase quantity"
+   347→                >
+   348→                  <Plus className="h-4 w-4" aria-hidden="true" />
+   349→                </button>
+   350→              </div>
+   351→              <Button className="h-11 flex-1 gap-2" onClick={addToCart} disabled={maxQty <= 0}>
+   352→                <ShoppingCart className="h-4 w-4" aria-hidden="true" /> Add to cart
+   353→              </Button>
+   354→              <Button
+   355→                variant="outline"
+   356→                size="icon"
+   357→                className="h-11 w-11"
+   358→                onClick={onSave}
+   359→                aria-label={saved ? 'Remove from saved' : 'Save product'}
+   360→              >
+   361→                {saved ? <BookmarkCheck className="h-4 w-4 text-primary" aria-hidden="true" /> : <Bookmark className="h-4 w-4" aria-hidden="true" />}
+   362→              </Button>
+   363→            </div>
+   364→            {hasWholesale && (
+   365→              <p className={`mt-2 text-xs ${wholesaleUnlocked ? 'font-medium text-primary' : 'text-muted-foreground'}`}>
+   366→                {wholesaleUnlocked
+   367→                  ? `Wholesale price unlocked at qty ${p.wholesaleMinQty} — you save ${money((p.unitPriceMinor - (p.wholesalePriceMinor ?? 0)) * qty, p.currency)} on this line`
+   368→                  : `Add ${p.wholesaleMinQty - qty} more to unlock wholesale pricing (min qty ${p.wholesaleMinQty})`}
+   369→              </p>
+   370→            )}
+   371→          </div>
+   372→
+   373→          {/* Supplier card */}
+   374→          <Card className="mt-4">
+   375→            <CardContent className="flex items-start gap-3 p-4">
+   376→              <SupplierAvatar name={p.supplier.name} logoUrl={p.supplier.logoUrl} className="h-12 w-12" />
+   377→              <div className="min-w-0 flex-1">
+   378→                <div className="flex flex-wrap items-center gap-2">
+   379→                  <button className="truncate font-semibold hover:underline" onClick={() => navigate(`/supply?supplier=${p.supplier.id}`)}>
+   380→                    {p.supplier.name}
+   381→                  </button>
+   382→                  <VerifiedBadge verified={p.supplier.verified} />
+   383→                </div>
+   384→                <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+   385→                  <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+   386→                  {[p.supplier.town, p.supplier.county].filter(Boolean).join(', ') || p.supplier.county}
+   387→                </p>
+   388→                {/* Contact details are only shown for verified suppliers */}
+   389→                {p.supplier.verified && (p.supplier.phone || p.supplier.email) && (
+   390→                  <p className="mt-1 text-xs text-muted-foreground">
+   391→                    {[p.supplier.phone, p.supplier.email].filter(Boolean).join(' · ')}
+   392→                  </p>
+   393→                )}
+   394→                {p.supplier.supplierRating != null && p.supplier.supplierRating > 0 && (
+   395→                  <div className="mt-1 flex items-center gap-1.5">
+   396→                    <Stars avg={p.supplier.supplierRating} />
+   397→                    <span className="text-xs text-muted-foreground">{p.supplier.supplierRating.toFixed(1)} supplier rating</span>
+   398→                  </div>
+   399→                )}
+   400→              </div>
+   401→              <Button variant="outline" size="sm" className="h-10 shrink-0" onClick={() => navigate(`/supply?supplier=${p.supplier.id}`)}>
+   402→                Storefront
+   403→              </Button>
+   404→            </CardContent>
+   405→          </Card>
+   406→
+   407→          {/* Per-warehouse availability */}
+   408→          <Card className="mt-4">
+   409→            <CardContent className="p-4">
+   410→              <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+   411→                <Warehouse className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Availability by warehouse
+   412→              </h2>
+   413→              {p.stocks.length === 0 ? (
+   414→                <p className="mt-2 text-sm text-muted-foreground">No stock is currently held in any warehouse.</p>
+   415→              ) : (
+   416→                <ul className="scrollbar-thin mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
+   417→                  {p.stocks.map((s) => (
+   418→                    <li key={s.branchId} className="flex items-center justify-between gap-2 rounded-md bg-muted/60 px-2.5 py-2 text-sm">
+   419→                      <span className="min-w-0">
+   420→                        <span className="block truncate font-medium">{s.branchName}</span>
+   421→                        <span className="text-xs text-muted-foreground">
+   422→                          {s.kind === 'WAREHOUSE' ? 'Warehouse' : 'Branch'} · {[s.town, s.county].filter(Boolean).join(', ')}
+   423→                        </span>
+   424→                      </span>
+   425→                      <span className={`shrink-0 text-sm font-semibold ${s.available > 0 ? 'text-primary' : 'text-destructive'}`}>
+   426→                        {s.available} {s.available === 1 ? 'unit' : 'units'}
+   427→                      </span>
+   428→                    </li>
+   429→                  ))}
+   430→                </ul>
+   431→              )}
+   432→            </CardContent>
+   433→          </Card>
+   434→        </div>
+   435→      </div>
+   436→
+   437→      {/* Description */}
+   438→      <section className="mt-8" aria-label="Product description">
+   439→        <h2 className="text-lg font-bold">About this part</h2>
+   440→        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-foreground/90">{p.description}</p>
+   441→        {p.tags.length > 0 && (
+   442→          <div className="mt-3 flex flex-wrap gap-1.5">
+   443→            {p.tags.map((t) => <Badge key={t} variant="secondary">{t}</Badge>)}
+   444→          </div>
+   445→        )}
+   446→      </section>
+   447→
+   448→      {/* Provenance */}
+   449→      {p.provenance?.provenanceNote && (
+   450→        <Alert className="mt-6">
+   451→          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+   452→          <AlertTitle>Authenticity &amp; provenance</AlertTitle>
+   453→          <AlertDescription>{p.provenance.provenanceNote}</AlertDescription>
+   454→        </Alert>
+   455→      )}
+   456→
+   457→      {/* Spec table */}
+   458→      <section className="mt-8" aria-label="Specifications">
+   459→        <h2 className="text-lg font-bold">Specifications</h2>
+   460→        <div className="mt-3 overflow-hidden rounded-xl border border-border">
+   461→          <Table>
+   462→            <TableHeader>
+   463→              <TableRow>
+   464→                <TableHead className="w-1/3">Attribute</TableHead>
+   465→                <TableHead>Value</TableHead>
+   466→              </TableRow>
+   467→            </TableHeader>
+   468→            <TableBody>
+   469→              <SpecRow label="SKU" value={p.sku} mono />
+   470→              <SpecRow label="MPN (manufacturer part no.)" value={p.mpn ?? '—'} mono />
+   471→              <SpecRow label="OEM reference" value={p.oemRef ?? '—'} mono />
+   472→              <SpecRow label="Brand" value={p.brand ?? '—'} />
+   473→              <SpecRow label="Condition" value={SUPPLY_CONDITION_LABELS[p.condition] ?? p.condition} />
+   474→              <SpecRow label="Warranty" value={p.warrantyMonths > 0 ? `${p.warrantyMonths} month${p.warrantyMonths === 1 ? '' : 's'}` : 'None offered'} />
+   475→              <SpecRow label="Returns" value={p.returnable ? 'Accepted' : 'Not accepted'} />
+   476→              <SpecRow label="Batch tracked" value={p.batchTracked ? 'Yes' : 'No'} />
+   477→              <SpecRow label="Serial tracked" value={p.serialTracked ? 'Yes' : 'No'} />
+   478→              <SpecRow label="Category" value={p.category?.name ?? '—'} />
+   479→              <SpecRow label="Listed" value={dateLabel(p.createdAt)} />
+   480→            </TableBody>
+   481→          </Table>
+   482→        </div>
+   483→      </section>
+   484→
+   485→      {/* Compatibility */}
+   486→      <section className="mt-8" aria-label="Vehicle compatibility">
+   487→        <h2 className="text-lg font-bold">Vehicle compatibility</h2>
+   488→        {p.compat.length === 0 ? (
+   489→          <div className="mt-3 flex flex-col items-center gap-2 rounded-xl border border-dashed py-8 text-center">
+   490→            <CarFront className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+   491→            <p className="font-medium">No fitment records provided</p>
+   492→            <p className="max-w-md text-sm text-muted-foreground">
+   493→              The supplier has not recorded specific fitment for this part. Contact the supplier to confirm fitment
+   494→              before purchasing — never assume an unlisted part fits.
+   495→            </p>
+   496→          </div>
+   497→        ) : (
+   498→          <div className="mt-3 overflow-hidden rounded-xl border border-border">
+   499→            <Table>
+   500→              <TableHeader>
+   501→                <TableRow>
+   502→                  <TableHead>Make</TableHead>
+   503→                  <TableHead>Model</TableHead>
+   504→                  <TableHead>Years</TableHead>
+   505→                  <TableHead className="hidden sm:table-cell">Engine</TableHead>
+   506→                  <TableHead>Verified</TableHead>
+   507→                </TableRow>
+   508→              </TableHeader>
+   509→              <TableBody>
+   510→                {p.compat.map((row) => (
+   511→                  <TableRow key={row.id}>
+   512→                    <TableCell className="font-medium">{row.make}</TableCell>
+   513→                    <TableCell>{row.model ?? 'Any'}</TableCell>
+   514→                    <TableCell>
+   515→                      {row.yearFrom || row.yearTo ? `${row.yearFrom ?? '…'}–${row.yearTo ?? '…'}` : 'All years'}
+   516→                    </TableCell>
+   517→                    <TableCell className="hidden sm:table-cell">{row.engine ?? '—'}</TableCell>
+   518→                    <TableCell>
+   519→                      {row.verified ? (
+   520→                        <span className="inline-flex items-center gap-1 text-primary">
+   521→                          <BadgeCheck className="h-4 w-4" aria-hidden="true" />
+   522→                          <span className="text-xs font-medium">Admin-reviewed</span>
+   523→                        </span>
+   524→                      ) : (
+   525→                        <span className="text-xs text-muted-foreground">Supplier-declared</span>
+   526→                      )}
+   527→                    </TableCell>
+   528→                  </TableRow>
+   529→                ))}
+   530→              </TableBody>
+   531→            </Table>
+   532→          </div>
+   533→        )}
+   534→        {p.vehicleMakes.length > 0 && (
+   535→          <div className="mt-3">
+   536→            <p className="text-xs text-muted-foreground">
+   537→              Brand-level quick filter (indicative only — the table above is authoritative):
+   538→            </p>
+   539→            <div className="mt-1.5 flex flex-wrap gap-1.5">
+   540→              {p.vehicleMakes.map((m) => <Badge key={m} variant="secondary">{m}</Badge>)}
+   541→            </div>
+   542→          </div>
+   543→        )}
+   544→      </section>
+   545→
+   546→      {/* Price history */}
+   547→      <section className="mt-8" aria-label="Price history">
+   548→        <h2 className="flex items-center gap-1.5 text-lg font-bold">
+   549→          <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Price history
+   550→        </h2>
+   551→        {p.priceHistory.length === 0 ? (
+   552→          <p className="mt-2 text-sm text-muted-foreground">No price changes recorded yet.</p>
+   553→        ) : (
+   554→          <ul className="scrollbar-thin mt-3 max-h-96 space-y-1.5 overflow-y-auto pr-1">
+   555→            {p.priceHistory.map((h) => (
+   556→              <li key={h.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+   557→                <span className="font-semibold">{money(h.priceMinor, p.currency)}</span>
+   558→                <span className="text-muted-foreground">{PRICE_REASON_LABELS[h.reason] ?? h.reason}</span>
+   559→                <span className="text-xs text-muted-foreground">{dateLabel(h.createdAt)}</span>
+   560→              </li>
+   561→            ))}
+   562→          </ul>
+   563→        )}
+   564→      </section>
+   565→
+   566→      <Separator className="my-8" />
+   567→
+   568→      {/* Reviews */}
+   569→      <ReviewsSection productId={p.id} reviews={p.reviews} ratingAvg={p.ratingAvg} ratingCount={p.ratingCount} signedIn={signedIn} onReviewed={onReviewed} />
+   570→    </div>
+   571→  )
+   572→}
+   573→
+   574→function SpecRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+   575→  return (
+   576→    <TableRow>
+   577→      <TableCell className="font-medium text-muted-foreground">{label}</TableCell>
+   578→      <TableCell className={mono ? 'font-mono text-sm' : ''}>{value}</TableCell>
+   579→    </TableRow>
+   580→  )
+   581→}
+   582→
+   583→// ─────────────────────────────────── Reviews ─────────────────────────────────
+   584→
+   585→function ReviewsSection({
+   586→  productId,
+   587→  reviews,
+   588→  ratingAvg,
+   589→  ratingCount,
+   590→  signedIn,
+   591→  onReviewed,
+   592→}: {
+   593→  productId: string
+   594→  reviews: DetailReview[]
+   595→  ratingAvg: number | null
+   596→  ratingCount: number
+   597→  signedIn: boolean
+   598→  onReviewed: () => void
+   599→}) {
+   600→  const [rating, setRating] = useState(0)
+   601→  const [comment, setComment] = useState('')
+   602→  const [busy, setBusy] = useState(false)
+   603→
+   604→  function submit() {
+   605→    if (rating < 1) {
+   606→      toast.error('Pick a star rating first')
+   607→      return
+   608→    }
+   609→    setBusy(true)
+   610→    apiSend<{ message: string; verifiedPurchase: boolean }>('/api/supply/reviews', 'POST', {
+   611→      productId,
+   612→      rating,
+   613→      comment: comment.trim() || undefined,
+   614→    })
+   615→      .then((d) => {
+   616→        toast.success(d.verifiedPurchase ? 'Review recorded — marked as a verified purchase' : 'Review recorded. Thank you!')
+   617→        setRating(0)
+   618→        setComment('')
+   619→        onReviewed()
+   620→      })
+   621→      .catch((e) => {
+   622→        const status = (e as { status?: number }).status
+   623→        if (status === 409) toast.info('You already reviewed this product')
+   624→        else toast.error(e instanceof Error ? e.message : 'Could not record review')
+   625→      })
+   626→      .finally(() => setBusy(false))
+   627→  }
+   628→
+   629→  return (
+   630→    <section aria-label="Product reviews">
+   631→      <div className="flex flex-wrap items-center gap-2">
+   632→        <h2 className="text-lg font-bold">Reviews</h2>
+   633→        {ratingCount > 0 && ratingAvg != null && (
+   634→          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+   635→            <Stars avg={ratingAvg} /> {ratingAvg.toFixed(1)} from {ratingCount} review{ratingCount === 1 ? '' : 's'}
+   636→          </span>
+   637→        )}
+   638→      </div>
+   639→
+   640→      {reviews.length === 0 ? (
+   641→        <p className="mt-3 text-sm text-muted-foreground">No reviews yet — be the first to rate this part.</p>
+   642→      ) : (
+   643→        <ul className="mt-3 space-y-3">
+   644→          {reviews.map((r) => (
+   645→            <li key={r.id} className="rounded-xl border border-border p-4">
+   646→              <div className="flex flex-wrap items-center gap-2">
+   647→                <Stars avg={r.rating} />
+   648→                <span className="text-sm font-medium">{r.author}</span>
+   649→                <span className="text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
+   650→                {r.verifiedPurchase && (
+   651→                  <Badge variant="outline" className="gap-1 border-primary/40 text-primary">
+   652→                    <BadgeCheck className="h-3 w-3" aria-hidden="true" /> Verified purchase
+   653→                  </Badge>
+   654→                )}
+   655→              </div>
+   656→              {r.comment && <p className="mt-2 text-sm text-foreground/90">{r.comment}</p>}
+   657→            </li>
+   658→          ))}
+   659→        </ul>
+   660→      )}
+   661→
+   662→      {signedIn ? (
+   663→        <div className="mt-5 rounded-xl border border-border p-4">
+   664→          <p className="text-sm font-semibold">Write a review</p>
+   665→          <div className="mt-2 flex items-center gap-1" role="radiogroup" aria-label="Your star rating">
+   666→            {[1, 2, 3, 4, 5].map((i) => (
+   667→              <button
+   668→                key={i}
+   669→                role="radio"
+   670→                aria-checked={rating === i}
+   671→                aria-label={`${i} star${i === 1 ? '' : 's'}`}
+   672→                className="rounded p-1 hover:bg-muted"
+   673→                onClick={() => setRating(i)}
+   674→              >
+   675→                <Star className={`h-6 w-6 ${i <= rating ? 'fill-gold text-gold' : 'text-muted-foreground/50'}`} aria-hidden="true" />
+   676→              </button>
+   677→            ))}
+   678→          </div>
+   679→          <Textarea
+   680→            className="mt-3"
+   681→            rows={3}
+   682→            value={comment}
+   683→            onChange={(e) => setComment(e.target.value)}
+   684→            placeholder="How was the part, packaging, delivery? (optional)"
+   685→            maxLength={1000}
+   686→          />
+   687→          <Button className="mt-3 h-11" onClick={submit} disabled={busy || rating < 1}>
+   688→            {busy ? 'Submitting…' : 'Submit review'}
+   689→          </Button>
+   690→        </div>
+   691→      ) : (
+   692→        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed p-4">
+   693→          <p className="text-sm text-muted-foreground">Bought this part? Sign in to leave a review.</p>
+   694→          <Button variant="outline" className="h-11" onClick={() => navigate('signin')}>Sign in to review</Button>
+   695→        </div>
+   696→      )}
+   697→    </section>
+   698→  )
+   699→}
+   700→
+   701→function ProductDetailSkeleton() {
+   702→  return (
+   703→    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6" aria-busy="true">
+   704→      <Skeleton className="mb-4 h-9 w-28" />
+   705→      <div className="grid gap-6 lg:grid-cols-2">
+   706→        <div>
+   707→          <Skeleton className="aspect-[4/3] w-full rounded-xl" />
+   708→          <div className="mt-3 flex gap-2">
+   709→            <Skeleton className="h-16 w-20 rounded-lg" />
+   710→            <Skeleton className="h-16 w-20 rounded-lg" />
+   711→            <Skeleton className="h-16 w-20 rounded-lg" />
+   712→          </div>
+   713→        </div>
+   714→        <div className="space-y-3">
+   715→          <Skeleton className="h-5 w-40" />
+   716→          <Skeleton className="h-8 w-3/4" />
+   717→          <Skeleton className="h-4 w-1/2" />
+   718→          <Skeleton className="h-28 w-full rounded-xl" />
+   719→          <Skeleton className="h-24 w-full rounded-xl" />
+   720→        </div>
+   721→      </div>
+   722→    </div>
+   723→  )
+   724→}
+   725→

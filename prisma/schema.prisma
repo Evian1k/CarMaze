@@ -65,6 +65,8 @@ model User {
   creditFacilities    CreditFacility[]     @relation("CreditCustomer")
   authoredPOs         PurchaseOrder[]      @relation("POAuthor")
   authoredRequests    QuoteRequest[]       @relation("QuoteReqAuthor")
+  customerOrders      CustomerOrder[]      @relation("CustomerOrderBuyer")
+  verificationDocuments VerificationDocument[] @relation("DocumentOwner")
 
   // ── Identity & security ──
   passwordResetTokens PasswordResetToken[]
@@ -180,6 +182,7 @@ model DeliveryJob {
   feeMinor           Int      @default(0) // quoted by the partner at acceptance
   otpHash            String? // bcrypt hash of the drop-off handover OTP
   otpHint            String? // last 2 digits for UX
+  qrToken            String? @unique // requester-side QR alternative to the OTP
   podPhotos          String? // JSON string[] — proof-of-delivery evidence
   failReason         String?
   pickupAt           DateTime?
@@ -480,6 +483,8 @@ model Org {
   quoteOffers     QuoteOffer[]
   vehicleTransfers VehicleTransfer[] @relation("TransferOwner")
   memberOrg       BusinessMembership[] @relation("MembershipOrg")
+  customerOrdersAsSupplier CustomerOrder[] @relation("CustomerOrderSupplier")
+  verificationDocuments VerificationDocument[] @relation("DocumentOrg")
 }
 
 model OrgMember {
@@ -533,6 +538,7 @@ model Application {
   updatedAt        DateTime  @updatedAt
 
   events ApplicationEvent[]
+  verificationDocuments VerificationDocument[]
 
   @@index([status, submittedAt])
 }
@@ -994,6 +1000,7 @@ model Invoice {
   paidVia     String? // MPESA|MANUAL
   payments    PaymentAttempt[]
   memberships BusinessMembership[]
+  customerOrders CustomerOrder[]   @relation("CustomerOrderInvoice")
 }
 
 model PaymentAttempt {
@@ -1258,6 +1265,7 @@ model Product {
   priceHistory  ProductPriceHistory[]
   poItems       POItem[]
   stockAlerts   GarageStockAlert[]
+  customerOrderItems CustomerOrderItem[] @relation("CustomerOrderItems")
 
   @@unique([supplierOrgId, sku])
   @@index([status, categoryId])
@@ -1860,4 +1868,124 @@ model SavedSupplyItem {
 
   @@unique([userId, targetType, targetId])
   @@index([userId])
+}
+
+// ───────────── Document verification engine ─────────────
+// Every uploaded verification document lives here with an explicit state
+// machine. Uploading NEVER grants verified status — only a staff reviewer
+// decision (with note, time and actor recorded) moves a document to VERIFIED.
+
+model VerificationDocument {
+  id             String       @id @default(cuid())
+  refCode        String       @unique
+  ownerUserId    String
+  owner          User         @relation("DocumentOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  orgId          String?
+  org            Org?         @relation("DocumentOrg", fields: [orgId], references: [id], onDelete: SetNull)
+  applicationId  String?
+  application    Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  kind           String  // ID_FRONT | ID_BACK | PASSPORT | PIN_CERTIFICATE | BUSINESS_LICENSE | DIRECTOR_ID | LOGBOOK | OWNERSHIP_AUTH | DRIVER_LICENSE | INSURANCE | VEHICLE_REG | REGISTRATION_CERT | SUPPORTING | OTHER
+  label          String?
+  fileUrl        String  // /api/files/<name> — private, permissioned
+  fileName       String
+  // SUBMITTED | UNDER_REVIEW | MORE_INFO_REQUIRED | VERIFIED | REJECTED | EXPIRED | SUPERSEDED
+  status         String       @default("SUBMITTED")
+  reviewNote     String?
+  reviewedById   String?
+  reviewedByName String?
+  reviewedAt     DateTime?
+  infoRequestedAt DateTime?
+  correctionsDueAt DateTime?
+  expiresAt      DateTime?
+  supersededById String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  accessLogs     DocumentAccessLog[]
+
+  @@index([ownerUserId, status])
+  @@index([orgId, status])
+  @@index([applicationId])
+  @@index([status, createdAt])
+}
+
+model DocumentAccessLog {
+  id         String                @id @default(cuid())
+  documentId String
+  document   VerificationDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  viewerId   String
+  viewerName String
+  action     String  // VIEWED | DOWNLOADED | STATUS_CHANGE
+  createdAt  DateTime @default(now())
+
+  @@index([documentId, createdAt])
+}
+
+// ───────────── Consumer parts ordering (Customer Platform) ─────────────
+// Customers order products directly from verified suppliers. Deliberately
+// separate from the B2B PurchaseOrder system: simpler lifecycle, buyer is a
+// user (not an org), payment follows the same honest invoice rules.
+
+model CustomerOrder {
+  id               String   @id @default(cuid())
+  refCode          String   @unique
+  buyerUserId      String
+  buyer            User     @relation("CustomerOrderBuyer", fields: [buyerUserId], references: [id], onDelete: Cascade)
+  supplierOrgId    String
+  supplier         Org      @relation("CustomerOrderSupplier", fields: [supplierOrgId], references: [id], onDelete: Cascade)
+  // SUBMITTED | ACCEPTED | REJECTED | CONFIRMED | DISPATCHED | DELIVERED | COMPLETED | CANCELLED | DISPUTED
+  status           String   @default("SUBMITTED")
+  county           String
+  address          String
+  phone            String
+  notes            String?
+  deliveryMethod   String   @default("DIRECT") // DIRECT | COLLECTION
+  deliveryFeeMinor Int      @default(0)
+  totalMinor       Int      @default(0)
+  currency         String   @default("KES")
+  paymentStatus    String   @default("UNPAID") // UNPAID | PROCESSING | PAID | REFUNDED
+  invoiceId        String?
+  invoice          Invoice? @relation("CustomerOrderInvoice", fields: [invoiceId], references: [id])
+  otpHash          String?
+  otpHint          String?
+  courierName      String?
+  fulfillmentBranchId String?
+  rejectedReason   String?
+  deliveredAt      DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  items  CustomerOrderItem[]
+  events CustomerOrderEvent[]
+
+  @@index([buyerUserId, status])
+  @@index([supplierOrgId, status])
+}
+
+model CustomerOrderItem {
+  id             String        @id @default(cuid())
+  orderId        String
+  order          CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product       @relation("CustomerOrderItems", fields: [productId], references: [id])
+  qty            Int
+  unitPriceMinor Int
+  lineTotalMinor Int
+
+  @@index([orderId])
+}
+
+model CustomerOrderEvent {
+  id        String        @id @default(cuid())
+  orderId   String
+  order     CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type      String // CREATED | ACCEPTED | REJECTED | CONFIRMED | DISPATCHED | DELIVERED | COMPLETED | CANCELLED | NOTE | PAYMENT
+  actorSide String // CUSTOMER | SUPPLIER | SYSTEM
+  actorId   String?
+  actorName String
+  note      String?
+  createdAt DateTime      @default(now())
+
+  @@index([orderId, createdAt])
 }

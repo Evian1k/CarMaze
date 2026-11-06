@@ -5,7 +5,7 @@
 
 import { useEffect, useCallback, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Heart, MailCheck, Bell, MessageSquareText, Wrench, Search, PhoneCall, Copy, ShieldCheck, KeyRound, MessagesSquare, Gift, CreditCard, Smartphone } from 'lucide-react'
+import { Heart, MailCheck, Bell, MessageSquareText, Wrench, Search, PhoneCall, Copy, ShieldCheck, KeyRound, MessagesSquare, Gift, CreditCard, Smartphone, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,7 @@ import { VehicleProtection } from '@/components/protection/vehicle-protection'
 import { RewardsPanel } from '@/components/loyalty/rewards-panel'
 import { CustomerTestDrives } from '@/components/protection/customer-test-drives'
 import { SubscriptionsPanel } from '@/components/account/subscriptions-panel'
+import { CustomerOrders } from '@/components/account/customer-orders'
 import { useAuth } from '@/stores/auth'
 import { navigate, apiGet, apiSend } from '@/lib/client'
 import { useHashRoute } from '@/hooks/use-hash-route'
@@ -40,7 +41,7 @@ type RequestItem = {
 type SavedSearchItem = { id: string; name: string; query: string; createdAt: string }
 type NotificationItem = { id: string; title: string; body: string | null; link: string | null; readAt: string | null; createdAt: string }
 
-const TABS = ['profile', 'saved', 'enquiries', 'messages', 'requests', 'searches', 'rewards', 'protection', 'testdrives', 'subscriptions', 'notifications'] as const
+const TABS = ['profile', 'saved', 'enquiries', 'messages', 'requests', 'orders', 'searches', 'rewards', 'protection', 'testdrives', 'subscriptions', 'notifications'] as const
 
 export default function AccountView() {
   const route = useHashRoute()
@@ -270,6 +271,7 @@ export default function AccountView() {
           <TabsTrigger value="enquiries" className="gap-1.5"><MessageSquareText className="h-4 w-4" /> Enquiries</TabsTrigger>
           <TabsTrigger value="messages" className="gap-1.5"><MessagesSquare className="h-4 w-4" /> Messages</TabsTrigger>
           <TabsTrigger value="requests" className="gap-1.5"><Wrench className="h-4 w-4" /> Requests</TabsTrigger>
+          <TabsTrigger value="orders" className="gap-1.5"><ShoppingCart className="h-4 w-4" /> Orders</TabsTrigger>
           <TabsTrigger value="searches" className="gap-1.5"><Search className="h-4 w-4" /> Searches</TabsTrigger>
           <TabsTrigger value="rewards" className="gap-1.5"><Gift className="h-4 w-4" /> Rewards</TabsTrigger>
           <TabsTrigger value="protection" className="gap-1.5"><ShieldCheck className="h-4 w-4" /> Vehicle protection</TabsTrigger>
@@ -523,6 +525,11 @@ export default function AccountView() {
               </Card>
             ))
           )}
+        </TabsContent>
+
+        {/* Parts orders */}
+        <TabsContent value="orders" className="mt-4">
+          <FadeIn><CustomerOrders /></FadeIn>
         </TabsContent>
 
         {/* Saved searches */}

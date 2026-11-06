@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Bell, ChevronDown, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingCart, User, Wrench } from 'lucide-react'
+import { Bell, ChevronDown, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Search, Settings, ShoppingCart, User, Wrench, type LucideIcon } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -30,7 +30,7 @@ type NotificationItem = {
   createdAt: string
 }
 
-const NAV = [
+const NAV: { label: string; href: string; icon?: LucideIcon }[] = [
   { label: 'Cars', href: '/cars' },
   { label: 'Sell a Car', href: '/sell' },
   { label: 'Showrooms', href: '/showrooms' },
@@ -38,6 +38,7 @@ const NAV = [
   { label: 'Garages', href: '/garages' },
   { label: 'Memberships', href: '/memberships' },
   { label: 'Partners', href: '/partners' },
+  { label: 'Platforms', href: '/platforms', icon: LayoutGrid },
   { label: 'Roadside Help', href: '/roadside' },
   { label: 'Community', href: '/community' },
 ]
@@ -111,6 +112,7 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
                   active(item.href) && 'bg-muted text-foreground'
                 )}
               >
+                {item.icon && <item.icon className="mr-1.5 inline h-4 w-4" aria-hidden="true" />}
                 {item.label}
               </button>
             ))}
@@ -268,6 +270,7 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
                         active(item.href) && 'bg-muted text-foreground'
                       )}
                     >
+                      {item.icon && <item.icon className="mr-2 inline h-4 w-4" aria-hidden="true" />}
                       {item.label}
                     </button>
                   ))}

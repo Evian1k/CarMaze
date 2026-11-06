@@ -10,21 +10,25 @@
 import { useEffect, useState } from 'react'
 import {
   ArrowLeft, ShoppingCart, Bookmark, BookmarkCheck, BadgeCheck, ShieldCheck,
-  Minus, Plus, Package, MapPin, Star, Warehouse, History, CarFront, Info,
+  Minus, Plus, Package, PackageCheck, MapPin, Star, Warehouse, History, CarFront, Info,
+  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { apiGet, apiSend, navigate } from '@/lib/client'
-import { money, dateLabel, timeAgo } from '@/lib/format'
-import { useAuth } from '@/stores/auth'
+import { money, dateLabel, timeAgo, KENYA_COUNTIES } from '@/lib/format'
+import { useAuth, hasAnyRole } from '@/stores/auth'
 import { useCart } from '@/stores/cart'
 import { useSavedSupply } from '@/components/supply/saved-store'
 import {
@@ -175,6 +179,7 @@ export function ProductDetail({ productId }: { productId: string }) {
 }
 
 function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: ProductResponse; isOwner: boolean; signedIn: boolean; onReviewed: () => void }) {
+  const { user } = useAuth()
   const p = data.product
   const toggleSaved = useSavedSupply((s) => s.toggle)
   const savedProducts = useSavedSupply((s) => s.products)
@@ -183,9 +188,14 @@ function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: Prod
   const [imgIdx, setImgIdx] = useState(0)
   const [imgBroken, setImgBroken] = useState<Record<number, boolean>>({})
   const [qty, setQty] = useState(1)
+  const [orderOpen, setOrderOpen] = useState(false)
   const hasWholesale = Boolean(p.wholesalePriceMinor && p.wholesaleMinQty > 0)
   const wholesaleUnlocked = hasWholesale && qty >= (p.wholesaleMinQty ?? 0)
   const maxQty = p.availableQty > 0 ? p.availableQty : 0
+  // Consumer ordering: signed-in customers only — never the listing's own
+  // supplier, and never supplier-platform accounts (they buy via procurement).
+  const isSupplierUser = isOwner || hasAnyRole(user, 'SUPPLIER_OWNER', 'SUPPLIER_STAFF')
+  const canOrder = signedIn && !isSupplierUser
 
   function addToCart() {
     if (maxQty <= 0) return
@@ -368,6 +378,27 @@ function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: Prod
                   : `Add ${p.wholesaleMinQty - qty} more to unlock wholesale pricing (min qty ${p.wholesaleMinQty})`}
               </p>
             )}
+
+            {/* Consumer order CTA — signed-in non-supplier users */}
+            <div className="mt-3 border-t border-border pt-3">
+              {canOrder ? (
+                <>
+                  <Button variant="outline" className="h-11 w-full gap-2" onClick={() => setOrderOpen(true)} disabled={maxQty <= 0}>
+                    <PackageCheck className="h-4 w-4" aria-hidden="true" /> Order this part
+                  </Button>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Order {qty} × {p.name} for {money(p.unitPriceMinor * qty, p.currency)} + delivery — pay by M-Pesa once the supplier accepts.
+                  </p>
+                </>
+              ) : !signedIn ? (
+                <>
+                  <Button variant="outline" className="h-11 w-full gap-2" onClick={() => navigate('signin')}>
+                    <PackageCheck className="h-4 w-4" aria-hidden="true" /> Sign in to order
+                  </Button>
+                  <p className="mt-1.5 text-xs text-muted-foreground">Sign in to order this part for delivery anywhere in Kenya.</p>
+                </>
+              ) : null}
+            </div>
           </div>
 
           {/* Supplier card */}
@@ -567,7 +598,131 @@ function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: Prod
 
       {/* Reviews */}
       <ReviewsSection productId={p.id} reviews={p.reviews} ratingAvg={p.ratingAvg} ratingCount={p.ratingCount} signedIn={signedIn} onReviewed={onReviewed} />
+
+      {/* Consumer order dialog */}
+      {canOrder && (
+        <OrderPartDialog
+          open={orderOpen}
+          product={{ id: p.id, name: p.name, unitPriceMinor: p.unitPriceMinor, currency: p.currency, availableQty: maxQty }}
+          initialQty={qty}
+          onClose={() => setOrderOpen(false)}
+        />
+      )}
     </div>
+  )
+}
+
+// ───────────────────────── Order this part dialog ─────────────────────────
+
+const ORDER_PHONE_RE = /^(\+?254|0)\d{9}$/
+
+type OrderableProduct = { id: string; name: string; unitPriceMinor: number; currency: string; availableQty: number }
+
+function OrderPartDialog({ open, product, initialQty, onClose }: {
+  open: boolean
+  product: OrderableProduct
+  initialQty: number
+  onClose: () => void
+}) {
+  const [qty, setQty] = useState(String(Math.min(Math.max(1, initialQty), 99)))
+  const [deliveryMethod, setDeliveryMethod] = useState<'DIRECT' | 'COLLECTION'>('DIRECT')
+  const [county, setCounty] = useState('')
+  const [address, setAddress] = useState('')
+  const [phone, setPhone] = useState('')
+  const [notes, setNotes] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const qtyNum = Number(qty)
+  const validQty = Number.isInteger(qtyNum) && qtyNum >= 1 && qtyNum <= 99
+  const subtotal = validQty ? product.unitPriceMinor * qtyNum : 0
+  const deliveryFee = deliveryMethod === 'COLLECTION' ? 0 : 25_000
+  const canSubmit = validQty && county !== '' && address.trim().length >= 5 && ORDER_PHONE_RE.test(phone.trim()) && !busy
+
+  function submit() {
+    if (!canSubmit) return
+    setBusy(true)
+    apiSend<{ orders: { refCode: string }[]; message: string }>('/api/orders', 'POST', {
+      items: [{ productId: product.id, qty: qtyNum }],
+      county,
+      address: address.trim(),
+      phone: phone.trim(),
+      notes: notes.trim() || undefined,
+      deliveryMethod,
+    })
+      .then((res) => {
+        toast.success(res.message || `Order ${res.orders.map((o) => o.refCode).join(', ')} placed`)
+        onClose()
+        navigate('/account?tab=orders')
+      })
+      .catch((e) => {
+        toast.error(e instanceof Error ? e.message : 'Could not place the order — please try again.')
+      })
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-h-[94vh] overflow-y-auto scrollbar-thin sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Order this part</DialogTitle>
+          <DialogDescription>
+            {product.name} — {money(product.unitPriceMinor, product.currency)} per unit. The supplier confirms stock and accepts before you pay.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ord-qty">Quantity (1–99)</Label>
+              <Input id="ord-qty" inputMode="numeric" value={qty} maxLength={2}
+                onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, ''))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ord-method">Fulfilment</Label>
+              <Select value={deliveryMethod} onValueChange={(v) => setDeliveryMethod(v as 'DIRECT' | 'COLLECTION')}>
+                <SelectTrigger id="ord-method"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DIRECT">Deliver to me (KES 250)</SelectItem>
+                  <SelectItem value="COLLECTION">I collect (free)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ord-county">County</Label>
+            <Select value={county || undefined} onValueChange={setCounty}>
+              <SelectTrigger id="ord-county" aria-label="County"><SelectValue placeholder="Choose your county" /></SelectTrigger>
+              <SelectContent className="max-h-64">
+                {KENYA_COUNTIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ord-address">Delivery address / collection point</Label>
+            <Input id="ord-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. Building, street, town" maxLength={300} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ord-phone">Phone (for delivery contact)</Label>
+            <Input id="ord-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0712 345 678" inputMode="tel" maxLength={15} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ord-notes">Notes for the supplier (optional)</Label>
+            <Textarea id="ord-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500}
+              placeholder="e.g. Fits a 2015 Hilux — please confirm compatibility." />
+          </div>
+          <div className="space-y-1 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+            <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{money(subtotal, product.currency)}</span></div>
+            <div className="flex justify-between text-muted-foreground"><span>Delivery</span><span>{money(deliveryFee, product.currency)}</span></div>
+            <div className="flex justify-between font-semibold"><span>Total</span><span>{money(subtotal + (validQty ? deliveryFee : 0), product.currency)}</span></div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button className="min-h-11" onClick={submit} disabled={!canSubmit}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />} Place order
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

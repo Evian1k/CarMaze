@@ -52,6 +52,7 @@ const VIEWS: Record<string, React.ComponentType> = {
   memberships: dynamic(() => import('@/views/memberships'), { ssr, loading }),
   roadside: dynamic(() => import('@/views/roadside'), { ssr, loading }),
   partners: dynamic(() => import('@/views/partners'), { ssr, loading }),
+  platforms: dynamic(() => import('@/views/platforms'), { ssr, loading }),
   'my-garage': dynamic(() => import('@/views/my-garage'), { ssr, loading }),
   community: dynamic(() => import('@/views/community'), { ssr, loading }),
   account: dynamic(() => import('@/views/account'), { ssr, loading }),

@@ -26,17 +26,24 @@ export async function notify(input: NotifyInput): Promise<string> {
     },
   })
 
-  const emailConfigured = Boolean(process.env.SMTP_URL)
-  const smsConfigured = Boolean(process.env.SMS_API_KEY)
+  // HONESTY GUARD: there is NO email/SMS sending implementation in this
+  // codebase (no SMTP client, no SMS gateway integration, no queue consumer).
+  // Even if SMTP_URL / SMS_API_KEY were set, nothing would ever deliver, so we
+  // must NEVER record QUEUED/SENT for these channels — that would claim a
+  // delivery that cannot happen. Channels stay FAILED with the exact reason
+  // until a real provider integration + queue worker exists.
+  const EXTERNAL_CHANNELS_IMPLEMENTED = false
 
-  for (const [channel, configured] of [['EMAIL', emailConfigured], ['SMS', smsConfigured]] as const) {
+  for (const channel of ['EMAIL', 'SMS'] as const) {
     await db.notificationDelivery.create({
       data: {
         notificationId: notification.id,
         channel,
-        status: configured ? 'QUEUED' : 'FAILED',
+        status: 'FAILED',
         attempts: 1,
-        lastError: configured ? null : `${channel.toLowerCase()} provider not configured on this deployment`,
+        lastError: EXTERNAL_CHANNELS_IMPLEMENTED
+          ? null
+          : `${channel.toLowerCase()} delivery is not implemented on this deployment — in-app notification only`,
       },
     })
   }

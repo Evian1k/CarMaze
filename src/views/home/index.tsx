@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
-import { Search, ShieldCheck, Wrench, LifeBuoy, Boxes, Users, Car, KeyRound, ArrowRight, Sparkles, GitCompareArrows, FolderKanban, BadgeCheck, Camera, Timer, HeartHandshake, Fuel } from 'lucide-react'
+import { Search, ShieldCheck, Wrench, LifeBuoy, Boxes, Users, Car, KeyRound, ArrowRight, Sparkles, GitCompareArrows, FolderKanban, BadgeCheck, Camera, Timer, HeartHandshake, Fuel, LayoutGrid } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -303,6 +303,15 @@ export default function HomeView() {
             </StaggerItem>
           ))}
         </Stagger>
+        <Reveal delay={0.08}>
+          <div className="mt-6 flex justify-center">
+            <Button variant="outline" onClick={() => navigate('platforms')} className="gap-2">
+              <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+              Explore all nine platforms
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </Reveal>
       </section>
 
       {/* ── Sell / Dealer / Trust strips ── */}

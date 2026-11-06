@@ -54,6 +54,28 @@ export const POST = route(async (req: NextRequest) => {
   }
 
   if (parsed.resultCode === 0) {
+    // Amount integrity check: the callback amount (KES) must match what was
+    // actually initiated for this attempt. A mismatch means a tampered or
+    // mismatched callback — we refuse activation and flag it for ops.
+    if (parsed.amount != null && Math.round(parsed.amount) !== Math.round(attempt.amountMinor / 100)) {
+      await db.paymentAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          status: 'FAILED',
+          resultCode: parsed.resultCode,
+          resultDesc: `Amount mismatch: callback KES ${parsed.amount} vs initiated KES ${attempt.amountMinor / 100}`,
+          callbackRaw: JSON.stringify(payload ?? {}),
+        },
+      })
+      await audit({
+        action: 'MPESA_CALLBACK_AMOUNT_MISMATCH',
+        targetType: 'PAYMENT',
+        targetId: attempt.id,
+        metadata: { callbackAmount: parsed.amount, initiatedAmountMinor: attempt.amountMinor },
+      })
+      return ok({ ResultCode: 0, ResultDesc: 'Accepted' })
+    }
+
     await db.paymentAttempt.update({
       where: { id: attempt.id },
       data: {

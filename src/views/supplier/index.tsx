@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CircleAlert, RefreshCw, ShieldCheck, Warehouse } from 'lucide-react'
+import { CircleAlert, RefreshCw, ShieldCheck, ShoppingCart, Warehouse } from 'lucide-react'
 import { apiGet, navigate } from '@/lib/client'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useAuth } from '@/stores/auth'
@@ -37,12 +37,13 @@ import { SignInGate, ApplyForm, UnderReview } from '@/components/supplier/gate'
 import { OverviewTab } from '@/components/supplier/overview'
 import { ProductsTab } from '@/components/supplier/products'
 import { OrdersTab } from '@/components/supplier/orders'
+import { ConsumerOrdersTab, type ConsumerOrder } from '@/components/supplier/consumer-orders'
 import { QuotesTab } from '@/components/supplier/quotes'
 import { WarehousesTab } from '@/components/supplier/warehouses'
 import { InventoryTab } from '@/components/supplier/inventory'
 import { BillingTab } from '@/components/supplier/billing'
 
-const TABS = ['overview', 'products', 'orders', 'quotes', 'warehouses', 'inventory', 'billing'] as const
+const TABS = ['overview', 'products', 'orders', 'consumer-orders', 'quotes', 'warehouses', 'inventory', 'billing'] as const
 type TabKey = (typeof TABS)[number]
 
 /** Session-scoped memory of this browser's own successful submission — the
@@ -199,10 +200,12 @@ function SupplierDashboard({ memberships, membership, activeOrgId, onOrgChange, 
   // Shared fetches — one request per tab switch group, reused by several tabs.
   const products = useFetch<{ products: ProductItem[] }>('/api/supply/products')
   const orders = useFetch<{ orders: OrderListItem[] }>(`/api/supply/orders?orgId=${activeOrgId}`)
+  const consumerOrders = useFetch<{ orders: ConsumerOrder[]; counts: Record<string, number> }>(`/api/orders?scope=supplier&orgId=${activeOrgId}`)
   const branches = useFetch<{ branches: BranchItem[] }>(`/api/supply/branches?orgId=${activeOrgId}`)
   const verification = useFetch<SupplierProfile>(`/api/suppliers/${activeOrgId}`)
 
   const awaiting = (orders.data?.orders ?? []).filter((o) => o.status === 'SUBMITTED').length
+  const consumerAwaiting = (consumerOrders.data?.orders ?? []).filter((o) => o.status === 'SUBMITTED').length
   const verified = verification.data?.supplier.verified ?? null
 
   return (
@@ -245,7 +248,7 @@ function SupplierDashboard({ memberships, membership, activeOrgId, onOrgChange, 
               </SelectContent>
             </Select>
           )}
-          <Button variant="outline" size="icon" className="h-10 w-10" aria-label="Refresh data" onClick={() => { products.reload(); orders.reload(); branches.reload(); verification.reload(); onRefresh() }}>
+          <Button variant="outline" size="icon" className="h-10 w-10" aria-label="Refresh data" onClick={() => { products.reload(); orders.reload(); consumerOrders.reload(); branches.reload(); verification.reload(); onRefresh() }}>
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
@@ -257,16 +260,23 @@ function SupplierDashboard({ memberships, membership, activeOrgId, onOrgChange, 
             ['overview', 'Overview'],
             ['products', 'Products'],
             ['orders', 'Orders'],
+            ['consumer-orders', 'Consumer orders'],
             ['quotes', 'Quotes'],
             ['warehouses', 'Warehouses'],
             ['inventory', 'Inventory'],
             ['billing', 'Billing'],
           ] as [TabKey, string][]).map(([key, label]) => (
             <TabsTrigger key={key} value={key} className="min-h-9 shrink-0 gap-1.5 px-3">
+              {key === 'consumer-orders' && <ShoppingCart className="h-3.5 w-3.5" aria-hidden="true" />}
               {label}
               {key === 'orders' && awaiting > 0 && (
                 <Badge variant="secondary" className="h-5 min-w-5 border-transparent bg-accent px-1 text-[10px] font-bold text-accent-foreground">
                   {awaiting > 9 ? '9+' : awaiting}
+                </Badge>
+              )}
+              {key === 'consumer-orders' && consumerAwaiting > 0 && (
+                <Badge variant="secondary" className="h-5 min-w-5 border-transparent bg-accent px-1 text-[10px] font-bold text-accent-foreground">
+                  {consumerAwaiting > 9 ? '9+' : consumerAwaiting}
                 </Badge>
               )}
             </TabsTrigger>
@@ -296,6 +306,11 @@ function SupplierDashboard({ memberships, membership, activeOrgId, onOrgChange, 
         <TabsContent value="orders" className="mt-4">
           <FadeIn>
             <OrdersTab key={activeOrgId} orgId={activeOrgId} role={role} orders={orders} products={products} />
+          </FadeIn>
+        </TabsContent>
+        <TabsContent value="consumer-orders" className="mt-4">
+          <FadeIn>
+            <ConsumerOrdersTab key={activeOrgId} orgId={activeOrgId} role={role} orders={consumerOrders} branches={branches} />
           </FadeIn>
         </TabsContent>
         <TabsContent value="quotes" className="mt-4">

@@ -1,0 +1,626 @@
+     1→'use client'
+     2→
+     3→/* Account — profile, phone & email verification, two-factor authentication (TOTP),
+     4→ * saved vehicles, enquiries, service requests, saved searches and notifications. */
+     5→
+     6→import { useEffect, useCallback, useState } from 'react'
+     7→import { motion, useReducedMotion } from 'framer-motion'
+     8→import { Heart, MailCheck, Bell, MessageSquareText, Wrench, Search, PhoneCall, Copy, ShieldCheck, KeyRound, MessagesSquare, Gift, CreditCard, Smartphone } from 'lucide-react'
+     9→import { toast } from 'sonner'
+    10→import { Button } from '@/components/ui/button'
+    11→import { Input } from '@/components/ui/input'
+    12→import { Label } from '@/components/ui/label'
+    13→import { Badge } from '@/components/ui/badge'
+    14→import { Skeleton } from '@/components/ui/skeleton'
+    15→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+    16→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    17→import { Textarea } from '@/components/ui/textarea'
+    18→import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
+    19→import { MessagesTab } from '@/components/messaging/conversation-panel'
+    20→import { VehicleProtection } from '@/components/protection/vehicle-protection'
+    21→import { RewardsPanel } from '@/components/loyalty/rewards-panel'
+    22→import { CustomerTestDrives } from '@/components/protection/customer-test-drives'
+    23→import { SubscriptionsPanel } from '@/components/account/subscriptions-panel'
+    24→import { useAuth } from '@/stores/auth'
+    25→import { navigate, apiGet, apiSend } from '@/lib/client'
+    26→import { useHashRoute } from '@/hooks/use-hash-route'
+    27→import { timeAgo, dateLabel, money } from '@/lib/format'
+    28→
+    29→type SavedVehicle = { id: string; vehicle: VehicleCardData }
+    30→type EnquiryItem = {
+    31→  id: string; refCode: string; status: string; createdAt: string
+    32→  vehicle: { id: string; make: string; model: string; year: number; priceMinor: number; currency: string }
+    33→  messages: { id: string; body: string; senderSide: string; createdAt: string }[]
+    34→}
+    35→type RequestItem = {
+    36→  id: string; refCode: string; category: string; status: string; description: string; county: string; createdAt: string
+    37→  quotes: { id: string; amountMinor: number; leadDays: number | null; message: string | null; status: string; org: { name: string } }[]
+    38→  booking: { status: string; scheduledAt: string | null } | null
+    39→}
+    40→type SavedSearchItem = { id: string; name: string; query: string; createdAt: string }
+    41→type NotificationItem = { id: string; title: string; body: string | null; link: string | null; readAt: string | null; createdAt: string }
+    42→
+    43→const TABS = ['profile', 'saved', 'enquiries', 'messages', 'requests', 'searches', 'rewards', 'protection', 'testdrives', 'subscriptions', 'notifications'] as const
+    44→
+    45→export default function AccountView() {
+    46→  const route = useHashRoute()
+    47→  const { user, loading, refresh, refreshNotifications } = useAuth()
+    48→  const [tab, setTab] = useState<string>(() => {
+    49→    const t = route.query.get('tab')
+    50→    return TABS.includes(t as (typeof TABS)[number]) ? t! : 'profile'
+    51→  })
+    52→
+    53→  const [saved, setSaved] = useState<SavedVehicle[] | null>(null)
+    54→  const [enquiries, setEnquiries] = useState<EnquiryItem[] | null>(null)
+    55→  const [requests, setRequests] = useState<RequestItem[] | null>(null)
+    56→  const [searches, setSearches] = useState<SavedSearchItem[] | null>(null)
+    57→  const [notifications, setNotifications] = useState<NotificationItem[] | null>(null)
+    58→  const [phone, setPhone] = useState('')
+    59→  const [devCode, setDevCode] = useState<string | null>(null)
+    60→  const [code, setCode] = useState('')
+    61→  const [newSearch, setNewSearch] = useState('')
+    62→  // Email verification
+    63→  const [emailDevCode, setEmailDevCode] = useState<string | null>(null)
+    64→  const [emailCode, setEmailCode] = useState('')
+    65→  const [emailBusy, setEmailBusy] = useState(false)
+    66→  // Two-factor authentication (TOTP)
+    67→  const [mfaSetup, setMfaSetup] = useState<{ secret: string; uri: string } | null>(null)
+    68→  const [mfaCode, setMfaCode] = useState('')
+    69→  const [mfaPassword, setMfaPassword] = useState('')
+    70→  const [mfaBusy, setMfaBusy] = useState(false)
+    71→
+    72→  useEffect(() => {
+    73→    if (!loading && !user) navigate('signin', { replace: true })
+    74→  }, [loading, user])
+    75→
+    76→  const loadNotifications = useCallback(() => {
+    77→    apiGet<{ notifications: NotificationItem[] }>('/api/notifications?take=30')
+    78→      .then((d) => setNotifications(d.notifications))
+    79→      .catch(() => setNotifications([]))
+    80→  }, [])
+    81→
+    82→  useEffect(() => {
+    83→    if (!user) return
+    84→    apiGet<{ saved: SavedVehicle[] }>('/api/saved-vehicles').then((d) => setSaved(d.saved)).catch(() => setSaved([]))
+    85→    apiGet<{ enquiries: EnquiryItem[] }>('/api/enquiries?mine=1').then((d) => setEnquiries(d.enquiries)).catch(() => setEnquiries([]))
+    86→    apiGet<{ requests: RequestItem[] }>('/api/service-requests?mine=1').then((d) => setRequests(d.requests)).catch(() => setRequests([]))
+    87→    apiGet<{ searches: SavedSearchItem[] }>('/api/saved-searches').then((d) => setSearches(d.searches)).catch(() => setSearches([]))
+    88→    loadNotifications()
+    89→  }, [user?.id, loadNotifications])
+    90→
+    91→  // Sync phone input when the profile loads/changes (derived, not effect-driven).
+    92→  useEffect(() => {
+    93→    let cancelled = false
+    94→    apiGet<{ user: { phone: string | null } }>('/api/auth/profile')
+    95→      .then((d) => { if (!cancelled) setPhone(d.user.phone ?? '') })
+    96→      .catch(() => {})
+    97→    return () => { cancelled = true }
+    98→  }, [])
+    99→
+   100→  if (loading || !user) {
+   101→    return <div className="mx-auto max-w-4xl space-y-4 p-6"><Skeleton className="h-8 w-64" /><Skeleton className="h-64 rounded-xl" /></div>
+   102→  }
+   103→
+   104→  async function requestCode() {
+   105→    try {
+   106→      const d = await apiSend<{ devCode?: string; message: string }>('/api/auth/verify-phone', 'POST', { action: 'request' })
+   107→      setDevCode(d.devCode ?? null)
+   108→      toast.info(d.message)
+   109→    } catch (e) {
+   110→      toast.error(e instanceof Error ? e.message : 'Could not send code')
+   111→    }
+   112→  }
+   113→
+   114→  async function confirmCode() {
+   115→    try {
+   116→      await apiSend('/api/auth/verify-phone', 'POST', { action: 'confirm', code })
+   117→      await refresh()
+   118→      toast.success('Phone verified')
+   119→      setDevCode(null)
+   120→      setCode('')
+   121→    } catch (e) {
+   122→      toast.error(e instanceof Error ? e.message : 'Verification failed')
+   123→    }
+   124→  }
+   125→
+   126→  async function requestEmailCode() {
+   127→    setEmailBusy(true)
+   128→    try {
+   129→      const d = await apiSend<{ devCode?: string; message: string }>('/api/auth/verify-email', 'POST', { action: 'request' })
+   130→      setEmailDevCode(d.devCode ?? null)
+   131→      toast.info(d.message)
+   132→    } catch (e) {
+   133→      toast.error(e instanceof Error ? e.message : 'Could not send code')
+   134→    } finally {
+   135→      setEmailBusy(false)
+   136→    }
+   137→  }
+   138→
+   139→  async function confirmEmailCode() {
+   140→    setEmailBusy(true)
+   141→    try {
+   142→      await apiSend('/api/auth/verify-email', 'POST', { action: 'confirm', code: emailCode })
+   143→      await refresh()
+   144→      toast.success('Email verified')
+   145→      setEmailDevCode(null)
+   146→      setEmailCode('')
+   147→    } catch (e) {
+   148→      toast.error(e instanceof Error ? e.message : 'Verification failed')
+   149→    } finally {
+   150→      setEmailBusy(false)
+   151→    }
+   152→  }
+   153→
+   154→  async function startMfaSetup() {
+   155→    setMfaBusy(true)
+   156→    try {
+   157→      const d = await apiSend<{ secret: string; uri: string }>('/api/auth/mfa/setup', 'POST')
+   158→      setMfaSetup(d)
+   159→      setMfaCode('')
+   160→    } catch (e) {
+   161→      toast.error(e instanceof Error ? e.message : 'Setup failed')
+   162→    } finally {
+   163→      setMfaBusy(false)
+   164→    }
+   165→  }
+   166→
+   167→  async function confirmMfaEnable() {
+   168→    setMfaBusy(true)
+   169→    try {
+   170→      await apiSend('/api/auth/mfa/enable', 'POST', { code: mfaCode })
+   171→      await refresh()
+   172→      toast.success('Two-factor authentication enabled')
+   173→      setMfaSetup(null)
+   174→      setMfaCode('')
+   175→    } catch (e) {
+   176→      toast.error(e instanceof Error ? e.message : 'Could not enable two-factor authentication')
+   177→    } finally {
+   178→      setMfaBusy(false)
+   179→    }
+   180→  }
+   181→
+   182→  async function disableMfa() {
+   183→    setMfaBusy(true)
+   184→    try {
+   185→      await apiSend('/api/auth/mfa/disable', 'POST', { password: mfaPassword })
+   186→      await refresh()
+   187→      toast.success('Two-factor authentication disabled')
+   188→      setMfaPassword('')
+   189→    } catch (e) {
+   190→      toast.error(e instanceof Error ? e.message : 'Could not disable two-factor authentication')
+   191→    } finally {
+   192→      setMfaBusy(false)
+   193→    }
+   194→  }
+   195→
+   196→  async function saveProfile() {
+   197→    try {
+   198→      await apiSend('/api/auth/profile', 'PATCH', { name: user!.name, phone })
+   199→      await refresh()
+   200→      toast.success('Profile updated')
+   201→    } catch (e) {
+   202→      toast.error(e instanceof Error ? e.message : 'Update failed')
+   203→    }
+   204→  }
+   205→
+   206→  async function unsave(vehicleId: string) {
+   207→    await apiSend(`/api/saved-vehicles?vehicleId=${vehicleId}`, 'DELETE').catch(() => {})
+   208→    setSaved((s) => s?.filter((x) => x.vehicle.id !== vehicleId) ?? null)
+   209→  }
+   210→
+   211→  async function closeEnquiry(id: string) {
+   212→    try {
+   213→      await apiSend(`/api/enquiries/${id}`, 'PATCH', { status: 'CLOSED' })
+   214→      const d = await apiGet<{ enquiries: EnquiryItem[] }>('/api/enquiries?mine=1')
+   215→      setEnquiries(d.enquiries)
+   216→      toast.success('Enquiry closed')
+   217→    } catch (e) {
+   218→      toast.error(e instanceof Error ? e.message : 'Failed')
+   219→    }
+   220→  }
+   221→
+   222→  async function acceptQuote(requestId: string, quoteId: string) {
+   223→    try {
+   224→      await apiSend(`/api/quotes/${quoteId}`, 'PATCH', { action: 'accept' })
+   225→      const d = await apiGet<{ requests: RequestItem[] }>('/api/service-requests?mine=1')
+   226→      setRequests(d.requests)
+   227→      toast.success('Quote accepted — the garage will confirm your booking')
+   228→    } catch (e) {
+   229→      toast.error(e instanceof Error ? e.message : 'Failed')
+   230→    }
+   231→  }
+   232→
+   233→  async function declineQuote(quoteId: string) {
+   234→    try {
+   235→      await apiSend(`/api/quotes/${quoteId}`, 'PATCH', { action: 'decline' })
+   236→      const d = await apiGet<{ requests: RequestItem[] }>('/api/service-requests?mine=1')
+   237→      setRequests(d.requests)
+   238→    } catch (e) {
+   239→      toast.error(e instanceof Error ? e.message : 'Failed')
+   240→    }
+   241→  }
+   242→
+   243→  async function addSearch() {
+   244→    if (!newSearch.trim()) return
+   245→    try {
+   246→      await apiSend('/api/saved-searches', 'POST', { name: newSearch.trim(), query: route.query.get('seed') ?? '' })
+   247→      setNewSearch('')
+   248→      const d = await apiGet<{ searches: SavedSearchItem[] }>('/api/saved-searches')
+   249→      setSearches(d.searches)
+   250→      toast.success('Search saved — you will get alerts for new matches')
+   251→    } catch (e) {
+   252→      toast.error(e instanceof Error ? e.message : 'Failed')
+   253→    }
+   254→  }
+   255→
+   256→  return (
+   257→    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+   258→      <div className="flex flex-wrap items-center justify-between gap-3">
+   259→        <div>
+   260→          <h1 className="text-2xl font-bold">My Account</h1>
+   261→          <p className="text-sm text-muted-foreground">{user.email} · member since {dateLabel(user.id ? undefined : undefined) === '—' ? '' : ''}{new Date().getFullYear()}</p>
+   262→        </div>
+   263→        {!user.phoneVerified && user.phone && <Badge variant="outline" className="gap-1 text-amber-700 border-amber-300"><PhoneCall className="h-3.5 w-3.5" /> Phone not verified</Badge>}
+   264→      </div>
+   265→
+   266→      <Tabs value={tab} onValueChange={setTab} className="mt-6">
+   267→        <TabsList className="scrollbar-thin h-auto w-full justify-start overflow-x-auto py-0.5">
+   268→          <TabsTrigger value="profile" className="gap-1.5"><MailCheck className="h-4 w-4" /> Profile</TabsTrigger>
+   269→          <TabsTrigger value="saved" className="gap-1.5"><Heart className="h-4 w-4" /> Saved</TabsTrigger>
+   270→          <TabsTrigger value="enquiries" className="gap-1.5"><MessageSquareText className="h-4 w-4" /> Enquiries</TabsTrigger>
+   271→          <TabsTrigger value="messages" className="gap-1.5"><MessagesSquare className="h-4 w-4" /> Messages</TabsTrigger>
+   272→          <TabsTrigger value="requests" className="gap-1.5"><Wrench className="h-4 w-4" /> Requests</TabsTrigger>
+   273→          <TabsTrigger value="searches" className="gap-1.5"><Search className="h-4 w-4" /> Searches</TabsTrigger>
+   274→          <TabsTrigger value="rewards" className="gap-1.5"><Gift className="h-4 w-4" /> Rewards</TabsTrigger>
+   275→          <TabsTrigger value="protection" className="gap-1.5"><ShieldCheck className="h-4 w-4" /> Vehicle protection</TabsTrigger>
+   276→          <TabsTrigger value="subscriptions" className="gap-1.5"><CreditCard className="h-4 w-4" /> Memberships & credit</TabsTrigger>
+   277→          <TabsTrigger value="testdrives" className="gap-1.5"><KeyRound className="h-4 w-4" /> Test drives</TabsTrigger>
+   278→          <TabsTrigger value="notifications" className="gap-1.5"><Bell className="h-4 w-4" /> Alerts</TabsTrigger>
+   279→        </TabsList>
+   280→
+   281→        {/* Profile */}
+   282→        <TabsContent value="profile" className="mt-4 space-y-4">
+   283→          <Card>
+   284→            <CardHeader><CardTitle>Contact details</CardTitle>
+   285→              <CardDescription>Sellers only see your phone number when you tick &quot;share my number&quot; on an enquiry.</CardDescription>
+   286→            </CardHeader>
+   287→            <CardContent className="grid gap-4 sm:grid-cols-2">
+   288→              <div className="space-y-1.5">
+   289→                <Label htmlFor="acc-name">Full name</Label>
+   290→                <Input id="acc-name" value={user.name} disabled />
+   291→              </div>
+   292→              <div className="space-y-1.5">
+   293→                <Label htmlFor="acc-email">Email</Label>
+   294→                <Input id="acc-email" value={user.email} disabled />
+   295→              </div>
+   296→              <div className="space-y-1.5">
+   297→                <Label htmlFor="acc-phone">Phone</Label>
+   298→                <div className="flex gap-2">
+   299→                  <Input id="acc-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07xx xxx xxx" />
+   300→                  <Button variant="outline" onClick={saveProfile}>Save</Button>
+   301→                </div>
+   302→              </div>
+   303→              <div className="space-y-1.5">
+   304→                <Label>Phone verification</Label>
+   305→                {user.phoneVerified ? (
+   306→                  <Badge className="w-fit gap-1 bg-primary text-primary-foreground"><PhoneCall className="h-3.5 w-3.5" /> Verified</Badge>
+   307→                ) : (
+   308→                  <div className="space-y-2">
+   309→                    <Button variant="outline" size="sm" onClick={requestCode} disabled={!phone}>Send code</Button>
+   310→                    {devCode && (
+   311→                      <div className="rounded-md border border-dashed p-2 text-xs">
+   312→                        <p className="flex items-center justify-between">
+   313→                          <span>Dev code: <strong className="font-mono">{devCode}</strong></span>
+   314→                          <button className="inline-flex items-center gap-1 text-primary hover:underline" onClick={() => { navigator.clipboard?.writeText(devCode); toast.success('Copied') }}>
+   315→                            <Copy className="h-3 w-3" /> copy
+   316→                          </button>
+   317→                        </p>
+   318→                        <p className="mt-1 text-muted-foreground">SMS gateway not configured on this deployment — code shown here instead of a real SMS.</p>
+   319→                      </div>
+   320→                    )}
+   321→                    <div className="flex gap-2">
+   322→                      <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+   323→                      <Button size="sm" variant="outline" onClick={confirmCode} disabled={code.length !== 6}>Verify</Button>
+   324→                    </div>
+   325→                  </div>
+   326→                )}
+   327→              </div>
+   328→            </CardContent>
+   329→          </Card>
+   330→          <Card>
+   331→            <CardHeader>
+   332→              <CardTitle>Email verification</CardTitle>
+   333→              <CardDescription>Confirming your email helps with account recovery and keeps seller and staff accounts secure.</CardDescription>
+   334→            </CardHeader>
+   335→            <CardContent>
+   336→              {user.emailVerified ? (
+   337→                <Badge className="w-fit gap-1 bg-emerald-600 text-white"><ShieldCheck className="h-3.5 w-3.5" /> Verified</Badge>
+   338→              ) : (
+   339→                <div className="space-y-2">
+   340→                  <div className="flex flex-wrap items-center gap-2">
+   341→                    <Badge variant="outline" className="gap-1 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"><ShieldCheck className="h-3.5 w-3.5" /> Not verified</Badge>
+   342→                    <Button variant="outline" size="sm" onClick={requestEmailCode} disabled={emailBusy}>{emailBusy ? 'Please wait…' : 'Send code'}</Button>
+   343→                  </div>
+   344→                  {emailDevCode && (
+   345→                    <div className="rounded-md border border-dashed p-2 text-xs">
+   346→                      <p className="flex items-center justify-between">
+   347→                        <span>Dev code: <strong className="font-mono">{emailDevCode}</strong></span>
+   348→                        <button className="inline-flex items-center gap-1 text-primary hover:underline" onClick={() => { navigator.clipboard?.writeText(emailDevCode); toast.success('Copied') }}>
+   349→                          <Copy className="h-3 w-3" /> copy
+   350→                        </button>
+   351→                      </p>
+   352→                      <p className="mt-1 text-muted-foreground">Email delivery not configured on this deployment — code shown here instead of a real email.</p>
+   353→                    </div>
+   354→                  )}
+   355→                  <div className="flex gap-2">
+   356→                    <Input value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+   357→                    <Button size="sm" variant="outline" onClick={confirmEmailCode} disabled={emailBusy || emailCode.length !== 6}>Verify</Button>
+   358→                  </div>
+   359→                </div>
+   360→              )}
+   361→            </CardContent>
+   362→          </Card>
+   363→          <Card>
+   364→            <CardHeader>
+   365→              <CardTitle>Two-factor authentication (TOTP)</CardTitle>
+   366→              <CardDescription>
+   367→                Add a second sign-in step with an authenticator app (Google Authenticator, Authy, 1Password…). Codes rotate every 30 seconds and are required at every sign-in. Staff accounts should enable this.
+   368→              </CardDescription>
+   369→            </CardHeader>
+   370→            <CardContent>
+   371→              {user.mfaEnabled ? (
+   372→                <div className="space-y-3">
+   373→                  <Badge className="w-fit gap-1 bg-emerald-600 text-white"><Smartphone className="h-3.5 w-3.5" /> Enabled</Badge>
+   374→                  <p className="text-sm text-muted-foreground">To turn this off, confirm your password. We recommend keeping two-factor authentication on.</p>
+   375→                  <div className="flex max-w-sm gap-2">
+   376→                    <Input type="password" value={mfaPassword} onChange={(e) => setMfaPassword(e.target.value)} placeholder="Current password" autoComplete="current-password" />
+   377→                    <Button variant="destructive" onClick={disableMfa} disabled={mfaBusy || !mfaPassword}>{mfaBusy ? 'Please wait…' : 'Disable'}</Button>
+   378→                  </div>
+   379→                </div>
+   380→              ) : mfaSetup ? (
+   381→                <div className="space-y-4">
+   382→                  <div className="space-y-1.5">
+   383→                    <p className="text-sm font-medium">1. Add the secret to your authenticator app</p>
+   384→                    <p className="text-xs text-muted-foreground">Paste the key below, or scan/use the otpauth link with an app that supports manual setup.</p>
+   385→                    <div className="flex items-center justify-between gap-2 rounded-md border border-dashed p-2">
+   386→                      <code className="select-all break-all font-mono text-sm">{mfaSetup.secret}</code>
+   387→                      <button className="inline-flex shrink-0 items-center gap-1 text-primary hover:underline" onClick={() => { navigator.clipboard?.writeText(mfaSetup.secret); toast.success('Copied') }}>
+   388→                        <Copy className="h-3 w-3" /> copy
+   389→                      </button>
+   390→                    </div>
+   391→                    <p className="select-all break-all font-mono text-[11px] text-muted-foreground">{mfaSetup.uri}</p>
+   392→                  </div>
+   393→                  <div className="space-y-1.5">
+   394→                    <p className="text-sm font-medium">2. Enter the current 6-digit code</p>
+   395→                    <div className="flex flex-wrap gap-2">
+   396→                      <Input value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+   397→                      <Button size="sm" onClick={confirmMfaEnable} disabled={mfaBusy || mfaCode.length !== 6}>Confirm & enable</Button>
+   398→                      <Button size="sm" variant="ghost" onClick={() => { setMfaSetup(null); setMfaCode('') }}>Cancel</Button>
+   399→                    </div>
+   400→                  </div>
+   401→                </div>
+   402→              ) : (
+   403→                <div className="space-y-2">
+   404→                  <Badge variant="outline" className="w-fit gap-1 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"><Smartphone className="h-3.5 w-3.5" /> Not enabled</Badge>
+   405→                  <div>
+   406→                    <Button variant="outline" size="sm" onClick={startMfaSetup} disabled={mfaBusy}>{mfaBusy ? 'Please wait…' : 'Set up authenticator app'}</Button>
+   407→                  </div>
+   408→                </div>
+   409→              )}
+   410→            </CardContent>
+   411→          </Card>
+   412→          <Card>
+   413→            <CardHeader><CardTitle>Privacy</CardTitle></CardHeader>
+   414→            <CardContent className="text-sm text-muted-foreground">
+   415→              <p>Your saved vehicles, garage records and searches are private by default. Dealer documents uploaded during verification are stored privately and only visible to you and authorised reviewers.</p>
+   416→            </CardContent>
+   417→          </Card>
+   418→        </TabsContent>
+   419→
+   420→        {/* Saved */}
+   421→        <TabsContent value="saved" className="mt-4">
+   422→          {saved === null ? (
+   423→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="aspect-[16/10] rounded-xl" />)}</div>
+   424→          ) : saved.length === 0 ? (
+   425→            <EmptyState icon={<Heart className="h-6 w-6" />} title="No saved vehicles yet" desc="Tap the heart on any listing to keep an eye on it." action="Browse cars" onAction={() => navigate('cars')} />
+   426→          ) : (
+   427→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+   428→              {saved.map((s) => <VehicleCard key={s.id} v={s.vehicle} saved onToggleSave={() => unsave(s.vehicle.id)} />)}
+   429→            </div>
+   430→          )}
+   431→        </TabsContent>
+   432→
+   433→        {/* Enquiries */}
+   434→        <TabsContent value="enquiries" className="mt-4 space-y-3">
+   435→          {enquiries === null ? <Skeleton className="h-40 rounded-xl" /> : enquiries.length === 0 ? (
+   436→            <EmptyState icon={<MessageSquareText className="h-6 w-6" />} title="No enquiries yet" desc="When you ask about a vehicle, the conversation appears here." action="Find a car" onAction={() => navigate('cars')} />
+   437→          ) : (
+   438→            enquiries.map((en) => (
+   439→              <Card key={en.id}>
+   440→                <CardHeader className="pb-2">
+   441→                  <div className="flex flex-wrap items-center justify-between gap-2">
+   442→                    <button className="text-left font-semibold hover:underline" onClick={() => navigate(`vehicle-detail/${en.vehicle.id}`)}>
+   443→                      {en.vehicle.make} {en.vehicle.model} {en.vehicle.year} · {money(en.vehicle.priceMinor, en.vehicle.currency)}
+   444→                    </button>
+   445→                    <div className="flex items-center gap-2">
+   446→                      <Badge variant={en.status === 'OPEN' ? 'secondary' : en.status === 'ANSWERED' ? 'outline' : 'secondary'} className={en.status === 'OPEN' ? 'bg-accent/30' : ''}>{en.status}</Badge>
+   447→                      <span className="text-xs text-muted-foreground">{en.refCode}</span>
+   448→                    </div>
+   449→                  </div>
+   450→                </CardHeader>
+   451→                <CardContent className="space-y-2">
+   452→                  <div className="scrollbar-thin max-h-40 space-y-2 overflow-y-auto rounded-lg bg-muted/60 p-3">
+   453→                    {en.messages.map((m) => (
+   454→                      <div key={m.id} className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${m.senderSide === 'CUSTOMER' ? 'ml-auto bg-primary text-primary-foreground' : 'bg-card border'}`}>
+   455→                        <p>{m.body}</p>
+   456→                        <p className="mt-1 text-[10px] opacity-70">{timeAgo(m.createdAt)}</p>
+   457→                      </div>
+   458→                    ))}
+   459→                  </div>
+   460→                  {en.status !== 'CLOSED' && (
+   461→                    <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => closeEnquiry(en.id)}>Close enquiry</Button>
+   462→                  )}
+   463→                </CardContent>
+   464→              </Card>
+   465→            ))
+   466→          )}
+   467→        </TabsContent>
+   468→
+   469→        {/* Messages (unified conversations) */}
+   470→        <TabsContent value="messages" className="mt-4">
+   471→          <FadeIn><MessagesTab scope="mine" /></FadeIn>
+   472→        </TabsContent>
+   473→
+   474→        {/* Service requests */}
+   475→        <TabsContent value="requests" className="mt-4 space-y-3">
+   476→          {requests === null ? <Skeleton className="h-40 rounded-xl" /> : requests.length === 0 ? (
+   477→            <EmptyState icon={<Wrench className="h-6 w-6" />} title="No service requests yet" desc="Request quotes from verified garages — including directly from the 3D customizer." action="Find a garage" onAction={() => navigate('garages')} />
+   478→          ) : (
+   479→            requests.map((r) => (
+   480→              <Card key={r.id}>
+   481→                <CardHeader className="pb-2">
+   482→                  <div className="flex flex-wrap items-center justify-between gap-2">
+   483→                    <span className="font-semibold">{r.category.replaceAll('_', ' ').toLowerCase()} · {r.county}</span>
+   484→                    <div className="flex items-center gap-2">
+   485→                      <Badge variant="outline">{r.status}</Badge>
+   486→                      <span className="text-xs text-muted-foreground">{r.refCode} · {timeAgo(r.createdAt)}</span>
+   487→                    </div>
+   488→                  </div>
+   489→                </CardHeader>
+   490→                <CardContent className="space-y-3">
+   491→                  <p className="text-sm text-muted-foreground">{r.description}</p>
+   492→                  {r.quotes.length > 0 && (
+   493→                    <div className="space-y-2">
+   494→                      <h4 className="text-sm font-medium">Quotes received</h4>
+   495→                      {r.quotes.map((q) => (
+   496→                        <div key={q.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+   497→                          <div>
+   498→                            <p className="font-medium">{q.org.name}</p>
+   499→                            <p className="text-xs text-muted-foreground">{q.message}</p>
+   500→                          </div>
+   501→                          <div className="flex items-center gap-2">
+   502→                            <span className="font-bold text-primary">{money(q.amountMinor)}</span>
+   503→                            {q.status === 'PENDING' ? (
+   504→                              <>
+   505→                                <Button size="sm" onClick={() => acceptQuote(r.id, q.id)}>Accept</Button>
+   506→                                <Button size="sm" variant="ghost" onClick={() => declineQuote(q.id)}>Decline</Button>
+   507→                              </>
+   508→                            ) : (
+   509→                              <Badge variant="outline">{q.status}</Badge>
+   510→                            )}
+   511→                          </div>
+   512→                        </div>
+   513→                      ))}
+   514→                    </div>
+   515→                  )}
+   516→                  {r.booking && (
+   517→                    <p className="text-sm">
+   518→                      Booking: <Badge variant="outline">{r.booking.status}</Badge>
+   519→                      {r.booking.scheduledAt && <span className="ml-2 text-muted-foreground">{dateLabel(r.booking.scheduledAt)}</span>}
+   520→                    </p>
+   521→                  )}
+   522→                </CardContent>
+   523→              </Card>
+   524→            ))
+   525→          )}
+   526→        </TabsContent>
+   527→
+   528→        {/* Saved searches */}
+   529→        <TabsContent value="searches" className="mt-4 space-y-3">
+   530→          <Card>
+   531→            <CardHeader className="pb-2"><CardTitle className="text-base">Save a search</CardTitle>
+   532→              <CardDescription>We alert you when new published listings match a saved search.</CardDescription></CardHeader>
+   533→            <CardContent className="flex gap-2">
+   534→              <Input value={newSearch} onChange={(e) => setNewSearch(e.target.value)} placeholder="e.g. Family SUV under 4M" />
+   535→              <Button onClick={addSearch}>Save</Button>
+   536→            </CardContent>
+   537→          </Card>
+   538→          {searches && searches.length > 0 && (
+   539→            <div className="space-y-2">
+   540→              {searches.map((s) => (
+   541→                <div key={s.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
+   542→                  <div>
+   543→                    <p className="font-medium">{s.name}</p>
+   544→                    <p className="text-xs text-muted-foreground">{s.query || 'no filters'} · saved {timeAgo(s.createdAt)}</p>
+   545→                  </div>
+   546→                  <Button variant="ghost" size="sm" onClick={async () => { await apiSend(`/api/saved-searches?id=${s.id}`, 'DELETE'); setSearches((x) => x!.filter((y) => y.id !== s.id)) }}>Remove</Button>
+   547→                </div>
+   548→              ))}
+   549→            </div>
+   550→          )}
+   551→        </TabsContent>
+   552→
+   553→        {/* Rewards (loyalty points & referrals) */}
+   554→        <TabsContent value="rewards" className="mt-4">
+   555→          <FadeIn><RewardsPanel /></FadeIn>
+   556→        </TabsContent>
+   557→
+   558→        {/* Vehicle protection */}
+   559→        <TabsContent value="protection" className="mt-4">
+   560→          <FadeIn><VehicleProtection /></FadeIn>
+   561→        </TabsContent>
+   562→
+   563→        {/* Test drives */}
+   564→        <TabsContent value="testdrives" className="mt-4">
+   565→          <FadeIn><CustomerTestDrives /></FadeIn>
+   566→        </TabsContent>
+   567→
+   568→        {/* Memberships & credit */}
+   569→        <TabsContent value="subscriptions" className="mt-4">
+   570→          <FadeIn><SubscriptionsPanel /></FadeIn>
+   571→        </TabsContent>
+   572→
+   573→        {/* Notifications */}
+   574→        <TabsContent value="notifications" className="mt-4 space-y-2">
+   575→          <div className="flex justify-end">
+   576→            <Button variant="ghost" size="sm" onClick={async () => { await apiSend('/api/notifications', 'PATCH', { all: true }); loadNotifications(); refreshNotifications() }}>
+   577→              Mark all read
+   578→            </Button>
+   579→          </div>
+   580→          {notifications === null ? <Skeleton className="h-40 rounded-xl" /> : notifications.length === 0 ? (
+   581→            <EmptyState icon={<Bell className="h-6 w-6" />} title="No notifications" desc="Enquiries, offers, quotes and reminders will show up here." />
+   582→          ) : (
+   583→            notifications.map((n) => (
+   584→              <button
+   585→                key={n.id}
+   586→                onClick={() => n.link && navigate(n.link)}
+   587→                className={`block w-full rounded-lg border p-3 text-left transition-colors hover:bg-muted/60 ${!n.readAt ? 'border-accent/40 bg-accent/5' : ''}`}
+   588→              >
+   589→                <div className="flex items-center justify-between gap-2">
+   590→                  <p className="text-sm font-medium">{n.title}</p>
+   591→                  <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(n.createdAt)}</span>
+   592→                </div>
+   593→                {n.body && <p className="mt-0.5 text-sm text-muted-foreground">{n.body}</p>}
+   594→              </button>
+   595→            ))
+   596→          )}
+   597→        </TabsContent>
+   598→      </Tabs>
+   599→    </div>
+   600→  )
+   601→}
+   602→
+   603→function FadeIn({ children }: { children: React.ReactNode }) {
+   604→  const reduce = useReducedMotion()
+   605→  return (
+   606→    <motion.div
+   607→      initial={reduce ? false : { opacity: 0, y: 10 }}
+   608→      animate={{ opacity: 1, y: 0 }}
+   609→      transition={{ duration: 0.3, ease: 'easeOut' }}
+   610→    >
+   611→      {children}
+   612→    </motion.div>
+   613→  )
+   614→}
+   615→
+   616→function EmptyState({ icon, title, desc, action, onAction }: { icon: React.ReactNode; title: string; desc: string; action?: string; onAction?: () => void }) {
+   617→  return (
+   618→    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center">
+   619→      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">{icon}</span>
+   620→      <h3 className="mt-3 font-semibold">{title}</h3>
+   621→      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{desc}</p>
+   622→      {action && onAction && <Button className="mt-4" variant="outline" onClick={onAction}>{action}</Button>}
+   623→    </div>
+   624→  )
+   625→}
+   626→

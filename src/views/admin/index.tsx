@@ -74,6 +74,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { VerificationCenter } from '@/components/admin/verification-center'
 
 // ───────────────────────────── Constants & helpers ─────────────────────────────
 
@@ -82,7 +83,7 @@ const GOLD = '#D9B878'
 const PIE_COLORS = ['#315E4B', '#D9B878', '#7FA08E', '#6E6E67', '#B0A284', '#5C8A73', '#C9B285', '#8FA99F']
 
 const TABS = [
-  'overview', 'applications', 'listings', 'users', 'staff', 'reports', 'billing',
+  'overview', 'applications', 'verification', 'listings', 'users', 'staff', 'reports', 'billing',
   'campaigns', 'partners', 'support', 'notifications', 'settings', 'audit',
   'supply', 'revenue',
 ] as const
@@ -91,6 +92,7 @@ type TabKey = (typeof TABS)[number]
 const TAB_LABELS: Record<TabKey, string> = {
   overview: 'Overview',
   applications: 'Applications',
+  verification: 'Verification Center',
   listings: 'Listings',
   users: 'Users',
   staff: 'Staff',
@@ -512,6 +514,7 @@ export default function View() {
         <div className="mt-5">
           {tab === 'overview' && <OverviewTab />}
           {tab === 'applications' && <ApplicationsTab user={user} />}
+          {tab === 'verification' && <VerificationCenter />}
           {tab === 'listings' && <ListingsTab />}
           {tab === 'users' && <UsersTab user={user} />}
           {tab === 'staff' && <StaffTab user={user} />}

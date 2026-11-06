@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Truck, MapPin, PackageCheck, Package, PackageOpen, Users, Wallet, Plus, RefreshCw,
   Phone, ClipboardList, CircleAlert, ShieldCheck, FileUp, Trash2, Power, ArrowRight,
-  ArrowLeft, CheckCircle2, XCircle, Loader2, Bike, Wrench, Building2, Handshake,
+  ArrowLeft, CheckCircle2, XCircle, Loader2, Bike, Wrench, Building2, Handshake, ScanLine,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -45,6 +45,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import QRCode from 'qrcode'
 import { apiGet, apiSend, apiUpload, navigate } from '@/lib/client'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useAuth, type CurrentUser } from '@/stores/auth'
@@ -94,6 +95,7 @@ type Job = {
   partner?: { id: string; name: string; county: string; phone: string } | null
   driver?: { id: string; name: string; phone: string; vehicleReg: string | null; vehicleType: string | null } | null
   otpHint?: string | null
+  qrToken?: string | null
   podPhotos?: string[]
   events?: JobEvent[]
 }
@@ -199,6 +201,43 @@ function StatusBadge({ status }: { status: string }) {
       {status === 'FAILED' && <XCircle className="h-3 w-3" aria-hidden="true" />}
       {status.replaceAll('_', ' ')}
     </Badge>
+  )
+}
+
+/** Requester-side drop-off QR: encodes the job's QR token. The partner can
+ * confirm delivery by scanning it or typing the token — an alternative to the
+ * 6-digit code. Rendered on demand (generated locally, no external service). */
+function DropOffQr({ token }: { token: string }) {
+  const [open, setOpen] = useState(false)
+  const [dataUrl, setDataUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open || dataUrl) return
+    QRCode.toDataURL(token, { width: 160, margin: 1 })
+      .then(setDataUrl)
+      .catch(() => setDataUrl(null))
+  }, [open, dataUrl, token])
+
+  return (
+    <div>
+      <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <ScanLine className="mr-1.5 h-4 w-4" aria-hidden="true" /> {open ? 'Hide QR' : 'Show drop-off QR'}
+      </Button>
+      {open && (
+        <div className="mt-2 inline-flex flex-col items-center gap-1.5 rounded-lg border bg-background p-3">
+          {dataUrl ? (
+             
+            <img src={dataUrl} alt={`Drop-off QR code, token ${token}`} className="h-40 w-40" />
+          ) : (
+            <Skeleton className="h-40 w-40" />
+          )}
+          <p className="font-mono text-xs font-semibold tracking-wide">{token}</p>
+          <p className="max-w-48 text-center text-[11px] text-muted-foreground">
+            The partner scans or types this token to confirm delivery — it works instead of the 6-digit code.
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -434,7 +473,7 @@ function PhotoUploader({ photos, onChange, max = 6 }: {
         <div className="flex flex-wrap gap-2">
           {photos.map((url, i) => (
             <div key={`${url}-${i}`} className="group relative h-16 w-16 overflow-hidden rounded-md border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+              { }
               <img src={url} alt={`Proof of delivery ${i + 1}`} className="h-full w-full object-cover" />
               <button
                 type="button"
@@ -1222,7 +1261,7 @@ function AcceptJobDialog({ job, drivers, onClose, onAccepted, goFleet }: {
       setDriverId(drivers.length === 1 ? drivers[0].id : '')
       setFee('')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [job])
 
   const feeMinor = Math.round((parseFloat(fee) || 0) * 100)
@@ -1327,11 +1366,11 @@ function DeliverJobDialog({ job, onClose, onDelivered }: {
 
   async function confirm() {
     if (!job) return
-    if (!/^\d{6}$/.test(otp.trim())) { toast.error('Enter the 6-digit drop-off code from the requester.'); return }
+    if (!/^\d{6}$/.test(otp.trim()) && !/^[A-Z0-9]{12,14}$/.test(otp.trim().toUpperCase())) { toast.error('Enter the 6-digit drop-off code or the requester QR token.'); return }
     if (photos.length === 0) { toast.error('Attach at least one proof-of-delivery photo.'); return }
     setBusy(true)
     try {
-      await apiSend(`/api/logistics/jobs/${job.id}`, 'POST', { action: 'deliver', otp: otp.trim(), photos })
+      await apiSend(`/api/logistics/jobs/${job.id}`, 'POST', { action: 'deliver', otp: /^[A-Z0-9]{12,14}$/i.test(otp.trim()) ? otp.trim().toUpperCase() : otp.trim(), photos })
       toast.success(`Delivery ${job.refCode} confirmed as delivered.`)
       onDelivered()
     } catch (e) {
@@ -1735,11 +1774,14 @@ function MyRequestsSection() {
                   )}
 
                   {showOtp && (
-                    <div className="inline-flex items-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-xs">
-                      <ShieldCheck className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                      <span>
-                        Drop-off code <span className="font-mono font-bold text-foreground">••• {job.otpHint}</span> — sent to your notifications. Share it only when you receive the cargo.
-                      </span>
+                    <div className="space-y-2">
+                      <div className="inline-flex items-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-xs">
+                        <ShieldCheck className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                        <span>
+                          Drop-off code <span className="font-mono font-bold text-foreground">••• {job.otpHint}</span> — sent to your notifications. Share it only when you receive the cargo.
+                        </span>
+                      </div>
+                      {job.qrToken && <DropOffQr token={job.qrToken} />}
                     </div>
                   )}
 
@@ -1756,7 +1798,7 @@ function MyRequestsSection() {
                       <p className="text-xs font-medium text-muted-foreground">Proof of delivery</p>
                       <div className="mt-1.5 flex flex-wrap gap-2">
                         {job.podPhotos?.map((url, i) => (
-                          // eslint-disable-next-line @next/next/no-img-element
+                           
                           <img key={`${url}-${i}`} src={url} alt={`Proof of delivery ${i + 1}`} className="h-16 w-16 rounded-md border object-cover" />
                         ))}
                       </div>

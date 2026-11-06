@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireUser, ApiError } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
-import { sixDigitCode } from '@/lib/ids'
+import { sixDigitCode, shareId } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notify } from '@/lib/notify'
 
@@ -90,6 +90,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
       job: {
         ...base,
         otpHint: job.otpHint,
+        qrToken: job.qrToken,
         podPhotos: job.status === 'DELIVERED' && job.podPhotos ? parseList(job.podPhotos) : [],
       },
     })
@@ -114,7 +115,8 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('transit') }),
   z.object({
     action: z.literal('deliver'),
-    otp: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit drop-off code'),
+    // 6-digit drop-off code OR the requester's QR token (12-14 alphanumeric)
+    otp: z.string().trim().regex(/^(\d{6}|[A-Z0-9]{12,14})$/, 'Enter the 6-digit drop-off code or scan the requester QR'),
     photos: z.array(z.string().trim().min(1).max(300)).min(1, 'Attach at least one proof-of-delivery photo').max(6, 'At most 6 photos'),
   }),
   z.object({
@@ -163,8 +165,12 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
 
     // Delivery OTP — generated at acceptance, delivered to the requester via
     // in-app notification only. The raw code is never returned to the partner.
+    // A QR token is also issued: the requester renders it as a scannable code
+    // and the partner can confirm delivery with either the 6-digit code or
+    // the scanned token.
     const otp = sixDigitCode()
     const otpHash = await bcrypt.hash(otp, 10)
+    const qrToken = shareId(12)
 
     const updated = await db.deliveryJob.update({
       where: { id },
@@ -175,6 +181,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         status: 'ASSIGNED',
         otpHash,
         otpHint: otp.slice(-2),
+        qrToken,
         events: {
           create: {
             type: 'ASSIGNED',
@@ -300,9 +307,11 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     if (!job.otpHash) {
       throw new ApiError(409, 'INVALID_STATE', 'This delivery has no verification code on record.')
     }
-    const verified = await bcrypt.compare(body.otp, job.otpHash)
+    const verified = /^\d{6}$/.test(body.otp)
+      ? await bcrypt.compare(body.otp, job.otpHash)
+      : Boolean(job.qrToken) && body.otp === job.qrToken
     if (!verified) {
-      return fail(400, 'OTP_INVALID', 'That drop-off code does not match this delivery. Ask the requester to read it from their notifications.')
+      return fail(400, 'OTP_INVALID', 'That drop-off code does not match this delivery. Ask the requester to read it from their notifications or QR.')
     }
     const now = new Date()
     const updated = await db.deliveryJob.update({

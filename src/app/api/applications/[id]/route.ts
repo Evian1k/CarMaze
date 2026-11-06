@@ -135,6 +135,49 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       return ok({ application: updated })
     }
     case 'approve': {
+      // ── Document verification enforcement ──
+      // An application can never be approved while its documents have not
+      // been through the Verification Engine. Uploading ≠ verification:
+      // every attached document must reach VERIFIED by an explicit reviewer
+      // decision first. Legacy applications whose documents were only stored
+      // as JSON get those documents imported as UNDER_REVIEW — they must be
+      // genuinely reviewed in the Verification Center before approval.
+      const appDocs = await db.verificationDocument.findMany({ where: { applicationId: id } })
+      if (appDocs.length === 0) {
+        let legacy: { name: string; url: string }[] = []
+        try { legacy = JSON.parse(app.documents || '[]') } catch { legacy = [] }
+        if (legacy.length > 0) {
+          await db.verificationDocument.createMany({
+            data: legacy.map((d, i) => ({
+              refCode: refCode('DOC', 6),
+              ownerUserId: app.userId,
+              applicationId: id,
+              kind: app.type === 'SELLER' ? (i === 0 ? 'ID_FRONT' : 'ID_BACK') : app.type === 'LOGISTICS' ? (i === 0 ? 'DRIVER_LICENSE' : 'INSURANCE') : i === 0 ? 'BUSINESS_LICENSE' : 'PIN_CERTIFICATE',
+              label: d.name,
+              fileUrl: d.url,
+              fileName: d.name,
+              status: 'UNDER_REVIEW',
+            })),
+          })
+        }
+      }
+      const docsNow = await db.verificationDocument.findMany({ where: { applicationId: id } })
+      if (docsNow.length === 0) {
+        throw new ApiError(400, 'DOCUMENTS_REQUIRED', 'No verification documents are attached to this application. Request the required documents from the applicant before approving.')
+      }
+      const pending = docsNow.filter((d) => ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED'].includes(d.status))
+      if (pending.length > 0) {
+        throw new ApiError(400, 'DOCS_PENDING', `${pending.length} document(s) have not completed verification (${pending.map((d) => d.refCode).join(', ')}). Review them in the Verification Center first — unfinished checks can never be marked approved.`)
+      }
+      const rejectedDocs = docsNow.filter((d) => d.status === 'REJECTED')
+      if (rejectedDocs.length > 0) {
+        throw new ApiError(400, 'DOCS_REJECTED', `Rejected documents must be replaced before approval: ${rejectedDocs.map((d) => d.refCode).join(', ')}.`)
+      }
+      const verified = docsNow.filter((d) => d.status === 'VERIFIED')
+      if (verified.length === 0) {
+        throw new ApiError(400, 'NOT_VERIFIED', 'At least one document must be VERIFIED before this application can be approved.')
+      }
+
       // ── SELLER (individual KYC): grant the verified-seller role — no org ──
       if (app.type === 'SELLER') {
         const dbUser = await db.user.findUnique({ where: { id: app.userId } })
