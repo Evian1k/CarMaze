@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: {
-    default: "CARMAZE — Find. Connect. Drive.",
+    default: "CARMAZE: Find. Connect. Drive.",
     template: "%s | CARMAZE",
   },
   description:
@@ -28,17 +28,17 @@ export const metadata: Metadata = {
   ],
   applicationName: "CARMAZE",
   openGraph: {
-    title: "CARMAZE — Find. Connect. Drive.",
+    title: "CARMAZE: Find. Connect. Drive.",
     description:
       "Buy, sell, customise and care for vehicles on Kenya's connected automotive ecosystem.",
     siteName: "CARMAZE",
     type: "website",
     locale: "en_KE",
-    images: [{ url: "/brand/carmaze-og.png", width: 1200, height: 630, alt: "CARMAZE — Find. Connect. Drive." }],
+    images: [{ url: "/brand/carmaze-og.png", width: 1200, height: 630, alt: "CARMAZE: Find. Connect. Drive." }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "CARMAZE — Find. Connect. Drive.",
+    title: "CARMAZE: Find. Connect. Drive.",
     description:
       "Buy, sell, customise and care for vehicles on Kenya's connected automotive ecosystem.",
     images: ["/brand/carmaze-og.png"],

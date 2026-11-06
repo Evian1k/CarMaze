@@ -1,6 +1,6 @@
 'use client'
 
-/* Promotions panel — shared by the DealerOS billing tab and the GarageOS
+/* Promotions panel: shared by the DealerOS billing tab and the GarageOS
  * profile/billing area. Lists the caller's org campaigns with real recorded
  * activity, lets OWNER/MANAGER buy a promotion for a PUBLISHED listing and pay
  * via the same M-Pesa STK push flow as subscriptions (POST /api/billing/
@@ -122,7 +122,7 @@ function usePublishedVehicles() {
 
   useEffect(() => {
     let cancelled = false
-    // Same feed the seller dashboard uses (own + org listings, any status) —
+    // Same feed the seller dashboard uses (own + org listings, any status):
     // filtered to PUBLISHED here because only published listings can be promoted.
     apiGet<{ vehicles: VehicleRow[] }>('/api/vehicles?mine=1')
       .then((d) => { if (!cancelled) setCompleted({ data: d.vehicles.filter((v) => v.status === 'PUBLISHED'), error: null }) })
@@ -169,7 +169,7 @@ export function PromotionsSection() {
         'POST',
         { vehicleId, packageCode }
       )
-      toast.success(`Promotion ${res.campaign.refCode} created — an invoice was issued and is awaiting payment.`)
+      toast.success(`Promotion ${res.campaign.refCode} created: an invoice was issued and is awaiting payment.`)
       promos.reload()
       setVehicleId('')
       setPackageCode('')
@@ -201,7 +201,7 @@ export function PromotionsSection() {
     setPayError(null)
     try {
       const res = await apiSend<{ message?: string }>('/api/billing/mpesa/stkpush', 'POST', { invoiceId: payTarget.invoiceId, phone: cleaned })
-      toast.success(res.message ?? `STK push sent to ${cleaned} — enter your M-Pesa PIN to complete payment for ${payTarget.invoiceRef}.`)
+      toast.success(res.message ?? `STK push sent to ${cleaned}: enter your M-Pesa PIN to complete payment for ${payTarget.invoiceRef}.`)
       setPayTarget(null)
       setPhone('')
       promos.reload()
@@ -219,7 +219,7 @@ export function PromotionsSection() {
     setCancelBusy(true)
     try {
       await apiSend<{ cancelledInvoice: string | null }>(`/api/campaigns/${cancelTarget.id}/cancel`, 'POST')
-      toast.success(`Promotion ${cancelTarget.refCode} cancelled — its unpaid invoice was cancelled too.`)
+      toast.success(`Promotion ${cancelTarget.refCode} cancelled: its unpaid invoice was cancelled too.`)
       setCancelTarget(null)
       promos.reload()
     } catch (e) {
@@ -272,7 +272,7 @@ export function PromotionsSection() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base"><Megaphone className="h-4 w-4 text-primary" /> Buy a promotion</CardTitle>
-                <CardDescription>Pick one of your published listings and a package — an invoice is issued and payment is requested via M-Pesa. The promotion starts the moment payment is confirmed.</CardDescription>
+                <CardDescription>Pick one of your published listings and a package; an invoice is issued and payment is requested via M-Pesa. The promotion starts the moment payment is confirmed.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {vehiclesLoading ? (
@@ -282,13 +282,13 @@ export function PromotionsSection() {
                     <CircleAlert className="h-4 w-4" />
                     <AlertDescription>
                       You have no published listings to promote. Promotions boost vehicle listings, so a listing must be reviewed and published
-                      first — submit one from the Sell flow or your inventory, then come back.
+                      first: submit one from the Sell flow or your inventory, then come back.
                     </AlertDescription>
                   </Alert>
                 ) : packages.length === 0 ? (
                   <Alert>
                     <CircleAlert className="h-4 w-4" />
-                    <AlertDescription>No promotion packages are being offered right now — please check back soon.</AlertDescription>
+                    <AlertDescription>No promotion packages are being offered right now; please check back soon.</AlertDescription>
                   </Alert>
                 ) : (
                   <>
@@ -301,7 +301,7 @@ export function PromotionsSection() {
                         <SelectContent>
                           {published.map((v) => (
                             <SelectItem key={v.id} value={v.id}>
-                              {v.make} {v.model} {v.year} — {v.refCode}
+                              {v.make} {v.model} {v.year}: {v.refCode}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -356,14 +356,14 @@ export function PromotionsSection() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Your promotions</CardTitle>
                 <CardDescription>
-                  Impressions and clicks are recorded activity on CARMAZE — impressions count featured/homepage appearances, clicks count
+                  Impressions and clicks are recorded activity on CARMAZE; impressions count featured/homepage appearances, clicks count
                   detail-page views of the promoted listing. Nothing else is estimated.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {campaigns.length === 0 ? (
                   <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                    No promotions yet — buy one above to put a listing in the spotlight.
+                    No promotions yet: buy one above to put a listing in the spotlight.
                   </p>
                 ) : (
                   <ul className="max-h-96 space-y-3 overflow-y-auto pr-1 scrollbar-thin">
@@ -398,7 +398,7 @@ export function PromotionsSection() {
                             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/60 px-3 py-2">
                               <div className="min-w-0 text-xs">
                                 <p className="font-semibold text-foreground">{money(c.invoice.amountMinor, c.invoice.currency)} due · invoice <span className="font-mono">{c.invoice.refCode}</span></p>
-                                <p className="text-muted-foreground">Due {dateLabel(c.invoice.dueDate)} — pay via M-Pesa to activate the promotion.</p>
+                                <p className="text-muted-foreground">Due {dateLabel(c.invoice.dueDate)}: pay via M-Pesa to activate the promotion.</p>
                               </div>
                               <div className="flex shrink-0 gap-2">
                                 <Button
@@ -413,7 +413,7 @@ export function PromotionsSection() {
                                       invoiceRef: c.invoice.refCode,
                                       amountMinor: c.invoice.amountMinor,
                                       currency: c.invoice.currency,
-                                      description: `Promotion ${c.refCode} — ${c.vehicle.title}`,
+                                      description: `Promotion ${c.refCode}: ${c.vehicle.title}`,
                                     })
                                   }}
                                 >
@@ -428,7 +428,7 @@ export function PromotionsSection() {
 
                           {pending && !c.invoice && (
                             <p className="mt-2 text-xs text-muted-foreground">
-                              This promotion has no linked invoice — cancel it and purchase again.
+                              This promotion has no linked invoice: cancel it and purchase again.
                             </p>
                           )}
                         </li>
@@ -442,13 +442,13 @@ export function PromotionsSection() {
         </div>
       )}
 
-      {/* M-Pesa STK push dialog — same flow as the billing tab's invoice payment */}
+      {/* M-Pesa STK push dialog: same flow as the billing tab's invoice payment */}
       <Dialog open={Boolean(payTarget)} onOpenChange={(o) => { if (!o) setPayTarget(null) }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Pay {payTarget ? money(payTarget.amountMinor, payTarget.currency) : ''} via M-Pesa</DialogTitle>
             <DialogDescription>
-              {payTarget ? `${payTarget.description} — invoice ${payTarget.invoiceRef}.` : ''} An STK push will be sent to your phone.
+              {payTarget ? `${payTarget.description}: invoice ${payTarget.invoiceRef}.` : ''} An STK push will be sent to your phone.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
@@ -479,7 +479,7 @@ export function PromotionsSection() {
             <AlertDialogTitle>Cancel promotion {cancelTarget?.refCode}?</AlertDialogTitle>
             <AlertDialogDescription>
               {cancelTarget
-                ? `The unpaid promotion for ${cancelTarget.vehicle.title} will be cancelled and its pending invoice voided. This cannot be undone — you can purchase the promotion again later.`
+                ? `The unpaid promotion for ${cancelTarget.vehicle.title} will be cancelled and its pending invoice voided. This cannot be undone: you can purchase the promotion again later.`
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>

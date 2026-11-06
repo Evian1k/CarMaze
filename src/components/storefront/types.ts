@@ -1,4 +1,4 @@
-// CARMAZE — shared storefront types (public business pages).
+// CARMAZE: shared storefront types (public business pages).
 // Mirrors the GET /api/orgs/<orgId>/storefront contract exactly.
 
 import type { VehicleCardData } from '@/components/marketplace/vehicle-card'

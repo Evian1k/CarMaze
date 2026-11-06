@@ -96,7 +96,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         to: 'RESERVED',
         actorId: user.id,
         actorName: user.name,
-        note: `Reserved — offer from ${offer.org.name} accepted`,
+        note: `Reserved: offer from ${offer.org.name} accepted`,
       },
     }),
   ])

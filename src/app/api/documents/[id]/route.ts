@@ -22,7 +22,7 @@ type Ctx = { params: Promise<{ id: string }> }
  *   expire         VERIFIED  → EXPIRED     (reason REQUIRED)
  *
  * The owner can view their own document and its access history. The owner
- * cannot change review state — replacements go through POST /api/documents.
+ * cannot change review state: replacements go through POST /api/documents.
  */
 
 const DOC_LINKS: Record<string, string> = {
@@ -176,10 +176,10 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     const d = await loadDocument(id)
     const link = d.application ? DOC_LINKS[d.application.type] ?? '/account' : '/account'
     const titles: Record<string, string> = {
-      verify: `Document verified — ${d.refCode}`,
-      reject: `Document rejected — ${d.refCode}`,
-      request_info: `More information needed — ${d.refCode}`,
-      expire: `Document expired — ${d.refCode}`,
+      verify: `Document verified: ${d.refCode}`,
+      reject: `Document rejected: ${d.refCode}`,
+      request_info: `More information needed: ${d.refCode}`,
+      expire: `Document expired: ${d.refCode}`,
     }
     await notify({
       userId: d.ownerUserId,

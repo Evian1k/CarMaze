@@ -11,15 +11,15 @@ const bodySchema = z.object({
 })
 
 /**
- * POST /api/billing/invoices/[id]/mark-paid — FINANCE / ADMIN / FOUNDER only.
+ * POST /api/billing/invoices/[id]/mark-paid: FINANCE / ADMIN / FOUNDER only.
  *
  * PILOT OPS TOOL: marks a PENDING invoice as PAID after real money has been
  * received outside M-Pesa (bank transfer, cash, cheque…). The note is mandatory
- * and audit-logged with the acting staff member — full traceability.
+ * and audit-logged with the acting staff member; full traceability.
  *
  * When M-Pesa (Safaricom Daraja) credentials are configured, prefer the
  * automatic, tamper-proof callback verification at
- * POST /api/billing/mpesa/callback — manual marking bypasses provider
+ * POST /api/billing/mpesa/callback: manual marking bypasses provider
  * verification by design and is therefore restricted to senior roles.
  */
 export const POST = route(async (req: NextRequest, ctx: Ctx) => {
@@ -54,7 +54,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     activatedSubscription: result.activatedSubscription,
     activatedCampaign: result.activatedCampaign,
     warning:
-      'Manual reconciliation recorded. Prefer automatic M-Pesa verification (Daraja callback) once configured — manual marking does not verify with the payment provider and relies on the audit trail.',
+      'Manual reconciliation recorded. Prefer automatic M-Pesa verification (Daraja callback) once configured: manual marking does not verify with the payment provider and relies on the audit trail.',
   })
 })
 

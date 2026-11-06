@@ -7,10 +7,10 @@ import { jsonParse } from '@/lib/supply'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/supply/catalogue — public product catalogue search for the
+ * GET /api/supply/catalogue: public product catalogue search for the
  * Automotive Supply Network. Filters: q, category, brand, make, model, year,
  * condition, supplier, featured, inStock, sort, page. Compatibility filtering
- * uses real fitment records only — never invented.
+ * uses real fitment records only: never invented.
  */
 export const GET = route(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams

@@ -11,7 +11,7 @@ const MEDIA_DIR = path.join(process.cwd(), 'data', 'uploads', 'media')
 
 /**
  * Public media serving for files uploaded via POST /api/upload.
- * Filenames are `<uploaderUserId>.<16hexrandom>.<ext>` — the strict regex
+ * Filenames are `<uploaderUserId>.<16hexrandom>.<ext>`: the strict regex
  * below makes traversal impossible. There is NO ownership check: media is
  * shared (marketplace photos, storefront images, attachments inside
  * authorised conversations).
@@ -27,7 +27,7 @@ const MIME: Record<string, string> = {
 export async function GET(_req: NextRequest, ctx: Ctx): Promise<Response> {
   const { name } = await ctx.params
 
-  // strict filename validation — no traversal
+  // strict filename validation: no traversal
   if (!/^[A-Za-z0-9_-]+\.[a-f0-9]{16}\.(jpg|jpeg|png|webp|pdf)$/.test(name)) {
     return fail(400, 'INVALID_NAME', 'Invalid media reference.')
   }

@@ -11,7 +11,7 @@ import { jsonParse } from '@/lib/supply'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/org/transfers?orgId= — inter-branch vehicle transfers for a
+ * GET /api/org/transfers?orgId=: inter-branch vehicle transfers for a
  * multi-branch showroom/garage. Complete custody chain via events.
  */
 export const GET = route(async (req: NextRequest) => {
@@ -47,7 +47,7 @@ const createSchema = z.object({
   note: z.string().max(300).optional(),
 })
 
-/** POST — request a transfer of a vehicle to another branch of the SAME company. */
+/** POST: request a transfer of a vehicle to another branch of the SAME company. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const body = await parseBody(req, createSchema)

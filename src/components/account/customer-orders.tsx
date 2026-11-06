@@ -4,7 +4,7 @@
  * suppliers. Track the lifecycle, cancel while still awaiting acceptance,
  * confirm receipt after delivery, and pay the issued invoice via M-Pesa STK
  * push (the payment endpoint returns an honest 501 when M-Pesa is not
- * configured — that message is surfaced as-is, never simulated).
+ * configured: that message is surfaced as-is, never simulated).
  *
  * The dispatch collection code lives in the customer's notifications; only the
  * server-provided hint (last 4 digits) is shown here.
@@ -141,7 +141,7 @@ export function CustomerOrders() {
       done?.()
       load()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Action failed — please try again.')
+      toast.error(e instanceof Error ? e.message : 'Action failed: please try again.')
     } finally {
       setBusy(null)
     }
@@ -264,12 +264,12 @@ export function CustomerOrders() {
                   <p className="flex items-center gap-1.5 font-medium"><Bell className="h-3.5 w-3.5 text-primary" /> Collection code</p>
                   {o.otpHint ? (
                     <p className="mt-1 text-muted-foreground">
-                      The code ends <span className="font-mono font-semibold text-foreground">··{o.otpHint}</span> — the full 6-digit code was sent to your{' '}
+                      The code ends <span className="font-mono font-semibold text-foreground">··{o.otpHint}</span>: the full 6-digit code was sent to your{' '}
                       <button className="inline text-primary hover:underline" onClick={() => navigate('/account?tab=notifications')}>notifications</button>.
                       Share it with the courier at handover.
                     </p>
                   ) : (
-                    <p className="mt-1 text-muted-foreground">The full code was sent to your notifications — share it with the courier at handover.</p>
+                    <p className="mt-1 text-muted-foreground">The full code was sent to your notifications; share it with the courier at handover.</p>
                   )}
                 </div>
               )}
@@ -309,7 +309,7 @@ export function CustomerOrders() {
         )
       })}
 
-      {/* Dispute dialog — opens a real dispute reviewed by the platform team */}
+      {/* Dispute dialog: opens a real dispute reviewed by the platform team */}
       <Dialog open={disputeOrder !== null} onOpenChange={(open) => { if (!open) setDisputeOrder(null) }}>
         <DialogContent className="sm:max-w-md">
           {disputeOrder && (
@@ -317,7 +317,7 @@ export function CustomerOrders() {
               <DialogHeader>
                 <DialogTitle>Report a problem with {disputeOrder.refCode}</DialogTitle>
                 <DialogDescription>
-                  Your report goes to the supplier and the CARMAZE disputes team with the order record. Payments are never moved by this form — any refund is decided and processed by the disputes and finance teams.
+                  Your report goes to the supplier and the CARMAZE disputes team with the order record. Payments are never moved by this form; any refund is decided and processed by the disputes and finance teams.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3">
@@ -354,7 +354,7 @@ export function CustomerOrders() {
         </DialogContent>
       </Dialog>
 
-      {/* M-Pesa payment dialog — honest states only */}
+      {/* M-Pesa payment dialog: honest states only */}
       <Dialog open={payOrder !== null} onOpenChange={(open) => { if (!open) setPayOrder(null) }}>
         <DialogContent className="sm:max-w-md">
           {payOrder && (
@@ -362,7 +362,7 @@ export function CustomerOrders() {
               <DialogHeader>
                 <DialogTitle>Pay invoice {payOrder.invoice?.refCode}</DialogTitle>
                 <DialogDescription>
-                  {money(payOrder.totalMinor, payOrder.currency)} to {payOrder.supplier.name} for order {payOrder.refCode}. You&apos;ll receive an M-Pesa push on your phone — enter your PIN to approve it.
+                  {money(payOrder.totalMinor, payOrder.currency)} to {payOrder.supplier.name} for order {payOrder.refCode}. You&apos;ll receive an M-Pesa push on your phone; enter your PIN to approve it.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-1.5">

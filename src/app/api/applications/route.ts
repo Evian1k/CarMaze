@@ -57,7 +57,7 @@ export const GET = route(async (req: NextRequest) => {
     orderBy: { updatedAt: 'desc' },
     include: { events: { orderBy: { createdAt: 'asc' } } },
   })
-  // NOTE (agent 6-f repair): no `org` relation exists on Application — attach
+  // NOTE (agent 6-f repair): no `org` relation exists on Application: attach
   // the linked org (if any) with a plain lookup to keep the response shape.
   const orgIds = [...new Set(mine.map((a) => a.orgId).filter((v): v is string => Boolean(v)))]
   const orgs = orgIds.length ? await db.org.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true, type: true, status: true } }) : []
@@ -78,7 +78,7 @@ export const POST = route(async (req: NextRequest) => {
     return fail(400, 'CATEGORIES_REQUIRED', 'Select at least one service category.')
   }
   // SELLER (individual KYC) and LOGISTICS applications require identity
-  // documents before submission — uploads alone never constitute verification.
+  // documents before submission: uploads alone never constitute verification.
   if ((body.type === 'SELLER' || body.type === 'LOGISTICS') && body.status === 'SUBMITTED' && body.documents.length === 0) {
     return fail(400, 'DOCUMENTS_REQUIRED', 'Upload at least one identity or supporting document for review.')
   }
@@ -126,7 +126,7 @@ export const POST = route(async (req: NextRequest) => {
 
   if (body.status === 'SUBMITTED') {
     // Enter every submitted document into the Document Verification Engine as
-    // SUBMITTED. Uploading is never verification — these stay pending until a
+    // SUBMITTED. Uploading is never verification: these stay pending until a
     // staff reviewer acts in the Verification Center. Kinds are inferred from
     // position where the wizard does not collect them explicitly.
     const inferredKind: Record<string, (i: number) => string> = {
@@ -155,8 +155,8 @@ export const POST = route(async (req: NextRequest) => {
     await notify({
       userId: user.id,
       type: 'APPLICATION_RECEIVED',
-      title: `Application received — ${app.refCode}`,
-      body: `Thank you. Your ${typeLabel[body.type]} application is in the review queue. Initial review target: within ${app.reviewSlaHours} business hours. Verification is completed by our review team — uploading documents never self-verifies an account.`,
+      title: `Application received: ${app.refCode}`,
+      body: `Thank you. Your ${typeLabel[body.type]} application is in the review queue. Initial review target: within ${app.reviewSlaHours} business hours. Verification is completed by our review team; uploading documents never self-verifies an account.`,
       link: links[body.type] ?? '/account',
     })
     await notifyMany(await reviewerIds(), {

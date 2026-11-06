@@ -8,7 +8,7 @@ import { requireOrgMember } from '@/lib/supply'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/supply/inventory?orgId=&productId=&branchId= — stock levels for a
+ * GET /api/supply/inventory?orgId=&productId=&branchId=: stock levels for a
  * supplier's own warehouses (tenant isolated). Garages see only aggregated
  * availability through the catalogue/product detail endpoints.
  */
@@ -51,7 +51,7 @@ const adjustSchema = z.object({
 })
 
 /**
- * POST — restock/adjust inventory. Writes a StockMovement audit row for every
+ * POST: restock/adjust inventory. Writes a StockMovement audit row for every
  * change. Reservations are never touched here (they belong to live orders).
  */
 export const POST = route(async (req: NextRequest) => {

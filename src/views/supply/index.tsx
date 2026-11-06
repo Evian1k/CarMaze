@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — Automotive Supply Network (#/supply)
+/* CARMAZE: Automotive Supply Network (#/supply)
  * The public B2B marketplace view. Modes by hash query:
  *   #/supply                      → landing: hero, fitment finder, tabs
  *                                    (parts catalogue / verified suppliers)
@@ -107,7 +107,7 @@ function SupplyLanding({ routeTab }: { routeTab: string | null }) {
               Automotive Supply Network
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-white/85 sm:text-base">
-              Kenya&apos;s procurement marketplace for garages and fleets — verified parts suppliers, honest
+              Kenya&apos;s procurement marketplace for garages and fleets; verified parts suppliers, honest
               fitment records, wholesale pricing and warehouse-level availability.
             </p>
           </Reveal>
@@ -157,7 +157,7 @@ function SupplyLanding({ routeTab }: { routeTab: string | null }) {
       </section>
 
       <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6">
-        {/* Signature feature — always visible on the landing */}
+        {/* Signature feature: always visible on the landing */}
         <FitmentFinder />
 
         <Tabs defaultValue={routeTab === 'suppliers' ? 'suppliers' : 'catalogue'} id="catalogue-panel">
@@ -197,7 +197,7 @@ function SupplyLanding({ routeTab }: { routeTab: string | null }) {
 
         {/* Trust footer note */}
         <p className="pt-2 text-center text-xs text-muted-foreground">
-          Fitment verdicts reflect recorded data only — CARMAZE never invents compatibility. Authenticity
+          Fitment verdicts reflect recorded data only: CARMAZE never invents compatibility. Authenticity
           verification is reviewed independently by the platform, separate from supplier verification.
         </p>
       </div>

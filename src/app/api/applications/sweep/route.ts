@@ -9,7 +9,7 @@ import { audit } from '@/lib/audit'
  *
  * Runs idempotently (max one reminder set per application per 12h). Called
  * from the admin Control Center on load; in production this would also be a
- * scheduled job — documented limitation of this single-process deployment.
+ * scheduled job: documented limitation of this single-process deployment.
  *
  * Rules:
  *  - SUBMITTED / RESUBMITTED older than reviewSlaHours without an assigned
@@ -54,7 +54,7 @@ export const POST = route(async () => {
             events: {
               create: {
                 type: 'REMINDER',
-                note: `Automated follow-up: application age ${Math.round(ageH)}h exceeds the ${app.reviewSlaHours}h review target${ageH > app.reviewSlaHours * 2 ? ' — escalated' : ''}.`,
+                note: `Automated follow-up: application age ${Math.round(ageH)}h exceeds the ${app.reviewSlaHours}h review target${ageH > app.reviewSlaHours * 2 ? ' (escalated)' : ''}.`,
               },
             },
           },

@@ -1,7 +1,7 @@
 'use client'
 
 // Procurement cart for the Automotive Supply Network.
-// A cart may contain products from several suppliers — checkout creates one
+// A cart may contain products from several suppliers; checkout creates one
 // purchase order per supplier. Persisted to localStorage so garages can build
 // orders across sessions.
 

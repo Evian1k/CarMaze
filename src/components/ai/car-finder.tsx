@@ -47,7 +47,7 @@ export function AiCarFinder({ onResults }: Props) {
       if (vehicles.length > 0) {
         toast.success(`Found ${vehicles.length} matching ${vehicles.length === 1 ? 'listing' : 'listings'}`)
       } else {
-        toast.message('No exact matches yet — try widening the budget or body type.')
+        toast.message('No exact matches yet: try widening the budget or body type.')
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Something went wrong. Please try again.'
@@ -62,7 +62,7 @@ export function AiCarFinder({ onResults }: Props) {
     <AiPanel
       ariaLabel="AI car finder"
       title="Not sure what to search? Describe your perfect car"
-      subtitle="Tell us your budget, size and use case in plain words — we'll find real listings for you."
+      subtitle="Tell us your budget, size and use case in plain words; we'll find real listings for you."
     >
       <div className="flex flex-col gap-3">
         <Textarea
@@ -94,7 +94,7 @@ export function AiCarFinder({ onResults }: Props) {
             )}
           </Button>
           <AiDisclaimer>
-            Results come from live CARMAZE listings only — we never invent vehicles or prices.
+            Results come from live CARMAZE listings only; we never invent vehicles or prices.
           </AiDisclaimer>
         </div>
         {error && (

@@ -6,7 +6,7 @@ import { rateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
-const SYSTEM_PROMPT = `You are CARMAZE's listing assistant. Write an honest, attractive vehicle description (80-150 words) for a Kenyan marketplace listing using ONLY the supplied facts. Do NOT invent specifications, ownership history, accident history, service history or claims not present. Never mention equipment or features that were not listed (no air conditioning, power steering, windows, interior condition, tyres etc. unless supplied). Never make generic condition claims like "clean" or "well maintained" — stick to the facts. If information is missing, write 'Details on request'. Plain text, no headings, no emojis.`
+const SYSTEM_PROMPT = `You are CARMAZE's listing assistant. Write an honest, attractive vehicle description (80-150 words) for a Kenyan marketplace listing using ONLY the supplied facts. Do NOT invent specifications, ownership history, accident history, service history or claims not present. Never mention equipment or features that were not listed (no air conditioning, power steering, windows, interior condition, tyres etc. unless supplied). Never make generic condition claims like "clean" or "well maintained"; stick to the facts. If information is missing, write 'Details on request'. Plain text, no headings, no emojis.`
 
 const schema = z.object({
   facts: z.object({
@@ -31,7 +31,7 @@ export const POST = route(async (req: NextRequest) => {
 
   const { facts } = await parseBody(req, schema)
 
-  // Compact the seller's own facts into the prompt — the model sees nothing else.
+  // Compact the seller's own facts into the prompt; the model sees nothing else.
   const factLines: string[] = []
   if (facts.make) factLines.push(`Make: ${facts.make}`)
   if (facts.model) factLines.push(`Model: ${facts.model}`)

@@ -13,7 +13,7 @@ async function requireActivePartner(userId: string) {
   const partner = await db.logisticsPartner.findUnique({ where: { ownerUserId: userId } })
   if (!partner) throw new ApiError(403, 'NOT_A_PARTNER', 'Only approved delivery partners manage a fleet.')
   if (partner.status === 'SUSPENDED') {
-    throw new ApiError(403, 'PARTNER_SUSPENDED', 'Your partner account is suspended — fleet management is disabled. Contact CARMAZE support.')
+    throw new ApiError(403, 'PARTNER_SUSPENDED', 'Your partner account is suspended: fleet management is disabled. Contact CARMAZE support.')
   }
   if (partner.status !== 'APPROVED') {
     throw new ApiError(403, 'PARTNER_NOT_ACTIVE', 'Your partner account is not active yet.')
@@ -38,7 +38,7 @@ const patchSchema = z.object({
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
 })
 
-/** PATCH /api/logistics/fleet/[id] — update driver details and/or toggle
+/** PATCH /api/logistics/fleet/[id]: update driver details and/or toggle
  * ACTIVE ⇄ INACTIVE. Inactive drivers cannot be selected when accepting jobs. */
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()
@@ -75,7 +75,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   })
 })
 
-/** DELETE /api/logistics/fleet/[id] — remove a driver, but only when they are
+/** DELETE /api/logistics/fleet/[id]: remove a driver, but only when they are
  * not carrying any active deliveries (ASSIGNED / PICKED_UP / IN_TRANSIT). */
 export const DELETE = route(async (_req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()

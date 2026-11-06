@@ -1,6 +1,6 @@
 'use client'
 
-/* SupplierOS shared module — types, permission mirror, fetch hook and small
+/* SupplierOS shared module: types, permission mirror, fetch hook and small
  * UI atoms reused across every supplier tab. Server-side permissions live in
  * src/lib/supply.ts; this mirror only shapes the UI honestly (the API is the
  * single source of truth and re-checks every action). */
@@ -297,7 +297,7 @@ export type InvoiceItem = {
 
 // ───────────────────────────── Permission mirror (supplier side) ─────────────────────────────
 // Mirrors src/lib/supply.ts for honest UI gating. The API enforces the real
-// matrix on every request — disabling a button here is a courtesy, never the guard.
+// matrix on every request: disabling a button here is a courtesy, never the guard.
 
 export type SupplierAction = 'catalogue.write' | 'stock.write' | 'order.respond' | 'delivery.arrange' | 'dispute.open' | 'finance.read'
 
@@ -421,7 +421,7 @@ export const OPEN_ORDER_STATUSES = ['SUBMITTED', 'ACCEPTED', 'REVISED', 'CONFIRM
 
 export type FetchState<T> = { data: T | null; error: FetchError | null; loading: boolean; reload: () => void }
 
-/** GET hook — all state updates happen in async callbacks (lint-safe). */
+/** GET hook: all state updates happen in async callbacks (lint-safe). */
 export function useFetch<T>(url: string | null): FetchState<T> {
   const [completed, setCompleted] = useState<{ key: string; data: T | null; error: FetchError | null } | null>(null)
   const [tick, setTick] = useState(0)
@@ -585,7 +585,7 @@ export function VerifiedMark({ verified, label }: { verified: boolean | null | u
   }
   return (
     <Badge variant="secondary" className="border-transparent bg-muted text-muted-foreground">
-      {label ? `Not verified — ${label}` : 'Unverified garage'}
+      {label ? `Not verified: ${label}` : 'Unverified garage'}
     </Badge>
   )
 }

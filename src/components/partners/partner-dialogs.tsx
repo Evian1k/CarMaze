@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE Partner Network — shared dialogs.
+/* CARMAZE Partner Network: shared dialogs.
  * RequestServiceDialog: signed-in customers send a referral request to a
  *                       verified partner (POST /api/partners/[id]/request).
  * ApplyDialog:          public partner application form
@@ -118,7 +118,7 @@ function RequestServiceForm({
         <p className="mt-1 font-mono text-sm text-muted-foreground">{sentRef}</p>
         <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
           Your request was delivered to {partner.name}. They will contact you on the phone
-          number provided — quote ref <span className="font-mono">{sentRef}</span> when they call.
+          number provided: quote ref <span className="font-mono">{sentRef}</span> when they call.
         </p>
         <Button className="mt-4" onClick={onClose}>Done</Button>
       </div>
@@ -177,7 +177,7 @@ function RequestServiceForm({
         </div>
         <p className="text-xs text-muted-foreground">
           Your name and phone are shared with this partner so they can reach you. CARMAZE
-          brokers the introduction — service terms are agreed directly with the partner.
+          brokers the introduction: service terms are agreed directly with the partner.
         </p>
       </div>
       <DialogFooter>
@@ -267,7 +267,7 @@ function ApplyForm({ onApplied, onClose }: { onApplied: () => void; onClose: () 
         <p className="mt-1 font-mono text-sm text-muted-foreground">{result.refCode}</p>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">{result.message}</p>
         <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
-          Keep this reference — quote {result.refCode} if you contact our team about your application.
+          Keep this reference: quote {result.refCode} if you contact our team about your application.
         </p>
         <Button className="mt-4" onClick={onClose}>Done</Button>
       </div>
@@ -291,13 +291,13 @@ function ApplyForm({ onApplied, onClose }: { onApplied: () => void; onClose: () 
         <DialogTitle>Become a CARMAZE partner</DialogTitle>
         <DialogDescription>
           Inspection centres, insurers, finance providers, towing operators, parts suppliers
-          and transporters — tell us about your business and we will be in touch.
+          and transporters: tell us about your business and we will be in touch.
         </DialogDescription>
       </DialogHeader>
 
       <div className="rounded-lg border border-gold/50 bg-gold/10 p-3 text-xs leading-relaxed text-gold-ink">
         <ul className="list-inside list-disc space-y-1">
-          <li>Applications are reviewed by the CARMAZE team — we verify every business by hand.</li>
+          <li>Applications are reviewed by the CARMAZE team; we verify every business by hand.</li>
           <li>A listing appears in the public directory only after business verification is complete.</li>
           <li>No payment is charged for applying.</li>
         </ul>

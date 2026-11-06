@@ -30,7 +30,7 @@ export const GET = route(async (req: NextRequest) => {
   const params = new URL(req.url).searchParams
 
   if (params.get('vehicleId')) {
-    // Offers on one vehicle — visible to the vehicle owner, its dealer org, or staff.
+    // Offers on one vehicle: visible to the vehicle owner, its dealer org, or staff.
     const vehicleId = params.get('vehicleId') as string
     const vehicle = await db.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true, ownerId: true, orgId: true } })
     if (!vehicle) throw new ApiError(404, 'NOT_FOUND', 'Vehicle not found.')

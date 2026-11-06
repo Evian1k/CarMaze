@@ -1,6 +1,6 @@
 'use client'
 
-/* ⌘K command palette — quick navigation + vehicle search in one place.
+/* ⌘K command palette: quick navigation + vehicle search in one place.
  * Opens with Cmd/Ctrl+K, the header search button, or "/" shortcut. */
 
 import { useEffect, useState } from 'react'
@@ -55,7 +55,7 @@ export function CommandPalette() {
     { icon: KeyRound, label: 'Sell a car', href: '/sell' },
     { icon: Store, label: 'Showrooms', href: '/showrooms' },
     { icon: Package, label: 'Supply Network', href: '/supply' },
-    { icon: Truck, label: 'Logistics Network — delivery partners & delivery requests', href: '/logistics' },
+    { icon: Truck, label: 'Logistics Network: delivery partners & delivery requests', href: '/logistics' },
     { icon: Users, label: 'Business Memberships', href: '/memberships' },
     { icon: Sparkles, label: '3D customizer', href: '/customizer' },
     { icon: Wrench, label: 'Find a garage', href: '/garages' },
@@ -118,7 +118,7 @@ export function CommandPalette() {
               )}
               {hasAnyRole(user ?? null, 'LOGISTICS_OWNER') && (
                 <CommandItem value="LogisticsOS delivery operations" onSelect={() => go('/logistics')}>
-                  <Truck className="mr-2 h-4 w-4 text-muted-foreground" /> LogisticsOS — delivery operations
+                  <Truck className="mr-2 h-4 w-4 text-muted-foreground" /> LogisticsOS; delivery operations
                 </CommandItem>
               )}
               {isStaffUser(user ?? null) && (

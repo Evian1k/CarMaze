@@ -1,10 +1,10 @@
 'use client'
 
-/* CARMAZE Partner Network (#/partners) — public directory of verified
+/* CARMAZE Partner Network (#/partners): public directory of verified
  * inspection, insurance, finance, towing, parts and transport partners.
  * Only businesses that completed CARMAZE human verification appear here.
  * Data: /api/partners (public), /api/partners/requests/mine (signed in).
- * Applications: /api/partners/apply — reviewed by hand, no fee to apply. */
+ * Applications: /api/partners/apply: reviewed by hand, no fee to apply. */
 
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -47,7 +47,7 @@ const REQUEST_STATUS: Record<string, { label: string; variant: 'secondary' | 'de
 
 const TRUST_POINTS = [
   { icon: ShieldCheck, title: 'Human verification', body: 'Every listing is checked by the CARMAZE team before it appears.' },
-  { icon: Handshake, title: 'Direct introductions', body: 'We route your request to the partner — you agree terms directly.' },
+  { icon: Handshake, title: 'Direct introductions', body: 'We route your request to the partner; you agree terms directly.' },
   { icon: ClipboardList, title: 'Tracked referrals', body: 'Each request gets a reference code you can quote any time.' },
 ]
 
@@ -100,7 +100,7 @@ export default function PartnersView() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* ── Hero — deep brand green stays dark in both themes (bg-primary
+      {/* ── Hero: deep brand green stays dark in both themes (bg-primary
           would flip to light sage in dark mode) ── */}
       <section className="bg-brand-deep text-brand-deep-foreground">
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
@@ -202,8 +202,8 @@ export default function PartnersView() {
               </h2>
               <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
                 {q || county !== 'ALL' || category !== 'ALL'
-                  ? 'Try a different category, county or search term — new partners are added as verification completes.'
-                  : 'The Partner Network is new and businesses are going through verification right now. Check back soon — or apply if you run one.'}
+                  ? 'Try a different category, county or search term: new partners are added as verification completes.'
+                  : 'The Partner Network is new and businesses are going through verification right now. Check back soon: or apply if you run one.'}
               </p>
               {(q || county !== 'ALL' || category !== 'ALL') && (
                 <Button
@@ -255,7 +255,7 @@ export default function PartnersView() {
                 <h2 className="mt-3 text-xl font-bold sm:text-2xl">Grow with the CARMAZE Partner Network</h2>
                 <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
                   Reach customers at the moment they need your service. Requests arrive with a
-                  reference code, so every referral is traceable — and your listing only goes live
+                  reference code, so every referral is traceable: and your listing only goes live
                   after our team verifies your business.
                 </p>
                 <ul className="mt-4 space-y-2.5">
@@ -275,12 +275,12 @@ export default function PartnersView() {
               <div className="bg-brand-deep p-6 text-brand-deep-foreground lg:col-span-2 lg:p-8">
                 <h3 className="text-lg font-semibold">How it works</h3>
                 <ol className="mt-4 space-y-3 text-sm text-brand-deep-foreground/85">
-                  <li className="flex gap-2.5"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-gold-foreground">1</span> Apply with your business details — it takes two minutes.</li>
+                  <li className="flex gap-2.5"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-gold-foreground">1</span> Apply with your business details; it takes two minutes.</li>
                   <li className="flex gap-2.5"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-gold-foreground">2</span> The CARMAZE team reviews and verifies your business by hand.</li>
                   <li className="flex gap-2.5"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-gold-foreground">3</span> Your verified listing goes live and requests start arriving.</li>
                 </ol>
                 <Button onClick={() => setApplyOpen(true)} className="mt-6 w-full bg-gold text-gold-foreground hover:bg-gold/90">
-                  Apply now — it&apos;s free
+                  Apply now: it&apos;s free
                 </Button>
                 <p className="mt-3 text-center text-xs text-brand-deep-foreground/60">
                   Review is manual; listing follows verification.

@@ -50,7 +50,7 @@
 
 :root {
   --radius: 0.625rem;
-  /* CARMAZE light palette — warm off-white, charcoal, deep green, champagne gold */
+  /* CARMAZE light palette: warm off-white, charcoal, deep green, champagne gold */
   --background: #f7f7f5;
   --foreground: #202421;
   --card: #ffffff;
@@ -71,9 +71,9 @@
   --ring: #315e4b;
   --gold: #d9b878;
   --gold-foreground: #202421;
-  /* Dark-gold ink for text sitting on gold tints — flips lighter in dark mode */
+  /* Dark-gold ink for text sitting on gold tints; flips lighter in dark mode */
   --gold-ink: #8a6d1f;
-  /* Deep brand-green surface for large hero bands — stays dark in BOTH modes
+  /* Deep brand-green surface for large hero bands; stays dark in BOTH modes
    * (unlike --primary, which lightens in dark mode for buttons/accents) */
   --brand-deep: #315e4b;
   --brand-deep-foreground: #f7f7f5;
@@ -160,7 +160,7 @@
   background: rgba(110, 110, 103, 0.55);
 }
 
-/* Dark-mode scrollbar track/thumb — lighter ink so it stays visible */
+/* Dark-mode scrollbar track/thumb: lighter ink so it stays visible */
 .dark .scrollbar-thin {
   scrollbar-color: rgba(160, 160, 153, 0.45) transparent;
 }
@@ -312,7 +312,7 @@
   background-size: 200% 100%;
   animation: cmz-shimmer 1.6s linear infinite;
 }
-/* Softer highlight sweep in dark mode — a 40% white glare would look wrong */
+/* Softer highlight sweep in dark mode; a 40% white glare would look wrong */
 .dark .cmz-shimmer {
   background: linear-gradient(
     100deg,

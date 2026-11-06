@@ -29,7 +29,7 @@ function pollTotals(options: PollOption[] | null, userId?: string | null): PollV
   }))
 }
 
-// GET /api/community/posts/[id] — public single post with comments + poll state.
+// GET /api/community/posts/[id]: public single post with comments + poll state.
 export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const session = await getSessionUser()

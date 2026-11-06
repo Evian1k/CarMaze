@@ -5,7 +5,7 @@ import { shareId } from '@/lib/ids'
 
 // ───────────────────── CARMAZE Loyalty & Referrals ─────────────────────
 // One transparent, read-only summary of the signed-in customer's points.
-// Points are earned only through real, verifiable activity — they are never
+// Points are earned only through real, verifiable activity: they are never
 // purchasable and have no cash value. The rules below are the single source
 // of truth shared with the UI (no hidden multipliers, no invented rewards).
 
@@ -32,7 +32,7 @@ const RULES = [
 
 const FINE_PRINT = 'Points have no cash value. Points cannot be bought. CARMAZE may adjust rules with notice.'
 
-/** Lazily create the caller's referral code — an 8-char code from the same
+/** Lazily create the caller's referral code; an 8-char code from the same
  * unambiguous alphabet as other CARMAZE share IDs, retried on the (astronomically
  * unlikely) unique-collision. Returns the user row with a code guaranteed present. */
 async function ensureReferralCode(userId: string) {
@@ -43,7 +43,7 @@ async function ensureReferralCode(userId: string) {
   if (existing?.referralCode) return existing.referralCode
 
   for (let attempt = 0; attempt < 5; attempt++) {
-    const code = shareId(8) // e.g. "K7QW3M9X" — A–Z minus I/O + 2–9
+    const code = shareId(8) // e.g. "K7QW3M9X": A–Z minus I/O + 2–9
     try {
       const updated = await db.user.update({
         where: { id: userId },
@@ -52,7 +52,7 @@ async function ensureReferralCode(userId: string) {
       })
       return updated.referralCode as string
     } catch {
-      // Unique violation (P2002) — collided with an existing code; retry.
+      // Unique violation (P2002): collided with an existing code; retry.
     }
   }
   // Practically unreachable; surface as an error rather than inventing a code.

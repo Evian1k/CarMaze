@@ -5,7 +5,7 @@ import { audit } from '@/lib/audit'
 import { contextSessionUser } from '@/lib/request-context'
 
 /**
- * POST /api/security/access-denied — record repeated frontend route-probe
+ * POST /api/security/access-denied: record repeated frontend route-probe
  * attempts in the audit trail. Best-effort and rate-limited; the real security
  * boundary remains the per-endpoint backend authorisation checks.
  */

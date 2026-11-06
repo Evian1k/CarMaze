@@ -19,7 +19,7 @@ export const GET = route(async (req: NextRequest) => {
   // ── Garage view: bookings for my org(s), with customer contact ──
   if (url.searchParams.get('org') === '1') {
     const user = await requireUser()
-    // Authorisation requires BOTH the platform role AND an org membership —
+    // Authorisation requires BOTH the platform role AND an org membership:
     // revoking either immediately removes access.
     if (!hasRole(user, 'GARAGE_OWNER', 'GARAGE_STAFF')) {
       throw new ApiError(403, 'ROLE_REQUIRED', 'Garage access has not been granted to this account.')
@@ -71,7 +71,7 @@ export const GET = route(async (req: NextRequest) => {
   return fail(400, 'VALIDATION_ERROR', 'Specify ?org=1 or ?mine=1.')
 })
 
-// ─────────────────────────── PATCH — state machine ───────────────────────────
+// ─────────────────────────── PATCH: state machine ───────────────────────────
 
 const patchSchema = z.object({
   action: z.enum(['schedule', 'start', 'complete', 'cancel']),
@@ -129,7 +129,7 @@ export const PATCH = route(async (req: NextRequest) => {
       await notify({
         userId: booking.request.customerId,
         type: 'BOOKING_SCHEDULED',
-        title: `Booking scheduled — ${booking.request.refCode}`,
+        title: `Booking scheduled: ${booking.request.refCode}`,
         body: `${booking.org.name} scheduled your service for ${when.toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })}.`,
         link: '/account?tab=requests',
       })
@@ -150,7 +150,7 @@ export const PATCH = route(async (req: NextRequest) => {
       await notify({
         userId: booking.request.customerId,
         type: 'BOOKING_STARTED',
-        title: `Work started — ${booking.request.refCode}`,
+        title: `Work started: ${booking.request.refCode}`,
         body: `${booking.org.name} started work on your vehicle.`,
         link: '/account?tab=requests',
       })
@@ -171,7 +171,7 @@ export const PATCH = route(async (req: NextRequest) => {
       await notify({
         userId: booking.request.customerId,
         type: 'BOOKING_COMPLETED',
-        title: `Service completed — ${booking.request.refCode}`,
+        title: `Service completed: ${booking.request.refCode}`,
         body: `${booking.org.name} marked your service as completed. How did it go? Leave a review.`,
         link: '/garages',
       })
@@ -190,7 +190,7 @@ export const PATCH = route(async (req: NextRequest) => {
               reason: 'SERVICE_COMPLETED',
               refType: 'BOOKING',
               refId: booking.id,
-              note: `Service completed — ${booking.org.name}`,
+              note: `Service completed: ${booking.org.name}`,
             },
           })
         }
@@ -214,7 +214,7 @@ export const PATCH = route(async (req: NextRequest) => {
       const members = await db.orgMember.findMany({ where: { orgId: booking.orgId }, select: { userId: true } })
       await notifyMany(members.map((m) => m.userId), {
         type: 'BOOKING_CANCELLED',
-        title: `Booking cancelled — ${booking.request.refCode}`,
+        title: `Booking cancelled: ${booking.request.refCode}`,
         body: `${isCustomer ? 'The customer' : 'The garage'} cancelled this booking${body.notes ? `: ${body.notes}` : '.'}`,
         link: '/garage-dashboard?tab=bookings',
       })
@@ -222,7 +222,7 @@ export const PATCH = route(async (req: NextRequest) => {
         await notify({
           userId: booking.request.customerId,
           type: 'BOOKING_CANCELLED',
-          title: `Booking cancelled — ${booking.request.refCode}`,
+          title: `Booking cancelled: ${booking.request.refCode}`,
           body: `${booking.org.name} cancelled your booking${body.notes ? `: ${body.notes}` : '.'}`,
           link: '/account?tab=requests',
         })

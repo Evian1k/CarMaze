@@ -80,7 +80,7 @@ export function CustomerTestDrives() {
     setBusy(true)
     try {
       await apiSend(`/api/test-drives/${cancelling.id}`, 'PATCH', { action: 'cancel' })
-      toast.success('Test drive cancelled — the dealership has been notified.')
+      toast.success('Test drive cancelled: the dealership has been notified.')
       setCancelling(null)
       reload()
     } catch (e) {
@@ -113,7 +113,7 @@ export function CustomerTestDrives() {
           </span>
           <h3 className="mt-4 text-base font-semibold">No test drives booked</h3>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            Find a car you love and request a drive from its listing page — the dealership confirms and tracks
+            Find a car you love and request a drive from its listing page; the dealership confirms and tracks
             everything here.
           </p>
           <Button className="mt-5 min-h-11" variant="outline" onClick={() => navigate('cars')}>Browse cars</Button>

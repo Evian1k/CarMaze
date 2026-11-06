@@ -1,13 +1,13 @@
 'use client'
 
-/* CARMAZE — Seller verification panel
+/* CARMAZE: Seller verification panel
  * Individual seller identity verification (type SELLER applications).
  * One component, four states:
- *   VERIFIED        — role SELLER_VERIFIED granted: green confirmation card.
- *   IN PROGRESS     — application SUBMITTED / UNDER_REVIEW / RESUBMITTED.
- *   ACTION REQUIRED — MORE_INFO_REQUIRED: reviewer request + resubmission form.
- *   NOT STARTED     — apply form (also used for REJECTED after the decision note).
- * Verification is always a manual document review — every state says so.
+ *   VERIFIED       : role SELLER_VERIFIED granted: green confirmation card.
+ *   IN PROGRESS    : application SUBMITTED / UNDER_REVIEW / RESUBMITTED.
+ *   ACTION REQUIRED: MORE_INFO_REQUIRED: reviewer request + resubmission form.
+ *   NOT STARTED    : apply form (also used for REJECTED after the decision note).
+ * Verification is always a manual document review; every state says so.
  * Lives on #/sell; #/my-listings reuses useSellerApplication for its banners.
  */
 
@@ -50,7 +50,7 @@ export type SellerApplication = {
   town: string | null
   phone: string
   representative: string
-  /** Stored as encoded JSON — use parseSellerDocs. */
+  /** Stored as encoded JSON: use parseSellerDocs. */
   documents: string | null
   notes: string | null
   decisionNote: string | null
@@ -145,7 +145,7 @@ export function useSellerApplication(enabled: boolean) {
     setTick((t) => t + 1)
   }, [enabled])
 
-  // Derived reset for the disabled state — no synchronous setState inside effects.
+  // Derived reset for the disabled state; no synchronous setState inside effects.
   return { app: enabled ? app : null, loading: enabled && loading, error: enabled ? error : null, reload }
 }
 
@@ -171,7 +171,7 @@ function ApplicationHeader({ app }: { app: SellerApplication }) {
   )
 }
 
-/** Compact event timeline — events arrive oldest first, so newest renders last. */
+/** Compact event timeline: events arrive oldest first, so newest renders last. */
 function EventTimeline({ events }: { events: SellerApplicationEvent[] }) {
   if (events.length === 0) return null
   return (
@@ -205,7 +205,7 @@ function EventTimeline({ events }: { events: SellerApplicationEvent[] }) {
   )
 }
 
-/** Document uploader — same pattern as the dealer application wizard. */
+/** Document uploader: same pattern as the dealer application wizard. */
 function DocUploader({ docs, onAdd, onRemove, uploading, idPrefix, title, hint }: {
   docs: SellerAppDoc[]
   onAdd: (files: FileList | null) => void
@@ -254,7 +254,7 @@ function DocUploader({ docs, onAdd, onRemove, uploading, idPrefix, title, hint }
         </ul>
       )}
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <ShieldCheck className="h-3.5 w-3.5" /> Documents are private — only CARMAZE reviewers can view them.
+        <ShieldCheck className="h-3.5 w-3.5" /> Documents are private: only CARMAZE reviewers can view them.
       </p>
     </div>
   )
@@ -275,11 +275,11 @@ async function uploadDocs(files: FileList | null, current: number, onDoc: (d: Se
     }
     toast.success('Document uploaded')
   } catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Upload failed — please try again.')
+    toast.error(e instanceof Error ? e.message : 'Upload failed: please try again.')
   }
 }
 
-// ───────────────────────────── State A — Verified ─────────────────────────────
+// ───────────────────────────── State A: Verified ─────────────────────────────
 
 function VerifiedCard() {
   return (
@@ -299,7 +299,7 @@ function VerifiedCard() {
             Your identity and authority-to-sell documents have been reviewed and approved by the CARMAZE verification team.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Verification shows on your listings — buyers see the trust marker next to your name.
+            Verification shows on your listings: buyers see the trust marker next to your name.
           </p>
         </div>
       </CardContent>
@@ -307,7 +307,7 @@ function VerifiedCard() {
   )
 }
 
-// ───────────────────────────── State B — In review ─────────────────────────────
+// ───────────────────────────── State B: In review ─────────────────────────────
 
 function InProgress({ app }: { app: SellerApplication }) {
   const docs = parseSellerDocs(app.documents)
@@ -320,7 +320,7 @@ function InProgress({ app }: { app: SellerApplication }) {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Review is taking longer than our target</AlertTitle>
           <AlertDescription>
-            Your application has been escalated to senior staff — no action is needed from you. We are sorry for the wait.
+            Your application has been escalated to senior staff; no action is needed from you. We are sorry for the wait.
           </AlertDescription>
         </Alert>
       )}
@@ -330,7 +330,7 @@ function InProgress({ app }: { app: SellerApplication }) {
       <div className="space-y-1">
         <p className="text-sm leading-relaxed text-muted-foreground">
           Our review team checks identity and ownership documents manually. Uploading documents never
-          self-verifies an account — you&apos;ll get a notification the moment a decision is made.
+          self-verifies an account: you&apos;ll get a notification the moment a decision is made.
         </p>
         <p className="text-xs text-muted-foreground">
           {docs.length} document{docs.length === 1 ? '' : 's'} on file for this application.
@@ -340,7 +340,7 @@ function InProgress({ app }: { app: SellerApplication }) {
   )
 }
 
-// ───────────────────────────── State C — Action required ─────────────────────────────
+// ───────────────────────────── State C: Action required ─────────────────────────────
 
 function ActionRequired({ app, onDone }: { app: SellerApplication; onDone: () => void }) {
   const infoEvent = [...app.events].reverse().find((e) => e.type === 'INFO_REQUESTED')
@@ -370,7 +370,7 @@ function ActionRequired({ app, onDone }: { app: SellerApplication; onDone: () =>
         documents: docs.length > 0 ? docs : undefined,
         notes: notes.trim() || undefined,
       })
-      toast.success('Information resubmitted — the review team has been notified.')
+      toast.success('Information resubmitted: the review team has been notified.')
       onDone()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Could not resubmit.'
@@ -385,7 +385,7 @@ function ActionRequired({ app, onDone }: { app: SellerApplication; onDone: () =>
     <div className="space-y-5">
       <ApplicationHeader app={app} />
 
-      {/* The reviewer's request — prominent */}
+      {/* The reviewer's request: prominent */}
       <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
         <div className="min-w-0 text-sm">
@@ -408,7 +408,7 @@ function ActionRequired({ app, onDone }: { app: SellerApplication; onDone: () =>
         title="Attach the requested documents"
         hint={
           onFile.length > 0
-            ? `${onFile.length} document${onFile.length === 1 ? ' is' : 's are'} already on file — new uploads replace them, so attach everything the reviewer needs.`
+            ? `${onFile.length} document${onFile.length === 1 ? ' is' : 's are'} already on file: new uploads replace them, so attach everything the reviewer needs.`
             : 'Attach exactly what the reviewer asked for.'
         }
       />
@@ -442,7 +442,7 @@ function ActionRequired({ app, onDone }: { app: SellerApplication; onDone: () =>
   )
 }
 
-// ───────────────────── State D — Not started / rejected ─────────────────────
+// ───────────────────── State D: Not started / rejected ─────────────────────
 
 function NotStarted({ user, previousApp, onDone }: {
   user: CurrentUser
@@ -481,7 +481,7 @@ function NotStarted({ user, previousApp, onDone }: {
     if (form.phone.trim().length < 9) { toast.error('Enter a valid phone number.'); return }
     if (form.representative.trim().length < 2) { toast.error('Enter the authorised representative name.'); return }
     if (docs.length === 0) {
-      toast.error('Attach at least one document — your government ID and a logbook/ownership document or authority-to-sell letter.')
+      toast.error('Attach at least one document: your government ID and a logbook/ownership document or authority-to-sell letter.')
       return
     }
     if (!consent) { toast.error('Please confirm your information is true and accept the verification terms and privacy notice.'); return }
@@ -502,7 +502,7 @@ function NotStarted({ user, previousApp, onDone }: {
         consent: true,
         notes: form.notes.trim() || undefined,
       })
-      toast.success(`Seller verification submitted — ${res.application.refCode}. Our review team checks documents manually.`)
+      toast.success(`Seller verification submitted: ${res.application.refCode}. Our review team checks documents manually.`)
       setOpen(false)
       onDone()
     } catch (e) {
@@ -544,7 +544,7 @@ function NotStarted({ user, previousApp, onDone }: {
         <p className="max-w-md text-sm text-muted-foreground">
           {closed
             ? 'Correct the issues noted above, then submit a fresh application for review.'
-            : 'Verify your identity and authority to sell — approved accounts carry the verified trust marker on their listings.'}
+            : 'Verify your identity and authority to sell; approved accounts carry the verified trust marker on their listings.'}
         </p>
         <Button
           variant={closed ? 'default' : 'outline'}
@@ -588,7 +588,7 @@ function NotStarted({ user, previousApp, onDone }: {
             <div className="space-y-1.5">
               <Label htmlFor="sva-rep">Authorised representative *</Label>
               <Input id="sva-rep" value={form.representative} onChange={(e) => set('representative', e.target.value)} />
-              <p className="text-xs text-muted-foreground">For private sellers this is you — the person selling the vehicle(s).</p>
+              <p className="text-xs text-muted-foreground">For private sellers this is you; the person selling the vehicle(s).</p>
             </div>
           </div>
 
@@ -599,7 +599,7 @@ function NotStarted({ user, previousApp, onDone }: {
             onAdd={handleFiles}
             onRemove={(url) => setDocs((prev) => prev.filter((d) => d.url !== url))}
             title="Identity & ownership documents"
-            hint="Attach your government ID (national ID or passport) plus a logbook/ownership document — or an authority-to-sell letter for each vehicle you're listing."
+            hint="Attach your government ID (national ID or passport) plus a logbook/ownership document: or an authority-to-sell letter for each vehicle you're listing."
           />
 
           <div className="grid gap-1.5">
@@ -610,7 +610,7 @@ function NotStarted({ user, previousApp, onDone }: {
               maxLength={2000}
               value={form.notes}
               onChange={(e) => set('notes', e.target.value)}
-              placeholder="Anything that helps the reviewer — e.g. the vehicle(s) you plan to list…"
+              placeholder="Anything that helps the reviewer: e.g. the vehicle(s) you plan to list…"
             />
           </div>
 
@@ -628,7 +628,7 @@ function NotStarted({ user, previousApp, onDone }: {
           )}
 
           <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-            Verification is completed by our review team after document checks — it is never automatic.
+            Verification is completed by our review team after document checks; it is never automatic.
             Initial review target: 24 business hours.
           </p>
 
@@ -641,7 +641,7 @@ function NotStarted({ user, previousApp, onDone }: {
   )
 }
 
-// ───────────────────── Edge — approved but session not refreshed ─────────────────────
+// ───────────────────── Edge: approved but session not refreshed ─────────────────────
 
 function ApprovedPendingRole({ onRefresh }: { onRefresh: () => void }) {
   return (

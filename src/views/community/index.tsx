@@ -496,7 +496,7 @@ function PostCard({
                 )
               })}
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">Tap an option to vote — tap again to remove your vote.</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">Tap an option to vote; tap again to remove your vote.</p>
           </div>
         ) : null}
 
@@ -541,7 +541,7 @@ function PostCard({
                 <Skeleton className="h-10 w-3/4" />
               </div>
             ) : (comments?.length ?? 0) === 0 ? (
-              <p className="text-sm text-muted-foreground">No comments yet — start the conversation.</p>
+              <p className="text-sm text-muted-foreground">No comments yet: start the conversation.</p>
             ) : (
               <ul className="space-y-3">
                 {comments?.map((c) => (
@@ -678,7 +678,7 @@ function CreatePostDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Create a post</DialogTitle>
-          <DialogDescription>Share advice, ask questions or show off your ride. Be kind — real people read this.</DialogDescription>
+          <DialogDescription>Share advice, ask questions or show off your ride. Be kind: real people read this.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
           <div className="space-y-1.5">
@@ -798,7 +798,7 @@ function ReportDialog({
         <DialogHeader>
           <DialogTitle>Report {target?.type === 'COMMENT' ? 'comment' : 'post'}</DialogTitle>
           <DialogDescription>
-            {target ? `“${target.label}”` : ''} — tell us what is wrong and our moderation team will take a look.
+            {target ? `“${target.label}”` : ''}: tell us what is wrong and our moderation team will take a look.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">

@@ -24,7 +24,7 @@ async function ownedVehicle(id: string, userId: string) {
   return vehicle
 }
 
-// PATCH /api/mygarage/vehicles/[id] — owner-only partial update.
+// PATCH /api/mygarage/vehicles/[id]: owner-only partial update.
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()
   const { id } = await ctx.params
@@ -49,7 +49,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   return ok({ vehicle: updated })
 })
 
-// DELETE /api/mygarage/vehicles/[id] — owner-only; cascades records + reminders.
+// DELETE /api/mygarage/vehicles/[id]: owner-only; cascades records + reminders.
 export const DELETE = route(async (_req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()
   const { id } = await ctx.params

@@ -13,7 +13,7 @@ const schema = z.object({
   symptoms: z.string().trim().min(5, 'Describe the problem in a few words.').max(600),
 })
 
-/** Extract the first '{' … last '}' span and parse — tolerates markdown fences / chatter. */
+/** Extract the first '{' … last '}' span and parse; tolerates markdown fences / chatter. */
 function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
   const candidate = (fenced?.[1] ?? text).trim()
@@ -54,7 +54,7 @@ export const POST = route(async (req: NextRequest) => {
     if (!parsed || typeof parsed !== 'object') throw new Error('MALFORMED_AI_RESPONSE')
     guidance = typeof parsed.guidance === 'string' ? parsed.guidance.trim().slice(0, 1200) : ''
     if (!guidance) throw new Error('EMPTY_AI_GUIDANCE')
-    // Keep only recognised categories, capped at 3 — drop anything invented.
+    // Keep only recognised categories, capped at 3: drop anything invented.
     if (Array.isArray(parsed.categories)) {
       categories = parsed.categories
         .filter((c): c is string => typeof c === 'string')

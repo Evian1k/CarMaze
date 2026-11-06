@@ -6,7 +6,7 @@ import { route, ok, requireUser } from '@/lib/api'
  * GET /api/orgs/me
  * Session bootstrap for DealerOS / GarageOS state machines.
  * Returns every org membership for the signed-in user plus their latest
- * DEALER application (with full event timeline) — or null when they never
+ * DEALER application (with full event timeline): or null when they never
  * applied. Drives the dealer view's "not applied / pending / approved" states.
  */
 export const GET = route(async (_req: NextRequest) => {

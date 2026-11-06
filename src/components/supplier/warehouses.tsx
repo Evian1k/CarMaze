@@ -1,8 +1,8 @@
 'use client'
 
-/* SupplierOS — Warehouses tab: branches & warehouses the business ships from.
+/* SupplierOS: Warehouses tab: branches & warehouses the business ships from.
  * Create, edit, set-primary and soft-close via /api/supply/branches. Delivery
- * areas power quote-request routing — copy in the UI says so honestly. */
+ * areas power quote-request routing: copy in the UI says so honestly. */
 
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -178,7 +178,7 @@ export function WarehousesTab({ orgId, role, branches }: Props) {
                       <Badge key={a} variant="outline" className="px-1.5 py-0 text-[10px] text-muted-foreground">{a}</Badge>
                     ))
                   ) : (
-                    <span className="text-[11px] text-muted-foreground">No delivery areas set — quote-request routing may skip this location.</span>
+                    <span className="text-[11px] text-muted-foreground">No delivery areas set: quote-request routing may skip this location.</span>
                   )}
                 </div>
 
@@ -228,7 +228,7 @@ export function WarehousesTab({ orgId, role, branches }: Props) {
           <AlertDialogHeader>
             <AlertDialogTitle>Close {closing?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Locations are never hard-deleted — closing removes them from new fulfilment, collections and quote routing,
+              Locations are never hard-deleted: closing removes them from new fulfilment, collections and quote routing,
               while historical orders keep their records. You can re-open it later.
             </AlertDialogDescription>
           </AlertDialogHeader>

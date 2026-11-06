@@ -1,6 +1,6 @@
 'use client'
 
-/* Quote requests ("Request a Part") — garage side of GET /api/supply/quotes.
+/* Quote requests ("Request a Part"): garage side of GET /api/supply/quotes.
  * Raise a request with optional photo / part number / vehicle details,
  * then accept or decline supplier offers. Accepting closes the request and
  * marks other offers declined (server-enforced). */
@@ -116,7 +116,7 @@ export function QuotesTab({ orgId, role, openNew, onNewClosed }: {
         <EmptyState
           icon={FileQuestion}
           title="No quote requests yet"
-          description="Raise a Request a Part with the vehicle details, a part number or a photo — suppliers quote with price and lead time."
+          description="Raise a Request a Part with the vehicle details, a part number or a photo: suppliers quote with price and lead time."
         >
           <Button onClick={() => setDialogOpen(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Request a part</Button>
         </EmptyState>
@@ -170,7 +170,7 @@ export function QuotesTab({ orgId, role, openNew, onNewClosed }: {
                 {r.offers.length === 0 ? (
                   <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
                     <PackageOpen className="h-4 w-4" aria-hidden="true" />
-                    No offers yet — verified suppliers were notified{r.deliveryCounty ? ` in ${r.deliveryCounty}` : ''}. Responses depend on their stock.
+                    No offers yet: verified suppliers were notified{r.deliveryCounty ? ` in ${r.deliveryCounty}` : ''}. Responses depend on their stock.
                   </p>
                 ) : (
                   <ul className="mt-2 space-y-2">
@@ -346,7 +346,7 @@ function NewRequestDialog({ open, onOpenChange, orgId, onCreated }: {
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="qr-title">Title *</Label>
-            <Input id="qr-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Front brake pads — Hilux 2015" maxLength={120} />
+            <Input id="qr-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Front brake pads: Hilux 2015" maxLength={120} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="qr-desc">Description * (what the part is, where it came from, condition expectations)</Label>
@@ -387,7 +387,7 @@ function NewRequestDialog({ open, onOpenChange, orgId, onCreated }: {
             <div className="space-y-1.5">
               <Label>Make</Label>
               <Select value={make} onValueChange={(v) => setMake(v === 'unspecified' ? '' : v)}>
-                <SelectTrigger aria-label="Vehicle make"><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectTrigger aria-label="Vehicle make"><SelectValue placeholder="Not set" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unspecified">Not specified</SelectItem>
                   {VEHICLE_MAKES.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
@@ -396,11 +396,11 @@ function NewRequestDialog({ open, onOpenChange, orgId, onCreated }: {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="qr-model">Model</Label>
-              <Input id="qr-model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="—" />
+              <Input id="qr-model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Not set" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="qr-year">Year</Label>
-              <Input id="qr-year" value={year} inputMode="numeric" onChange={(e) => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="—" />
+              <Input id="qr-year" value={year} inputMode="numeric" onChange={(e) => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Not set" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="qr-engine">Engine</Label>

@@ -1,13 +1,13 @@
 'use client'
 
 /*
- * CARMAZE 3D Showroom — procedural stylized sedan built entirely from
+ * CARMAZE 3D Showroom: procedural stylized sedan built entirely from
  * primitives (RoundedBox / cylinder / torus). No external model files exist in
  * this sandbox, so every part below is authored in code; each visual property
  * derives from the CarConfig: paint + finish (shared physical material),
  * rimStyle (spoke geometry per style), rimColor (shared metal material),
  * glassTint (window opacity), accessory (spoiler / roof rack meshes) and
- * rideHeight (body group offset — wheels stay grounded).
+ * rideHeight (body group offset: wheels stay grounded).
  *
  * The <Canvas> itself lives in the view; this component is the scene contents
  * and is memoized so unrelated parent re-renders never touch the WebGL tree.
@@ -25,7 +25,7 @@ type SceneProps = {
   config: CarConfig
   /** Ref forwarded to OrbitControls so the view can call .reset(). */
   controlsRef?: React.RefObject<OrbitControlsImpl | null>
-  /** Dark showroom mode — near-black floor + dimmed grid so the stage blends
+  /** Dark showroom mode: near-black floor + dimmed grid so the stage blends
    *  with the charcoal page background instead of glowing light. */
   dark?: boolean
 }
@@ -61,7 +61,7 @@ function Wheel({ rimStyle, rimMaterial, position }: { rimStyle: RimStyle; rimMat
         <cylinderGeometry args={[0.42, 0.42, 0.3, 32]} />
         <meshStandardMaterial color="#151716" roughness={0.95} metalness={0.05} />
       </mesh>
-      {/* rim disc — slightly wider than the tyre so both faces stay visible */}
+      {/* rim disc: slightly wider than the tyre so both faces stay visible */}
       <mesh castShadow material={rimMaterial}>
         <cylinderGeometry args={[0.27, 0.27, 0.316, 28]} />
       </mesh>
@@ -150,7 +150,7 @@ export const CarScene = memo(function CarScene({ config, controlsRef, dark = fal
         shadow-bias={-0.0004}
       />
       <directionalLight position={[-6, 4, -5]} intensity={0.3} />
-      {/* Studio fill from the camera side — gives gloss paint a horizon
+      {/* Studio fill from the camera side; gives gloss paint a horizon
           highlight. NOTE: no <Environment> here on purpose. Its cubemap
           render misbehaves on some GPU stacks (notably sandboxed/software
           WebGL) and paints a large light plane over the stage, which glared
@@ -163,7 +163,7 @@ export const CarScene = memo(function CarScene({ config, controlsRef, dark = fal
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[11, 56]} />
         {/* envMapIntensity 0: the pedestal stays matte and dark under the
-            analytic lights only — a bright env map would wash it out gray */}
+            analytic lights only: a bright env map would wash it out gray */}
         <meshStandardMaterial color={dark ? '#101410' : '#202421'} roughness={0.95} metalness={0} envMapIntensity={0} />
       </mesh>
       <Grid
@@ -202,7 +202,7 @@ export const CarScene = memo(function CarScene({ config, controlsRef, dark = fal
         />
         <RoundedBox args={[2.3, 0.66, 1.7]} radius={0.16} smoothness={4} position={[-0.15, 1.22, 0]} material={paintMaterial} castShadow />
 
-        {/* Glass — slightly proud of the cabin */}
+        {/* Glass: slightly proud of the cabin */}
         <mesh position={[0.98, 1.23, 0]} rotation={[0, 0, -0.48]} material={glassMaterial}>
           <boxGeometry args={[0.07, 0.6, 1.5]} />
         </mesh>

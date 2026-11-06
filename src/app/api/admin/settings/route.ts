@@ -9,7 +9,7 @@ import { audit } from '@/lib/audit'
 
 const ALLOWED_KEYS = ['contact', 'review_sla', 'policies', 'faqs', 'home_hero']
 
-/** GET /api/admin/settings — all system settings, JSON-parsed (ADMIN/FOUNDER). */
+/** GET /api/admin/settings: all system settings, JSON-parsed (ADMIN/FOUNDER). */
 export const GET = route(async () => {
   await requireRole('ADMIN', 'FOUNDER')
   const rows = await db.systemSetting.findMany({ orderBy: { key: 'asc' } })
@@ -18,7 +18,7 @@ export const GET = route(async () => {
     try {
       value = JSON.parse(r.value)
     } catch {
-      value = r.value // raw string if it was stored non-JSON — never crash the dashboard
+      value = r.value // raw string if it was stored non-JSON; never crash the dashboard
     }
     return { key: r.key, value, updatedAt: r.updatedAt }
   })
@@ -31,8 +31,8 @@ const putSchema = z.object({
 })
 
 /**
- * PUT /api/admin/settings — upsert one whitelisted setting key.
- * Audit records the key only (metadata stays small — values can be long).
+ * PUT /api/admin/settings: upsert one whitelisted setting key.
+ * Audit records the key only (metadata stays small: values can be long).
  * Changes apply live: public routes read these rows on every request.
  */
 export const PUT = route(async (req: NextRequest) => {

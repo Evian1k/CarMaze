@@ -4,7 +4,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { demoCatalog, startDemoSession } from '@/lib/demo'
 
 /**
- * GET /api/auth/demo — public catalog of ENABLED demo experiences for the
+ * GET /api/auth/demo: public catalog of ENABLED demo experiences for the
  * sign-in page. Returns labels/descriptions only; credentials never leave the
  * server, so the frontend has nothing to leak.
  */
@@ -14,7 +14,7 @@ export const GET = route(async () => {
 })
 
 /**
- * POST /api/auth/demo — start a secure demo session for a roleKey.
+ * POST /api/auth/demo: start a secure demo session for a roleKey.
  * The mapping roleKey → demo account is resolved server-side from the
  * DemoAccount registry; no password is involved or accepted.
  */

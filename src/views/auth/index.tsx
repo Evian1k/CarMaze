@@ -1,6 +1,6 @@
 'use client'
 
-/* Sign in / Register — credential auth with httpOnly JWT session cookies.
+/* Sign in / Register: credential auth with httpOnly JWT session cookies.
  * Also handles: password reset (?reset=<token> / "Forgot password?" card),
  * the TOTP MFA second sign-in step, and ?next=<path> post-auth routing. */
 
@@ -22,7 +22,7 @@ type Flow = 'form' | 'forgot' | 'reset' | 'mfa'
 
 type ForgotResponse = { ok: boolean; message: string; devResetToken?: string; devResetPath?: string; devNotice?: string }
 
-/** Post-auth destinations must be plain in-app paths — no protocol, host or
+/** Post-auth destinations must be plain in-app paths; no protocol, host or
  * query tricks. e.g. "/dealer" ok, "//evil.com" or "/x?y=z" rejected. */
 function sanitizeNext(raw: string | null): string | null {
   const v = (raw ?? '').trim()
@@ -37,7 +37,7 @@ export default function AuthView() {
   // Referral attribution: ?ref=<code> on the invite link (#/signin?ref=CODE).
   const [ref] = useState<string>(() => (route.query.get('ref') || '').trim().slice(0, 32))
   const [refHintDismissed, setRefHintDismissed] = useState(false)
-  // Post-auth destination: ?next=/dealer — read once, sanitized, defaults to account.
+  // Post-auth destination: ?next=/dealer: read once, sanitized, defaults to account.
   const [nextPath] = useState<string | null>(() => sanitizeNext(route.query.get('next')))
   // ?reset=<token> (from a reset link) switches the card to "set new password".
   const resetParam = (route.query.get('reset') || '').trim()
@@ -59,7 +59,7 @@ export default function AuthView() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  // Stay in sync with the hash — e.g. "Open reset link" re-routes to ?reset=…
+  // Stay in sync with the hash; e.g. "Open reset link" re-routes to ?reset=…
   // A fresh token also clears any stale error from a previous attempt.
   useEffect(() => {
     if (resetParam) {
@@ -101,7 +101,7 @@ export default function AuthView() {
       if (mode === 'signin') {
         const res = await apiSend<{ mfaRequired?: boolean; mfaToken?: string }>('/api/auth/login', 'POST', { email, password })
         if (res.mfaRequired && res.mfaToken) {
-          // No session yet — finish with the authenticator code step.
+          // No session yet: finish with the authenticator code step.
           setMfaToken(res.mfaToken)
           setMfaCode('')
           setFlow('mfa')
@@ -187,7 +187,7 @@ export default function AuthView() {
           ? 'Enter the 6-digit code from your authenticator app to finish signing in.'
           : mode === 'signin'
             ? 'Sign in to save vehicles, track enquiries and manage your listings.'
-            : 'Free to join. Browse without an account — sign up to sell, save and enquire.'
+            : 'Free to join. Browse without an account: sign up to sell, save and enquire.'
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-10">
@@ -399,7 +399,7 @@ export default function AuthView() {
           <ShieldCheck className="h-3.5 w-3.5 text-primary" />
           Passwords are hashed; sessions use secure httpOnly cookies.
         </p>
-        {/* Demo experiences — visible on the sign-in card only, below the
+        {/* Demo experiences: visible on the sign-in card only, below the
             secure credential form, and never the primary action. */}
         {flow === 'form' && mode === 'signin' && <DemoAccountsSection collapsedByDefault={false} />}
       </motion.div>

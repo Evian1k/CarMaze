@@ -17,7 +17,7 @@ const createSchema = z.object({
   licenceConfirmed: z.boolean(),
 })
 
-/** POST — customer books a test drive for a published dealership vehicle. */
+/** POST: customer books a test drive for a published dealership vehicle. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const rl = rateLimit(`testdrive-create:${user.id}`, 5, 60 * 60 * 1000)
@@ -76,7 +76,7 @@ export const POST = route(async (req: NextRequest) => {
 
   await notifyOrgMembers(vehicle.orgId, {
     type: 'TEST_DRIVE_UPDATE',
-    title: `New test drive request — ${testDrive.refCode}`,
+    title: `New test drive request: ${testDrive.refCode}`,
     body: `${user.name} requested a test drive of the ${vehicle.make} ${vehicle.model} on ${scheduledAt.toLocaleString('en-KE')}.`,
     link: '/dealer?tab=testdrives',
   })

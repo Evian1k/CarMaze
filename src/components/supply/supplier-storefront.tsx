@@ -1,11 +1,11 @@
 'use client'
 
-/* Supplier storefront — GET /api/suppliers/[id].
+/* Supplier storefront: GET /api/suppliers/[id].
  * Public business page for the Automotive Supply Network: cover hero,
  * verification badge (only when verified), opening hours, branches with
  * delivery areas, categories/brands, live product grid (server-filtered via
  * /api/supply/catalogue?supplier=<id>) and org reviews. Contact details come
- * from the API already gated to verified suppliers — and the UI checks
+ * from the API already gated to verified suppliers, and the UI checks
  * `verified` again before rendering them.
  */
 
@@ -90,7 +90,7 @@ export function SupplierStorefront({ supplierId }: { supplierId: string }) {
   // (Declared before any early return so hook order stays stable.)
   const [activeCat, setActiveCat] = useState('')
   const [activeBrand, setActiveBrand] = useState('')
-  // Deep links skip the landing — hydrate saved suppliers for the bookmark.
+  // Deep links skip the landing: hydrate saved suppliers for the bookmark.
   useEffect(() => {
     if (user) void hydrateSaved()
   }, [user, hydrateSaved])
@@ -179,7 +179,7 @@ export function SupplierStorefront({ supplierId }: { supplierId: string }) {
             </div>
           )}
 
-          {/* Contact — verified suppliers only (double-gated: API + UI) */}
+          {/* Contact: verified suppliers only (double-gated: API + UI) */}
           {s.verified && (s.phone || s.email) ? (
             <div className="mt-4 flex flex-wrap items-center gap-2">
               {s.phone && (
@@ -291,7 +291,7 @@ export function SupplierStorefront({ supplierId }: { supplierId: string }) {
                   {s.serviceAreas.length > 0 ? (
                     s.serviceAreas.map((a) => <Badge key={a} variant="secondary" className="text-[11px]">{a}</Badge>)
                   ) : (
-                    <span className="text-xs text-muted-foreground">Not published — ask the supplier.</span>
+                    <span className="text-xs text-muted-foreground">Not published: ask the supplier.</span>
                   )}
                 </div>
               </>

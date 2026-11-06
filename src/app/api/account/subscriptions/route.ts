@@ -4,7 +4,7 @@ import { route, ok, requireUser } from '@/lib/api'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/account/subscriptions — the customer's centralized subscription
+ * GET /api/account/subscriptions: the customer's centralized subscription
  * dashboard data: business memberships (with benefits + redemption state),
  * trusted-customer programme memberships, approved credit facilities with
  * balances and schedules, and related invoices/receipts.

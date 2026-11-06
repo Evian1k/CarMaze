@@ -5,7 +5,7 @@ import { route, ok, fail } from '@/lib/api'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/memberships — public discovery of Business Membership programmes
+ * GET /api/memberships: public discovery of Business Membership programmes
  * offered by verified garages and showrooms. A membership from one business
  * never applies to another business; branch applicability is explicit.
  */

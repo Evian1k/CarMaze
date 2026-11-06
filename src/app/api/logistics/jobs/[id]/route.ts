@@ -68,7 +68,7 @@ function baseJob(j: Awaited<ReturnType<typeof loadJob>>) {
   }
 }
 
-/* ─────────────────────────── GET — detail ───────────────────────────
+/* ─────────────────────────── GET: detail ───────────────────────────
  * Requester: otpHint + events + podPhotos (never otpHash).
  * Assigned partner owner: contacts + events (NO otp data at all).
  * Staff: like the requester (read-only oversight). */
@@ -95,11 +95,11 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
       },
     })
   }
-  // partner owner — no OTP fields whatsoever
+  // partner owner: no OTP fields whatsoever
   return ok({ job: base })
 })
 
-/* ─────────────────────────── POST — lifecycle actions ─────────────────────────── */
+/* ─────────────────────────── POST: lifecycle actions ─────────────────────────── */
 
 const actionSchema = z.discriminatedUnion('action', [
   z.object({
@@ -145,7 +145,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   if (body.action === 'accept') {
     if (!partner) throw new ApiError(403, 'FORBIDDEN', 'Only delivery partners can accept deliveries.')
     if (partner.status === 'SUSPENDED') {
-      throw new ApiError(403, 'PARTNER_SUSPENDED', 'Your partner account is suspended — you cannot accept deliveries. Contact CARMAZE support.')
+      throw new ApiError(403, 'PARTNER_SUSPENDED', 'Your partner account is suspended: you cannot accept deliveries. Contact CARMAZE support.')
     }
     if (partner.status !== 'APPROVED') {
       throw new ApiError(403, 'PARTNER_NOT_ACTIVE', 'Your partner account is not active yet.')
@@ -163,7 +163,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       throw new ApiError(400, 'INVALID_DRIVER', 'Select one of your ACTIVE drivers. Add or reactivate drivers in the Fleet tab.')
     }
 
-    // Delivery OTP — generated at acceptance, delivered to the requester via
+    // Delivery OTP: generated at acceptance, delivered to the requester via
     // in-app notification only. The raw code is never returned to the partner.
     // A QR token is also issued: the requester renders it as a scannable code
     // and the partner can confirm delivery with either the 6-digit code or
@@ -188,7 +188,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
             actorId: user.id,
             actorName: user.name,
             actorSide: 'PARTNER',
-            note: `Accepted by ${partner.name} — driver ${driver.name}. Quoted fee KES ${money(body.feeMinor)}.`,
+            note: `Accepted by ${partner.name}: driver ${driver.name}. Quoted fee KES ${money(body.feeMinor)}.`,
           },
         },
       },
@@ -223,7 +223,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     if (job.status !== 'OPEN') {
       throw new ApiError(409, 'INVALID_STATE', `This request is no longer open (it is ${job.status}).`)
     }
-    // Declining only records that this partner passed — the job stays OPEN for
+    // Declining only records that this partner passed; the job stays OPEN for
     // other partners. No status change.
     const updated = await db.deliveryJob.update({
       where: { id },
@@ -240,7 +240,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       },
       include: JOB_INCLUDE,
     })
-    return ok({ job: { ...baseJob(updated), podPhotos: [] }, message: 'Noted — the request stays open for other partners.' })
+    return ok({ job: { ...baseJob(updated), podPhotos: [] }, message: 'Noted: the request stays open for other partners.' })
   }
 
   // Every remaining partner action requires this job to be assigned to THEM.
@@ -292,7 +292,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       userId: job.requestedByUserId,
       type: 'DLV_IN_TRANSIT',
       title: `Delivery ${job.refCode} in transit`,
-      body: `Your cargo is on the way to ${job.dropCounty}. Have your 6-digit drop-off code ready — share it only when you receive the cargo.`,
+      body: `Your cargo is on the way to ${job.dropCounty}. Have your 6-digit drop-off code ready: share it only when you receive the cargo.`,
       link: '/logistics',
     })
     return ok({ job: { ...baseJob(updated), podPhotos: [] }, message: `Delivery ${job.refCode} marked in transit.` })
@@ -328,7 +328,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       userId: job.requestedByUserId,
       type: 'DLV_DELIVERED',
       title: `Delivery ${job.refCode} delivered`,
-      body: `${partner.name} completed the delivery at ${now.toLocaleString('en-KE')} — verified with your code. Agreed fee: KES ${money(job.feeMinor)}.`,
+      body: `${partner.name} completed the delivery at ${now.toLocaleString('en-KE')}, verified with your code. Agreed fee: KES ${money(job.feeMinor)}.`,
       link: '/logistics',
     })
     await audit({

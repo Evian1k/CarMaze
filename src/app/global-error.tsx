@@ -1,6 +1,6 @@
 'use client'
 
-/* Global error screen — the final safety net that catches failures at the
+/* Global error screen: the final safety net that catches failures at the
  * root level (outside layout/page trees). It renders its own <html>/<body>
  * with inline styles only, because global stylesheets may not be present
  * when this fires. Stale-chunk crashes auto-reload exactly once. */
@@ -27,7 +27,7 @@ export default function GlobalError({
           return
         }
       } catch {
-        /* storage blocked — fall through to the recovery UI */
+        /* storage blocked: fall through to the recovery UI */
       }
     }
   }, [error])
@@ -70,10 +70,10 @@ export default function GlobalError({
             padding: '2rem',
           }}
         >
-          {/* Official brand emblem — never redrawn or re-typed */}
+          {/* Official brand emblem: never redrawn or re-typed */}
           <img
             src="/brand/carmaze-logo-128.png"
-            alt="CARMAZE — Find. Connect. Drive."
+            alt="CARMAZE: Find. Connect. Drive."
             width={96}
             height={96}
             style={{ width: 96, height: 96, objectFit: 'contain', borderRadius: 12 }}

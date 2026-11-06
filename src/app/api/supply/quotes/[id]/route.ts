@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-/** GET — quote request detail (garage owner or responding suppliers). */
+/** GET: quote request detail (garage owner or responding suppliers). */
 export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()
@@ -59,7 +59,7 @@ const closeSchema = z.object({ action: z.literal('close') })
 
 const bodySchema = z.discriminatedUnion('action', [offerSchema, decideSchema, closeSchema])
 
-/** POST — suppliers offer; garage accepts/declines/closes. */
+/** POST: suppliers offer; garage accepts/declines/closes. */
 export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()
@@ -91,7 +91,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     const garageMembers = await db.orgMember.findMany({ where: { orgId: request.garageOrgId, role: { in: ['OWNER', 'GM', 'PROCUREMENT'] } }, select: { userId: true } })
     await notifyMany(garageMembers.map((m) => m.userId), {
       type: 'QUOTE_OFFER', title: `New quote on ${request.refCode}`,
-      body: `${membership.org.name} quoted ${(body.amountMinor / 100).toLocaleString()} KES${body.leadDays ? ` — ${body.leadDays} day(s)` : ''}.`,
+      body: `${membership.org.name} quoted ${(body.amountMinor / 100).toLocaleString()} KES${body.leadDays ? `: ${body.leadDays} day(s)` : ''}.`,
       link: '/procurement?tab=quotes',
     })
     await audit({ actorId: user.id, actorName: user.name, action: 'QUOTE_OFFER_SUBMITTED', targetType: 'QUOTE_REQUEST', targetId: id, metadata: { supplier: membership.orgId, amount: body.amountMinor } })
@@ -111,7 +111,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       await db.quoteRequest.update({ where: { id }, data: { status: 'CLOSED' } })
       const supplierMembers = await db.orgMember.findMany({ where: { orgId: offer.supplierOrgId, role: { in: ['OWNER', 'OPERATIONS', 'SALES'] } }, select: { userId: true } })
       await notifyMany(supplierMembers.map((m) => m.userId), {
-        type: 'QUOTE_ACCEPTED', title: `Quote accepted — ${request.refCode}`,
+        type: 'QUOTE_ACCEPTED', title: `Quote accepted: ${request.refCode}`,
         body: 'Your quotation was accepted. The garage will follow up to place the order.',
         link: '/supplier?tab=quotes',
       })

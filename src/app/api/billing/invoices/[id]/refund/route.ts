@@ -11,7 +11,7 @@ const bodySchema = z.object({
 })
 
 /**
- * POST /api/billing/invoices/[id]/refund — FINANCE / ADMIN / FOUNDER only.
+ * POST /api/billing/invoices/[id]/refund: FINANCE / ADMIN / FOUNDER only.
  *
  * Records a genuine refund of a PAID invoice. Money has left the platform, so
  * the entitlement it bought ends too (honest accounting, not silent bookkeeping):
@@ -37,18 +37,18 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     return fail(409, 'ALREADY_REFUNDED', `Invoice ${invoice.refCode} was already refunded.`)
   }
   if (invoice.status !== 'PAID') {
-    return fail(409, 'INVALID_STATE', `Only PAID invoices can be refunded — invoice ${invoice.refCode} is ${invoice.status}.`)
+    return fail(409, 'INVALID_STATE', `Only PAID invoices can be refunded: invoice ${invoice.refCode} is ${invoice.status}.`)
   }
 
   const result = await db.$transaction(async (tx) => {
-    // 1. The invoice itself — status only. paidAt/paidVia stay as the
+    // 1. The invoice itself: status only. paidAt/paidVia stay as the
     //    historical payment record; the reason is audit material, not invoice data.
     const updated = await tx.invoice.update({
       where: { id: invoice.id },
       data: { status: 'REFUNDED' },
     })
 
-    // 2. Entitlement cascade — money returned ⇒ entitlement ends.
+    // 2. Entitlement cascade: money returned ⇒ entitlement ends.
     let subscriptionCancelled = false
     let campaignsEnded = 0
 
@@ -132,7 +132,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       await notify({
         userId: invoice.userId,
         type: 'INVOICE_REFUNDED',
-        title: `Refund processed — invoice ${invoice.refCode}`,
+        title: `Refund processed: invoice ${invoice.refCode}`,
         body: `Your parts-order refund has been processed (${(invoice.amountMinor / 100).toLocaleString()} ${invoice.currency}). The order is now settled. Reason: ${body.reason}`,
         link: '/account?tab=orders',
       })

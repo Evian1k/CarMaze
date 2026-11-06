@@ -11,7 +11,7 @@ const createSchema = z.object({
   body: z.string().trim().min(1, 'Write a comment first').max(2000),
 })
 
-// POST /api/community/comments — auth; rate 20 per 10 minutes.
+// POST /api/community/comments: auth; rate 20 per 10 minutes.
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const rl = rateLimit(`community-comment:${user.id}:${getIp(req)}`, 20, 10 * 60 * 1000)
@@ -33,7 +33,7 @@ export const POST = route(async (req: NextRequest) => {
         userId: post.userId,
         type: 'COMMUNITY_COMMENT',
         title: `${user.name} commented on your post`,
-        body: `"${post.title}" — ${body.body.slice(0, 120)}`,
+        body: `"${post.title}": ${body.body.slice(0, 120)}`,
         link: '/community',
       })
     } catch (e) {

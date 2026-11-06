@@ -9,7 +9,7 @@ import { getFees } from '@/lib/supply'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/org/memberships?orgId= — business view of its membership
+ * GET /api/org/memberships?orgId=: business view of its membership
  * programme: tiers, members, revenue and redemptions (owner/manager only).
  */
 export const GET = route(async (req: NextRequest) => {
@@ -69,7 +69,7 @@ const tierSchema = z.object({
   terms: z.string().max(2000).optional().nullable(),
 })
 
-/** POST — create a membership tier (owner/GM). */
+/** POST: create a membership tier (owner/GM). */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const body = await parseBody(req, tierSchema)

@@ -1,10 +1,10 @@
 'use client'
 
-/* SupplierOS — Inventory tab: stock levels per warehouse. Rows are grouped by
+/* SupplierOS: Inventory tab: stock levels per warehouse. Rows are grouped by
  * branch, low-stock rows (at/below reorder level) are highlighted, and a
  * restock dialog sets qty-on-hand + reorder level with a movement note.
  * qtyReserved is shown with an honest explanation: it is held for open orders
- * and prevents overselling — it is never editable here (reservations belong
+ * and prevents overselling: it is never editable here (reservations belong
  * to live orders). */
 
 import { useMemo, useState } from 'react'
@@ -66,7 +66,7 @@ export function InventoryTab({ orgId, role }: Props) {
         <AlertTitle>Reserved stock protects open orders</AlertTitle>
         <AlertDescription>
           <strong>{reservedUnits}</strong> unit{reservedUnits === 1 ? '' : 's'} are currently held for open purchase orders.
-          Reserved quantities are managed by the order workflow — restocking never touches them, so you can never oversell
+          Reserved quantities are managed by the order workflow; restocking never touches them, so you can never oversell
           committed stock.
         </AlertDescription>
       </Alert>
@@ -205,9 +205,9 @@ function RestockDialog({ row, orgId, onClose, onSaved }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Restock — {row.productName}</DialogTitle>
+          <DialogTitle>Restock: {row.productName}</DialogTitle>
           <DialogDescription>
-            {row.branchName} · <span className="font-mono">{row.sku}</span>. This sets the absolute quantity on hand —
+            {row.branchName} · <span className="font-mono">{row.sku}</span>. This sets the absolute quantity on hand:
             every change is written to the stock movement log. Reserved units ({row.qtyReserved}) stay untouched.
           </DialogDescription>
         </DialogHeader>
@@ -225,7 +225,7 @@ function RestockDialog({ row, orgId, onClose, onSaved }: {
           <div className="space-y-1.5">
             <Label htmlFor="rs-note">Movement note</Label>
             <Textarea id="rs-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={300}
-              placeholder="e.g. Delivery from Denso EA — invoice #4821" />
+              placeholder="e.g. Delivery from Denso EA: invoice #4821" />
           </div>
         </div>
         <DialogFooter>

@@ -12,7 +12,7 @@ type Ctx = { params: Promise<{ id: string }> }
 
 async function loadApp(id: string) {
   // NOTE (agent 6-f repair): the schema has no `org` relation on Application
-  // (only the orgId string) — including `org: true` here made every detail
+  // (only the orgId string): including `org: true` here made every detail
   // fetch fail with a Prisma validation error. The org, when present, is
   // attached below via a plain lookup.
   const app = await db.application.findUnique({ where: { id }, include: { events: { orderBy: { createdAt: 'asc' } } } })
@@ -143,7 +143,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       // been through the Verification Engine. Uploading ≠ verification:
       // every attached document must reach VERIFIED by an explicit reviewer
       // decision first. Legacy applications whose documents were only stored
-      // as JSON get those documents imported as UNDER_REVIEW — they must be
+      // as JSON get those documents imported as UNDER_REVIEW; they must be
       // genuinely reviewed in the Verification Center before approval.
       const appDocs = await db.verificationDocument.findMany({ where: { applicationId: id } })
       if (appDocs.length === 0) {
@@ -170,7 +170,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       }
       const pending = docsNow.filter((d) => ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED'].includes(d.status))
       if (pending.length > 0) {
-        throw new ApiError(400, 'DOCS_PENDING', `${pending.length} document(s) have not completed verification (${pending.map((d) => d.refCode).join(', ')}). Review them in the Verification Center first — unfinished checks can never be marked approved.`)
+        throw new ApiError(400, 'DOCS_PENDING', `${pending.length} document(s) have not completed verification (${pending.map((d) => d.refCode).join(', ')}). Review them in the Verification Center first; unfinished checks can never be marked approved.`)
       }
       const rejectedDocs = docsNow.filter((d) => d.status === 'REJECTED')
       if (rejectedDocs.length > 0) {
@@ -181,7 +181,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         throw new ApiError(400, 'NOT_VERIFIED', 'At least one document must be VERIFIED before this application can be approved.')
       }
 
-      // ── SELLER (individual KYC): grant the verified-seller role — no org ──
+      // ── SELLER (individual KYC): grant the verified-seller role: no org ──
       if (app.type === 'SELLER') {
         const dbUser = await db.user.findUnique({ where: { id: app.userId } })
         if (dbUser && !dbUser.roles.split(',').includes('SELLER_VERIFIED')) {
@@ -198,7 +198,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         await notify({
           userId: app.userId,
           type: 'APPLICATION_APPROVED',
-          title: `Seller verification approved — ${app.refCode}`,
+          title: `Seller verification approved: ${app.refCode}`,
           body: 'Your identity verification is complete. Your listings now carry the verified-seller trust marker.',
           link: '/sell',
         })
@@ -206,7 +206,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         return ok({ application: updated })
       }
 
-      // ── LOGISTICS: create the approved delivery partner — no dealer org ──
+      // ── LOGISTICS: create the approved delivery partner: no dealer org ──
       if (app.type === 'LOGISTICS') {
         if (app.orgId) throw new ApiError(409, 'ALREADY_APPROVED', 'This application already resulted in a delivery partner.')
         const partner = await db.logisticsPartner.create({
@@ -248,7 +248,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         await notify({
           userId: app.userId,
           type: 'APPLICATION_APPROVED',
-          title: `Delivery partner approved — welcome to the network`,
+          title: `Delivery partner approved: welcome to the network`,
           body: `${partner.name} is now a verified delivery partner. Your LogisticsOS dashboard is ready.`,
           link: '/logistics',
         })
@@ -290,7 +290,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       await notify({
         userId: app.userId,
         type: 'APPLICATION_APPROVED',
-        title: `${app.type === 'DEALER' ? 'Dealership' : 'Garage'} approved — welcome to CARMAZE`,
+        title: `${app.type === 'DEALER' ? 'Dealership' : 'Garage'} approved: welcome to CARMAZE`,
         body: `${org.name} is now verified on CARMAZE. Your ${app.type === 'DEALER' ? 'DealerOS dashboard' : 'garage dashboard'} is ready.`,
         link: app.type === 'DEALER' ? '/dealer' : '/garage-dashboard',
       })

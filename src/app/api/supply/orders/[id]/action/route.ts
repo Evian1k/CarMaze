@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
 type Ctx = { params: Promise<{ id: string }> }
 
 const schema = z.discriminatedUnion('action', [
-  // STEP 2 — supplier response
+  // STEP 2: supplier response
   z.object({
     action: z.literal('respond'),
     decision: z.enum(['ACCEPT', 'REJECT', 'REVISE']),
@@ -38,7 +38,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('revision-decision'), decision: z.enum(['APPROVED', 'DECLINED']), revisionId: z.string(), note: z.string().max(300).optional() }),
   // garage cancels before dispatch
   z.object({ action: z.literal('cancel'), reason: z.string().min(3).max(300) }),
-  // STEP 3 — delivery arrangement
+  // STEP 3: delivery arrangement
   z.object({
     action: z.literal('arrange'),
     method: z.enum(['DIRECT', 'COLLECTION', 'MEETUP']),
@@ -50,7 +50,7 @@ const schema = z.discriminatedUnion('action', [
     courierName: z.string().max(80).optional().nullable(),
   }),
   z.object({ action: z.literal('agree-location'), note: z.string().max(300).optional() }),
-  // STEP 5 — supplier dispatch
+  // STEP 5: supplier dispatch
   z.object({
     action: z.literal('dispatch'),
     supplierBranchId: z.string().optional(),
@@ -62,10 +62,10 @@ const schema = z.discriminatedUnion('action', [
     expectedHours: z.number().int().min(1).max(720).optional(),
     evidence: z.array(z.string().max(300)).max(6).default([]),
   }),
-  // STEP 6 — handover confirmation (supplier marks handed over; garage verifies OTP/QR)
+  // STEP 6: handover confirmation (supplier marks handed over; garage verifies OTP/QR)
   z.object({ action: z.literal('handover'), otp: z.string().length(6).optional(), qrToken: z.string().max(20).optional(), captureLocation: z.boolean().default(false), location: z.object({ lat: z.number(), lng: z.number() }).optional(), photos: z.array(z.string().max(300)).max(6).default([]) }),
   z.object({ action: z.literal('handover-confirm') }),
-  // STEP 7 — inspection
+  // STEP 7: inspection
   z.object({
     action: z.literal('inspect'),
     result: z.enum(['ACCEPT', 'PARTIAL', 'ISSUES']),
@@ -73,9 +73,9 @@ const schema = z.discriminatedUnion('action', [
     note: z.string().max(1000).optional(),
     photos: z.array(z.string().max(300)).max(6).default([]),
   }),
-  // STEP 8 — payment release request (executed against protected funds)
+  // STEP 8: payment release request (executed against protected funds)
   z.object({ action: z.literal('release'), note: z.string().max(300).optional() }),
-  // STEP 9 — dispute
+  // STEP 9: dispute
   z.object({
     action: z.literal('dispute'),
     reason: z.enum(['MISSING_ITEMS', 'DAMAGED', 'WRONG_ITEM', 'COUNTERFEIT', 'NOT_RECEIVED', 'OTHER']),
@@ -86,9 +86,9 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('warranty'), productId: z.string(), issue: z.string().min(10).max(1000) }),
 ])
 
-/** POST /api/supply/orders/[id]/action — every state transition of the
+/** POST /api/supply/orders/[id]/action: every state transition of the
  * protected supplier→garage order workflow. Permissions and allowed source
- * states are enforced here for BOTH sides — the UI merely reflects them. */
+ * states are enforced here for BOTH sides; the UI merely reflects them. */
 export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()
@@ -177,7 +177,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       if (side !== 'GARAGE') return fail(403, 'PERMISSION_DENIED', 'Only the garage approves internally.')
       if (order.status !== 'AWAITING_APPROVAL') return fail(409, 'INVALID_STATE', `Order is ${order.status}; expected AWAITING_APPROVAL.`)
       await db.purchaseOrder.update({ where: { id }, data: { status: 'SUBMITTED' } })
-      await poEvent(id, { type: 'APPROVED', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: body.note ?? 'Approved by management — sent to supplier.' })
+      await poEvent(id, { type: 'APPROVED', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: body.note ?? 'Approved by management: sent to supplier.' })
       await notifySupplierMembers(order.supplierOrgId, order.refCode, `${order.garage.name} approved order ${order.refCode}. It now awaits your response.`, 'PO_NEW')
       return ok({ message: 'Order approved and sent to the supplier.' })
     }
@@ -211,11 +211,11 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         await db.pORevision.update({ where: { id: revision.id }, data: { status: 'APPROVED' } })
         await poEvent(id, { type: 'REVISION_DECISION', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: body.note ?? 'Garage approved the revised quotation.' })
         await notifySupplierMembers(order.supplierOrgId, order.refCode, `${order.garage.name} approved your revision on ${order.refCode}.`, 'PO_ACCEPTED')
-        return ok({ message: 'Revision approved — order finalised at the revised terms.' })
+        return ok({ message: 'Revision approved: order finalised at the revised terms.' })
       } else {
         await db.pORevision.update({ where: { id: revision.id }, data: { status: 'DECLINED' } })
         await db.purchaseOrder.update({ where: { id }, data: { status: 'SUBMITTED' } })
-        await poEvent(id, { type: 'REVISION_DECISION', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: body.note ?? 'Garage declined the revision — original terms stand.' })
+        await poEvent(id, { type: 'REVISION_DECISION', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: body.note ?? 'Garage declined the revision: original terms stand.' })
         await notifySupplierMembers(order.supplierOrgId, order.refCode, `${order.garage.name} declined your revision on ${order.refCode}. Original terms stand.`, 'PO_REVISED')
         return ok({ message: 'Revision declined. The supplier may respond again on the original terms.' })
       }
@@ -227,7 +227,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       if (!['SUBMITTED', 'AWAITING_APPROVAL', 'ACCEPTED', 'REVISED', 'CONFIRMED'].includes(order.status)) {
         return fail(409, 'INVALID_STATE', `Order cannot be cancelled at ${order.status}.`)
       }
-      if (order.paymentStatus === 'PROTECTED') return fail(409, 'PAYMENT_PROTECTED', 'Payment is protected — open a dispute instead.')
+      if (order.paymentStatus === 'PROTECTED') return fail(409, 'PAYMENT_PROTECTED', 'Payment is protected: open a dispute instead.')
       for (const item of order.items) {
         if (item.fulfilBranchId) await releaseReservation(item.productId, item.fulfilBranchId, item.qty, { type: 'PURCHASE_ORDER', id, actorName: user.name })
       }
@@ -264,7 +264,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         status = 'AGREED'
         message = 'Collection from the supplier warehouse arranged.'
       } else {
-        // MEETUP — proposed location requires BOTH parties' agreement; a new
+        // MEETUP: proposed location requires BOTH parties' agreement; a new
         // proposal resets the counterparty's consent.
         if (!body.meetup) return fail(400, 'NO_LOCATION', 'Propose a handover location on the map.')
         changed = !meetupJson || jsonParse<{ address?: string }>(meetupJson, {}).address !== body.meetup.address
@@ -273,7 +273,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
           if (side === 'GARAGE') { agreedByGarage = true; agreedBySupplier = false }
           else { agreedBySupplier = true; agreedByGarage = false }
         }
-        message = agreedByGarage && agreedBySupplier ? 'Handover location agreed by both parties.' : 'Location proposed — awaiting the other party\'s agreement.'
+        message = agreedByGarage && agreedBySupplier ? 'Handover location agreed by both parties.' : 'Location proposed: awaiting the other party\'s agreement.'
         status = agreedByGarage && agreedBySupplier ? 'AGREED' : 'ARRANGING'
       }
 
@@ -303,7 +303,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
           status: status === 'AGREED' ? 'CONFIRMED' : order.status,
         },
       })
-      await deliveryEvent(delivery.id, { type: changed ? 'LOCATION_PROPOSED' : 'ARRANGED', actorId: user.id, actorName: user.name, actorSide: side, note: `${method} — ${message}` })
+      await deliveryEvent(delivery.id, { type: changed ? 'LOCATION_PROPOSED' : 'ARRANGED', actorId: user.id, actorName: user.name, actorSide: side, note: `${method}: ${message}` })
       await poEvent(id, { type: 'NOTE', actorId: user.id, actorName: user.name, actorSide: side, note: `Delivery arrangement: ${message}` })
       await notifyOtherSide(actorCtx, order, `${order.refCode}: ${message}`, 'PO_DELIVERY')
       return ok({ delivery, message })
@@ -323,8 +323,8 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         await db.purchaseOrder.update({ where: { id }, data: { status: 'CONFIRMED' } })
       }
       await deliveryEvent(delivery.id, { type: 'LOCATION_AGREED', actorId: user.id, actorName: user.name, actorSide: side, note: body.note ?? 'Agreed to the handover location.' })
-      await notifyOtherSide(actorCtx, order, `${order.refCode}: ${side === 'GARAGE' ? 'Garage' : 'Supplier'} agreed to the handover location${both ? ' — delivery is now locked. Location changes require a new mutual agreement.' : ''}`, 'PO_DELIVERY')
-      return ok({ agreed: both, message: both ? 'Both parties agreed. Location is locked.' : 'Your agreement is recorded — awaiting the other party.' })
+      await notifyOtherSide(actorCtx, order, `${order.refCode}: ${side === 'GARAGE' ? 'Garage' : 'Supplier'} agreed to the handover location${both ? '. Delivery is now locked. Location changes require a new mutual agreement.' : ''}`, 'PO_DELIVERY')
+      return ok({ agreed: both, message: both ? 'Both parties agreed. Location is locked.' : 'Your agreement is recorded: awaiting the other party.' })
     }
 
     // ─────────── STEP 5: dispatch ───────────
@@ -362,7 +362,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         },
       })
       await db.purchaseOrder.update({ where: { id }, data: { status: 'DISPATCHED' } })
-      await deliveryEvent(delivery.id, { type: 'DISPATCHED', actorId: user.id, actorName: user.name, actorSide: 'SUPPLIER', note: `Dispatched${body.driverName ? ` — driver ${body.driverName}` : ''}. Expected ${expectedAt.toISOString()}` })
+      await deliveryEvent(delivery.id, { type: 'DISPATCHED', actorId: user.id, actorName: user.name, actorSide: 'SUPPLIER', note: `Dispatched${body.driverName ? `: driver ${body.driverName}` : ''}. Expected ${expectedAt.toISOString()}` })
       await poEvent(id, { type: 'DISPATCH', actorId: user.id, actorName: user.name, actorSide: 'SUPPLIER', note: body.deliveryRef ? `Delivery reference ${body.deliveryRef}` : 'Order dispatched.' })
       // OTP delivered through in-app notification (SMS channel is recorded but not configured)
       await notifyGarageMembers(order.garageOrgId, id, order.refCode, `Order ${order.refCode} dispatched. Handover verification code: ${otp} (valid at delivery). Do not share before handover.`, 'PO_DISPATCHED')
@@ -526,7 +526,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_OPENED', targetType: 'DISPUTE', targetId: dispute.id, metadata: { order: order.refCode, reason: body.reason } })
       const { staffUserIds } = await import('@/lib/orgs')
       await notifyMany(await staffUserIds('ADMIN', 'FOUNDER', 'SUPPORT'), {
-        type: 'DISPUTE_OPENED', title: `Dispute ${dispute.refCode} — ${order.refCode}`, body: `${body.reason}: ${body.details.slice(0, 120)}`, link: '/admin?tab=disputes',
+        type: 'DISPUTE_OPENED', title: `Dispute ${dispute.refCode}: ${order.refCode}`, body: `${body.reason}: ${body.details.slice(0, 120)}`, link: '/admin?tab=disputes',
       })
       return ok({ dispute, message: 'Dispute filed. Platform admins will investigate with all order, payment and delivery evidence.' }, { status: 201 })
     }

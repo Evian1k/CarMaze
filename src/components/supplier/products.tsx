@@ -1,14 +1,14 @@
 'use client'
 
-/* SupplierOS — Products tab: wholesale catalogue management.
+/* SupplierOS: Products tab: wholesale catalogue management.
  * Create/edit with the full product schema, multi-image upload, publish
  * toggle, and a per-product vehicle-compatibility editor (fitment rows are
- * submitted as supplier references — verified:false until platform admins
+ * submitted as supplier references: verified:false until platform admins
  * review them).
  *
  * HONESTY RULES:
  *  - authenticityVerified is displayed read-only with an explanation that only
- *    CARMAZE can verify authenticity — suppliers cannot self-verify.
+ *    CARMAZE can verify authenticity: suppliers cannot self-verify.
  *  - The categories endpoint does not expose internal category IDs (reported
  *    mismatch), so the form resolves category IDs from the supplier's own
  *    products. Categories never used before are disabled with an explanation.
@@ -116,7 +116,7 @@ export function ProductsTab({ products, role, orgId }: Props) {
   const canWrite = supplierRoleCan(role, 'catalogue.write')
 
   // slug → categoryId map harvested from the supplier's own products (the
-  // public categories endpoint does not expose IDs — see module header).
+  // public categories endpoint does not expose IDs; see module header).
   const catIdBySlug = useMemo(() => {
     const map = new Map<string, string>()
     for (const p of products.data?.products ?? []) {
@@ -221,7 +221,7 @@ export function ProductsTab({ products, role, orgId }: Props) {
           <AlertDescription>
             The platform&apos;s category list currently doesn&apos;t expose the internal IDs new products need (engineering
             ticket filed). Until it does, create your first product in a category via platform support, or pick a
-            category once known — afterwards all your used categories become selectable here.
+            category once known: afterwards all your used categories become selectable here.
           </AlertDescription>
         </Alert>
       )}
@@ -235,7 +235,7 @@ export function ProductsTab({ products, role, orgId }: Props) {
           icon={<Package className="h-8 w-8" />}
           title={list.length === 0 ? 'No products yet' : 'No products match the filters'}
           detail={list.length === 0
-            ? 'Add your first product with pricing, warranty and warehouse stock — published products appear in the supply catalogue for verified garages.'
+            ? 'Add your first product with pricing, warranty and warehouse stock: published products appear in the supply catalogue for verified garages.'
             : 'Try a different search term or status filter.'}
         />
       ) : (
@@ -391,7 +391,7 @@ function ProductFormDialog({ product, categories, catIdBySlug, onClose, onSaved 
       }
       toast.success('Image uploaded')
     } catch (e) {
-      toast.error(await errMessage(e, 'Upload failed — please try again.'))
+      toast.error(await errMessage(e, 'Upload failed: please try again.'))
     } finally {
       setUploading(false)
     }
@@ -401,7 +401,7 @@ function ProductFormDialog({ product, categories, catIdBySlug, onClose, onSaved 
     if (form.name.trim().length < 3) return 'Product name must be at least 3 characters.'
     if (!isEdit && (form.sku.trim().length < 2 || form.sku.trim().length > 40)) return 'SKU must be 2–40 characters.'
     if (!form.categorySlug) return 'Choose a product category.'
-    if (unknownCategory) return 'That category has no internal ID available yet — pick a category you have used before.'
+    if (unknownCategory) return 'That category has no internal ID available yet; pick a category you have used before.'
     if (form.description.trim().length < 10) return 'Description must be at least 10 characters.'
     const unit = kesToMinor(form.unitPrice)
     if (unit === null || unit < 100) return 'Enter a unit price of at least KES 1.'
@@ -430,7 +430,7 @@ function ProductFormDialog({ product, categories, catIdBySlug, onClose, onSaved 
     try {
       const categoryId = isEdit ? undefined : catIdBySlug.get(form.categorySlug)
       if (!isEdit && !categoryId) {
-        setCategoryError('Category ID unavailable — the platform category list does not expose internal IDs for new categories.')
+        setCategoryError('Category ID unavailable: the platform category list does not expose internal IDs for new categories.')
         setSaving(false)
         return
       }
@@ -521,7 +521,7 @@ function ProductFormDialog({ product, categories, catIdBySlug, onClose, onSaved 
                   const known = isEdit || catIdBySlug.has(c.slug)
                   return (
                     <SelectItem key={c.slug} value={c.slug} disabled={!known}>
-                      {c.name}{!known ? ' — ID unavailable' : ''}
+                      {c.name}{!known ? ': ID unavailable' : ''}
                     </SelectItem>
                   )
                 })}
@@ -645,7 +645,7 @@ function ProductFormDialog({ product, categories, catIdBySlug, onClose, onSaved 
             <Textarea id="pf-prov" rows={2} value={form.provenanceNote} onChange={(e) => set('provenanceNote', e.target.value)}
               placeholder={isEdit && !form.provenanceNote ? 'Leave empty to keep the existing provenance note.' : 'Source evidence, e.g. “Supplier declaration + invoice documentation on file”.'} maxLength={1000} />
             <p className="text-xs text-muted-foreground">
-              Provenance notes are supplier-supplied evidence. They do not verify authenticity — only CARMAZE admins can
+              Provenance notes are supplier-supplied evidence. They do not verify authenticity: only CARMAZE admins can
               mark a product authenticity-verified.
             </p>
           </div>
@@ -697,7 +697,7 @@ function ProductFormDialog({ product, categories, catIdBySlug, onClose, onSaved 
               <ShieldCheck className="h-4 w-4 shrink-0" />
               <span>
                 Authenticity: {product.authenticityVerified ? 'Independently verified by CARMAZE.' : 'Not verified.'}
-                {' '}Suppliers cannot self-verify authenticity — the platform marks it after independent review.
+                {' '}Suppliers cannot self-verify authenticity: the platform marks it after independent review.
               </span>
             </div>
           )}
@@ -747,7 +747,7 @@ function CompatibilityDialog({ product, canWrite, onClose }: {
       }
     }
     if (yf !== null && yt !== null && yf > yt) {
-      toast.error('Year range is invalid — “from” must be ≤ “to”.')
+      toast.error('Year range is invalid: “from” must be ≤ “to”.')
       return
     }
     setSaving(true)
@@ -762,7 +762,7 @@ function CompatibilityDialog({ product, canWrite, onClose }: {
         chassis: form.chassis.trim() || null,
         note: form.note.trim() || null,
       })
-      toast.success('Fitment reference added — it stays “pending admin review” until the platform verifies it.')
+      toast.success('Fitment reference added: it stays “pending admin review” until the platform verifies it.')
       setForm(EMPTY_COMPAT)
       rows.reload()
     } catch (e) {
@@ -788,10 +788,10 @@ function CompatibilityDialog({ product, canWrite, onClose }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-h-[92vh] overflow-y-auto scrollbar-thin sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Vehicle compatibility — {product.name}</DialogTitle>
+          <DialogTitle>Vehicle compatibility: {product.name}</DialogTitle>
           <DialogDescription>
             Fitment references you add are marked “pending admin review” until the platform verifies them. CARMAZE never
-            invents compatibility — these rows tell garages exactly what you declare the part fits.
+            invents compatibility: these rows tell garages exactly what you declare the part fits.
           </DialogDescription>
         </DialogHeader>
 

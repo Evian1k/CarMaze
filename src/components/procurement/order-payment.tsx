@@ -1,7 +1,7 @@
 'use client'
 
 /* Order payment + handover panels (steps 5–6 of the protected lifecycle).
- * Payment posts to POST /api/supply/orders/[id]/pay — the 503
+ * Payment posts to POST /api/supply/orders/[id]/pay: the 503
  * MPESA_NOT_CONFIGURED response is surfaced verbatim (message + manualOption)
  * and success is NEVER simulated. Handover verifies the 6-digit OTP or the
  * QR token with optional GPS capture. */
@@ -59,10 +59,10 @@ export function PaymentPanel({ order, payStatus: payStatusProp, role, busy, setB
           const s = d.payment?.status
           if (s === 'PROTECTED' || s === 'FAILED' || s === 'CANCELLED' || s === 'REFUNDED' || pollsRef.current > 24) {
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
-            if (s === 'PROTECTED') { toast.success('Payment confirmed — funds are protected.'); reload() }
+            if (s === 'PROTECTED') { toast.success('Payment confirmed: funds are protected.'); reload() }
           }
         })
-        .catch(() => { /* transient — keep polling */ })
+        .catch(() => { /* transient: keep polling */ })
     }, 5000)
   }, [order.id, reload])
 
@@ -81,7 +81,7 @@ export function PaymentPanel({ order, payStatus: payStatusProp, role, busy, setB
     setMpesaNotice(null)
     try {
       const res = await apiSend<{ message: string; customerMessage?: string }>(`/api/supply/orders/${order.id}/pay`, 'POST', { phone: phone.trim() })
-      setStkMessage(res.customerMessage || res.message || 'STK push sent. Enter your M-Pesa PIN — the order is protected only after Safaricom confirms.')
+      setStkMessage(res.customerMessage || res.message || 'STK push sent. Enter your M-Pesa PIN: the order is protected only after Safaricom confirms.')
       toast.info('STK push sent', { description: 'The order becomes protected only when Safaricom confirms the payment.' })
       pollPayment()
       reload()
@@ -89,7 +89,7 @@ export function PaymentPanel({ order, payStatus: payStatusProp, role, busy, setB
       if (e instanceof ClientApiError && e.code === 'MPESA_NOT_CONFIGURED') {
         const manual = typeof e.data?.manualOption === 'string' ? e.data.manualOption : ''
         setMpesaNotice({ message: e.message, manualOption: manual })
-        toast.error('M-Pesa is not configured on this deployment — no payment was taken.')
+        toast.error('M-Pesa is not configured on this deployment; no payment was taken.')
         reload()
       } else {
         toast.error(e instanceof ClientApiError ? e.message : 'Payment attempt failed.')
@@ -111,7 +111,7 @@ export function PaymentPanel({ order, payStatus: payStatusProp, role, busy, setB
       {payment && (
         <div className="space-y-0.5 text-sm text-muted-foreground">
           <p>Authorization <span className="font-mono text-foreground">{payment.refCode}</span> · {payment.provider}</p>
-          {payment.protectedAt && <p className="text-emerald-600 dark:text-emerald-400">Funds protected {dateTimeLabel(payment.protectedAt)} — released only after your inspection.</p>}
+          {payment.protectedAt && <p className="text-emerald-600 dark:text-emerald-400">Funds protected {dateTimeLabel(payment.protectedAt)}: released only after your inspection.</p>}
           {payment.releasedAmountMinor > 0 && <p>Released to supplier: {money(payment.releasedAmountMinor, order.currency)}</p>}
           {payment.resultDesc && <p>Provider note: {payment.resultDesc}</p>}
         </div>
@@ -119,7 +119,7 @@ export function PaymentPanel({ order, payStatus: payStatusProp, role, busy, setB
 
       {!payStatus?.mpesaConfigured && payStatus && !payment && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
-          M-Pesa is not configured on this deployment. Payment attempts will fail honestly with a manual-reconciliation option — nothing is ever simulated.
+          M-Pesa is not configured on this deployment. Payment attempts will fail honestly with a manual-reconciliation option; nothing is ever simulated.
         </p>
       )}
 
@@ -139,7 +139,7 @@ export function PaymentPanel({ order, payStatus: payStatusProp, role, busy, setB
                 <Separator className="my-1" />
                 <Row label="TOTAL to pay now" value={money(order.totalMinor, order.currency)} strong />
                 <p className="pt-1 text-xs text-muted-foreground">
-                  The commission is not charged on top — it is deducted from the supplier&apos;s proceeds when funds are released.
+                  The commission is not charged on top; it is deducted from the supplier&apos;s proceeds when funds are released.
                 </p>
               </div>
               <div className="space-y-1.5">
@@ -149,12 +149,12 @@ export function PaymentPanel({ order, payStatus: payStatusProp, role, busy, setB
                   onChange={(e) => setPhone(e.target.value)} placeholder="07XXXXXXXX or 01XXXXXXXX"
                   aria-describedby="pay-phone-hint"
                 />
-                <p id="pay-phone-hint" className="text-xs text-muted-foreground">An STK push is sent to this number. Real provider only — if M-Pesa is not configured the attempt fails with a manual option.</p>
+                <p id="pay-phone-hint" className="text-xs text-muted-foreground">An STK push is sent to this number. Real provider only: if M-Pesa is not configured the attempt fails with a manual option.</p>
               </div>
               <div className="flex gap-2">
                 <Button onClick={submitPay} disabled={busy === 'pay'}>
                   {busy === 'pay' ? <BtnSpinner className="mr-1.5" /> : null}
-                  {busy === 'pay' ? 'Sending push…' : `Send STK push — ${money(order.totalMinor, order.currency)}`}
+                  {busy === 'pay' ? 'Sending push…' : `Send STK push: ${money(order.totalMinor, order.currency)}`}
                 </Button>
                 <Button variant="outline" onClick={() => setPayOpen(false)}>Cancel</Button>
               </div>
@@ -178,7 +178,7 @@ export function PaymentPanel({ order, payStatus: payStatusProp, role, busy, setB
           <BtnSpinner />
           <AlertTitle>Payment processing</AlertTitle>
           <AlertDescription className="text-foreground/80">
-            Waiting for the provider callback. The order is protected only when Safaricom confirms — this panel refreshes automatically.
+            Waiting for the provider callback. The order is protected only when Safaricom confirms; this panel refreshes automatically.
           </AlertDescription>
         </Alert>
       )}
@@ -190,7 +190,7 @@ export function PaymentPanel({ order, payStatus: payStatusProp, role, busy, setB
           <AlertDescription>
             <p>{mpesaNotice.message}</p>
             {mpesaNotice.manualOption && <p className="mt-1.5">{mpesaNotice.manualOption}</p>}
-            <p className="mt-1.5 text-xs opacity-80">No payment was taken and the order remains unpaid — nothing has been simulated.</p>
+            <p className="mt-1.5 text-xs opacity-80">No payment was taken and the order remains unpaid; nothing has been simulated.</p>
           </AlertDescription>
         </Alert>
       )}
@@ -199,7 +199,7 @@ export function PaymentPanel({ order, payStatus: payStatusProp, role, busy, setB
 }
 
 
-// ─────────────────────────── Step 6 — handover verification ───────────────────────────
+// ─────────────────────────── Step 6: handover verification ───────────────────────────
 
 export function HandoverPanel({ order, busy, setBusy, reload }: {
   order: OrderDetailData
@@ -234,7 +234,7 @@ export function HandoverPanel({ order, busy, setBusy, reload }: {
         body.location = loc
       } else {
         body.captureLocation = false
-        toast.info('Location unavailable — handover recorded without GPS coordinates.')
+        toast.info('Location unavailable: handover recorded without GPS coordinates.')
       }
     }
     setBusy(tag)
@@ -256,7 +256,7 @@ export function HandoverPanel({ order, busy, setBusy, reload }: {
       </h3>
       <p className="text-sm text-muted-foreground">
         Confirm the physical handover with the driver. Ask for the 6-digit code sent to the garage at dispatch
-        {d?.otpHint ? <span> (ends <span className="font-mono font-semibold">…{d.otpHint}</span>)</span> : ''} — or enter the QR token printed on the delivery note.
+        {d?.otpHint ? <span> (ends <span className="font-mono font-semibold">…{d.otpHint}</span>)</span> : ''}: or enter the QR token printed on the delivery note.
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">

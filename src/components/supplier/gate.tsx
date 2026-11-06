@@ -1,10 +1,10 @@
 'use client'
 
-/* SupplierOS gate — pre-verification states.
+/* SupplierOS gate: pre-verification states.
  * A) No supplier business yet → benefits + application form (POST /api/suppliers).
  * B) Submitted successfully → honest "under review" state.
  * C) 409 APPLICATION_EXISTS → "already under review" state.
- * Verification status is never claimed here — only the platform's review team
+ * Verification status is never claimed here; only the platform's review team
  * can verify a supplier after document review. */
 
 import { useRef, useState } from 'react'
@@ -70,7 +70,7 @@ export function SignInGate() {
           </div>
           <CardTitle className="text-2xl">Sign in to open SupplierOS</CardTitle>
           <CardDescription>
-            SupplierOS is the wholesale workspace of the CARMAZE Automotive Supply Network — catalogue, protected orders,
+            SupplierOS is the wholesale workspace of the CARMAZE Automotive Supply Network; catalogue, protected orders,
             quote requests, warehouses and billing in one place.
           </CardDescription>
         </CardHeader>
@@ -80,7 +80,7 @@ export function SignInGate() {
           </Button>
           <p className="text-xs text-muted-foreground">
             {user
-              ? 'Your session is loading — this page opens automatically.'
+              ? 'Your session is loading: this page opens automatically.'
               : 'New to CARMAZE? Create a free account, then apply for supplier verification below.'}
           </p>
         </CardContent>
@@ -90,9 +90,9 @@ export function SignInGate() {
 }
 
 const STATUS_COPY: Record<string, string> = {
-  SUBMITTED: 'Application received — queued for a reviewer.',
+  SUBMITTED: 'Application received: queued for a reviewer.',
   UNDER_REVIEW: 'A reviewer is actively checking your documents right now.',
-  MORE_INFO_REQUIRED: 'The review team has requested additional information — check your notifications for what is needed.',
+  MORE_INFO_REQUIRED: 'The review team has requested additional information; check your notifications for what is needed.',
   RESUBMITTED: 'Your updates were received and the review has resumed.',
 }
 
@@ -121,10 +121,10 @@ export function UnderReview({
             <Hourglass className="h-7 w-7" />
           </div>
           <CardTitle className="text-2xl">
-            {alreadyExists ? 'Application already under review' : 'Application received — under review'}
+            {alreadyExists ? 'Application already under review' : 'Application received: under review'}
           </CardTitle>
           <CardDescription>
-            {orgName ? `${orgName} — ` : ''}
+            {orgName ? `${orgName}: ` : ''}
             {alreadyExists
               ? 'Our records show a supplier application from your account that is still being processed. You can resubmit only after it is decided.'
               : 'Our verification team reviews business registration documents before any supplier is verified. This typically takes a few working days.'}
@@ -202,7 +202,7 @@ export function ApplyForm({ onDone, onExists }: { onDone: (orgName: string) => v
       }
       toast.success('Document uploaded')
     } catch (e) {
-      toast.error(await errMessage(e, 'Upload failed — please try again.'))
+      toast.error(await errMessage(e, 'Upload failed: please try again.'))
     } finally {
       setUploading(false)
     }
@@ -266,7 +266,7 @@ export function ApplyForm({ onDone, onExists }: { onDone: (orgName: string) => v
         <h1 className="text-3xl font-semibold tracking-tight">Become a verified supplier</h1>
         <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Join the Automotive Supply Network and sell wholesale to verified garages across Kenya. Verification is granted
-          by the CARMAZE review team after document checks — it is never automatic and never self-claimed.
+          by the CARMAZE review team after document checks; it is never automatic and never self-claimed.
         </p>
       </div>
 
@@ -392,7 +392,7 @@ export function ApplyForm({ onDone, onExists }: { onDone: (orgName: string) => v
               </ul>
             )}
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <ShieldCheck className="h-3.5 w-3.5" /> Documents are private — only CARMAZE reviewers can view them.
+              <ShieldCheck className="h-3.5 w-3.5" /> Documents are private: only CARMAZE reviewers can view them.
             </p>
           </div>
 

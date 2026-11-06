@@ -5,14 +5,14 @@ import { requireUser } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
 
 /**
- * GET /api/billing/invoices — scoped, never leaky:
+ * GET /api/billing/invoices: scoped, never leaky:
  *   ?org=1   → invoices of organisations the caller belongs to
  *              (OrgMember role OWNER / MANAGER / FINANCE), with payment attempts.
  *   ?mine=1  → invoices issued to the caller personally (private sellers, etc).
  *   staff (no scope) → ALL invoices for the Control Center Billing tab
  *              (SUPPORT / REVIEWER / MODERATOR / FINANCE / ADMIN / FOUNDER).
  *
- * Everything is filtered by real ownership — there is no way to read another
+ * Everything is filtered by real ownership; there is no way to read another
  * org's invoices without staff roles.
  */
 export const GET = route(async (req: NextRequest) => {

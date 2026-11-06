@@ -27,11 +27,11 @@ async function isDemoUser(userId: string): Promise<boolean> {
 /**
  * Create an in-app notification (always "SENT") and record honest delivery
  * attempts for EMAIL / SMS channels. No email/SMS provider is configured in
- * this deployment, so those channels are recorded as FAILED with the reason —
+ * this deployment, so those channels are recorded as FAILED with the reason:
  * we never claim an email or SMS was delivered when it was not.
  *
  * DEMO ISOLATION: when the acting user of the current request is a demo
- * account, notifications to NON-demo users are skipped entirely — a demo
+ * account, notifications to NON-demo users are skipped entirely; a demo
  * session must never place anything in a real user's inbox. (Delivery to demo
  * users proceeds normally, keeping demo workflows functional.)
  */
@@ -40,7 +40,7 @@ export async function notify(input: NotifyInput): Promise<string | null> {
   // user's account. Block before any record is created.
   if (await isActorDemo()) {
     if (!(await isDemoUser(input.userId))) {
-      return null // silently skipped — demo actions must not reach real users
+      return null // silently skipped: demo actions must not reach real users
     }
   }
 
@@ -58,7 +58,7 @@ export async function notify(input: NotifyInput): Promise<string | null> {
   // HONESTY GUARD: there is NO email/SMS sending implementation in this
   // codebase (no SMTP client, no SMS gateway integration, no queue consumer).
   // Even if SMTP_URL / SMS_API_KEY were set, nothing would ever deliver, so we
-  // must NEVER record QUEUED/SENT for these channels — that would claim a
+  // must NEVER record QUEUED/SENT for these channels; that would claim a
   // delivery that cannot happen. Channels stay FAILED with the exact reason
   // until a real provider integration + queue worker exists.
   const EXTERNAL_CHANNELS_IMPLEMENTED = false
@@ -72,7 +72,7 @@ export async function notify(input: NotifyInput): Promise<string | null> {
         attempts: 1,
         lastError: EXTERNAL_CHANNELS_IMPLEMENTED
           ? null
-          : `${channel.toLowerCase()} delivery is not implemented on this deployment — in-app notification only`,
+          : `${channel.toLowerCase()} delivery is not implemented on this deployment; in-app notification only`,
       },
     })
   }

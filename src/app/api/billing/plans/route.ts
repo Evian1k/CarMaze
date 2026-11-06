@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { route, ok, getIp } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
 
-/** GET /api/billing/plans — PUBLIC. Active subscription plans + campaign packages. */
+/** GET /api/billing/plans: PUBLIC. Active subscription plans + campaign packages. */
 export const GET = route(async (req: NextRequest) => {
   const rl = rateLimit(`plans:${getIp(req)}`, 60, 60 * 1000)
   if (!rl.allowed) {

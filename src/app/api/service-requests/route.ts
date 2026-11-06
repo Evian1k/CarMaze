@@ -9,7 +9,7 @@ import { audit } from '@/lib/audit'
 import { SERVICE_CATEGORIES } from '@/lib/format'
 import { isActorDemo } from '@/lib/request-context'
 
-// ─────────────────────────── POST — customer creates a request ───────────────────────────
+// ─────────────────────────── POST: customer creates a request ───────────────────────────
 
 const createSchema = z.object({
   category: z.enum(SERVICE_CATEGORIES),
@@ -22,7 +22,7 @@ const createSchema = z.object({
 })
 
 /** Users with OWNER/MANAGER memberships on ACTIVE GARAGE orgs. When the
- * acting user is a demo account, only DEMO garages are included — a demo
+ * acting user is a demo account, only DEMO garages are included: a demo
  * request must never land in a real business's work queue. */
 async function garageOwnerIds(orgFilter?: { services?: { some: { category: string; active: boolean } } }, demoOnly = false): Promise<string[]> {
   const members = await db.orgMember.findMany({
@@ -98,7 +98,7 @@ export const POST = route(async (req: NextRequest) => {
   return ok({ request }, { status: 201 })
 })
 
-// ─────────────────────────── GET — mine | org ───────────────────────────
+// ─────────────────────────── GET: mine | org ───────────────────────────
 
 export const GET = route(async (req: NextRequest) => {
   const url = new URL(req.url)

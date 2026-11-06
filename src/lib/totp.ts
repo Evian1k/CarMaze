@@ -1,11 +1,11 @@
-// CARMAZE — TOTP (RFC 6238) two-factor helpers, pure node:crypto (no new deps).
+// CARMAZE: TOTP (RFC 6238) two-factor helpers, pure node:crypto (no new deps).
 //
 // Includes base32 (RFC 4648) encode/decode, secret generation, verification
 // with a ±1 step drift window and constant-time code comparison, plus the
 // otpauth:// provisioning URI for authenticator apps.
 //
 // Short-lived MFA challenge JWTs are signed/verified here too (same AUTH_SECRET
-// as session cookies) — they live alongside the MFA lib because src/lib/auth.ts
+// as session cookies): they live alongside the MFA lib because src/lib/auth.ts
 // owns only the long-lived session contract.
 
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
@@ -54,7 +54,7 @@ export function base32Decode(input: string): Buffer {
 
 // ───────────────────────────── TOTP (RFC 6238) ─────────────────────────────
 
-/** 160-bit secret, base32-encoded — the standard size for authenticator apps. */
+/** 160-bit secret, base32-encoded: the standard size for authenticator apps. */
 export function generateTotpSecret(): string {
   return base32Encode(randomBytes(20))
 }
@@ -100,7 +100,7 @@ export function totpUri(secret: string, account: string): string {
 
 // ─────────────────── Short-lived MFA challenge tokens ───────────────────
 
-// Dev fallback matches src/lib/auth.ts — production must set AUTH_SECRET.
+// Dev fallback matches src/lib/auth.ts: production must set AUTH_SECRET.
 const mfaJwtSecret = new TextEncoder().encode(
   process.env.AUTH_SECRET || 'carmaze-dev-secret-change-in-production'
 )
@@ -118,7 +118,7 @@ export async function signMfaChallenge(userId: string): Promise<string> {
     .sign(mfaJwtSecret)
 }
 
-/** Returns the user id for a valid, unexpired challenge token — null otherwise. */
+/** Returns the user id for a valid, unexpired challenge token: null otherwise. */
 export async function verifyMfaChallenge(token: string): Promise<string | null> {
   try {
     const { payload } = await jwtVerify(token, mfaJwtSecret)

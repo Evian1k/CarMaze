@@ -7,11 +7,11 @@ import { audit } from '@/lib/audit'
 import { verifyWebhookSignature, webhookRejected } from '@/lib/webhook-auth'
 
 /**
- * POST /api/billing/mpesa/callback — PUBLIC endpoint called by Safaricom Daraja.
+ * POST /api/billing/mpesa/callback: PUBLIC endpoint called by Safaricom Daraja.
  *
  * SECURITY: when MPESA_WEBHOOK_SECRET is configured, callbacks must present it
  * in the x-carmaze-signature header (timing-safe compare). Without the secret
- * the callback is accepted without source validation — a documented limitation
+ * the callback is accepted without source validation; a documented limitation
  * mitigated by the fact that a callback can only resolve attempts that were
  * genuinely initiated through stkpush, and every unsigned acceptance is
  * audit-logged.
@@ -65,7 +65,7 @@ export const POST = route(async (req: NextRequest) => {
   if (parsed.resultCode === 0) {
     // Amount integrity check: the callback amount (KES) must match what was
     // actually initiated for this attempt. A mismatch means a tampered or
-    // mismatched callback — we refuse activation and flag it for ops.
+    // mismatched callback: we refuse activation and flag it for ops.
     if (parsed.amount != null && Math.round(parsed.amount) !== Math.round(attempt.amountMinor / 100)) {
       await db.paymentAttempt.update({
         where: { id: attempt.id },

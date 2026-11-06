@@ -23,7 +23,7 @@ async function findUserByEmail(email: string) {
 }
 
 /**
- * Password reset request. NEVER reveals whether the account exists — the
+ * Password reset request. NEVER reveals whether the account exists: the
  * response is always a generic success. HONESTY NOTE: this deployment has no
  * SMTP configured, so when an account matches (non-production only) the raw
  * reset token is returned as a clearly-labelled development link instead of
@@ -50,7 +50,7 @@ export const POST = route(async (req: NextRequest) => {
         requestIp: ip,
       },
     })
-    // No email address in audit metadata — the action is already linked via userId.
+    // No email address in audit metadata; the action is already linked via userId.
     await audit({ action: 'PASSWORD_RESET_REQUESTED', targetType: 'USER', targetId: user.id, metadata: { userId: user.id } })
 
     const smtpConfigured = Boolean(process.env.SMTP_URL)
@@ -60,7 +60,7 @@ export const POST = route(async (req: NextRequest) => {
         message: 'If an account exists for that address, a reset link has been issued.',
         devResetToken: token,
         devResetPath: `#/signin?reset=${token}`,
-        devNotice: 'Email delivery is not configured on this deployment — use this development reset link.',
+        devNotice: 'Email delivery is not configured on this deployment; use this development reset link.',
       })
     }
   }

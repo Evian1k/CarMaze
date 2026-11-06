@@ -1,4 +1,4 @@
-// CARMAZE Partner Network — shared, client-safe constants and parsers.
+// CARMAZE Partner Network: shared, client-safe constants and parsers.
 // Single source of truth used by the public directory, the application form
 // and staff tooling so labels and parsing never drift apart.
 
@@ -32,7 +32,7 @@ export const PARTNER_STATUSES = ['PENDING', 'APPROVED', 'SUSPENDED', 'REJECTED']
 
 export type PartnerStatus = (typeof PARTNER_STATUSES)[number]
 
-/** Parse the JSON string[] stored in Partner.serviceAreas — never throws. */
+/** Parse the JSON string[] stored in Partner.serviceAreas: never throws. */
 export function parseServiceAreas(raw: string | null | undefined): string[] {
   if (!raw) return []
   try {
@@ -44,7 +44,7 @@ export function parseServiceAreas(raw: string | null | undefined): string[] {
   }
 }
 
-/** Staff notes are stored as a JSON array [{by, at, text}] — parse defensively. */
+/** Staff notes are stored as a JSON array [{by, at, text}]: parse defensively. */
 export function parsePartnerNotes(
   raw: string | null | undefined,
 ): { by: string; at: string; text: string }[] {

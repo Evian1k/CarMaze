@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — Vehicle detail (#/vehicle-detail/<id>)
+/* CARMAZE: Vehicle detail (#/vehicle-detail/<id>)
  * Gallery, full specification, safety guidance, honest seller card,
  * save / share / report / enquire actions and similar listings.
  */
@@ -305,9 +305,9 @@ export default function View() {
     { icon: Fuel, label: 'Fuel', value: vehicle.fuel.charAt(0) + vehicle.fuel.slice(1).toLowerCase() },
     { icon: Cog, label: 'Transmission', value: vehicle.transmission === 'AUTOMATIC' ? 'Automatic' : 'Manual' },
     { icon: Car, label: 'Body', value: vehicle.bodyType.charAt(0) + vehicle.bodyType.slice(1).toLowerCase() },
-    { icon: Cog, label: 'Engine', value: vehicle.engineCc ? `${vehicle.engineCc.toLocaleString()} cc` : '—' },
+    { icon: Cog, label: 'Engine', value: vehicle.engineCc ? `${vehicle.engineCc.toLocaleString()} cc` : 'Not provided' },
     { icon: Palette, label: 'Colour', value: vehicle.color },
-    { icon: MapPin, label: 'Location', value: location || '—' },
+    { icon: MapPin, label: 'Location', value: location || 'Not set' },
     { icon: CalendarDays, label: 'Listed', value: timeAgo(vehicle.createdAt) },
     { icon: Hash, label: 'Ref', value: vehicle.refCode },
     { icon: Eye, label: 'Views', value: vehicle.views.toLocaleString() },
@@ -327,7 +327,7 @@ export default function View() {
               <motion.img
                 key={activePhoto}
                 src={photos[activePhoto]?.url ?? photos[0].url}
-                alt={`${title} — photo ${activePhoto + 1} of ${photos.length}`}
+                alt={`${title}: photo ${activePhoto + 1} of ${photos.length}`}
                 className="aspect-[16/10] w-full object-cover"
                 initial={{ opacity: 0.35, scale: 1.035 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -454,7 +454,7 @@ export default function View() {
             </CardContent>
           </Card>
 
-          {/* Seller card — honest about seller type */}
+          {/* Seller card: honest about seller type */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{isDealer ? 'Sold by' : 'Private seller'}</CardTitle>
@@ -466,7 +466,7 @@ export default function View() {
                     {vehicle.org.name}
                     <BadgeCheck className="h-4.5 w-4.5 text-primary" aria-label="Verified dealer" />
                     {(vehicle.org as { isDemo?: boolean }).isDemo && (
-                      <span className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="Demo storefront — sample data, not a real business">
+                      <span className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="Demo storefront: sample data, not a real business">
                         Demo
                       </span>
                     )}
@@ -484,7 +484,7 @@ export default function View() {
                       <a href={`tel:${vehicle.org.phone}`} className="hover:underline">{vehicle.org.phone}</a>
                     </p>
                   )}
-                  <p className="text-xs text-muted-foreground">Business contact — call during working hours.</p>
+                  <p className="text-xs text-muted-foreground">Business contact: call during working hours.</p>
                 </>
               ) : (
                 <>
@@ -594,7 +594,7 @@ export default function View() {
         </DialogContent>
       </Dialog>
 
-      {/* Storefront dialogs — dealer listings */}
+      {/* Storefront dialogs: dealer listings */}
       {vehicle.org?.id && (
         <>
           <MessageDialog

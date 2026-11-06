@@ -7,7 +7,7 @@ import { notify } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 
 /**
- * GET /api/admin/users?q= — staff user directory with org memberships.
+ * GET /api/admin/users?q=: staff user directory with org memberships.
  * Search is case-insensitive across name/email (filtered in JS because the
  * SQLite connector does not support case-insensitive `contains`).
  */
@@ -44,11 +44,11 @@ const patchSchema = z.object({
 })
 
 /**
- * PATCH /api/admin/users — suspend / reactivate accounts (ADMIN/FOUNDER only).
+ * PATCH /api/admin/users: suspend / reactivate accounts (ADMIN/FOUNDER only).
  * Guards: you cannot suspend yourself, and nobody can suspend a FOUNDER.
  *
  * JWT honesty: sessions are stateless, so suspension does not instantly kill
- * issued tokens — getSessionUser() rejects SUSPENDED users on every request,
+ * issued tokens: getSessionUser() rejects SUSPENDED users on every request,
  * which effectively locks API access immediately, but the cookie itself
  * remains valid until expiry. Sessions remain valid until expiry; tokens
  * rotate in production.

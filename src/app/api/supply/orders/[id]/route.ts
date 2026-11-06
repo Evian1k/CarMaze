@@ -9,10 +9,10 @@ export const dynamic = 'force-dynamic'
 type Ctx = { params: Promise<{ id: string }> }
 
 /**
- * GET /api/supply/orders/[id] — full order detail for authorised parties
+ * GET /api/supply/orders/[id]: full order detail for authorised parties
  * (garage members / supplier members / platform staff). Includes items,
  * revisions, delivery + events, payment state, inspection and disputes.
- * The handover OTP is never exposed here — only a hint.
+ * The handover OTP is never exposed here; only a hint.
  */
 export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params

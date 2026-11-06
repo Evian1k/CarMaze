@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 const EASE = [0.22, 0.61, 0.36, 1] as const
 
 /** Fade-and-rise reveal with a soft focus pull (de-blur) when the element
- * scrolls into view — the premium "rack focus" feel. */
+ * scrolls into view: the premium "rack focus" feel. */
 export function Reveal({
   children,
   delay = 0,
@@ -41,7 +41,7 @@ export function Reveal({
   )
 }
 
-/** Staggered children container — direct children rise in sequence. */
+/** Staggered children container: direct children rise in sequence. */
 export function Stagger({
   children,
   className,
@@ -129,7 +129,7 @@ export function CountUp({
   )
 }
 
-/** Subtle lift + shadow on hover — the standard card micro-interaction. */
+/** Subtle lift + shadow on hover; the standard card micro-interaction. */
 export function HoverLift({
   children,
   className,
@@ -155,7 +155,7 @@ export function HoverLift({
   )
 }
 
-/** Gentle scroll parallax — pass children that should drift as the page scrolls. */
+/** Gentle scroll parallax: pass children that should drift as the page scrolls. */
 export function Parallax({
   children,
   className,
@@ -177,7 +177,7 @@ export function Parallax({
   )
 }
 
-/** Headline whose words rise in sequence — for hero titles. */
+/** Headline whose words rise in sequence; for hero titles. */
 export function WordRise({
   text,
   className,
@@ -229,7 +229,7 @@ export function Pressable({
 }
 
 /** Scroll-triggered cascade for hero-adjacent rows: children slide in from
- * alternating sides — for trust strips and module grids. */
+ * alternating sides: for trust strips and module grids. */
 export function SlideIn({
   children,
   className,

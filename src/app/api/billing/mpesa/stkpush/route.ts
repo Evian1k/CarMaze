@@ -13,7 +13,7 @@ const bodySchema = z.object({
 })
 
 /**
- * POST /api/billing/mpesa/stkpush — initiate an STK push for a PENDING invoice
+ * POST /api/billing/mpesa/stkpush: initiate an STK push for a PENDING invoice
  * the caller owns (invoice owner or member of the invoiced org).
  *
  * HONEST PAYMENT STATES:
@@ -30,7 +30,7 @@ export const POST = route(async (req: NextRequest) => {
 
   const body = await parseBody(req, bodySchema)
 
-  // DEMO SANDBOX: demo accounts never trigger real M-Pesa transactions —
+  // DEMO SANDBOX: demo accounts never trigger real M-Pesa transactions:
   // enforced before any payment attempt is recorded.
   assertNotDemoActor(user, 'real M-Pesa payment')
 

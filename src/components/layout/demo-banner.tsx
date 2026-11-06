@@ -1,6 +1,6 @@
 'use client'
 
-/* DEMO MODE indicator — shown for the whole session whenever the signed-in
+/* DEMO MODE indicator: shown for the whole session whenever the signed-in
  * user is inside a demo experience. Explains isolation and offers Exit Demo. */
 
 import { useState } from 'react'
@@ -60,7 +60,7 @@ export function DemoBanner() {
               {ROLE_LABELS[demo.roleKey] ?? demo.roleKey}
             </span>
             <span className="hidden text-amber-800/90 dark:text-amber-200/80 md:inline">
-              You are exploring a sandboxed demo — this data is separate from real customer data. Actions that would affect real users or trigger real payments are blocked.
+              You are exploring a sandboxed demo: this data is separate from real customer data. Actions that would affect real users or trigger real payments are blocked.
             </span>
             <span className="ml-auto flex items-center gap-2.5">
               <span className="hidden items-center gap-1 text-amber-700/80 dark:text-amber-300/70 sm:flex">

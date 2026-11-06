@@ -1,17 +1,17 @@
 'use client'
 
-/* LogisticsOS — the delivery-partner platform of CARMAZE, plus the
+/* LogisticsOS: the delivery-partner platform of CARMAZE, plus the
  * requester-side delivery service. One view, four states:
  *
- *   A) Landing / marketing — anon or signed-in without a logistics footprint.
+ *   A) Landing / marketing: anon or signed-in without a logistics footprint.
  *      CTAs: "Join our delivery network" (application) and
  *      "Request a delivery" (requester tool for signed-in users).
- *   B) Application — form (POST /api/applications type LOGISTICS) or the
+ *   B) Application: form (POST /api/applications type LOGISTICS) or the
  *      honest status card with timeline + "respond to info request" resubmit.
- *   C) Partner dashboard — Jobs (open board + active lifecycle + history),
+ *   C) Partner dashboard: Jobs (open board + active lifecycle + history),
  *      Fleet (drivers CRUD), My requests (requester tool), Earnings
  *      (honest records; no fake settlement numbers).
- *   D) Suspended — amber notice with the staff reason and no actions.
+ *   D) Suspended: amber notice with the staff reason and no actions.
  *
  * Every state is driven by live API data. Verification is only ever rendered
  * as the API reports it; errors surface verbatim.
@@ -148,9 +148,9 @@ const CAPABILITIES = [
 ] as const
 
 const SIZE_LABEL: Record<string, string> = {
-  SMALL: 'Small — parcels, documents',
-  MEDIUM: 'Medium — parts, boxes',
-  LARGE: 'Large — vehicle or bulky cargo',
+  SMALL: 'Small: parcels, documents',
+  MEDIUM: 'Medium: parts, boxes',
+  LARGE: 'Large: vehicle or bulky cargo',
 }
 
 const VEHICLE_TYPES = [
@@ -205,7 +205,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 /** Requester-side drop-off QR: encodes the job's QR token. The partner can
- * confirm delivery by scanning it or typing the token — an alternative to the
+ * confirm delivery by scanning it or typing the token; an alternative to the
  * 6-digit code. Rendered on demand (generated locally, no external service). */
 function DropOffQr({ token }: { token: string }) {
   const [open, setOpen] = useState(false)
@@ -233,7 +233,7 @@ function DropOffQr({ token }: { token: string }) {
           )}
           <p className="font-mono text-xs font-semibold tracking-wide">{token}</p>
           <p className="max-w-48 text-center text-[11px] text-muted-foreground">
-            The partner scans or types this token to confirm delivery — it works instead of the 6-digit code.
+            The partner scans or types this token to confirm delivery; it works instead of the 6-digit code.
           </p>
         </div>
       )}
@@ -303,7 +303,7 @@ function Spin({ label }: { label: string }) {
   )
 }
 
-/** URL-bound fetch hook with manual reload — mirrors the data flow used by
+/** URL-bound fetch hook with manual reload; mirrors the data flow used by
  * the other dashboard views (plain state + useEffect, no extra deps).
  * All setState calls happen in async continuations, never synchronously
  * inside the effect body. */
@@ -333,7 +333,7 @@ function useApiData<T>(url: string | null): { data: T | null; error: string | nu
   }, [url, tick])
 
   const reload = useCallback(() => setTick((t) => t + 1), [])
-  // Derived reset when unmounted/disabled — no synchronous setState in effects.
+  // Derived reset when unmounted/disabled: no synchronous setState in effects.
   return { data: url ? data : null, error: url ? error : null, loading, reload }
 }
 
@@ -491,7 +491,7 @@ function PhotoUploader({ photos, onChange, max = 6 }: {
   )
 }
 
-/* ═══════════════════════════ STATE A — landing ═══════════════════════════ */
+/* ═══════════════════════════ STATE A: landing ═══════════════════════════ */
 
 function Landing({ signedIn, onJoin, onRequest }: {
   signedIn: boolean
@@ -500,13 +500,13 @@ function Landing({ signedIn, onJoin, onRequest }: {
 }) {
   const audience = [
     { icon: Wrench, title: 'Garages', text: 'Collect parts from suppliers and return customer vehicles after service.' },
-    { icon: Building2, title: 'Showrooms & dealers', text: 'Move vehicles between branches, auctions and buyers — driveaway or transporter.' },
+    { icon: Building2, title: 'Showrooms & dealers', text: 'Move vehicles between branches, auctions and buyers: driveaway or transporter.' },
     { icon: Package, title: 'Suppliers & parts shops', text: 'Same-day parts runs to workshops and retail customers.' },
     { icon: Users, title: 'Individual customers', text: 'Parcels, documents and bulky automotive cargo across counties.' },
   ]
   const requirements = [
     'National ID or passport of the owner / authorised representative',
-    'Business registration certificate (companies — independents may skip)',
+    'Business registration certificate (companies: independents may skip)',
     'Vehicle registration documents for every delivery vehicle',
     'Valid insurance certificate where applicable',
   ]
@@ -521,7 +521,7 @@ function Landing({ signedIn, onJoin, onRequest }: {
         <h1 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl">CARMAZE Logistics Network</h1>
         <p className="mx-auto mt-3 max-w-2xl text-balance text-sm text-muted-foreground sm:text-base">
           Verified delivery partners move vehicles, parts and parcels between garages, showrooms, suppliers
-          and customers across Kenya — with proof of pickup, live status and drop-off verification on every job.
+          and customers across Kenya: with proof of pickup, live status and drop-off verification on every job.
         </p>
         <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Button size="lg" onClick={onJoin} className="min-h-11 w-full sm:w-auto">
@@ -534,7 +534,7 @@ function Landing({ signedIn, onJoin, onRequest }: {
         </div>
         {!signedIn && (
           <p className="mt-3 text-xs text-muted-foreground">
-            Partner applications are tied to a free CARMAZE account — you will be asked to sign in or register first.
+            Partner applications are tied to a free CARMAZE account; you will be asked to sign in or register first.
           </p>
         )}
       </div>
@@ -564,7 +564,7 @@ function Landing({ signedIn, onJoin, onRequest }: {
               <div>
                 <h2 id="verification" className="text-lg font-semibold">Verification is earned, not claimed</h2>
                 <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                  Verification is granted by our review team after document checks — never automatic, never
+                  Verification is granted by our review team after document checks; never automatic, never
                   self-claimed. Every application is reviewed by a human, and partners can only accept
                   deliveries once approved. Suspended or non-approved accounts cannot act on the platform.
                 </p>
@@ -590,7 +590,7 @@ function Landing({ signedIn, onJoin, onRequest }: {
   )
 }
 
-/* ═════════════════════ STATE B — application form ═════════════════════ */
+/* ═════════════════════ STATE B: application form ═════════════════════ */
 
 function ApplyForm({ onSubmitted, onBack }: { onSubmitted: () => void; onBack: () => void }) {
   const [name, setName] = useState('')
@@ -620,7 +620,7 @@ function ApplyForm({ onSubmitted, onBack }: { onSubmitted: () => void; onBack: (
       : representative.trim().length < 2 ? 'Enter the authorised representative name.'
       : partnerType === 'COMPANY' && regNo.trim().length < 1 ? 'Enter the business registration number.'
       : capabilities.length === 0 ? 'Select at least one capability.'
-      : documents.length === 0 ? 'Upload at least one document (ID, registration, vehicle or insurance) — review is manual.'
+      : documents.length === 0 ? 'Upload at least one document (ID, registration, vehicle or insurance): review is manual.'
       : !consent ? 'Confirm the declaration to submit.'
       : null
     if (problem) {
@@ -651,7 +651,7 @@ function ApplyForm({ onSubmitted, onBack }: { onSubmitted: () => void; onBack: (
         consent: true,
         notes: composedNotes || undefined,
       })
-      toast.success('Application submitted — our review team will check your documents.')
+      toast.success('Application submitted: our review team will check your documents.')
       onSubmitted()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not submit the application.')
@@ -673,7 +673,7 @@ function ApplyForm({ onSubmitted, onBack }: { onSubmitted: () => void; onBack: (
           <h1 className="text-2xl font-bold tracking-tight">Join the CARMAZE delivery network</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Tell us about your operation and upload your documents. Every application is reviewed by
-            hand — approval is never automatic and never self-claimed.
+            hand: approval is never automatic and never self-claimed.
           </p>
         </div>
       </div>
@@ -796,7 +796,7 @@ function ApplyForm({ onSubmitted, onBack }: { onSubmitted: () => void; onBack: (
   )
 }
 
-/* ═══════════ STATE B — application status card (+ resubmit) ═══════════ */
+/* ═══════════ STATE B: application status card (+ resubmit) ═══════════ */
 
 const STATUS_BADGE: Record<string, string> = {
   SUBMITTED: 'border-transparent bg-muted text-muted-foreground',
@@ -837,7 +837,7 @@ function ApplicationStatusCard({ app, onChanged }: { app: LogisticsApplication; 
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Verification is performed by our review team after document checks — it is never automatic and
+            Verification is performed by our review team after document checks; it is never automatic and
             never self-claimed. We will notify you here the moment a decision is made.
           </p>
 
@@ -901,7 +901,7 @@ function ResubmitDialog({ app, open, onOpenChange, onDone }: {
         documents: docs,
         notes: notes.trim() || undefined,
       })
-      toast.success('Response submitted — review continues.')
+      toast.success('Response submitted: review continues.')
       onDone()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not resubmit.')
@@ -937,7 +937,7 @@ function ResubmitDialog({ app, open, onOpenChange, onDone }: {
   )
 }
 
-/* ═══════════════════════ STATE D — suspended notice ═══════════════════════ */
+/* ═══════════════════════ STATE D: suspended notice ═══════════════════════ */
 
 function SuspendedNotice({ partner }: { partner: PartnerSelf }) {
   const suspended = partner.status === 'SUSPENDED'
@@ -950,8 +950,8 @@ function SuspendedNotice({ partner }: { partner: PartnerSelf }) {
         </AlertTitle>
         <AlertDescription className="text-amber-900/80 dark:text-amber-200/80">
           {suspended
-            ? 'Your delivery partner account has been suspended by CARMAZE staff — you cannot accept deliveries or manage your fleet while suspended.'
-            : 'Your delivery partner account is not active — you cannot accept deliveries or manage your fleet until the review team reactivates it.'}
+            ? 'Your delivery partner account has been suspended by CARMAZE staff; you cannot accept deliveries or manage your fleet while suspended.'
+            : 'Your delivery partner account is not active; you cannot accept deliveries or manage your fleet until the review team reactivates it.'}
           {partner.decisionNote && <span className="mt-2 block font-medium">Reason: {partner.decisionNote}</span>}
           <span className="mt-2 block">
             Contact CARMAZE support to resolve this. Your account data and history are safe.
@@ -963,7 +963,7 @@ function SuspendedNotice({ partner }: { partner: PartnerSelf }) {
   )
 }
 
-/* ═══════════════════ STATE C — partner dashboard (tabs) ═══════════════════ */
+/* ═══════════════════ STATE C: partner dashboard (tabs) ═══════════════════ */
 
 function PartnerDashboard({ partner, onRefresh }: { partner: PartnerSelf; onRefresh: () => void }) {
   const route = useHashRoute()
@@ -1132,7 +1132,7 @@ function JobsTab({ partnerJobs, fleet, goFleet }: {
             <EmptyState
               icon={Truck}
               title="No active deliveries right now"
-              hint="Accept an open request to start a delivery — you will quote the fee and assign one of your drivers."
+              hint="Accept an open request to start a delivery; you will quote the fee and assign one of your drivers."
             />
           </div>
         ) : (
@@ -1274,7 +1274,7 @@ function AcceptJobDialog({ job, drivers, onClose, onAccepted, goFleet }: {
     setBusy(true)
     try {
       await apiSend(`/api/logistics/jobs/${job.id}`, 'POST', { action: 'accept', driverId, feeMinor })
-      toast.success(`Delivery ${job.refCode} accepted — the requester was notified with their drop-off code.`)
+      toast.success(`Delivery ${job.refCode} accepted: the requester was notified with their drop-off code.`)
       onAccepted()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not accept this job.')
@@ -1290,7 +1290,7 @@ function AcceptJobDialog({ job, drivers, onClose, onAccepted, goFleet }: {
           <DialogTitle>Accept delivery {job?.refCode}</DialogTitle>
           <DialogDescription>
             Assign one of your ACTIVE drivers and quote your fee. The requester is notified with a
-            6-digit drop-off code — you will need it back from them to confirm delivery.
+            6-digit drop-off code: you will need it back from them to confirm delivery.
           </DialogDescription>
         </DialogHeader>
         {job && (
@@ -1451,10 +1451,10 @@ function FailJobDialog({ job, onClose, onFailed }: {
     <Dialog open={Boolean(job)} onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Report failure — {job?.refCode}</DialogTitle>
+          <DialogTitle>Report failure: {job?.refCode}</DialogTitle>
           <DialogDescription>
             The requester is notified with your reason. Use this honestly when the delivery cannot be
-            completed — it is recorded on the job timeline.
+            completed: it is recorded on the job timeline.
           </DialogDescription>
         </DialogHeader>
         <Field label="What went wrong?">
@@ -1568,7 +1568,7 @@ function FleetTab({ fleet }: {
                         <AlertDialogTitle>Remove {d.name} from your fleet?</AlertDialogTitle>
                         <AlertDialogDescription>
                           This permanently deletes the driver record. Drivers carrying active
-                          deliveries cannot be deleted — mark them inactive instead.
+                          deliveries cannot be deleted: mark them inactive instead.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -1666,7 +1666,7 @@ function AddDriverDialog({ open, onOpenChange, onAdded }: {
   )
 }
 
-/* ═══════════ Requester tool — create + track my deliveries ═══════════ */
+/* ═══════════ Requester tool: create + track my deliveries ═══════════ */
 
 function MyRequestsSection() {
   const mine = useApiData<{ jobs: Job[] }>('/api/logistics/jobs?scope=mine')
@@ -1689,7 +1689,7 @@ function MyRequestsSection() {
         <div>
           <h2 className="text-lg font-semibold">Your delivery requests</h2>
           <p className="text-sm text-muted-foreground">
-            Request a pickup and drop-off. A verified partner accepts the job and quotes the fee —
+            Request a pickup and drop-off. A verified partner accepts the job and quotes the fee:
             your drop-off code arrives in your notifications.
           </p>
         </div>
@@ -1717,7 +1717,7 @@ function MyRequestsSection() {
         <EmptyState
           icon={Package}
           title="You have not requested any deliveries yet"
-          hint="Create a request with pickup and drop-off details — verified partners will see it on their board."
+          hint="Create a request with pickup and drop-off details; verified partners will see it on their board."
           action={<Button onClick={() => setCreateOpen(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Request a delivery</Button>}
         />
       ) : (
@@ -1778,7 +1778,7 @@ function MyRequestsSection() {
                       <div className="inline-flex items-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-xs">
                         <ShieldCheck className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                         <span>
-                          Drop-off code <span className="font-mono font-bold text-foreground">••• {job.otpHint}</span> — sent to your notifications. Share it only when you receive the cargo.
+                          Drop-off code <span className="font-mono font-bold text-foreground">••• {job.otpHint}</span>: sent to your notifications. Share it only when you receive the cargo.
                         </span>
                       </div>
                       {job.qrToken && <DropOffQr token={job.qrToken} />}
@@ -1874,7 +1874,7 @@ function CreateDeliveryDialog({ open, onOpenChange, onCreated }: {
         dropContactName: dropName.trim(),
         dropContactPhone: dropPhone.trim(),
       })
-      toast.success(`Request ${d.job.refCode} created — partners can now see it on their board.`)
+      toast.success(`Request ${d.job.refCode} created: partners can now see it on their board.`)
       onCreated()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not create the delivery request.')
@@ -1890,7 +1890,7 @@ function CreateDeliveryDialog({ open, onOpenChange, onCreated }: {
           <DialogTitle>Request a delivery</DialogTitle>
           <DialogDescription>
             Give the pickup and drop-off details. A verified delivery partner will accept the job and
-            quote the fee — you approve nothing extra, the fee is fixed at acceptance.
+            quote the fee: you approve nothing extra, the fee is fixed at acceptance.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -2012,7 +2012,7 @@ function EarningsTab({ jobs, loading }: { jobs: Job[] | null; loading: boolean }
         <AlertDescription>
           Settlement with the platform is reconciled by our finance team; in-app payment collection for
           delivery fees is not yet enabled. The figures above are honest records of agreed and completed
-          fees — not wallet balances.
+          fees: not wallet balances.
         </AlertDescription>
       </Alert>
 
@@ -2038,7 +2038,7 @@ function EarningsTab({ jobs, loading }: { jobs: Job[] | null; loading: boolean }
   )
 }
 
-/* ═══════════ signed-in, no partner — landing / apply / request ═══════════ */
+/* ═══════════ signed-in, no partner: landing / apply / request ═══════════ */
 
 function NonPartnerHome({ user, onDataChanged }: { user: CurrentUser; onDataChanged: () => void }) {
   const apps = useApiData<{ applications: LogisticsApplication[] }>('/api/applications')
@@ -2104,7 +2104,7 @@ function NonPartnerHome({ user, onDataChanged }: { user: CurrentUser; onDataChan
         </div>
       )}
       <p className="mx-auto w-full max-w-6xl px-4 py-6 text-center text-xs text-muted-foreground sm:px-6">
-        Signed in as {user.name} — you can join the network as a delivery partner and still request
+        Signed in as {user.name}: you can join the network as a delivery partner and still request
         deliveries for your own cargo.
       </p>
     </div>
@@ -2139,7 +2139,7 @@ export default function View() {
     return () => { cancelled = true }
   }, [user, reloadToken])
 
-  // Event-context refresh — never invoked from an effect body.
+  // Event-context refresh: never invoked from an effect body.
   const refresh = () => { setSelfLoading(true); setReloadToken((t) => t + 1) }
 
   if (authLoading || (user && selfLoading && self === null)) {
@@ -2156,7 +2156,7 @@ export default function View() {
     )
   }
 
-  // State A — anonymous landing
+  // State A: anonymous landing
   if (!user) {
     return (
       <Landing
@@ -2184,7 +2184,7 @@ export default function View() {
     )
   }
 
-  // State C/D — approved or suspended partner
+  // State C/D: approved or suspended partner
   if (self) {
     if (self.status === 'APPROVED') {
       return <PartnerDashboard partner={self} onRefresh={refresh} />
@@ -2192,6 +2192,6 @@ export default function View() {
     return <SuspendedNotice partner={self} />
   }
 
-  // State A/B — signed in without a partner
+  // State A/B: signed in without a partner
   return <NonPartnerHome user={user} onDataChanged={refresh} />
 }

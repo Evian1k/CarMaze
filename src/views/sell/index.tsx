@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — Sell (#/sell)
+/* CARMAZE: Sell (#/sell)
  * Three-step listing form: vehicle basics → pricing & details → reach.
  * Supports edit mode via ?id=<vehicleId> (own, editable listings only).
  */
@@ -251,7 +251,7 @@ export default function View() {
             <h1 className="text-xl font-bold">Sign in to start selling</h1>
             <p className="text-sm text-muted-foreground">
               Browsing CARMAZE is free and needs no account. To list a vehicle you&apos;ll need to sign in so
-              buyers can reach you securely — your contact details stay private until you choose to share them.
+              buyers can reach you securely: your contact details stay private until you choose to share them.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button className="h-11 px-6" onClick={() => navigate('signin')}>Sign in</Button>
@@ -280,8 +280,8 @@ export default function View() {
             </p>
             <p className="text-sm text-muted-foreground">
               {success.status === 'PENDING_REVIEW'
-                ? 'Our review team checks every listing to keep the marketplace scam-free. The initial review target is 24 business hours — you\'ll get a notification the moment your car goes live.'
-                : 'Your listing is saved as a draft. Submit it for review whenever you\'re ready — nothing is public until it\'s approved.'}
+                ? 'Our review team checks every listing to keep the marketplace scam-free. The initial review target is 24 business hours; you\'ll get a notification the moment your car goes live.'
+                : 'Your listing is saved as a draft. Submit it for review whenever you\'re ready; nothing is public until it\'s approved.'}
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button className="h-11 px-6" onClick={() => navigate('my-listings')}>Go to my listings</Button>
@@ -304,13 +304,13 @@ export default function View() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {editId
-              ? `Editing ${editStatus === 'REJECTED' ? 'a rejected listing' : 'your listing'} — changes go live after re-review.`
+              ? `Editing ${editStatus === 'REJECTED' ? 'a rejected listing' : 'your listing'}: changes go live after re-review.`
               : 'Free to list. Reviewed within 24 business hours. Your phone stays private until you accept an enquiry.'}
           </p>
         </header>
       </Reveal>
 
-      {/* Seller verification — manual document review that adds the verified trust marker */}
+      {/* Seller verification: manual document review that adds the verified trust marker */}
       <Reveal className="mb-6">
         <VerificationPanel />
       </Reveal>
@@ -324,7 +324,7 @@ export default function View() {
 
       {editStatus === 'REJECTED' && editNote && (
         <Alert className="mb-6 border-destructive/40 bg-destructive/5 text-destructive [&>svg]:text-destructive">
-          <AlertTitle>Rejected by review — fix and resubmit</AlertTitle>
+          <AlertTitle>Rejected by review: fix and resubmit</AlertTitle>
           <AlertDescription>{editNote}</AlertDescription>
         </Alert>
       )}
@@ -570,7 +570,7 @@ export default function View() {
                     <p className="truncate font-semibold">
                       {form.make || 'Make'} {form.model || 'Model'} {form.year || ''}
                     </p>
-                    <p className="font-bold text-primary">{priceMinor ? money(priceMinor) : 'KES —'}</p>
+                    <p className="font-bold text-primary">{priceMinor ? money(priceMinor) : 'KES not set'}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {form.condition && <Badge variant="secondary">{CONDITION_LABELS[form.condition] ?? form.condition}</Badge>}
                       {form.bodyType && <Badge variant="outline">{form.bodyType.charAt(0) + form.bodyType.slice(1).toLowerCase()}</Badge>}
@@ -583,7 +583,7 @@ export default function View() {
 
               <p className="text-xs text-muted-foreground">
                 By submitting you confirm the details are accurate and you&apos;re authorised to sell this vehicle.
-                Listings are checked by our team before going public — the initial review target is 24 business hours.
+                Listings are checked by our team before going public; the initial review target is 24 business hours.
               </p>
             </div>
           )}

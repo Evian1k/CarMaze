@@ -93,7 +93,7 @@ export const GET = route(async (req: NextRequest) => {
 })
 
 /**
- * POST /api/orgs/staff — invite a team member. OWNER only.
+ * POST /api/orgs/staff: invite a team member. OWNER only.
  * If the email is not registered, an account is provisioned and a generated
  * 12-character password is returned ONCE in this response (hashed in the DB).
  * Enforces the subscription plan's staffLimit (default 2 without a plan).
@@ -112,7 +112,7 @@ export const POST = route(async (req: NextRequest) => {
   const seatLimit = await staffLimitFor(body.orgId)
   const currentCount = await db.orgMember.count({ where: { orgId: body.orgId } })
   if (currentCount >= seatLimit) {
-    return fail(402, 'PLAN_LIMIT', `Upgrade your plan to add more staff — your plan allows ${seatLimit} team member${seatLimit === 1 ? '' : 's'}.`)
+    return fail(402, 'PLAN_LIMIT', `Upgrade your plan to add more staff; your plan allows ${seatLimit} team member${seatLimit === 1 ? '' : 's'}.`)
   }
 
   const org = membership.org
@@ -166,14 +166,14 @@ export const POST = route(async (req: NextRequest) => {
     {
       member: { id: member.id, userId: target.id, name: target.name, email: target.email, role: member.role, status: target.status, createdAt: member.createdAt },
       ...(createdUser && oneTimePassword ? { oneTimePassword } : {}),
-      ...(createdUser ? { note: 'A new CARMAZE account was created. Share this password securely — it is shown only once.' } : {}),
+      ...(createdUser ? { note: 'A new CARMAZE account was created. Share this password securely: it is shown only once.' } : {}),
     },
     { status: 201 }
   )
 })
 
 /**
- * DELETE /api/orgs/staff?memberId=&orgId= — remove a team member. OWNER only.
+ * DELETE /api/orgs/staff?memberId=&orgId=: remove a team member. OWNER only.
  * The OWNER member cannot be removed. If the removed user has no other dealer
  * org membership, the DEALER_STAFF role is stripped from their roles.
  */

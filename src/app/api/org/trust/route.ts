@@ -9,8 +9,8 @@ import { notify } from '@/lib/notify'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/org/trust?orgId= — the business's Trusted Customer Programme
- * (private). Labels are internal business relationship markers — they are
+ * GET /api/org/trust?orgId=: the business's Trusted Customer Programme
+ * (private). Labels are internal business relationship markers: they are
  * never exposed to other businesses and are NOT credit ratings.
  */
 export const GET = route(async (req: NextRequest) => {
@@ -41,7 +41,7 @@ const memberSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('remove'), memberId: z.string() }),
 ])
 
-/** POST — create programme / invite customer / change label / remove. */
+/** POST: create programme / invite customer / change label / remove. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const raw = await req.json().catch(() => null) as { action?: string } | null

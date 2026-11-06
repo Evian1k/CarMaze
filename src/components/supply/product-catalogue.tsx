@@ -129,7 +129,7 @@ export function ProductCatalogue({
           <div>
             <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Parts catalogue</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Genuine listings from verified suppliers — wholesale pricing for garages and fleets.
+              Genuine listings from verified suppliers: wholesale pricing for garages and fleets.
             </p>
           </div>
         </div>
@@ -166,7 +166,7 @@ export function ProductCatalogue({
               <SelectItem value="all">All categories</SelectItem>
               {categoriesSorted.map((c) => (
                 <SelectItem key={c.slug} value={c.slug}>
-                  {c.depth > 0 ? `— ${c.name}` : c.name}
+                  {c.depth > 0 ? `- ${c.name}` : c.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -235,7 +235,7 @@ export function ProductCatalogue({
           <PackageSearch className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
           <p className="font-semibold">No parts match these filters</p>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Try a broader search, clear the category or condition filter — or use the fitment finder below to search by vehicle.
+            Try a broader search, clear the category or condition filter: or use the fitment finder below to search by vehicle.
           </p>
           <Button variant="outline" onClick={clearFilters}>Clear filters</Button>
         </div>

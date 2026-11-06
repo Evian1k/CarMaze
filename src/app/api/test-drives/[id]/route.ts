@@ -39,7 +39,7 @@ const patchSchema = z.discriminatedUnion('action', [
 ])
 
 /**
- * PATCH — test-drive appointment lifecycle.
+ * PATCH: test-drive appointment lifecycle.
  * ORG: confirm → start → complete, plus no-show / cancel.
  * CUSTOMER: cancel only (until the drive starts).
  */
@@ -74,7 +74,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       await notify({
         userId: testDrive.customerId,
         type: 'TEST_DRIVE_UPDATE',
-        title: `Test drive confirmed — ${testDrive.refCode}`,
+        title: `Test drive confirmed: ${testDrive.refCode}`,
         body: `${testDrive.org.name} confirmed your ${vehicleLabel} test drive. See you there!`,
         link: '/account?tab=testdrives',
       })
@@ -117,7 +117,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       await notify({
         userId: testDrive.customerId,
         type: 'TEST_DRIVE_UPDATE',
-        title: `Test drive completed — ${testDrive.refCode}`,
+        title: `Test drive completed: ${testDrive.refCode}`,
         body: `Thanks for driving the ${vehicleLabel} with ${testDrive.org.name}. Interested? Send the dealer a message.`,
         link: '/account?tab=testdrives',
       })
@@ -146,7 +146,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       if (isCustomer) {
         await notifyOrgMembers(testDrive.orgId, {
           type: 'TEST_DRIVE_UPDATE',
-          title: `Test drive cancelled — ${testDrive.refCode}`,
+          title: `Test drive cancelled: ${testDrive.refCode}`,
           body: `${user.name} cancelled the ${vehicleLabel} test drive${body.note ? `: ${body.note}` : '.'}`,
           link: '/dealer?tab=testdrives',
         })
@@ -154,7 +154,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         await notify({
           userId: testDrive.customerId,
           type: 'TEST_DRIVE_UPDATE',
-          title: `Test drive cancelled — ${testDrive.refCode}`,
+          title: `Test drive cancelled: ${testDrive.refCode}`,
           body: `${testDrive.org.name} cancelled your ${vehicleLabel} test drive${body.note ? `: ${body.note}` : '.'}`,
           link: '/account?tab=testdrives',
         })

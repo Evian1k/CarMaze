@@ -16,7 +16,7 @@ const collectSchema = z.object({
 })
 
 /**
- * POST — release the vehicle to the named collector after verifying the
+ * POST: release the vehicle to the named collector after verifying the
  * customer's single-use 6-digit code. Final step of the custody lifecycle.
  */
 export const POST = route(async (req: NextRequest, ctx: Ctx) => {
@@ -44,7 +44,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     throw new ApiError(
       400,
       'AUTH_INVALID',
-      'No valid collection authorisation — ask the customer to authorise collection.'
+      'No valid collection authorisation: ask the customer to authorise collection.'
     )
   }
 
@@ -85,7 +85,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   await notify({
     userId: custody.customerId,
     type: 'CUSTODY_UPDATE',
-    title: `Your vehicle was collected — ${custody.refCode}`,
+    title: `Your vehicle was collected: ${custody.refCode}`,
     body: 'Receipt available in Vehicle Protection.',
     link: '/account?tab=protection',
   })

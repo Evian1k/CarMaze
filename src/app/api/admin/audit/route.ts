@@ -4,7 +4,7 @@ import { route, ok, requireRole } from '@/lib/api'
 
 const PAGE_SIZE = 50
 
-/** GET /api/admin/audit?action=&targetType=&page= — read-only audit trail, 50/page. */
+/** GET /api/admin/audit?action=&targetType=&page=: read-only audit trail, 50/page. */
 export const GET = route(async (req: NextRequest) => {
   await requireRole('SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER')
   const url = new URL(req.url)

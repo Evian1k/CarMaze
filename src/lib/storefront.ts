@@ -106,7 +106,7 @@ function toVehicleCard(v: {
 /**
  * Assemble the full public storefront payload for an org.
  * Returns null when the org does not exist, is not a DEALER/GARAGE, or is not
- * ACTIVE — callers translate that into a 404.
+ * ACTIVE: callers translate that into a 404.
  */
 export async function buildStorefrontPayload(orgId: string): Promise<StorefrontPayload | null> {
   const org = await db.org.findUnique({ where: { id: orgId } })

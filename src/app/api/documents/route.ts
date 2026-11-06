@@ -9,7 +9,7 @@ import { audit } from '@/lib/audit'
 export const dynamic = 'force-dynamic'
 
 /**
- * Document Verification Engine — collection endpoint.
+ * Document Verification Engine: collection endpoint.
  *
  * State machine (documented in prisma/schema.prisma):
  *   SUBMITTED → UNDER_REVIEW → VERIFIED
@@ -42,7 +42,7 @@ const submitSchema = z.object({
   expiresAt: z.string().datetime().optional(),
 })
 
-/** GET /api/documents — owner's own documents, or the staff review queue. */
+/** GET /api/documents: owner's own documents, or the staff review queue. */
 export const GET = route(async (req: NextRequest) => {
   const user = await requireUser()
   const url = new URL(req.url)
@@ -53,12 +53,12 @@ export const GET = route(async (req: NextRequest) => {
   const q = url.searchParams.get('q')?.trim()
 
   // Lazy expiry: a VERIFIED document whose validity has lapsed is surfaced as
-  // EXPIRED (and persisted) — we never present an expired document as verified.
+  // EXPIRED (and persisted): we never present an expired document as verified.
   if (user && scope === 'queue') {
     if (!hasRole(user, ...STAFF_ROLES)) throw new ApiError(403, 'FORBIDDEN', 'Staff only.')
     await db.verificationDocument.updateMany({
       where: { status: 'VERIFIED', expiresAt: { lt: new Date() } },
-      data: { status: 'EXPIRED', reviewNote: 'Validity lapsed — document expired automatically.' },
+      data: { status: 'EXPIRED', reviewNote: 'Validity lapsed: document expired automatically.' },
     })
   }
 
@@ -102,12 +102,12 @@ export const GET = route(async (req: NextRequest) => {
   return ok({ documents: docs, counts, activeStatuses: ACTIVE_STATUSES })
 })
 
-/** POST /api/documents — submit a document into the verification pipeline. */
+/** POST /api/documents: submit a document into the verification pipeline. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const body = await parseBody(req, submitSchema)
 
-  // The private files endpoint is the ONLY permitted storage location — a
+  // The private files endpoint is the ONLY permitted storage location; a
   // public /api/media URL would leak the document to everyone.
   if (!body.fileUrl.startsWith('/api/files/')) {
     return fail(400, 'INVALID_LOCATION', 'Verification documents must be stored as private files (upload with kind=document).')

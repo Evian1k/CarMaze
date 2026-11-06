@@ -3,12 +3,12 @@
 import { cn } from '@/lib/utils'
 
 /**
- * CARMAZE official brand logo — the founders' approved emblem asset.
+ * CARMAZE official brand logo: the founders' approved emblem asset.
  *
  * ASSET POLICY: this component renders the official logo files generated from
  * `public/brand/carmaze-logo.png` (see scripts/build-brand.ts). Do NOT redraw,
  * distort or substitute the artwork. The circular emblem already contains the
- * wordmark "CARMAZE" and the tagline "FIND. CONNECT. DRIVE." — it is never
+ * wordmark "CARMAZE" and the tagline "FIND. CONNECT. DRIVE.": it is never
  * stretched, cropped or recoloured. All sizes across the platform (desktop,
  * mobile, tablet, splash, dashboards) use the appropriately optimised PNG.
  */
@@ -16,14 +16,14 @@ import { cn } from '@/lib/utils'
 type LogoProps = {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   variant?: 'full' | 'emblem' | 'stacked'
-  /** Kept for API compatibility — the official emblem reads well on both surfaces. */
+  /** Kept for API compatibility: the official emblem reads well on both surfaces. */
   onDark?: boolean
-  /** Kept for API compatibility — the tagline is part of the official asset. */
+  /** Kept for API compatibility: the tagline is part of the official asset. */
   showTagline?: boolean
   className?: string
 }
 
-// Height policy (width auto — aspect ratio is always preserved, square asset)
+// Height policy (width auto: aspect ratio is always preserved, square asset)
 const SIZE_CLASS: Record<string, string> = {
   sm: 'h-10 w-10',   // mobile header
   md: 'h-12 w-12',   // tablet header
@@ -59,7 +59,7 @@ export function Logo({ size = 'md', variant = 'full', className }: LogoProps) {
   return (
     <img
       src={src}
-      alt="CARMAZE — Find. Connect. Drive."
+      alt="CARMAZE: Find. Connect. Drive."
       width={512}
       height={512}
       className={cn(

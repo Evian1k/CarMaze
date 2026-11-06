@@ -1,6 +1,6 @@
 'use client'
 
-/* Roadside — honest roadside assistance coordination. CARMAZE connects
+/* Roadside: honest roadside assistance coordination. CARMAZE connects
  * drivers with independent garages offering TOWING/ROADSIDE services.
  * Not an emergency service. Data: /api/roadside. */
 
@@ -36,7 +36,7 @@ const ISSUE_LABELS: Record<(typeof ISSUES)[number], string> = {
 }
 
 const DISCLAIMER =
-  'CARMAZE connects you with independent providers — this is not an emergency service. For emergencies call 999/112.'
+  'CARMAZE connects you with independent providers: this is not an emergency service. For emergencies call 999/112.'
 
 type Provider = {
   id: string; name: string; phone: string | null; county: string; town: string | null; location: string | null
@@ -105,7 +105,7 @@ export default function RoadsideView() {
           <div className="mt-5 rounded-xl border border-[#c9a45c]/40 bg-[#c9a45c]/10 p-4">
             <p className="flex items-start gap-2 text-sm text-[#e8c884]">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span><strong>Not an emergency service.</strong> CARMAZE connects you with independent providers — response depends on their availability. For emergencies call <a href="tel:999" className="underline">999</a> or <a href="tel:112" className="underline">112</a>.</span>
+              <span><strong>Not an emergency service.</strong> CARMAZE connects you with independent providers; response depends on their availability. For emergencies call <a href="tel:999" className="underline">999</a> or <a href="tel:112" className="underline">112</a>.</span>
             </p>
           </div>
         </div>
@@ -121,7 +121,7 @@ export default function RoadsideView() {
                 <h2 className="mt-3 text-lg font-semibold">Request sent</h2>
                 <p className="mt-1 font-mono text-sm text-muted-foreground">{created.refCode}</p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Status: <Badge variant="secondary">{STATUS_LABELS[created.status] ?? created.status}</Badge> — nearby garages offering towing &amp; roadside
+                  Status: <Badge variant="secondary">{STATUS_LABELS[created.status] ?? created.status}</Badge>: nearby garages offering towing &amp; roadside
                   services have been notified. When one accepts, you&apos;ll see their name and phone below.
                 </p>
                 <p className="mt-3 text-xs text-muted-foreground">{DISCLAIMER}</p>
@@ -177,7 +177,7 @@ export default function RoadsideView() {
                             <p className="flex items-center gap-1.5 font-medium text-primary"><ShieldCheck className="h-4 w-4" /> {r.provider.name} accepted your request</p>
                             {r.provider.phone && (
                               <p className="mt-1 flex items-center gap-1.5">
-                                <Phone className="h-3.5 w-3.5" /> <a className="underline" href={`tel:${r.provider.phone}`}>{r.provider.phone}</a> — call them directly.
+                                <Phone className="h-3.5 w-3.5" /> <a className="underline" href={`tel:${r.provider.phone}`}>{r.provider.phone}</a>: call them directly.
                               </p>
                             )}
                             {(r.provider.town || r.provider.location) && (
@@ -193,7 +193,7 @@ export default function RoadsideView() {
                         {(r.status === 'REQUESTED' || r.status === 'ACCEPTED') && (
                           <div className="mt-3 flex items-center justify-between gap-2">
                             <p className="text-xs text-muted-foreground">
-                              {r.status === 'REQUESTED' ? 'Waiting for a provider to accept — you will see their contact here.' : 'Provider on it. You can mark it completed below when resolved.'}
+                              {r.status === 'REQUESTED' ? 'Waiting for a provider to accept: you will see their contact here.' : 'Provider on it. You can mark it completed below when resolved.'}
                             </p>
                             <div className="flex shrink-0 gap-2">
                               {r.status === 'ACCEPTED' && (
@@ -227,7 +227,7 @@ export default function RoadsideView() {
               ) : providers.length === 0 ? (
                 <div className="rounded-xl border border-dashed py-8 text-center text-sm text-muted-foreground">
                   <Wrench className="mx-auto h-6 w-6" />
-                  <p className="mt-2">No providers listed yet — your request still notifies all garages we can reach.</p>
+                  <p className="mt-2">No providers listed yet: your request still notifies all garages we can reach.</p>
                 </div>
               ) : (
                 <div className="scrollbar-thin max-h-[560px] space-y-3 overflow-y-auto pr-1">

@@ -15,7 +15,7 @@ const schema = z.object({
 /**
  * Second sign-in step for MFA-enabled accounts: exchange a short-lived MFA
  * challenge token + valid TOTP code for a full session cookie. Deliberately
- * anonymous — the challenge token (not a session cookie) carries the identity.
+ * anonymous: the challenge token (not a session cookie) carries the identity.
  */
 export const POST = route(async (req: NextRequest) => {
   const ip = getIp(req)

@@ -46,7 +46,7 @@ export function ListingAssistant({ facts, onApply }: Props) {
         throw new Error(data?.message ?? 'Could not draft a description right now. Please try again.')
       }
       setDraft(data.description)
-      toast.success('Draft ready — review and edit before using it.')
+      toast.success('Draft ready: review and edit before using it.')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Something went wrong. Please try again.'
       setError(msg)
@@ -83,7 +83,7 @@ export function ListingAssistant({ facts, onApply }: Props) {
               </>
             )}
           </Button>
-          <AiDisclaimer>Drafts use only the details you provided — review before submitting.</AiDisclaimer>
+          <AiDisclaimer>Drafts use only the details you provided; review before submitting.</AiDisclaimer>
         </div>
 
         {error && (
@@ -96,7 +96,7 @@ export function ListingAssistant({ facts, onApply }: Props) {
           <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3">
             <label htmlFor="ai-listing-draft" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-              Draft description — editable
+              Draft description: editable
             </label>
             <Textarea
               id="ai-listing-draft"

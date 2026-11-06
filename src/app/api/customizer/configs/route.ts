@@ -6,7 +6,7 @@ import { getSessionUser } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
 import { shareId } from '@/lib/ids'
 
-// CARMAZE 3D Customizer — save a validated configuration and get a share id.
+// CARMAZE 3D Customizer: save a validated configuration and get a share id.
 // Session is optional: anonymous visitors can build & try, signed-in users get
 // the configuration linked to their account.
 
@@ -31,7 +31,7 @@ export const POST = route(async (req: NextRequest) => {
 
   const body = await parseBody(req, bodySchema)
 
-  // Session is optional — attach userId when the visitor is signed in.
+  // Session is optional: attach userId when the visitor is signed in.
   const user = await getSessionUser()
 
   const row = await db.customizerConfig.create({

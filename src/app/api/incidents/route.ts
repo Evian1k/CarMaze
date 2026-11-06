@@ -43,7 +43,7 @@ const createSchema = z.object({
 })
 
 /**
- * POST — report a security incident (any authenticated user).
+ * POST: report a security incident (any authenticated user).
  * Staff and the involved org owner are notified; the response always carries
  * a safety note because some categories (stolen vehicle) are police matters.
  */
@@ -105,7 +105,7 @@ export const POST = route(async (req: NextRequest) => {
   const staff = await staffUserIds('ADMIN', 'FOUNDER', 'SUPPORT')
   await notifyMany(staff, {
     type: 'INCIDENT_CREATED',
-    title: `New security incident — ${incident.refCode}`,
+    title: `New security incident: ${incident.refCode}`,
     body: `${body.category.replace(/_/g, ' ').toLowerCase()} reported by ${user.name}: ${body.title}`,
     link: '/admin?tab=incidents',
   })
@@ -114,7 +114,7 @@ export const POST = route(async (req: NextRequest) => {
     const owners = await db.orgMember.findMany({ where: { orgId: body.orgId, role: 'OWNER' }, select: { userId: true } })
     await notifyMany(owners.map((o) => o.userId), {
       type: 'INCIDENT_CREATED',
-      title: `Security incident involving your business — ${incident.refCode}`,
+      title: `Security incident involving your business: ${incident.refCode}`,
       body: `${user.name} reported: ${body.title}`,
       link: '/garage-dashboard?tab=incidents',
     })

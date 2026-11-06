@@ -1,9 +1,9 @@
 'use client'
 
-/* Vehicle Protection — customer-side custody tracking, road-test approvals,
+/* Vehicle Protection: customer-side custody tracking, road-test approvals,
  * collection authorisation and security reporting.
  *
- * Shared by My Garage and the Account dashboard (DRY — one implementation).
+ * Shared by My Garage and the Account dashboard (DRY: one implementation).
  * Talks to /api/custody and /api/incidents only.
  */
 
@@ -253,7 +253,7 @@ export function VehicleProtection() {
         >
           <Siren className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Report received — CARMAZE security will review it.</p>
+            <p className="text-sm font-semibold">Report received: CARMAZE security will review it.</p>
             <p className="mt-1 text-sm leading-relaxed">{safetyNote}</p>
           </div>
           <button
@@ -274,7 +274,7 @@ export function VehicleProtection() {
               <Wrench className="h-5 w-5 text-primary" aria-hidden="true" /> Vehicles with the garage
             </h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Live custody tracking — approve road tests, authorise collection and dispute anything that looks wrong.
+              Live custody tracking: approve road tests, authorise collection and dispute anything that looks wrong.
             </p>
           </div>
           <Button variant="outline" className="min-h-11 gap-2" onClick={() => setReportOpen(true)}>
@@ -296,7 +296,7 @@ export function VehicleProtection() {
               <h3 className="mt-4 font-semibold">Nothing in the workshop right now</h3>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
                 When you accept a garage&apos;s quote and hand over your car, its custody status, road tests and
-                collection authorisation appear here — protected end to end.
+                collection authorisation appear here: protected end to end.
               </p>
             </CardContent>
           </Card>
@@ -332,7 +332,7 @@ export function VehicleProtection() {
           <div className="mt-4 rounded-xl border border-dashed px-6 py-8 text-center">
             <ShieldCheck className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
             <p className="mt-2 text-sm font-medium">No incidents reported</p>
-            <p className="mt-0.5 text-sm text-muted-foreground">If something ever feels off — a missing vehicle, a fake document — report it here.</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">If something ever feels off; a missing vehicle, a fake document: report it here.</p>
           </div>
         ) : (
           <IncidentsList incidents={incidents} onAdded={() => setIncidentTick((t) => t + 1)} />
@@ -424,7 +424,7 @@ export function VehicleProtection() {
     if (!id) return
     try {
       await apiSend(`/api/custody/${id}`, 'PATCH', { action: 'collect-self' })
-      toast.success('Confirmed — the garage has been notified to release your vehicle to you.')
+      toast.success('Confirmed: the garage has been notified to release your vehicle to you.')
       setCollectSelfId(null)
       refreshDetail(id)
       loadCustodies()
@@ -473,7 +473,7 @@ function StatusStepper({ status, compact = false }: { status: string; compact?: 
     return (
       <div className={cn('flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-2 text-xs font-medium text-destructive', compact && 'text-[11px]')}>
         <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        {status === 'DISPUTED' ? 'Under dispute — CARMAZE security is reviewing.' : 'Security incident — CARMAZE is reviewing.'}
+        {status === 'DISPUTED' ? 'Under dispute: CARMAZE security is reviewing.' : 'Security incident: CARMAZE is reviewing.'}
       </div>
     )
   }
@@ -541,7 +541,7 @@ function CustodyDetailBody({ detail, onChanged, onCollectSelf, onAuthoriseOther,
     try {
       await apiSend(`/api/custody/${detail.id}`, 'PATCH', { action, roadTestId })
       toast.success(action === 'authorize-roadtest'
-        ? 'Road test authorised — the garage has been notified.'
+        ? 'Road test authorised: the garage has been notified.'
         : 'Road test declined.')
       setAuthorisingId(null)
       onChanged()
@@ -847,7 +847,7 @@ function CollectionAuthDialog({ custodyId, onClose, onDone }: {
             <DialogHeader>
               <DialogTitle>Authorisation created</DialogTitle>
               <DialogDescription>
-                Share this 6-digit code with {collectorName.trim()} — it is shown <strong>only this once</strong>.
+                Share this 6-digit code with {collectorName.trim()}: it is shown <strong>only this once</strong>.
               </DialogDescription>
             </DialogHeader>
             <div className="rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 p-4 text-center dark:bg-amber-500/10">
@@ -861,14 +861,14 @@ function CollectionAuthDialog({ custodyId, onClose, onDone }: {
                     await navigator.clipboard.writeText(code)
                     toast.success('Code copied')
                   } catch {
-                    toast.error('Copy failed — write it down now.')
+                    toast.error('Copy failed: write it down now.')
                   }
                 }}
               >
                 <Copy className="h-3.5 w-3.5" /> Copy code
               </Button>
               <p className="mt-3 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
-                Share only with the person collecting. Valid 48 hours, single use. The garage verifies it at release —
+                Share only with the person collecting. Valid 48 hours, single use. The garage verifies it at release:
                 the vehicle will not be handed over without it.
               </p>
             </div>
@@ -930,7 +930,7 @@ function DisputeDialog({ custodyId, vehicleLabel, onClose, onDone }: {
     setBusy(true)
     try {
       await apiPostDispute(custodyId, title.trim(), details.trim())
-      toast.success('Dispute opened — the job is frozen while CARMAZE security reviews it.')
+      toast.success('Dispute opened: the job is frozen while CARMAZE security reviews it.')
       onDone()
       onClose()
     } catch (e) {
@@ -946,7 +946,7 @@ function DisputeDialog({ custodyId, vehicleLabel, onClose, onDone }: {
         <DialogHeader>
           <DialogTitle>Dispute this custody job</DialogTitle>
           <DialogDescription>
-            {vehicleLabel ? `${vehicleLabel} — ` : ''}this opens a security incident, freezes the job and notifies CARMAZE
+            {vehicleLabel ? `${vehicleLabel}: ` : ''}this opens a security incident, freezes the job and notifies CARMAZE
             security. Use it for damage you did not authorise, missing parts or anything suspicious.
           </DialogDescription>
         </DialogHeader>
@@ -1046,7 +1046,7 @@ function ReportIncidentDialog({ open, onClose, onReported }: {
         <DialogHeader>
           <DialogTitle>Report a security concern</DialogTitle>
           <DialogDescription>
-            Every report is reviewed by CARMAZE security. False reports waste everyone&apos;s time — be precise and honest.
+            Every report is reviewed by CARMAZE security. False reports waste everyone&apos;s time: be precise and honest.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

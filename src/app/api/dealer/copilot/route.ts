@@ -19,7 +19,7 @@ const DAY = 24 * HOUR
 
 /**
  * GET /api/dealer/copilot?orgId=
- * Dealer Copilot — deterministic, rule-based insights computed from REAL data.
+ * Dealer Copilot: deterministic, rule-based insights computed from REAL data.
  * No AI, no invented numbers: every insight carries actual counts, refCodes
  * and dates from live queries. Urgent insights are sorted first.
  */
@@ -103,14 +103,14 @@ export const GET = route(async (req: NextRequest) => {
       .map((e) => {
         const last = e.messages[e.messages.length - 1]
         const waitedSince = last ? last.createdAt : e.createdAt
-        return `${e.refCode} (${e.vehicle.make} ${e.vehicle.model} ${e.vehicle.year} — waiting since ${timeAgo(waitedSince)})`
+        return `${e.refCode} (${e.vehicle.make} ${e.vehicle.model} ${e.vehicle.year}: waiting since ${timeAgo(waitedSince)})`
       })
       .join(', ')
     insights.push({
       id: 'enquiries-urgent',
       severity: 'urgent',
       title: `${overdueEnquiries.length} ${overdueEnquiries.length === 1 ? 'enquiry' : 'enquiries'} awaiting response`,
-      detail: `${refs} — unanswered for over 24 hours. Response speed is the strongest driver of conversion.`,
+      detail: `${refs}: unanswered for over 24 hours. Response speed is the strongest driver of conversion.`,
       actionLink: '/dealer?tab=enquiries',
     })
   } else if (awaiting.length > 0) {
@@ -131,7 +131,7 @@ export const GET = route(async (req: NextRequest) => {
       id: 'drafts-stale',
       severity: 'warning',
       title: `${draftVehicles.length} ${draftVehicles.length === 1 ? 'draft' : 'drafts'} never submitted`,
-      detail: `${refs} — ${draftVehicles.length === 1 ? 'it has' : 'they have'} been sitting as draft${draftVehicles.length === 1 ? '' : 's'} for over 7 days. Complete and submit ${draftVehicles.length === 1 ? 'it' : 'them'} for review to start earning views.`,
+      detail: `${refs}: ${draftVehicles.length === 1 ? 'it has' : 'they have'} been sitting as draft${draftVehicles.length === 1 ? '' : 's'} for over 7 days. Complete and submit ${draftVehicles.length === 1 ? 'it' : 'them'} for review to start earning views.`,
       actionLink: '/dealer?tab=inventory',
     })
   }
@@ -143,8 +143,8 @@ export const GET = route(async (req: NextRequest) => {
     insights.push({
       id: 'listings-stale',
       severity: 'info',
-      title: `${stalePublished.length} stale ${stalePublished.length === 1 ? 'listing' : 'listings'} — consider refreshing or a promotion`,
-      detail: `${refs} — live for over 45 days without a single enquiry. Fresh photos, a price adjustment or a Spotlight campaign can revive interest.`,
+      title: `${stalePublished.length} stale ${stalePublished.length === 1 ? 'listing' : 'listings'}: consider refreshing or a promotion`,
+      detail: `${refs}: live for over 45 days without a single enquiry. Fresh photos, a price adjustment or a Spotlight campaign can revive interest.`,
       actionLink: '/dealer?tab=inventory',
     })
   }
@@ -196,7 +196,7 @@ export const GET = route(async (req: NextRequest) => {
       id: 'invoice-overdue',
       severity: 'urgent',
       title: `Invoice ${oldest.refCode} overdue`,
-      detail: `${overdueInvoices.length === 1 ? 'Invoice' : `${overdueInvoices.length} invoices, oldest`} pending since ${dateLabel(oldest.issuedAt)} — ${money(oldest.amountMinor, oldest.currency)}. Pay via M-Pesa to avoid service interruption.`,
+      detail: `${overdueInvoices.length === 1 ? 'Invoice' : `${overdueInvoices.length} invoices, oldest`} pending since ${dateLabel(oldest.issuedAt)}: ${money(oldest.amountMinor, oldest.currency)}. Pay via M-Pesa to avoid service interruption.`,
       actionLink: '/dealer?tab=billing',
     })
   }
@@ -207,7 +207,7 @@ export const GET = route(async (req: NextRequest) => {
     insights.push({
       id: 'buying-requests-stale',
       severity: 'info',
-      title: `${openBuyingRequests.length} buying ${openBuyingRequests.length === 1 ? 'request' : 'requests'} stale — close or refresh them`,
+      title: `${openBuyingRequests.length} buying ${openBuyingRequests.length === 1 ? 'request' : 'requests'} stale: close or refresh them`,
       detail: `Open for over 30 days: ${makes}. Close fulfilled requests so the dealer board reflects current demand.`,
       actionLink: '/dealer?tab=buying',
     })
@@ -218,7 +218,7 @@ export const GET = route(async (req: NextRequest) => {
     insights.push({
       id: 'listing-limit',
       severity: 'urgent',
-      title: 'Listing limit reached — upgrade',
+      title: 'Listing limit reached: upgrade',
       detail: `${activeListingCount} of ${plan.listingLimit} active listings used on ${plan.name}. Archive a listing or upgrade your plan to list more vehicles.`,
       actionLink: '/dealer?tab=billing',
     })
@@ -230,7 +230,7 @@ export const GET = route(async (req: NextRequest) => {
     insights.push({
       id: 'all-clear',
       severity: 'info',
-      title: 'All clear — no pending follow-ups',
+      title: 'All clear: no pending follow-ups',
       detail: 'Enquiries answered, listings fresh, invoices settled. Check back after new customer activity.',
     })
   }

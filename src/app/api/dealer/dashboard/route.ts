@@ -8,12 +8,12 @@ const ACTIVE_LISTING_STATUSES = ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'RESERV
 /**
  * GET /api/dealer/dashboard?orgId=
  * Real aggregates for the signed-in dealer's organisation. Every number comes
- * from live database queries — nothing cached, nothing invented.
+ * from live database queries: nothing cached, nothing invented.
  * Defaults to the session's first DEALER org; pass ?orgId= to select another
  * org the user is a member of (tenant-isolated).
  *
  * Authorisation requires BOTH the platform role (DEALER_OWNER/DEALER_STAFF)
- * AND an org membership — revoking either immediately removes access.
+ * AND an org membership: revoking either immediately removes access.
  */
 export const GET = route(async (req: NextRequest) => {
   const user = await requireUser()

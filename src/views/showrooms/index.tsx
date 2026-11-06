@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — Showrooms (#/showrooms)
+/* CARMAZE: Showrooms (#/showrooms)
  * Public directory of verified dealer showrooms. #/showrooms/<orgId>
  * renders the shared OrgStorefront business page; "Browse listings"
  * filters the marketplace to that dealer via ?org=<id>.
@@ -75,7 +75,7 @@ export default function View() {
         <header className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Verified dealer showrooms</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Every showroom below is a registered, vetted Kenyan dealership. Buy with confidence — inspect,
+            Every showroom below is a registered, vetted Kenyan dealership. Buy with confidence: inspect,
             enquire and trade with businesses that are accountable to CARMAZE standards.
           </p>
         </header>

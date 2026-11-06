@@ -18,7 +18,7 @@ const patchSchema = z.object({
 /**
  * PATCH /api/orgs/profile
  * Update a DEALER organisation profile. Only OWNER or MANAGER members of that
- * exact org may edit it — membership and role are verified server-side.
+ * exact org may edit it: membership and role are verified server-side.
  */
 export const PATCH = route(async (req: NextRequest) => {
   const user = await requireUser()

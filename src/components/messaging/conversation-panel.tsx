@@ -1,7 +1,7 @@
 'use client'
 
 /* Shared two-pane messaging panel used by the business portals
- * (scope='org' — garage / dealer inboxes) and the customer dashboards
+ * (scope='org': garage / dealer inboxes) and the customer dashboards
  * (scope='mine'). Talks to /api/conversations only; no view-specific logic.
  *
  * Exports:
@@ -265,7 +265,7 @@ export function ConversationPanel({ scope, conversations, unavailable, onChanged
     try {
       const d = await apiGet<ConversationThread>(`/api/conversations/${id}`)
       setThread(d)
-      // Fetching marks the thread read server-side — reflect it in the list immediately.
+      // Fetching marks the thread read server-side; reflect it in the list immediately.
       onMarkRead?.(id)
     } catch {
       if (!silent) toast.error('Could not open the conversation.')
@@ -396,7 +396,7 @@ export function ConversationPanel({ scope, conversations, unavailable, onChanged
       <EmptyMessaging
         icon={<MessagesSquare className="h-7 w-7" />}
         title="No conversations yet"
-        desc="When you ask about a vehicle or book a service, the conversation with the business lands here — with photos, files and the vehicle reference attached."
+        desc="When you ask about a vehicle or book a service, the conversation with the business lands here; with photos, files and the vehicle reference attached."
         actionLabel="Browse cars"
         onAction={() => navigate('cars')}
       />
@@ -702,7 +702,7 @@ export function ConversationPanel({ scope, conversations, unavailable, onChanged
                     )
                   })}
                   {thread && thread.messages.length === 0 && (
-                    <p className="py-10 text-center text-sm text-muted-foreground">No messages yet — say hello.</p>
+                    <p className="py-10 text-center text-sm text-muted-foreground">No messages yet; say hello.</p>
                   )}
                 </>
               )}
@@ -712,7 +712,7 @@ export function ConversationPanel({ scope, conversations, unavailable, onChanged
             <div className="border-t p-3">
               {closed && (
                 <p className="mb-2 rounded-lg border bg-muted/50 px-3 py-2 text-center text-xs text-muted-foreground">
-                  This conversation is {active?.status.toLowerCase()} — reopen it to send a new message.
+                  This conversation is {active?.status.toLowerCase()}: reopen it to send a new message.
                 </p>
               )}
               {pendingFiles.length > 0 && (

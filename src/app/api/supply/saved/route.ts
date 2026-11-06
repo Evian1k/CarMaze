@@ -5,7 +5,7 @@ import { route, ok, fail, parseBody, requireUser } from '@/lib/api'
 
 export const dynamic = 'force-dynamic'
 
-/** GET /api/supply/saved — the requester's saved suppliers and products. */
+/** GET /api/supply/saved: the requester's saved suppliers and products. */
 export const GET = route(async () => {
   const user = await requireUser()
   const items = await db.savedSupplyItem.findMany({
@@ -39,7 +39,7 @@ const postSchema = z.object({
   targetId: z.string().min(1),
 })
 
-/** POST — save a supplier or product. */
+/** POST: save a supplier or product. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const body = await parseBody(req, postSchema)
@@ -58,7 +58,7 @@ export const POST = route(async (req: NextRequest) => {
   return ok({ saved }, { status: 201 })
 })
 
-/** DELETE ?targetType=&targetId= — unsave. */
+/** DELETE ?targetType=&targetId=: unsave. */
 export const DELETE = route(async (req: NextRequest) => {
   const user = await requireUser()
   const targetType = req.nextUrl.searchParams.get('targetType')

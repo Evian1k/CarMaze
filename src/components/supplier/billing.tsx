@@ -1,12 +1,12 @@
 'use client'
 
-/* SupplierOS — Billing tab: supplier subscription plans, invoices and M-Pesa
+/* SupplierOS: Billing tab: supplier subscription plans, invoices and M-Pesa
  * payment. HONEST BILLING RULES (mirroring the platform contract):
  *  - Subscribing creates a PENDING invoice only; the subscription activates
  *    exclusively after payment is confirmed by M-Pesa Daraja callback or
  *    platform finance reconciliation. Never claim otherwise.
  *  - M-Pesa STK push failures (incl. unconfigured deployments) are surfaced
- *    verbatim from the API — no simulated payments, ever.
+ *    verbatim from the API: no simulated payments, ever.
  *  - The subscribe endpoint currently gates supplier plans behind a garage
  *    owner role (reported mismatch). The API error is shown verbatim; the UI
  *    never hides it behind fake success. */
@@ -46,7 +46,7 @@ export function BillingTab() {
     setBusyCode(planCode)
     try {
       const res = await apiSend<{ invoice?: InvoiceItem; message?: string }>('/api/billing/subscribe', 'POST', { planCode })
-      toast.success(res.message ?? 'Invoice created — complete payment to activate the subscription.')
+      toast.success(res.message ?? 'Invoice created: complete payment to activate the subscription.')
       invoices.reload()
     } catch (e) {
       // Honest failure: role gates / plan issues are surfaced verbatim.
@@ -68,7 +68,7 @@ export function BillingTab() {
         <AlertTitle>Honest billing</AlertTitle>
         <AlertDescription>
           Subscribing issues a PENDING invoice only. The subscription activates after your payment is confirmed by
-          M-Pesa (Daraja callback) or by platform finance — never before, and nothing here simulates a payment.
+          M-Pesa (Daraja callback) or by platform finance: never before, and nothing here simulates a payment.
         </AlertDescription>
       </Alert>
 
@@ -182,7 +182,7 @@ function PlanCard({ plan, busy, onSubscribe }: { plan: PlanItem; busy: boolean; 
       </CardContent>
       <CardFooter>
         <Button className="w-full min-h-11" disabled={busy} onClick={onSubscribe}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Subscribe — get invoice
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Subscribe: get invoice
         </Button>
       </CardFooter>
     </Card>
@@ -208,7 +208,7 @@ function MpesaPayDialog({ invoice, onClose, onPaid }: {
     setError(null)
     try {
       const res = await apiSend<{ message?: string }>('/api/billing/mpesa/stkpush', 'POST', { invoiceId: invoice.id, phone: cleaned })
-      toast.success(res.message ?? `STK push sent to ${cleaned} — enter your M-Pesa PIN to complete payment for ${invoice.refCode}.`)
+      toast.success(res.message ?? `STK push sent to ${cleaned}: enter your M-Pesa PIN to complete payment for ${invoice.refCode}.`)
       onPaid()
     } catch (e) {
       const msg = await errMessage(e, 'Could not start the M-Pesa payment.')
@@ -225,7 +225,7 @@ function MpesaPayDialog({ invoice, onClose, onPaid }: {
         <DialogHeader>
           <DialogTitle>Pay {money(invoice.amountMinor, invoice.currency)} via M-Pesa</DialogTitle>
           <DialogDescription>
-            Invoice {invoice.refCode} — {invoice.description}. An STK push will be sent to your phone; the invoice is
+            Invoice {invoice.refCode}: {invoice.description}. An STK push will be sent to your phone; the invoice is
             marked paid only after Safaricom confirms the transaction.
           </DialogDescription>
         </DialogHeader>

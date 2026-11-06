@@ -3,7 +3,7 @@
 /* Mobile bottom tab bar (app-like navigation for Kenya's mobile-first users)
  * plus a shared back-to-top button. The tab bar is fixed, respects the
  * iOS safe-area inset, and hides while the keyboard is unlikely (it stays
- * put — content padding compensates so the footer is never covered). */
+ * put: content padding compensates so the footer is never covered). */
 
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'

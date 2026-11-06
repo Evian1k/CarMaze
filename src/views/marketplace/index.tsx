@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — Marketplace (#/cars)
+/* CARMAZE: Marketplace (#/cars)
  * Public listing search with shareable filter URLs, save-search, compare
  * (up to 3 vehicles) and AI Car Finder results section.
  */
@@ -430,7 +430,7 @@ export default function View() {
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Browse cars for sale</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {loading ? 'Loading listings…' : `${total.toLocaleString()} ${total === 1 ? 'vehicle' : 'vehicles'} found`}
-            {draft.org && ' — filtered by showroom'}
+            {draft.org && ': filtered by showroom'}
           </p>
         </header>
       </Reveal>
@@ -468,7 +468,7 @@ export default function View() {
             </Button>
           </div>
           {aiResults.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No matches found for that description — try being more specific.</p>
+            <p className="text-sm text-muted-foreground">No matches found for that description; try being more specific.</p>
           ) : (
             <Stagger key={aiResults.map((r) => r.id).join(',')} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {aiResults.map((v) => (

@@ -16,10 +16,10 @@ const schema = z.object({
 })
 
 /**
- * POST /api/org/memberships/redeem — business staff records a member's
+ * POST /api/org/memberships/redeem: business staff records a member's
  * benefit redemption. The unique [membership, benefit, periodKey] constraint
  * makes duplicate redemption of the same benefit in the same period
- * impossible at the database level — not just hidden in the UI.
+ * impossible at the database level: not just hidden in the UI.
  */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
@@ -30,7 +30,7 @@ export const POST = route(async (req: NextRequest) => {
   if (!staff || !['OWNER', 'GM', 'MANAGER', 'STAFF', 'SALES', 'MECHANIC', 'BRANCH_MANAGER'].includes(staff.role)) {
     return fail(403, 'PERMISSION_DENIED', 'Not authorised to record redemptions for this business.')
   }
-  if (membership.status !== 'ACTIVE') return fail(409, 'NOT_ACTIVE', 'Membership is not active — benefits cannot be redeemed.')
+  if (membership.status !== 'ACTIVE') return fail(409, 'NOT_ACTIVE', 'Membership is not active: benefits cannot be redeemed.')
   if (membership.currentPeriodEnd && membership.currentPeriodEnd < new Date()) {
     return fail(409, 'EXPIRED', 'Membership period has ended.')
   }

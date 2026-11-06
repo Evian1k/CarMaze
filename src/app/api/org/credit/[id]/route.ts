@@ -11,10 +11,10 @@ export const dynamic = 'force-dynamic'
 type Ctx = { params: Promise<{ id: string }> }
 
 /**
- * PATCH — facility state transitions.
+ * PATCH: facility state transitions.
  *   Business: approve offer → (customer accepts) ACTIVE, suspend, close, reject.
  *   Customer: accept-terms (OFFERED → ACTIVE), close own (balance must be clear).
- * POST — ledger entries. CHARGE/FEE increases balance (validated against the
+ * POST: ledger entries. CHARGE/FEE increases balance (validated against the
  * limit); REPAYMENT decreases and marks the entry paid. Everything is
  * appended-only; entries are never edited or deleted (audit history).
  */
@@ -52,7 +52,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       where: { id },
       data: { status: 'OFFERED', terms: body.terms, ...(body.depositMinor !== undefined ? { depositMinor: body.depositMinor } : {}), approvedAt: new Date() },
     })
-    await notify({ userId: facility.customerId, type: 'CREDIT_OFFER', title: 'Facility approved — accept terms', body: 'The business approved your application. Accept the repayment terms to activate the facility.', link: '/account?tab=subscriptions' })
+    await notify({ userId: facility.customerId, type: 'CREDIT_OFFER', title: 'Facility approved: accept terms', body: 'The business approved your application. Accept the repayment terms to activate the facility.', link: '/account?tab=subscriptions' })
     await audit({ actorId: user.id, actorName: user.name, action: 'CREDIT_APPROVED', targetType: 'CREDIT_FACILITY', targetId: id })
     return ok({ facility: updated, message: 'Offer sent to the customer. It activates when they accept the terms.' })
   }
@@ -104,7 +104,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     if (facility.status !== 'ACTIVE' && facility.status !== 'SUSPENDED') return fail(409, 'INVALID_STATE', 'Facility is not active.')
   } else {
     if (!isBiz) return fail(403, 'PERMISSION_DENIED', 'Only the business records charges.')
-    if (facility.status !== 'ACTIVE') return fail(409, 'INVALID_STATE', 'Facility is not active — charges are only possible on an active facility.')
+    if (facility.status !== 'ACTIVE') return fail(409, 'INVALID_STATE', 'Facility is not active: charges are only possible on an active facility.')
   }
 
   const entries = await db.creditEntry.findMany({ where: { facilityId: id } })

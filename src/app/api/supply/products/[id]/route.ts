@@ -30,7 +30,7 @@ const patchSchema = z.object({
   status: z.enum(['DRAFT', 'PUBLISHED']).optional(),
 })
 
-/** GET /api/supply/products/[id] — public detail for published products,
+/** GET /api/supply/products/[id]: public detail for published products,
  * full detail for the owning supplier. Includes real compatibility records,
  * per-warehouse availability, price history and reviews. */
 export const GET = route(async (req: NextRequest, ctx: Ctx) => {
@@ -78,7 +78,7 @@ export const GET = route(async (req: NextRequest, ctx: Ctx) => {
   })
 })
 
-/** PATCH — owning supplier updates product. Price changes append history. */
+/** PATCH: owning supplier updates product. Price changes append history. */
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()

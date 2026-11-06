@@ -8,7 +8,7 @@ import { requireOwnOrg, jsonParse } from '@/lib/supply'
 export const dynamic = 'force-dynamic'
 
 const branchSchema = z.object({
-  orgId: z.string().min(1), // tenant id — checked against membership
+  orgId: z.string().min(1), // tenant id: checked against membership
   name: z.string().trim().min(2).max(80),
   code: z.string().trim().min(1).max(12).toUpperCase(),
   kind: z.enum(['BRANCH', 'WAREHOUSE']).default('BRANCH'),
@@ -24,7 +24,7 @@ const branchSchema = z.object({
 })
 
 /**
- * GET /api/supply/branches?orgId= — branches/warehouses of a business the
+ * GET /api/supply/branches?orgId=: branches/warehouses of a business the
  * requester belongs to. Used by all portals (garage branches, showroom
  * branches, supplier warehouses).
  */
@@ -51,7 +51,7 @@ export const GET = route(async (req: NextRequest) => {
   })
 })
 
-/** POST — create a branch/warehouse (owner or GM/operations). */
+/** POST: create a branch/warehouse (owner or GM/operations). */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const body = await parseBody(req, branchSchema)

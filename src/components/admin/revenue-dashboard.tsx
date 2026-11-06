@@ -1,6 +1,6 @@
 'use client'
 
-// Super Admin — Platform revenue dashboard + central fee configuration.
+// Super Admin: Platform revenue dashboard + central fee configuration.
 // TRANSPARENCY RULE: supplier transaction value (GMV) is shown as context but
 // NEVER booked as platform revenue. Platform revenue = subscriptions +
 // supply commissions + promotions + membership platform fees.
@@ -61,7 +61,7 @@ export function AdminRevenueDashboard() {
     setSavingFees(true)
     try {
       await apiSend('/api/admin/fees', 'PUT', fees)
-      toast.success('Fee configuration saved — new orders use the updated rates.')
+      toast.success('Fee configuration saved: new orders use the updated rates.')
       load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not save fees')
@@ -157,7 +157,7 @@ export function AdminRevenueDashboard() {
                 <p className="mt-2 rounded-md bg-muted p-2 text-xs text-muted-foreground">{r.commissions.note}</p>
               </Card>
               <Card className="p-4">
-                <p className="text-sm font-semibold">Marketplace GMV (context only — not platform revenue)</p>
+                <p className="text-sm font-semibold">Marketplace GMV (context only: not platform revenue)</p>
                 <p className="mt-1 text-xl font-semibold tabular-nums">{money(r.commissions.supplyGmvMinor)}</p>
                 <p className="text-xs text-muted-foreground">Supplier transaction value flowing through completed supply orders.</p>
               </Card>
@@ -169,7 +169,7 @@ export function AdminRevenueDashboard() {
               <Card className="p-4">
                 <p className="text-sm font-semibold">Business memberships</p>
                 <p className="mt-1 text-xl font-semibold tabular-nums">{money(r.memberships.grossMinor)} gross</p>
-                <p className="text-xs text-muted-foreground">Platform fee ({r.memberships.feePct}%): {money(r.memberships.platformFeeMinor)} — membership fees belong to the businesses.</p>
+                <p className="text-xs text-muted-foreground">Platform fee ({r.memberships.feePct}%): {money(r.memberships.platformFeeMinor)}. Membership fees belong to the businesses.</p>
               </Card>
             </div>
           </div>
@@ -185,7 +185,7 @@ export function AdminRevenueDashboard() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Failed / overdue renewals</CardTitle>
-              <CardDescription>Pending subscription invoices past their due date — follow up with the business.</CardDescription>
+              <CardDescription>Pending subscription invoices past their due date; follow up with the business.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {data.retention.failedRenewals.length === 0 && <p className="text-sm text-muted-foreground">No failed renewals.</p>}

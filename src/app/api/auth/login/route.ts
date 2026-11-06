@@ -28,7 +28,7 @@ export const POST = route(async (req: NextRequest) => {
     return fail(403, 'ACCOUNT_SUSPENDED', 'This account is suspended. Contact support@carmaze.co.ke.')
   }
 
-  // MFA-enabled accounts get a short-lived challenge instead of a session —
+  // MFA-enabled accounts get a short-lived challenge instead of a session:
   // the client completes sign-in via POST /api/auth/mfa/verify.
   if (user.mfaEnabled && user.totpSecret) {
     const mfaToken = await signMfaChallenge(user.id)

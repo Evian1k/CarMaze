@@ -1,7 +1,7 @@
 'use client'
 
 /* Procurement cart sheet + checkout.
- * Cart contents span multiple suppliers — checkout creates ONE purchase
+ * Cart contents span multiple suppliers: checkout creates ONE purchase
  * order per supplier via POST /api/supply/orders (verified against the
  * route contract: { orgId, destinationBranchId, items[{productId,qty}], note }).
  * Items stay in the Zustand cart (localStorage-persisted) until the order
@@ -67,7 +67,7 @@ export function CartSheet({ open, onOpenChange, orgId, role, onBrowse, onOrdered
             )}
           </SheetTitle>
           <SheetDescription>
-            Items from {groups.length || 0} supplier{groups.length === 1 ? '' : 's'} — one purchase order is created per supplier at checkout.
+            Items from {groups.length || 0} supplier{groups.length === 1 ? '' : 's'}: one purchase order is created per supplier at checkout.
           </SheetDescription>
         </SheetHeader>
 
@@ -133,7 +133,7 @@ export function CartSheet({ open, onOpenChange, orgId, role, onBrowse, onOrdered
               </div>
               {!mayOrder && (
                 <p className="text-xs text-muted-foreground">
-                  Your role ({role || '—'}) can browse but not place orders. Ask the owner, GM or procurement to check out.
+                  Your role ({role || 'unassigned'}) can browse but not place orders. Ask the owner, GM or procurement to check out.
                 </p>
               )}
             </SheetFooter>
@@ -270,7 +270,7 @@ function CheckoutDialog({ open, onOpenChange, orgId, mayOrder, onDone }: {
         <DialogHeader>
           <DialogTitle>Confirm purchase order</DialogTitle>
           <DialogDescription>
-            {groups.length} purchase order{groups.length === 1 ? '' : 's'} will be sent to {groups.length === 1 ? 'its supplier' : 'their suppliers'} — stock is reserved immediately.
+            {groups.length} purchase order{groups.length === 1 ? '' : 's'} will be sent to {groups.length === 1 ? 'its supplier' : 'their suppliers'}: stock is reserved immediately.
           </DialogDescription>
         </DialogHeader>
 
@@ -287,7 +287,7 @@ function CheckoutDialog({ open, onOpenChange, orgId, mayOrder, onDone }: {
               <span>Products + applicable tax</span>
               <span className="tabular-nums">{money(total)}</span>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Delivery fee is agreed when the supplier arranges transport — totals update on the order.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Delivery fee is agreed when the supplier arranges transport; totals update on the order.</p>
           </div>
 
           <div className="space-y-1.5">
@@ -306,7 +306,7 @@ function CheckoutDialog({ open, onOpenChange, orgId, mayOrder, onDone }: {
                 <SelectContent>
                   {branches.map((b) => (
                     <SelectItem key={b.id} value={b.id}>
-                      {b.name} ({b.code}){b.town ? ` — ${b.town}` : ''}
+                      {b.name} ({b.code}){b.town ? `: ${b.town}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -318,7 +318,7 @@ function CheckoutDialog({ open, onOpenChange, orgId, mayOrder, onDone }: {
             <Label htmlFor="order-note">Note to supplier (optional)</Label>
             <Textarea
               id="order-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500}
-              placeholder="e.g. Deliver before Friday 10am — job card JB-118"
+              placeholder="e.g. Deliver before Friday 10am: job card JB-118"
               className="min-h-16"
             />
           </div>

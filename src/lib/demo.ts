@@ -4,13 +4,13 @@ import { ApiError } from '@/lib/api'
 import { audit } from '@/lib/audit'
 
 /**
- * CARMAZE demo-experience system — server side.
+ * CARMAZE demo-experience system: server side.
  *
  * Design rules (enforced here, never in the frontend):
  *  1. Credentials never reach the client. The sign-in page only ever sends a
  *     roleKey; this module maps it to the seeded demo account server-side.
  *  2. Demo sessions carry a `demo` JWT claim and a short, configurable lifetime.
- *  3. Demo accounts are real accounts with real roles — they do NOT bypass any
+ *  3. Demo accounts are real accounts with real roles; they do NOT bypass any
  *     permission. On top of normal RBAC, sandbox guards limit what demo users
  *     may touch (see assertDemoResourceGuard / demoStaffMutationGuard).
  *  4. Side effects that would reach the real world (notifications to real
@@ -66,7 +66,7 @@ const DEFINITIONS: Record<DemoRoleKey, { email: string; label: string; descripti
   'showroom-staff': {
     email: 'staff@carmaze.co.ke',
     label: 'Showroom Staff Demo',
-    description: 'Work the assigned sales tools in DealerOS — enquiries, conversations and test drives — without owner-level access to billing or settings.',
+    description: 'Work the assigned sales tools in DealerOS; enquiries, conversations and test drives: without owner-level access to billing or settings.',
     icon: 'id-card',
     dashboard: 'dealer',
     restrictedNote: null,
@@ -82,7 +82,7 @@ const DEFINITIONS: Record<DemoRoleKey, { email: string; label: string; descripti
   'garage-staff': {
     email: 'garage.staff@carmaze.co.ke',
     label: 'Garage Staff Demo',
-    description: 'Assigned garage operations only — bookings, job progress and customer conversations. No billing, staff management or financials.',
+    description: 'Assigned garage operations only: bookings, job progress and customer conversations. No billing, staff management or financials.',
     icon: 'hard-hat',
     dashboard: 'garage-dashboard',
     restrictedNote: null,
@@ -98,7 +98,7 @@ const DEFINITIONS: Record<DemoRoleKey, { email: string; label: string; descripti
   'platform-admin': {
     email: 'demo.admin@carmaze.co.ke',
     label: 'Platform Admin Demo',
-    description: 'Restricted admin tour of the Operations OS — verification queues, moderation and analytics. Financial and security actions are disabled in demo mode.',
+    description: 'Restricted admin tour of the Operations OS; verification queues, moderation and analytics. Financial and security actions are disabled in demo mode.',
     icon: 'shield',
     dashboard: 'admin',
     restrictedNote: 'Restricted to authorised internal testing. Financial actions, staff management and platform-wide configuration are disabled for this demo account.',
@@ -117,7 +117,7 @@ function isDemoRoleKey(v: string): v is DemoRoleKey {
   return Object.prototype.hasOwnProperty.call(DEFINITIONS, v)
 }
 
-/** Public catalog for the sign-in page — only ENABLED roles, no credentials. */
+/** Public catalog for the sign-in page; only ENABLED roles, no credentials. */
 export async function demoCatalog(): Promise<DemoCatalogEntry[]> {
   const rows = await db.demoAccount.findMany({ where: { enabled: true } })
   const out: DemoCatalogEntry[] = []
@@ -174,7 +174,7 @@ const DEMO_SANDBOX_MESSAGE =
   'Demo mode: this action would affect real platform data, so it has been blocked. Demo accounts can safely explore and test using demo data only.'
 
 /** Throw when a demo user attempts to act on a resource that is NOT demo-owned.
- * Ownership is checked server-side from database rows — never from client input. */
+ * Ownership is checked server-side from database rows; never from client input. */
 export async function assertDemoResourceGuard(user: SessionUser, target: { ownerId?: string | null; orgId?: string | null }): Promise<void> {
   if (!user.isDemo) return
   const owns = await demoActorOwnsResource(target)
@@ -198,7 +198,7 @@ export async function demoActorOwnsResource(target: { ownerId?: string | null; o
 /**
  * Platform-level mutation guard for STAFF endpoints.
  * Demo staff may explore read-only everywhere and may only mutate records whose
- * subject is part of the demo ecosystem — verified from the database. Platform-
+ * subject is part of the demo ecosystem; verified from the database. Platform-
  * wide configuration, financial reconciliation and staff-account management are
  * never allowed for demo users.
  */
@@ -217,7 +217,7 @@ export async function demoStaffMutationGuard(user: SessionUser, opts: { subjectU
   throw new ApiError(403, 'DEMO_SANDBOXED', DEMO_SANDBOX_MESSAGE)
 }
 
-/** Blocking guard for actions that are never allowed from a demo session —
+/** Blocking guard for actions that are never allowed from a demo session:
  * used for payment initiation and other real-world side effects. */
 export function assertNotDemoActor(user: SessionUser | null, action: string): void {
   if (user?.isDemo) {

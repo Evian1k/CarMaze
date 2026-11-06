@@ -1,8 +1,8 @@
 'use client'
 
-/* MembershipsManager — business-side manager for its customer membership
+/* MembershipsManager: business-side manager for its customer membership
  * programme (GarageOS / DealerOS). Includes the tier builder, the members
- * table with benefit-redemption recording, and — via internal tabs — the
+ * table with benefit-redemption recording, and: via internal tabs: the
  * Trust Programme and Credit Facility managers. Only garages and showrooms
  * offer customer memberships, so the component renders nothing otherwise. */
 
@@ -146,7 +146,7 @@ function ProgrammeTab({ orgId }: { orgId: string }) {
   async function doArchive(tier: Tier) {
     try {
       await apiSend(`/api/org/memberships/${tier.id}`, 'DELETE')
-      toast.success(`${tier.name} archived — existing members keep their terms`)
+      toast.success(`${tier.name} archived: existing members keep their terms`)
       load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not archive the tier')
@@ -214,7 +214,7 @@ function ProgrammeTab({ orgId }: { orgId: string }) {
             <Gift className="mx-auto h-8 w-8 text-muted-foreground" />
             <p className="mt-2 font-medium">No tiers yet</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-              Build your first tier — name it, set the price and benefits, and it appears instantly on the public
+              Build your first tier: name it, set the price and benefits, and it appears instantly on the public
               Business Memberships page for customers to subscribe to.
             </p>
             <Button variant="outline" className="mt-4 min-h-11" onClick={() => setBuilderOpen(true)}>Create a tier</Button>
@@ -304,7 +304,7 @@ function ProgrammeTab({ orgId }: { orgId: string }) {
                       <TableRow key={m.id}>
                         <TableCell>
                           <p className="font-medium">{m.customer.name}</p>
-                          <p className="text-xs text-muted-foreground">{m.customer.phone ?? '—'}</p>
+                          <p className="text-xs text-muted-foreground">{m.customer.phone ?? 'Not provided'}</p>
                         </TableCell>
                         <TableCell>
                           <p>{m.tier}</p>
@@ -514,7 +514,7 @@ function TierBuilderDialog({ orgId, tier, onClose, onSaved }: {
           branches: form.branchScope === 'SELECTED' ? form.branchIds : undefined,
           terms: form.terms.trim() || undefined,
         })
-        toast.success(`${form.name.trim()} published — customers can subscribe now`)
+        toast.success(`${form.name.trim()} published: customers can subscribe now`)
       }
       onSaved()
     } catch (e) {
@@ -532,7 +532,7 @@ function TierBuilderDialog({ orgId, tier, onClose, onSaved }: {
           <DialogDescription>
             {editing
               ? 'Changes apply to new subscribers. Existing members keep the terms they paid for.'
-              : 'Publish a tier to the public Business Memberships page. Be honest about limits — they are shown to customers exactly as entered.'}
+              : 'Publish a tier to the public Business Memberships page. Be honest about limits: they are shown to customers exactly as entered.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -560,7 +560,7 @@ function TierBuilderDialog({ orgId, tier, onClose, onSaved }: {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="tier-benefits">Benefits — one per line ({benefits.length}/12)</Label>
+            <Label htmlFor="tier-benefits">Benefits: one per line ({benefits.length}/12)</Label>
             <Textarea
               id="tier-benefits"
               rows={4}
@@ -596,7 +596,7 @@ function TierBuilderDialog({ orgId, tier, onClose, onSaved }: {
                 <Skeleton className="h-20 rounded-lg" />
               ) : branches.length === 0 ? (
                 <p className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
-                  No active branches yet — create branches first, or keep the scope on “All branches”.
+                  No active branches yet: create branches first, or keep the scope on “All branches”.
                 </p>
               ) : (
                 <div className="max-h-44 space-y-1.5 overflow-y-auto scrollbar-thin rounded-lg border p-2.5">
@@ -659,10 +659,10 @@ function RedeemDialog({ member, tier, onClose, onSubmit }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record redemption — {member.customer.name}</DialogTitle>
+          <DialogTitle>Record redemption: {member.customer.name}</DialogTitle>
           <DialogDescription>
             {member.tier} · {member.refCode}. One redemption per benefit per billing period is
-            enforced by the ledger — duplicates are rejected.
+            enforced by the ledger: duplicates are rejected.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

@@ -163,7 +163,7 @@ export const GET = route(async (req: NextRequest, ctx: Ctx) => {
     createdAt: vehicle.createdAt,
     photos: vehicle.photos.map((p) => ({ url: p.url, order: p.order })),
     // Private sellers are never exposed with contact details. The verified
-    // marker reflects an approved SELLER (KYC) application — never a self-claim.
+    // marker reflects an approved SELLER (KYC) application: never a self-claim.
     owner: {
       name: vehicle.owner.name,
       verifiedSeller: vehicle.owner.roles.split(',').includes('SELLER_VERIFIED'),
@@ -243,7 +243,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         userId: user.id,
         type: 'LISTING_SUBMITTED',
         title: 'Your listing was submitted',
-        body: `${vehicle.make} ${vehicle.model} ${vehicle.year} is under review — target 24 business hours.`,
+        body: `${vehicle.make} ${vehicle.model} ${vehicle.year} is under review: target 24 business hours.`,
         link: '/my-listings',
       })
       await audit({

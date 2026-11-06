@@ -13,7 +13,7 @@ import { KENYA_COUNTIES } from '@/lib/format'
 export const dynamic = 'force-dynamic'
 
 /**
- * POST /api/partners/apply — public partner application (no account needed).
+ * POST /api/partners/apply: public partner application (no account needed).
  * Rate limit: 5 applications per hour per IP. Applications land as PENDING
  * and go live only after human business verification by CARMAZE staff.
  */
@@ -75,7 +75,7 @@ export const POST = route(async (req: NextRequest) => {
     metadata: { ref: partner.refCode, category: body.category, county: body.county },
   })
 
-  // Staff heads-up — same pattern as dealer/garage applications.
+  // Staff heads-up: same pattern as dealer/garage applications.
   const staff = await db.user.findMany({
     where: { OR: STAFF_ROLES.map((r) => ({ roles: { contains: r } })), status: 'ACTIVE' },
     select: { id: true },
@@ -92,8 +92,8 @@ export const POST = route(async (req: NextRequest) => {
     await notify({
       userId: user.id,
       type: 'PARTNER_APPLICATION_RECEIVED',
-      title: `Partner application received — ${partner.refCode}`,
-      body: 'Thanks for applying. The CARMAZE team reviews every application by hand — listings go live only after business verification is complete. No payment is charged for applying.',
+      title: `Partner application received: ${partner.refCode}`,
+      body: 'Thanks for applying. The CARMAZE team reviews every application by hand; listings go live only after business verification is complete. No payment is charged for applying.',
       link: '/partners',
     })
   }

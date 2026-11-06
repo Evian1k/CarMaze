@@ -1,6 +1,6 @@
 'use client'
 
-/* Rewards — the customer-facing view of CARMAZE Loyalty & Referrals.
+/* Rewards: the customer-facing view of CARMAZE Loyalty & Referrals.
  * Everything shown comes straight from /api/loyalty/summary: the points
  * balance, the transparent earning rules, the personal referral code/link
  * and the real points ledger. No invented balances, no purchasable points. */
@@ -36,7 +36,7 @@ type LoyaltySummary = {
   finePrint: string
 }
 
-/** Which rule earns which icon — matched on the server's rule titles. */
+/** Which rule earns which icon: matched on the server's rule titles. */
 const RULE_ICONS: Record<string, LucideIcon> = {
   'Invite a friend': UserPlus,
   'Share a verified garage review': Star,
@@ -56,7 +56,7 @@ function reasonMeta(reason: string): { label: string; icon: LucideIcon } {
 }
 
 export function RewardsPanel() {
-  // Retry remounts the content component below — a fresh fetch with clean state,
+  // Retry remounts the content component below; a fresh fetch with clean state,
   // without synchronously resetting state inside an effect.
   const [tick, setTick] = useState(0)
   const retry = useCallback(() => setTick((t) => t + 1), [])
@@ -80,7 +80,7 @@ function RewardsContent({ onRetry }: { onRetry: () => void }) {
       await navigator.clipboard.writeText(text)
       toast.success(successMessage)
     } catch {
-      toast.error('Could not copy — please copy it manually')
+      toast.error('Could not copy: please copy it manually')
     }
   }
 
@@ -120,7 +120,7 @@ function RewardsContent({ onRetry }: { onRetry: () => void }) {
 
   return (
     <div className="space-y-4">
-      {/* Points balance — deep green hero with the gold balance (brand-deep
+      {/* Points balance: deep green hero with the gold balance (brand-deep
           keeps the band dark in dark mode too) */}
       <Card className="overflow-hidden border-none bg-brand-deep text-brand-deep-foreground shadow-md">
         <CardContent className="flex flex-wrap items-center justify-between gap-6 p-6">
@@ -133,7 +133,7 @@ function RewardsContent({ onRetry }: { onRetry: () => void }) {
               <p className="text-4xl font-bold tabular-nums text-[#D9B878] sm:text-5xl">
                 <CountUp value={data.points} />
               </p>
-              <p className="mt-1 text-xs text-white/60">Earned through real activity on CARMAZE — never bought.</p>
+              <p className="mt-1 text-xs text-white/60">Earned through real activity on CARMAZE; never bought.</p>
             </div>
           </div>
           <div className="rounded-lg bg-white/10 px-4 py-3 text-sm">
@@ -144,11 +144,11 @@ function RewardsContent({ onRetry }: { onRetry: () => void }) {
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* How to earn — the transparent rules served by the API */}
+        {/* How to earn: the transparent rules served by the API */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">How to earn</CardTitle>
-            <CardDescription>The complete list — there are no hidden ways to earn.</CardDescription>
+            <CardDescription>The complete list: there are no hidden ways to earn.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {data.rules.map((rule) => {
@@ -175,12 +175,12 @@ function RewardsContent({ onRetry }: { onRetry: () => void }) {
           </CardContent>
         </Card>
 
-        {/* Referral — your code, your link, honest numbers */}
+        {/* Referral: your code, your link, honest numbers */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Invite friends</CardTitle>
             <CardDescription>
-              Share your link — you earn 500 points when a friend signs up ({data.referralsAvailable} of 50 referral bonuses remaining).
+              Share your link: you earn 500 points when a friend signs up ({data.referralsAvailable} of 50 referral bonuses remaining).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -212,11 +212,11 @@ function RewardsContent({ onRetry }: { onRetry: () => void }) {
         </Card>
       </div>
 
-      {/* Ledger — every point ever earned or spent, newest first */}
+      {/* Ledger: every point ever earned or spent, newest first */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Points history</CardTitle>
-          <CardDescription>Every point you have earned, with the reason — newest first.</CardDescription>
+          <CardDescription>Every point you have earned, with the reason: newest first.</CardDescription>
         </CardHeader>
         <CardContent>
           {data.entries.length === 0 ? (
@@ -226,7 +226,7 @@ function RewardsContent({ onRetry }: { onRetry: () => void }) {
               </span>
               <h3 className="mt-3 font-semibold">No points yet</h3>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                Invite a friend with your link, review a garage after a completed service, or finish a booked job — points will show up here.
+                Invite a friend with your link, review a garage after a completed service, or finish a booked job: points will show up here.
               </p>
             </div>
           ) : (

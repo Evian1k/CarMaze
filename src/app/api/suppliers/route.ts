@@ -12,7 +12,7 @@ import { getFees } from '@/lib/supply'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/suppliers — public directory of verified suppliers on the
+ * GET /api/suppliers: public directory of verified suppliers on the
  * Automotive Supply Network. Only organisations with type=SUPPLIER,
  * status=ACTIVE and verified=true are listed publicly. Unverified suppliers
  * are never shown as verified.
@@ -90,9 +90,9 @@ const applySchema = z.object({
 })
 
 /**
- * POST /api/suppliers — submit a supplier business application. Creates an
+ * POST /api/suppliers: submit a supplier business application. Creates an
  * Application (type=SUPPLIER) for admin review. A supplier is NEVER verified
- * automatically — verification requires document review and admin approval.
+ * automatically: verification requires document review and admin approval.
  */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()

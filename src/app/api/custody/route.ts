@@ -26,7 +26,7 @@ const createSchema = z.object({
 })
 
 /**
- * POST — customer requests a protected handover of their vehicle to a garage
+ * POST: customer requests a protected handover of their vehicle to a garage
  * (Garage Vehicle Protection). Starts the custody lifecycle at
  * HANDOVER_REQUESTED.
  */
@@ -76,7 +76,7 @@ export const POST = route(async (req: NextRequest) => {
           actorId: user.id,
           actorName: user.name,
           actorSide: 'CUSTOMER',
-          note: 'Handover requested — customer drop-off pending.',
+          note: 'Handover requested: customer drop-off pending.',
         },
       },
     },
@@ -84,7 +84,7 @@ export const POST = route(async (req: NextRequest) => {
 
   await notifyOrgMembers(org.id, {
     type: 'CUSTODY_UPDATE',
-    title: `New vehicle handover — ${custody.refCode}`,
+    title: `New vehicle handover: ${custody.refCode}`,
     body: `${user.name} requested protected custody for ${custody.vehicleDesc}.`,
     link: '/garage-dashboard?tab=custody',
   })

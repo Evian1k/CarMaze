@@ -1,21 +1,21 @@
 /**
- * CARMAZE seed — realistic Kenyan pilot data.
+ * CARMAZE seed: realistic Kenyan pilot data.
  * Run: bun prisma/seed.ts
  *
- * Demo accounts — one for EVERY platform (documented for the pilot, change
+ * Demo accounts: one for EVERY platform (documented for the pilot, change
  * before launch). Password for all: CarmazeDemo2025!
  * ALL seeded users/orgs are marked isDemo=true: demo sessions are sandboxed
  * away from real users via src/lib/demo.ts (no real notifications, no real
  * M-Pesa, no mutations outside the demo ecosystem).
  *
- *   Platform staff (Control Center, #/admin — invited staff only):
- *     admin@carmaze.co.ke           FOUNDER/ADMIN — full Operations OS
+ *   Platform staff (Control Center, #/admin, invited staff only):
+ *     admin@carmaze.co.ke           FOUNDER/ADMIN, full Operations OS
  *     demo.admin@carmaze.co.ke      RESTRICTED DEMO ADMIN (read-only tour)
  *     ops@carmaze.co.ke             REVIEWER/SUPPORT/MODERATOR
- *     reviewer@carmaze.co.ke        REVIEWER — business-verification department
+ *     reviewer@carmaze.co.ke        REVIEWER, business-verification department
  *     finance@carmaze.co.ke         FINANCE department
- *     disputes@carmaze.co.ke        MODERATOR — disputes department
- *     fraud@carmaze.co.ke           REVIEWER+MODERATOR — fraud department
+ *     disputes@carmaze.co.ke        MODERATOR, disputes department
+ *     fraud@carmaze.co.ke           REVIEWER+MODERATOR, fraud department
  *     support@carmaze.co.ke         SUPPORT department
  *
  *   Businesses:
@@ -26,7 +26,7 @@
  *     supplier@carmaze.co.ke        SupplierOS (Sifa Auto Spares + unverified Rapid Parts)
  *     tyres@carmaze.co.ke           SupplierOS (Highway Tyre Distributors)
  *     equipment@carmaze.co.ke       SupplierOS (GaragePro Equipment Kenya)
- *     logistics@carmaze.co.ke       LogisticsOS (Swift Movers Logistics — approved)
+ *     logistics@carmaze.co.ke       LogisticsOS (Swift Movers Logistics, approved)
  *
  *   Individuals:
  *     customer@carmaze.co.ke        Customer (orders, dispute, loyalty, custody)
@@ -61,11 +61,11 @@ async function main() {
   await db.notificationDelivery.deleteMany()
   await db.notification.deleteMany()
   await db.supportTicket.deleteMany()
-  // Consumer (B2C) parts orders first — they reference invoices/users/orgs below
+  // Consumer (B2C) parts orders first, they reference invoices/users/orgs below
   await db.customerOrderEvent.deleteMany()
   await db.customerOrderItem.deleteMany()
   await db.customerOrder.deleteMany()
-  // LogisticsOS demo data — DeliveryJob/DeliveryJobEvent reference users
+  // LogisticsOS demo data: DeliveryJob/DeliveryJobEvent reference users
   await db.deliveryJobEvent.deleteMany()
   await db.deliveryJob.deleteMany()
   await db.paymentAttempt.deleteMany()
@@ -94,7 +94,7 @@ async function main() {
   await db.savedSearch.deleteMany()
   await db.offer.deleteMany()
   await db.buyingRequest.deleteMany()
-  // New models (conversations, custody, test drives, incidents) — children
+  // New models (conversations, custody, test drives, incidents), children
   // first, and all before org/user/vehicle deletes (restrict FKs).
   await db.incidentEvent.deleteMany()
   await db.securityIncident.deleteMany()
@@ -107,7 +107,7 @@ async function main() {
   await db.testDrive.deleteMany()
   await db.listingEvent.deleteMany()
   await db.vehiclePhoto.deleteMany()
-  // Vehicle transfers reference vehicles — clear them first (FK, no cascade)
+  // Vehicle transfers reference vehicles: clear them first (FK, no cascade)
   await db.vehicleTransferEvent.deleteMany()
   await db.vehicleTransfer.deleteMany()
   await db.vehicle.deleteMany()
@@ -154,7 +154,7 @@ async function main() {
   await db.partner.deleteMany()
   await db.loyaltyLedger.deleteMany()
   await db.customizerConfig.deleteMany()
-  // LogisticsOS partners — before user deletes (owner FK)
+  // LogisticsOS partners, before user deletes (owner FK)
   await db.logisticsPartnerEvent.deleteMany()
   await db.driver.deleteMany()
   await db.logisticsPartner.deleteMany()
@@ -194,7 +194,7 @@ async function main() {
   const pendingGarageUser = await db.user.create({
     data: { email: 'apply.garage@carmaze.co.ke', name: 'Caroline Wanjiru', passwordHash: hash, isDemo: true, phone: '+254799222000', roles: 'CUSTOMER' },
   })
-  // Restricted DEMO platform admin — explores the Operations OS read-only;
+  // Restricted DEMO platform admin: explores the Operations OS read-only;
   // financial, staff-management and platform-configuration actions are blocked
   // server-side for demo accounts (never the real founder/admin account).
   const demoAdmin = await db.user.create({
@@ -259,11 +259,11 @@ async function main() {
       { roleKey: 'customer', email: 'customer@carmaze.co.ke', label: 'Customer Demo', description: 'Browse the marketplace, save vehicles, compare, enquire, book garage services and track everything from your dashboard.', dashboard: 'cars', sessionMinutes: 20160 },
       { roleKey: 'private-seller', email: 'seller@carmaze.co.ke', label: 'Private Seller Demo', description: 'Manage your own vehicle listings, see listing approval status, handle enquiries and follow your own seller analytics.', dashboard: 'my-listings', sessionMinutes: 20160 },
       { roleKey: 'showroom-owner', email: 'dealer@carmaze.co.ke', label: 'Showroom Owner Demo', description: 'Run DealerOS for Nairobi Auto Hub: inventory, enquiries, test drives, staff, billing and business analytics.', dashboard: 'dealer', sessionMinutes: 20160 },
-      { roleKey: 'showroom-staff', email: 'staff@carmaze.co.ke', label: 'Showroom Staff Demo', description: 'Work the assigned sales tools in DealerOS — enquiries, conversations and test drives — without owner-level access to billing or settings.', dashboard: 'dealer', sessionMinutes: 20160 },
+      { roleKey: 'showroom-staff', email: 'staff@carmaze.co.ke', label: 'Showroom Staff Demo', description: 'Work the assigned sales tools in DealerOS (enquiries, conversations and test drives) without owner-level access to billing or settings.', dashboard: 'dealer', sessionMinutes: 20160 },
       { roleKey: 'garage-owner', email: 'garage@carmaze.co.ke', label: 'Garage Owner Demo', description: 'Run GarageOS for Premium Motors Garage: quotes, bookings, technicians, procurement, subscriptions and garage analytics.', dashboard: 'garage-dashboard', sessionMinutes: 20160 },
-      { roleKey: 'garage-staff', email: 'garage.staff@carmaze.co.ke', label: 'Garage Staff Demo', description: 'Assigned garage operations only — bookings, job progress and customer conversations. No billing, staff management or financials.', dashboard: 'garage-dashboard', sessionMinutes: 20160 },
+      { roleKey: 'garage-staff', email: 'garage.staff@carmaze.co.ke', label: 'Garage Staff Demo', description: 'Assigned garage operations only: bookings, job progress and customer conversations. No billing, staff management or financials.', dashboard: 'garage-dashboard', sessionMinutes: 20160 },
       { roleKey: 'platform-support', email: 'support@carmaze.co.ke', label: 'Platform Support Demo', description: 'Support portal: customer tickets, complaint resolution and escalation workflows for the Support department.', dashboard: 'admin?tab=support', sessionMinutes: 20160 },
-      { roleKey: 'platform-admin', email: 'demo.admin@carmaze.co.ke', label: 'Platform Admin Demo', description: 'Restricted admin tour of the Operations OS — verification queues, moderation and analytics. Financial and security actions are disabled in demo mode.', dashboard: 'admin', sessionMinutes: 20160, restrictedNote: 'Restricted to authorised internal testing. Financial actions, staff management and platform-wide configuration are disabled for this demo account.' },
+      { roleKey: 'platform-admin', email: 'demo.admin@carmaze.co.ke', label: 'Platform Admin Demo', description: 'Restricted admin tour of the Operations OS: verification queues, moderation and analytics. Financial and security actions are disabled in demo mode.', dashboard: 'admin', sessionMinutes: 20160, restrictedNote: 'Restricted to authorised internal testing. Financial actions, staff management and platform-wide configuration are disabled for this demo account.' },
     ],
   })
 
@@ -286,7 +286,7 @@ async function main() {
     ],
   })
 
-  // Pending dealer application (submitted 6h ago — inside SLA)
+  // Pending dealer application (submitted 6h ago, inside SLA)
   const appPending = await db.application.create({
     data: {
       refCode: 'DLA-3XW9QP', type: 'DEALER', userId: pendingDealerUser.id, orgName: 'Coast Elite Motors', regNo: 'BN-2023-9921',
@@ -340,10 +340,10 @@ async function main() {
   })
   await db.invoice.createMany({
     data: [
-      { refCode: 'INV-QK2M4P', orgId: dealerOrg.id, type: 'SUBSCRIPTION', description: 'Dealer Pro subscription — monthly', amountMinor: 990000, status: 'PAID', periodStart: daysFromNow(-30), periodEnd: daysFromNow(1), issuedAt: daysFromNow(-30), dueDate: daysFromNow(-30), paidAt: daysFromNow(-29), paidVia: 'MPESA' },
-      { refCode: 'INV-MN7X2W', orgId: dealerOrg2.id, type: 'SUBSCRIPTION', description: 'Dealer Starter subscription — monthly', amountMinor: 490000, status: 'PAID', periodStart: daysFromNow(-20), periodEnd: daysFromNow(10), issuedAt: daysFromNow(-20), dueDate: daysFromNow(-20), paidAt: daysFromNow(-20), paidVia: 'MPESA' },
-      { refCode: 'INV-PW9Q3L', orgId: garageOrg.id, type: 'SUBSCRIPTION', description: 'Garage Basic subscription — monthly', amountMinor: 290000, status: 'PAID', periodStart: daysFromNow(-25), periodEnd: daysFromNow(5), issuedAt: daysFromNow(-25), dueDate: daysFromNow(-25), paidAt: daysFromNow(-24), paidVia: 'MANUAL' },
-      { refCode: 'INV-TD4K8Z', orgId: dealerOrg.id, type: 'CAMPAIGN', description: 'Listing Spotlight (7 days) — Prado TX-L', amountMinor: 150000, status: 'PENDING', issuedAt: hoursAgo(20), dueDate: daysFromNow(7) },
+      { refCode: 'INV-QK2M4P', orgId: dealerOrg.id, type: 'SUBSCRIPTION', description: 'Dealer Pro subscription (monthly)', amountMinor: 990000, status: 'PAID', periodStart: daysFromNow(-30), periodEnd: daysFromNow(1), issuedAt: daysFromNow(-30), dueDate: daysFromNow(-30), paidAt: daysFromNow(-29), paidVia: 'MPESA' },
+      { refCode: 'INV-MN7X2W', orgId: dealerOrg2.id, type: 'SUBSCRIPTION', description: 'Dealer Starter subscription (monthly)', amountMinor: 490000, status: 'PAID', periodStart: daysFromNow(-20), periodEnd: daysFromNow(10), issuedAt: daysFromNow(-20), dueDate: daysFromNow(-20), paidAt: daysFromNow(-20), paidVia: 'MPESA' },
+      { refCode: 'INV-PW9Q3L', orgId: garageOrg.id, type: 'SUBSCRIPTION', description: 'Garage Basic subscription (monthly)', amountMinor: 290000, status: 'PAID', periodStart: daysFromNow(-25), periodEnd: daysFromNow(5), issuedAt: daysFromNow(-25), dueDate: daysFromNow(-25), paidAt: daysFromNow(-24), paidVia: 'MANUAL' },
+      { refCode: 'INV-TD4K8Z', orgId: dealerOrg.id, type: 'CAMPAIGN', description: 'Listing Spotlight (7 days), Prado TX-L', amountMinor: 150000, status: 'PENDING', issuedAt: hoursAgo(20), dueDate: daysFromNow(7) },
     ],
   })
 
@@ -366,7 +366,7 @@ async function main() {
     { make: 'Toyota', model: 'Vitz 1.0', year: 2020, priceMinor: 115000000, mileageKm: 33000, fuel: 'PETROL', transmission: 'AUTOMATIC', bodyType: 'HATCHBACK', condition: 'FOREIGN_USED', county: 'Kiambu', town: 'Kikuyu', color: 'Pearl White', engineCc: 1000, ownerId: seller.id, sellerType: 'PRIVATE', match: true, views: 64, images: ['/images/vitz.png'], description: 'One owner, non-accident, garage kept. Selling to upgrade. Serious buyers only. Inspection welcome.' },
     { make: 'Toyota', model: 'Noah X', year: 2017, priceMinor: 240000000, mileageKm: 88000, fuel: 'PETROL', transmission: 'AUTOMATIC', bodyType: 'MINIVAN', condition: 'FOREIGN_USED', county: 'Nairobi', color: 'Silver', engineCc: 2000, ownerId: seller.id, sellerType: 'PRIVATE', status: 'PENDING_REVIEW', images: ['/images/noah.png'], description: '8-seater family van in excellent condition. Ideal for family and business use.' },
     { make: 'Toyota', model: 'Land Cruiser V8 ZX', year: 2015, priceMinor: 890000000, mileageKm: 140000, fuel: 'DIESEL', transmission: 'AUTOMATIC', bodyType: 'SUV', condition: 'LOCAL_USED', county: 'Nairobi', color: 'White', engineCc: 4500, orgId: dealerOrg.id, ownerId: dealerOwner.id, status: 'SOLD', views: 402, images: ['/images/prado.png'], description: 'Sold within 3 weeks of listing. Full service history, locally used by a diplomat.' },
-    { make: 'BMW', model: 'X3 xDrive20d', year: 2017, priceMinor: 420000000, mileageKm: 91000, fuel: 'DIESEL', transmission: 'AUTOMATIC', bodyType: 'SUV', condition: 'FOREIGN_USED', county: 'Nairobi', color: 'Mineral Grey', engineCc: 2000, orgId: dealerOrg.id, ownerId: dealerOwner.id, status: 'DRAFT', images: [], description: 'Draft listing — photos being prepared.' },
+    { make: 'BMW', model: 'X3 xDrive20d', year: 2017, priceMinor: 420000000, mileageKm: 91000, fuel: 'DIESEL', transmission: 'AUTOMATIC', bodyType: 'SUV', condition: 'FOREIGN_USED', county: 'Nairobi', color: 'Mineral Grey', engineCc: 2000, orgId: dealerOrg.id, ownerId: dealerOwner.id, status: 'DRAFT', images: [], description: 'Draft listing: photos being prepared.' },
   ]
 
   type CreatedVehicle = Awaited<ReturnType<typeof db.vehicle.create>>
@@ -419,7 +419,7 @@ async function main() {
   await db.enquiryMessage.createMany({
     data: [
       { enquiryId: enquiry1.id, senderId: customer.id, senderName: customer.name, senderSide: 'CUSTOMER', body: 'Is the Prado still available? Can I book an inspection this Saturday morning?' },
-      { enquiryId: enquiry1.id, senderId: dealerStaff.id, senderName: dealerStaff.name, senderSide: 'SELLER', body: 'Hello Amina, yes it is available. Saturday 10am works — we are at Mombasa Road next to Gateway Mall. Ask for Brian at reception.' },
+      { enquiryId: enquiry1.id, senderId: dealerStaff.id, senderName: dealerStaff.name, senderSide: 'SELLER', body: 'Hello Amina, yes it is available. Saturday 10am works, we are at Mombasa Road next to Gateway Mall. Ask for Brian at reception.' },
       { enquiryId: enquiry1.id, senderId: customer.id, senderName: customer.name, senderSide: 'CUSTOMER', body: 'Great, see you then. Will the trade-in valuation be done the same day?' },
     ],
   })
@@ -474,7 +474,7 @@ async function main() {
   const sr2 = await db.serviceRequest.create({
     data: {
       refCode: 'SRQ-7RD4KQ', customerId: customer.id, category: 'GENERAL_SERVICE',
-      vehicleDesc: 'Toyota Vitz 2016', description: 'Regular service — engine oil, air filter and general check-up.', county: 'Nairobi', status: 'COMPLETED',
+      vehicleDesc: 'Toyota Vitz 2016', description: 'Regular service: engine oil, air filter and general check-up.', county: 'Nairobi', status: 'COMPLETED',
     },
   })
   await db.quote.create({ data: { requestId: sr2.id, orgId: garageOrg2.id, amountMinor: 480000, leadDays: 1, message: 'Genuine filters and 5W-30 oil included.', status: 'ACCEPTED' } })
@@ -502,7 +502,7 @@ async function main() {
   await db.serviceRecord.createMany({
     data: [
       { myVehicleId: myVitz.id, date: daysFromNow(-30), type: 'SERVICE', description: 'Engine oil and filter change, coolant top-up.', costMinor: 320000, mileageKm: 59500, garageOrgId: garageOrg2.id },
-      { myVehicleId: myVitz.id, date: daysFromNow(-5), type: 'SERVICE', description: 'Regular service — engine oil, air filter and general check-up.', costMinor: 480000, mileageKm: 62000, garageOrgId: garageOrg2.id },
+      { myVehicleId: myVitz.id, date: daysFromNow(-5), type: 'SERVICE', description: 'Regular service: engine oil, air filter and general check-up.', costMinor: 480000, mileageKm: 62000, garageOrgId: garageOrg2.id },
     ],
   })
   await db.reminder.createMany({
@@ -516,28 +516,28 @@ async function main() {
   // ── Community ──
   const post1 = await db.communityPost.create({
     data: {
-      userId: dealerOwner.id, title: 'Weekend cruise: Nairobi → Naivasha — who is in?',
+      userId: dealerOwner.id, title: 'Weekend cruise: Nairobi → Naivasha, who is in?',
       body: 'Planning a Sunday morning drive to Naivasha via Mai Mahiu. Meeting point Capitol Centre 7:30am, breakfast stop in Naivasha. All cars welcome, moderate pace. Drop a comment if you are joining.',
       category: 'EVENT',
     },
   })
   const post2 = await db.communityPost.create({
     data: {
-      userId: customer.id, title: 'Vitz hybrid vs Demio — real fuel economy in Nairobi traffic?',
+      userId: customer.id, title: 'Vitz hybrid vs Demio: real fuel economy in Nairobi traffic?',
       body: 'I do mostly Urban commutes with occasional upcountry trips. Comparing a 2018 Fit Hybrid and a 2019 Demio. Owners, what real consumption are you getting in the city?',
       category: 'QUESTION',
     },
   })
   const post3 = await db.communityPost.create({
     data: {
-      userId: seller.id, title: 'Selling my 2020 Vitz — sharing my experience with the platform',
+      userId: seller.id, title: 'Selling my 2020 Vitz, sharing my experience with the platform',
       body: 'Listed my Vitz last week and got two dealer offers through the matching board already. Will update once I close the deal. Tip: good photos genuinely make a difference.',
       category: 'SHOWCASE',
     },
   })
   await db.postComment.createMany({
     data: [
-      { postId: post1.id, userId: seller.id, body: 'Count me in — bringing the Demio.' },
+      { postId: post1.id, userId: seller.id, body: 'Count me in, bringing the Demio.' },
       { postId: post1.id, userId: customer.id, body: 'Is the route family friendly? I might tag along with my sister.' },
       { postId: post2.id, userId: garageOwner.id, body: 'From what we see at the garage: hybrids shine in stop-and-go traffic; on the highway the difference almost disappears.' },
     ],
@@ -562,10 +562,10 @@ async function main() {
     },
   })
 
-  // ── Active paid campaign (D-Max homepage feature — real revenue record) ──
+  // ── Active paid campaign (D-Max homepage feature, real revenue record) ──
   const campInv = await db.invoice.create({
     data: {
-      refCode: 'INV-BX6N2T', orgId: dealerOrg.id, type: 'CAMPAIGN', description: 'Homepage Feature (3 days) — D-Max Double Cab',
+      refCode: 'INV-BX6N2T', orgId: dealerOrg.id, type: 'CAMPAIGN', description: 'Homepage Feature (3 days), D-Max Double Cab',
       amountMinor: 300000, status: 'PAID', issuedAt: daysFromNow(-2), dueDate: daysFromNow(1), paidAt: daysFromNow(-2), paidVia: 'MPESA',
     },
   })
@@ -608,7 +608,7 @@ async function main() {
     data: [
       { userId: customer.id, points: 500, reason: 'REFERRAL_SIGNUP', refType: 'USER', refId: seller.id, note: 'James Mwangi joined with your referral link.', createdAt: daysFromNow(-26) },
       { userId: customer.id, points: 250, reason: 'SERVICE_COMPLETED', refType: 'BOOKING', note: 'Vitz regular service completed by Mombasa Road Tyres & Service.', createdAt: daysFromNow(-5) },
-      { userId: customer.id, points: 100, reason: 'REVIEW_EARNED', refType: 'ORG_REVIEW', note: 'Verified review published — Mombasa Road Tyres & Service.', createdAt: daysFromNow(-4) },
+      { userId: customer.id, points: 100, reason: 'REVIEW_EARNED', refType: 'ORG_REVIEW', note: 'Verified review published: Mombasa Road Tyres & Service.', createdAt: daysFromNow(-4) },
     ],
   })
 
@@ -634,15 +634,15 @@ async function main() {
       { key: 'review_sla', value: JSON.stringify({ initialReviewHours: 24, correctionDays: 7, escalationMultiplier: 2 }) },
       { key: 'policies', value: JSON.stringify({ transactionFeeNote: 'CARMAZE does not charge any fee on vehicle sales in the pilot. Any future lead or transaction fee will follow a signed agreement.', escrowNote: 'CARMAZE does not hold buyer funds or provide escrow. Vehicle payments are arranged directly between buyer and seller.' }) },
       { key: 'faqs', value: JSON.stringify([
-        { q: 'Is CARMAZE free for private sellers?', a: 'Yes — creating and publishing a private listing is free during the pilot. Optional promotions are paid.' },
-        { q: 'How are dealerships verified?', a: 'Every dealer submits business registration, premises and representative details. Our review team verifies documents before the "Verified" badge is granted — it is never bought.' },
+        { q: 'Is CARMAZE free for private sellers?', a: 'Yes, creating and publishing a private listing is free during the pilot. Optional promotions are paid.' },
+        { q: 'How are dealerships verified?', a: 'Every dealer submits business registration, premises and representative details. Our review team verifies documents before the "Verified" badge is granted, it is never bought.' },
         { q: 'How do dealer offers work?', a: 'When you list a car and opt into dealer matching, verified dealers can send offers through the platform. Your contact details stay private until you choose to engage.' },
         { q: 'Does CARMAZE handle vehicle payments?', a: 'No. During the pilot, vehicle payments are arranged directly between buyer and seller. We never hold buyer funds or offer escrow.' },
-        { q: 'How do garage quotes work?', a: 'Describe the work (or share a 3D customizer configuration) and approved garages respond with quotes. You compare and choose — no obligation.' },
+        { q: 'How do garage quotes work?', a: 'Describe the work (or share a 3D customizer configuration) and approved garages respond with quotes. You compare and choose, no obligation.' },
         { q: 'Is roadside assistance an emergency service?', a: 'No. CARMAZE connects you with independent providers. For emergencies always call 999 / 112 first.' },
         { q: 'What payment methods are supported for subscriptions?', a: 'M-Pesa (Safaricom Daraja) is integrated for dealer and garage subscriptions and promotions. Payment status is verified server-side via Daraja callbacks.' },
       ]) },
-      { key: 'home_hero', value: JSON.stringify({ title: 'Find your next car with confidence', subtitle: 'Verified dealers, honest listings, trusted garages — one connected ecosystem built for Kenya.' }) },
+      { key: 'home_hero', value: JSON.stringify({ title: 'Find your next car with confidence', subtitle: 'Verified dealers, honest listings, trusted garages: one connected ecosystem built for Kenya.' }) },
     ],
   })
 
@@ -671,7 +671,7 @@ async function main() {
       openingHours: JSON.stringify(standardHours),
       specialities: JSON.stringify(['Premium SUVs', 'Executive sedans', 'Trade-ins accepted', 'Financing assistance']),
       faqs: JSON.stringify([
-        { q: 'Can I book an inspection before buying?', a: 'Yes — we encourage independent inspections and can arrange a Saturday viewing slot. Just message us through the platform.' },
+        { q: 'Can I book an inspection before buying?', a: 'Yes, we encourage independent inspections and can arrange a Saturday viewing slot. Just message us through the platform.' },
         { q: 'Do you accept trade-ins?', a: 'We accept trade-ins of any make. Bring the logbook and a valid ID for a same-day valuation.' },
         { q: 'Is financing available?', a: 'We work with partner banks and saccos; approvals typically take 2–3 working days with a 20% deposit.' },
       ]),
@@ -690,7 +690,7 @@ async function main() {
       specialities: JSON.stringify(['Family cars', 'Compact hatchbacks', 'Trade-in valuations']),
       faqs: JSON.stringify([
         { q: 'Are your prices negotiable?', a: 'Listed prices are close to final, but we consider serious offers and trade-in combos.' },
-        { q: 'Do you deliver upcountry?', a: 'Yes — delivery within Nairobi is free; upcountry delivery is arranged per county.' },
+        { q: 'Do you deliver upcountry?', a: 'Yes, delivery within Nairobi is free; upcountry delivery is arranged per county.' },
       ]),
       serviceAreas: JSON.stringify(['Nairobi', 'Kiambu']),
       whatsappEnabled: false,
@@ -706,9 +706,9 @@ async function main() {
       openingHours: JSON.stringify(extendedHours),
       specialities: JSON.stringify(['Mechanical repairs', 'Auto-electrical diagnostics', 'Bodywork & spray', 'Performance upgrades']),
       faqs: JSON.stringify([
-        { q: 'Do you use genuine parts?', a: 'We quote with genuine or OEM-equivalent parts — you approve the option before we order.' },
+        { q: 'Do you use genuine parts?', a: 'We quote with genuine or OEM-equivalent parts. You approve the option before we order.' },
         { q: 'How does vehicle custody work?', a: 'Every handover is logged with photos, odometer and fuel level. You approve any road test and authorise collection with a secure code.' },
-        { q: 'Can I get a quote before committing?', a: 'Yes — send your request through CARMAZE and we respond with an itemised quote, usually within a day.' },
+        { q: 'Can I get a quote before committing?', a: 'Yes, send your request through CARMAZE and we respond with an itemised quote, usually within a day.' },
       ]),
       serviceAreas: JSON.stringify(['Nairobi', 'Kiambu', 'Nakuru']),
       whatsappEnabled: true,
@@ -724,7 +724,7 @@ async function main() {
       openingHours: JSON.stringify(extendedHours),
       specialities: JSON.stringify(['Tyres & alignment', 'Batteries', '24/7 roadside assistance']),
       faqs: JSON.stringify([
-        { q: 'Do you offer roadside assistance at night?', a: 'Yes — call-outs run 24/7 within Nairobi. Night call-out rate applies from 8pm.' },
+        { q: 'Do you offer roadside assistance at night?', a: 'Yes, call-outs run 24/7 within Nairobi. Night call-out rate applies from 8pm.' },
         { q: 'How long does a tyre fitting take?', a: 'Around 30–45 minutes for a set, including balancing and alignment check.' },
       ]),
       serviceAreas: JSON.stringify(['Nairobi', 'Machakos', 'Kajiado']),
@@ -740,16 +740,16 @@ async function main() {
       orgId: dealerOrg.id,
       customerId: customer.id,
       vehicleId: prado.id,
-      subject: 'Toyota Land Cruiser Prado TX-L — inspection & trade-in',
+      subject: 'Toyota Land Cruiser Prado TX-L: inspection & trade-in',
       kind: 'VEHICLE_ENQUIRY',
       lastMessageAt: hoursAgo(4),
-      lastMessagePreview: 'Great — Saturday 10am works. Should I bring my Demio for the trade-in valuation too?',
+      lastMessagePreview: 'Great, Saturday 10am works. Should I bring my Demio for the trade-in valuation too?',
       unreadForOrg: true,
       messages: {
         create: [
           { senderId: customer.id, senderName: customer.name, senderSide: 'CUSTOMER', body: 'Hi, is the Prado TX-L still available? I would like to view it this Saturday morning.', createdAt: hoursAgo(26) },
-          { senderId: dealerStaff.id, senderName: dealerStaff.name, senderSide: 'ORG', body: 'Hello Amina, yes it is available. Saturday 10am works well — ask for Brian at reception, Mombasa Road next to Gateway Mall.', createdAt: hoursAgo(24) },
-          { senderId: customer.id, senderName: customer.name, senderSide: 'CUSTOMER', body: 'Great — Saturday 10am works. Should I bring my Demio for the trade-in valuation too?', createdAt: hoursAgo(4) },
+          { senderId: dealerStaff.id, senderName: dealerStaff.name, senderSide: 'ORG', body: 'Hello Amina, yes it is available. Saturday 10am works well. Ask for Brian at reception, Mombasa Road next to Gateway Mall.', createdAt: hoursAgo(24) },
+          { senderId: customer.id, senderName: customer.name, senderSide: 'CUSTOMER', body: 'Great, Saturday 10am works. Should I bring my Demio for the trade-in valuation too?', createdAt: hoursAgo(4) },
         ],
       },
     },
@@ -758,7 +758,7 @@ async function main() {
     data: {
       orgId: garageOrg.id,
       customerId: customer.id,
-      subject: 'Quote request — 2" lift kit for Prado',
+      subject: 'Quote request: 2" lift kit for Prado',
       kind: 'QUOTE',
       lastMessageAt: hoursAgo(28),
       lastMessagePreview: 'Hi Amina, the itemised quote is KES 98,000 fitted, including alignment and a 12-month workmanship warranty.',
@@ -801,11 +801,11 @@ async function main() {
       createdAt: hoursAgo(48),
       events: {
         create: [
-          { type: 'HANDOVER', actorId: customer.id, actorName: customer.name, actorSide: 'CUSTOMER', note: 'Handover requested — vehicle dropped off with declared condition and valuables.', createdAt: hoursAgo(48) },
+          { type: 'HANDOVER', actorId: customer.id, actorName: customer.name, actorSide: 'CUSTOMER', note: 'Handover requested: vehicle dropped off with declared condition and valuables.', createdAt: hoursAgo(48) },
           { type: 'STATUS_CHANGE', fromStatus: 'HANDOVER_REQUESTED', toStatus: 'RECEIVED', actorName: 'Mary Achieng', actorSide: 'ORG', note: 'Vehicle received by Mary Achieng. Drop-off photos taken.', createdAt: hoursAgo(47) },
-          { type: 'STATUS_CHANGE', fromStatus: 'RECEIVED', toStatus: 'INSPECTION', actorName: 'Mary Achieng', actorSide: 'ORG', note: 'Inspection started — fluids, brakes and full diagnostics.', createdAt: hoursAgo(45) },
+          { type: 'STATUS_CHANGE', fromStatus: 'RECEIVED', toStatus: 'INSPECTION', actorName: 'Mary Achieng', actorSide: 'ORG', note: 'Inspection started: fluids, brakes and full diagnostics.', createdAt: hoursAgo(45) },
           { type: 'STATUS_CHANGE', fromStatus: 'INSPECTION', toStatus: 'WORK_IN_PROGRESS', actorName: 'Mary Achieng', actorSide: 'ORG', note: 'Estimate approved by customer; work started.', createdAt: hoursAgo(40) },
-          { type: 'STATUS_CHANGE', fromStatus: 'WORK_IN_PROGRESS', toStatus: 'READY_FOR_COLLECTION', actorName: 'Mary Achieng', actorSide: 'ORG', note: 'Work completed — vehicle ready for collection.', createdAt: hoursAgo(2) },
+          { type: 'STATUS_CHANGE', fromStatus: 'WORK_IN_PROGRESS', toStatus: 'READY_FOR_COLLECTION', actorName: 'Mary Achieng', actorSide: 'ORG', note: 'Work completed: vehicle ready for collection.', createdAt: hoursAgo(2) },
         ],
       },
     },
@@ -813,7 +813,7 @@ async function main() {
   await db.roadTest.create({
     data: {
       custodyId: custody.id,
-      purpose: 'Verify repair — intermittent engine warning light',
+      purpose: 'Verify repair: intermittent engine warning light',
       driverName: 'Samuel Otieno',
       status: 'COMPLETED',
       incident: false,
@@ -926,7 +926,7 @@ async function main() {
   // transfers, warranty/returns and moderation queues.
   // ════════════════════════════════════════════════════════════════════════
 
-  // ── Company Staff Platform — one account per department ──
+  // ── Company Staff Platform: one account per department ──
   const staffFinance = await db.user.create({ data: { email: 'finance@carmaze.co.ke', name: 'Njoroge Kamau', passwordHash: hash, phone: '+254701234001', phoneVerified: true, roles: 'FINANCE', department: 'FINANCE' } })
   const staffDisputes = await db.user.create({ data: { email: 'disputes@carmaze.co.ke', name: 'Zawadi Naliaka', passwordHash: hash, phone: '+254701234002', phoneVerified: true, roles: 'MODERATOR', department: 'DISPUTES' } })
   const staffFraud = await db.user.create({ data: { email: 'fraud@carmaze.co.ke', name: 'Kipchumba Rotich', passwordHash: hash, phone: '+254701234003', phoneVerified: true, roles: 'REVIEWER,MODERATOR', department: 'FRAUD' } })
@@ -938,7 +938,7 @@ async function main() {
   ]
   for (const [id, code] of referralCodes) await db.user.update({ where: { id }, data: { referralCode: code } })
 
-  // ── LogisticsOS — approved delivery partner + fleet + live job board ──
+  // ── LogisticsOS: approved delivery partner + fleet + live job board ──
   const logisticsOwner = await db.user.create({ data: { email: 'logistics@carmaze.co.ke', name: 'Oscar Mutua', passwordHash: hash, isDemo: true, phone: '+254734555777', phoneVerified: true, roles: 'CUSTOMER,LOGISTICS_OWNER' } })
   await db.user.update({ where: { id: logisticsOwner.id }, data: { referralCode: 'LGS3N9KW' } })
 
@@ -982,7 +982,7 @@ async function main() {
   })
   const swiftDriverRows = await db.driver.findMany({ where: { partnerId: logisticsPartner.id }, orderBy: { createdAt: 'asc' } })
 
-  // Verification documents for the logistics application — all VERIFIED (it was approved)
+  // Verification documents for the logistics application: all VERIFIED (it was approved)
   await db.verificationDocument.createMany({
     data: [
       { refCode: 'DOC-LG-0192', ownerUserId: logisticsOwner.id, applicationId: logisticsApp.id, kind: 'DRIVER_LICENSE', label: 'Company driver licence (Oscar Mutua)', fileUrl: '/api/files/demo-doc.pdf', fileName: 'driver-license.pdf', status: 'VERIFIED', reviewedById: admin.id, reviewedByName: admin.name, reviewedAt: daysFromNow(-31), reviewNote: 'Valid licence class checked against NTSA records.', expiresAt: daysFromNow(700) },
@@ -1010,9 +1010,9 @@ async function main() {
       pickupAt: daysFromNow(-3), deliveredAt: new Date(Date.now() - 3 * 24 * 3600 * 1000 + 2.5 * 3600 * 1000),
       events: {
         create: [
-          { type: 'CREATED', actorId: customer.id, actorName: customer.name, actorSide: 'CUSTOMER', note: 'Delivery requested — parts from Industrial Area to Kilimani.', createdAt: daysFromNow(-3) },
+          { type: 'CREATED', actorId: customer.id, actorName: customer.name, actorSide: 'CUSTOMER', note: 'Delivery requested: parts from Industrial Area to Kilimani.', createdAt: daysFromNow(-3) },
           { type: 'ACCEPTED', actorId: logisticsOwner.id, actorName: 'Swift Movers Logistics', actorSide: 'PARTNER', note: 'Accepted and assigned to Kevin Otieno (KMDA 441J). Fee KES 900.', createdAt: daysFromNow(-3) },
-          { type: 'PICKED_UP', actorId: logisticsOwner.id, actorName: 'Kevin Otieno', actorSide: 'PARTNER', note: 'Collected from supplier — quantity and seals confirmed.', createdAt: daysFromNow(-3) },
+          { type: 'PICKED_UP', actorId: logisticsOwner.id, actorName: 'Kevin Otieno', actorSide: 'PARTNER', note: 'Collected from supplier: quantity and seals confirmed.', createdAt: daysFromNow(-3) },
           { type: 'DELIVERED', actorId: logisticsOwner.id, actorName: 'Kevin Otieno', actorSide: 'PARTNER', note: 'Delivered. Handover OTP verified; proof-of-delivery photo attached.', createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000 + 2.5 * 3600 * 1000) },
         ],
       },
@@ -1022,7 +1022,7 @@ async function main() {
     data: {
       refCode: 'JOB-DEMO02', requestedByUserId: garageOwner.id, requesterOrgId: garageOrg.id, requesterOrgName: garageOrg.name,
       partnerId: logisticsPartner.id, driverId: swiftDriverRows[1].id,
-      cargoDesc: 'Pallet of mixed filters — warehouse to workshop transfer', sizeClass: 'MEDIUM',
+      cargoDesc: 'Pallet of mixed filters, warehouse to workshop transfer', sizeClass: 'MEDIUM',
       pickupCounty: 'Nairobi', pickupAddress: 'Sifa HQ Warehouse, Industrial Area', pickupContactName: 'Sifa Dispatch', pickupContactPhone: '+254720111222',
       dropCounty: 'Nairobi', dropAddress: 'Premium Motors Garage, Westlands', dropContactName: 'Mary Achieng', dropContactPhone: '+254722999000',
       status: 'IN_TRANSIT', feeMinor: 185000, ...jobOtp('552901'),
@@ -1041,7 +1041,7 @@ async function main() {
     data: {
       refCode: 'JOB-DEMO03', requestedByUserId: dealerOwner.id, requesterOrgId: dealerOrg.id, requesterOrgName: dealerOrg.name,
       partnerId: logisticsPartner.id, driverId: swiftDriverRows[2].id,
-      cargoDesc: 'Toyota Prado TX — showroom transfer to Kilimani client', sizeClass: 'LARGE',
+      cargoDesc: 'Toyota Prado TX, showroom transfer to Kilimani client', sizeClass: 'LARGE',
       pickupCounty: 'Nairobi', pickupAddress: 'Nairobi Auto Hub, Mombasa Road', pickupContactName: 'Showroom Desk', pickupContactPhone: '+254711555666',
       dropCounty: 'Nairobi', dropAddress: 'Kilimani Business Centre', dropContactName: 'Client handover', dropContactPhone: '+254701000200',
       status: 'ASSIGNED', feeMinor: 650000,
@@ -1060,13 +1060,13 @@ async function main() {
       pickupCounty: 'Nairobi', pickupAddress: 'Lavington, James Gichuru Rd', pickupContactName: 'Amina Hassan', pickupContactPhone: '+254745654321',
       dropCounty: 'Kiambu', dropAddress: 'Kiambu Town, Gatundu Rd', dropContactName: 'Grace Wanjiku', dropContactPhone: '+254799000111',
       status: 'OPEN',
-      events: { create: [{ type: 'CREATED', actorId: customer.id, actorName: customer.name, actorSide: 'CUSTOMER', note: 'Open on the partner board — awaiting a delivery partner.', createdAt: hoursAgo(3) }] },
+      events: { create: [{ type: 'CREATED', actorId: customer.id, actorName: customer.name, actorSide: 'CUSTOMER', note: 'Open on the partner board, awaiting a delivery partner.', createdAt: hoursAgo(3) }] },
     },
   })
   await db.deliveryJob.create({
     data: {
       refCode: 'JOB-DEMO05', requestedByUserId: customer.id, partnerId: logisticsPartner.id, driverId: swiftDriverRows[0].id,
-      cargoDesc: 'Tyre change kit — return to sender after failed drop-off', sizeClass: 'SMALL',
+      cargoDesc: 'Tyre change kit, return to sender after failed drop-off', sizeClass: 'SMALL',
       pickupCounty: 'Nairobi', pickupAddress: 'Highway Tyre Distributors, South C', pickupContactName: 'Highway Tyres', pickupContactPhone: '+254733222333',
       dropCounty: 'Machakos', dropAddress: 'Mlolongo, Mombasa Rd', dropContactName: 'Customer pickup point', dropContactPhone: '+254700444555',
       status: 'FAILED', feeMinor: 75000, failReason: 'Recipient unreachable at drop-off after 3 attempts; parcel returned to sender.',
@@ -1081,7 +1081,7 @@ async function main() {
     },
   })
 
-  // Pending logistics application (review queue demo — uploaded ≠ verified)
+  // Pending logistics application (review queue demo, uploaded ≠ verified)
   const applyLogisticsUser = await db.user.create({ data: { email: 'apply.logistics@carmaze.co.ke', name: 'Faith Chebet', passwordHash: hash, isDemo: true, phone: '+254799333000', roles: 'CUSTOMER' } })
   await db.user.update({ where: { id: applyLogisticsUser.id }, data: { referralCode: 'LGA8Q4ZX' } })
   const pendingLogisticsApp = await db.application.create({
@@ -1101,7 +1101,7 @@ async function main() {
     ],
   })
 
-  // ── Private-seller platform — verified seller with a full KYC trail ──
+  // ── Private-seller platform: verified seller with a full KYC trail ──
   const verifiedSeller = await db.user.create({ data: { email: 'verified.seller@carmaze.co.ke', name: 'Wanjiku Kariuki', passwordHash: hash, isDemo: true, phone: '+254737888999', phoneVerified: true, roles: 'CUSTOMER,SELLER,SELLER_VERIFIED' } })
   await db.user.update({ where: { id: verifiedSeller.id }, data: { referralCode: 'VSL6H3YT' } })
   const sellerApp = await db.application.create({
@@ -1122,8 +1122,8 @@ async function main() {
   })
   await db.verificationDocument.createMany({
     data: [
-      { refCode: 'DOC-SL-0110', ownerUserId: verifiedSeller.id, applicationId: sellerApp.id, kind: 'ID_FRONT', label: 'National ID — front', fileUrl: '/api/files/demo-doc.pdf', fileName: 'id-front.jpg', status: 'VERIFIED', reviewedById: ops.id, reviewedByName: ops.name, reviewedAt: daysFromNow(-14), reviewNote: 'ID serial and photo match the holder selfie.' },
-      { refCode: 'DOC-SL-0111', ownerUserId: verifiedSeller.id, applicationId: sellerApp.id, kind: 'OWNERSHIP_AUTH', label: 'Logbook — authority to sell', fileUrl: '/api/files/demo-doc.pdf', fileName: 'logbook.jpg', status: 'VERIFIED', reviewedById: ops.id, reviewedByName: ops.name, reviewedAt: daysFromNow(-14), reviewNote: 'Logbook number and owner name consistent with NTSA search.' },
+      { refCode: 'DOC-SL-0110', ownerUserId: verifiedSeller.id, applicationId: sellerApp.id, kind: 'ID_FRONT', label: 'National ID (front)', fileUrl: '/api/files/demo-doc.pdf', fileName: 'id-front.jpg', status: 'VERIFIED', reviewedById: ops.id, reviewedByName: ops.name, reviewedAt: daysFromNow(-14), reviewNote: 'ID serial and photo match the holder selfie.' },
+      { refCode: 'DOC-SL-0111', ownerUserId: verifiedSeller.id, applicationId: sellerApp.id, kind: 'OWNERSHIP_AUTH', label: 'Logbook (authority to sell)', fileUrl: '/api/files/demo-doc.pdf', fileName: 'logbook.jpg', status: 'VERIFIED', reviewedById: ops.id, reviewedByName: ops.name, reviewedAt: daysFromNow(-14), reviewNote: 'Logbook number and owner name consistent with NTSA search.' },
     ],
   })
   await db.documentAccessLog.createMany({
@@ -1133,18 +1133,18 @@ async function main() {
     ],
   })
 
-  // Verification documents for the existing demo applications — gives the
+  // Verification documents for the existing demo applications, giving the
   // Verification Center a real queue across every state of the machine.
   await db.verificationDocument.createMany({
     data: [
-      // Approved dealer application — fully verified history
+      // Approved dealer application: fully verified history
       { refCode: 'DOC-DL-0001', ownerUserId: dealerOwner.id, orgId: dealerOrg.id, applicationId: app1.id, kind: 'BUSINESS_LICENSE', label: 'Business registration certificate', fileUrl: '/api/files/demo-doc.pdf', fileName: 'business-registration.pdf', status: 'VERIFIED', reviewedById: admin.id, reviewedByName: admin.name, reviewedAt: daysFromNow(-39), reviewNote: 'Registrar search matched. Premises visit done.', expiresAt: daysFromNow(320) },
       { refCode: 'DOC-DL-0002', ownerUserId: dealerOwner.id, orgId: dealerOrg.id, applicationId: app1.id, kind: 'PIN_CERTIFICATE', label: 'KRA PIN certificate', fileUrl: '/api/files/demo-doc.pdf', fileName: 'kra-pin.pdf', status: 'VERIFIED', reviewedById: admin.id, reviewedByName: admin.name, reviewedAt: daysFromNow(-39), reviewNote: 'PIN active on iTax.' },
-      // Pending dealer application — awaiting first review
+      // Pending dealer application: awaiting first review
       { refCode: 'DOC-DL-0101', ownerUserId: pendingDealerUser.id, applicationId: appPending.id, kind: 'BUSINESS_LICENSE', label: 'business-registration.pdf', fileUrl: '/api/files/demo-doc.pdf', fileName: 'business-registration.pdf', status: 'SUBMITTED' },
       { refCode: 'DOC-DL-0102', ownerUserId: pendingDealerUser.id, applicationId: appPending.id, kind: 'PIN_CERTIFICATE', label: 'kra-pin.pdf', fileUrl: '/api/files/demo-doc.pdf', fileName: 'kra-pin.pdf', status: 'SUBMITTED' },
       // Garage application awaiting corrections
-      { refCode: 'DOC-GR-0201', ownerUserId: pendingGarageUser.id, applicationId: appInfo.id, kind: 'REGISTRATION_CERT', label: 'Workshop permit scan', fileUrl: '/api/files/demo-doc.pdf', fileName: 'workshop-permit.jpg', status: 'MORE_INFO_REQUIRED', reviewedById: ops.id, reviewedByName: ops.name, reviewedAt: daysFromNow(-2), reviewNote: 'Scan is blurred and the permit number is unreadable — upload a clear colour scan.', infoRequestedAt: daysFromNow(-2), correctionsDueAt: daysFromNow(2) },
+      { refCode: 'DOC-GR-0201', ownerUserId: pendingGarageUser.id, applicationId: appInfo.id, kind: 'REGISTRATION_CERT', label: 'Workshop permit scan', fileUrl: '/api/files/demo-doc.pdf', fileName: 'workshop-permit.jpg', status: 'MORE_INFO_REQUIRED', reviewedById: ops.id, reviewedByName: ops.name, reviewedAt: daysFromNow(-2), reviewNote: 'Scan is blurred and the permit number is unreadable. Upload a clear colour scan.', infoRequestedAt: daysFromNow(-2), correctionsDueAt: daysFromNow(2) },
     ],
   })
   await db.documentAccessLog.createMany({
@@ -1180,9 +1180,9 @@ async function main() {
       events: {
         create: [
           { type: 'SUBMITTED', actorSide: 'CUSTOMER', actorId: customer.id, actorName: customer.name, note: 'Order placed.', createdAt: daysFromNow(-9) },
-          { type: 'ACCEPTED', actorSide: 'SUPPLIER', actorId: sifaOwnerMember?.userId, actorName: 'Sifa Auto Spares', note: 'Accepted — fulfilment from Sifa HQ Warehouse. Invoice issued.', createdAt: daysFromNow(-9) },
+          { type: 'ACCEPTED', actorSide: 'SUPPLIER', actorId: sifaOwnerMember?.userId, actorName: 'Sifa Auto Spares', note: 'Accepted: fulfilment from Sifa HQ Warehouse. Invoice issued.', createdAt: daysFromNow(-9) },
           { type: 'DISPATCHED', actorSide: 'SUPPLIER', actorId: sifaOwnerMember?.userId, actorName: 'Sifa Auto Spares', note: 'Dispatched via Swift Movers Logistics. Collection code sent to the customer.', createdAt: daysFromNow(-7) },
-          { type: 'DELIVERED', actorSide: 'SUPPLIER', actorId: sifaOwnerMember?.userId, actorName: 'Sifa Auto Spares', note: 'Delivered — collection code verified.', createdAt: daysFromNow(-6) },
+          { type: 'DELIVERED', actorSide: 'SUPPLIER', actorId: sifaOwnerMember?.userId, actorName: 'Sifa Auto Spares', note: 'Delivered: collection code verified.', createdAt: daysFromNow(-6) },
           { type: 'COMPLETED', actorSide: 'CUSTOMER', actorId: customer.id, actorName: customer.name, note: 'Customer confirmed receipt.', createdAt: new Date(Date.now() - 6 * 24 * 3600 * 1000 + 3 * 3600 * 1000) },
           { type: 'DISPUTED', actorSide: 'CUSTOMER', actorId: customer.id, actorName: customer.name, note: 'Dispute DSP-DEMO01 opened (WRONG_ITEM).', createdAt: hoursAgo(30) },
         ],
@@ -1192,19 +1192,19 @@ async function main() {
   const coAInvoice = await db.invoice.create({
     data: {
       refCode: 'INV-CO0001', orgId: supply.partsSupplierId, userId: customer.id, type: 'PARTS_ORDER',
-      description: `Parts order CO-DEMO01 — Sifa Auto Spares`, amountMinor: 604000, currency: 'KES',
+      description: `Parts order CO-DEMO01, Sifa Auto Spares`, amountMinor: 604000, currency: 'KES',
       status: 'PAID', paidVia: 'MPESA', paidAt: daysFromNow(-8), dueDate: daysFromNow(-2),
     },
   })
   await db.customerOrder.update({ where: { id: coA.id }, data: { invoiceId: coAInvoice.id } })
 
-  // Open consumer dispute — visible in Account → Orders, SupplierOS consumer
+  // Open consumer dispute, visible in Account → Orders, SupplierOS consumer
   // orders, and the staff supply console (full resolution path is live).
   await db.dispute.create({
     data: {
       refCode: 'DSP-DEMO01', customerOrderId: coA.id, openedById: customer.id, openedBySide: 'CUSTOMER',
       reason: 'WRONG_ITEM', amountFrozenMinor: 604000, status: 'OPEN',
-      details: 'I ordered front brake pads for a Toyota Harrier (part number matching the listing) but the box delivered contains rear pads for a different model. The oil filters are correct. Photos available on request — the courier sealed the handover with my OTP so this was packed wrongly at the warehouse.',
+      details: 'I ordered front brake pads for a Toyota Harrier (part number matching the listing) but the box delivered contains rear pads for a different model. The oil filters are correct. Photos available on request. The courier sealed the handover with my OTP so this was packed wrongly at the warehouse.',
       events: {
         create: [
           { type: 'CREATED', actorId: customer.id, actorName: customer.name, note: 'Dispute opened by the customer: WRONG_ITEM. Front pads ordered, rear pads delivered.', createdAt: hoursAgo(30) },
@@ -1244,7 +1244,7 @@ async function main() {
   const qr2 = await db.quoteRequest.create({
     data: {
       refCode: 'RFQ-DEMO02', garageOrgId: garageOrg.id, createdById: garageOwner.id,
-      title: 'Oil filters wholesale — 20 units mixed', description: 'Standing replenishment for common Japanese makes. Mixed genuine/OEM acceptable — quote both.',
+      title: 'Oil filters wholesale, 20 units mixed', description: 'Standing replenishment for common Japanese makes. Mixed genuine/OEM acceptable, quote both.',
       budgetMinor: 900000, deliveryCounty: 'Nairobi', status: 'CLOSED', createdAt: daysFromNow(-18), expiresAt: daysFromNow(-4),
     },
   })
@@ -1269,11 +1269,11 @@ async function main() {
       },
       events: {
         create: [
-          { type: 'CREATED', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Replenishment order — pads and filters.', createdAt: daysFromNow(-15) },
+          { type: 'CREATED', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Replenishment order: pads and filters.', createdAt: daysFromNow(-15) },
           { type: 'PAYMENT', actorName: 'M-Pesa callback', actorSide: 'SYSTEM', note: 'Provider confirmed payment. Funds protected pending inspection.', createdAt: daysFromNow(-14) },
-          { type: 'DISPATCH', actorId: sifaOwnerMember?.userId, actorName: 'Sifa Auto Spares', actorSide: 'SUPPLIER', note: 'Dispatched — handover OTP issued to the courier.', createdAt: daysFromNow(-13) },
+          { type: 'DISPATCH', actorId: sifaOwnerMember?.userId, actorName: 'Sifa Auto Spares', actorSide: 'SUPPLIER', note: 'Dispatched: handover OTP issued to the courier.', createdAt: daysFromNow(-13) },
           { type: 'DELIVERY', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Delivered and OTP handover completed.', createdAt: daysFromNow(-12) },
-          { type: 'INSPECTION', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Inspection accepted — all lines verified.', createdAt: daysFromNow(-11) },
+          { type: 'INSPECTION', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Inspection accepted: all lines verified.', createdAt: daysFromNow(-11) },
           { type: 'RELEASE', actorName: 'Inspection auto-release', actorSide: 'SYSTEM', note: 'Funds released to supplier after accepted inspection.', createdAt: daysFromNow(-11) },
           { type: 'COMPLETION', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Order completed.', createdAt: daysFromNow(-10) },
         ],
@@ -1288,7 +1288,7 @@ async function main() {
       protectedAt: daysFromNow(-14), releasedAmountMinor: poSubtotal2 + Math.round(poSubtotal2 * 0.16), releasedAt: daysFromNow(-11),
     },
   })
-  // Resolved partial-refund dispute on the completed PO — full audit trail.
+  // Resolved partial-refund dispute on the completed PO (full audit trail).
   const po2Dispute = await db.dispute.create({
     data: {
       refCode: 'DSP-DEMO02', orderId: po2.id, openedById: garageOwner.id, openedBySide: 'GARAGE',
@@ -1317,7 +1317,7 @@ async function main() {
   await db.warrantyClaim.create({
     data: {
       refCode: 'WRT-DEMO01', orderId: po2.id, productId: brakePads.id, garageOrgId: garageOrg.id, supplierOrgId: supply.partsSupplierId,
-      issue: 'Rear axle squeal at 300 km — pads glazed. Claim under 12-month warranty.', status: 'APPROVED',
+      issue: 'Rear axle squeal at 300 km, pads glazed. Claim under 12-month warranty.', status: 'APPROVED',
       resolution: 'Replacement set supplied at no cost; returned batch inspected by supplier.',
       createdAt: daysFromNow(-7),
     },
@@ -1328,7 +1328,7 @@ async function main() {
       itemsJson: JSON.stringify([{ productId: oilFilter.id, qty: 1 }]), status: 'COMPLETED', createdAt: daysFromNow(-9),
     },
   })
-  // Open disputed PO — live queue item for the staff supply console
+  // Open disputed PO: live queue item for the staff supply console
   const thirdProduct = sifaProducts.find((p) => p.id !== oilFilter.id && p.id !== brakePads.id) ?? oilFilter
   const poSubtotal3 = (thirdProduct.unitPriceMinor ?? 850000) * 2
   const po3 = await db.purchaseOrder.create({
@@ -1345,8 +1345,8 @@ async function main() {
           { type: 'CREATED', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Urgent stock order.', createdAt: daysFromNow(-5) },
           { type: 'PAYMENT', actorName: 'M-Pesa callback', actorSide: 'SYSTEM', note: 'Provider confirmed payment. Funds protected pending inspection.', createdAt: daysFromNow(-4) },
           { type: 'DISPATCH', actorId: sifaOwnerMember?.userId, actorName: 'Sifa Auto Spares', actorSide: 'SUPPLIER', note: 'Dispatched same day.', createdAt: daysFromNow(-3) },
-          { type: 'DELIVERY', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Delivered. One unit damaged in transit — photos taken.', createdAt: daysFromNow(-2) },
-          { type: 'INSPECTION', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Partial inspection — 1 of 2 accepted, damage reported.', createdAt: daysFromNow(-2) },
+          { type: 'DELIVERY', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Delivered. One unit damaged in transit, photos taken.', createdAt: daysFromNow(-2) },
+          { type: 'INSPECTION', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Partial inspection: 1 of 2 accepted, damage reported.', createdAt: daysFromNow(-2) },
           { type: 'DISPUTE', actorId: garageOwner.id, actorName: garageOwner.name, actorSide: 'GARAGE', note: 'Dispute opened pending resolution.', createdAt: daysFromNow(-1) },
         ],
       },
@@ -1369,7 +1369,7 @@ async function main() {
       events: {
         create: [
           { type: 'CREATED', actorId: garageOwner.id, actorName: garageOwner.name, note: 'Dispute opened by the garage: DAMAGED.', createdAt: daysFromNow(-1) },
-          { type: 'STATUS_CHANGE', actorId: staffDisputes.id, actorName: staffDisputes.name, note: 'Status set to UNDER_REVIEW — disputes desk investigating.', createdAt: hoursAgo(20) },
+          { type: 'STATUS_CHANGE', actorId: staffDisputes.id, actorName: staffDisputes.name, note: 'Status set to UNDER_REVIEW: disputes desk investigating.', createdAt: hoursAgo(20) },
           { type: 'NOTE', actorId: staffDisputes.id, actorName: staffDisputes.name, note: 'Requested courier handover photos from both parties. Deadline set at 48h.', createdAt: hoursAgo(18) },
         ],
       },
@@ -1422,8 +1422,8 @@ async function main() {
   // ── Support tickets + moderation queue ──
   await db.supportTicket.createMany({
     data: [
-      { refCode: 'TKT-DEMO01', userId: customer.id, name: customer.name, email: customer.email, subject: 'Delivery ETA for order CO-DEMO02', message: 'Hi — when should I expect order CO-DEMO02? The supplier accepted it but I have not seen a dispatch update yet.', status: 'OPEN', createdAt: hoursAgo(4) },
-      { refCode: 'TKT-DEMO02', userId: verifiedSeller.id, name: verifiedSeller.name, email: verifiedSeller.email, subject: 'Verified badge not showing on my listing', message: 'My seller verification was approved yesterday but my listing still shows as unverified.', status: 'RESOLVED', response: 'The trust marker refreshes with the next listing sync — it is live now. Thanks for flagging!', createdAt: daysFromNow(-12) },
+      { refCode: 'TKT-DEMO01', userId: customer.id, name: customer.name, email: customer.email, subject: 'Delivery ETA for order CO-DEMO02', message: 'Hi, when should I expect order CO-DEMO02? The supplier accepted it but I have not seen a dispatch update yet.', status: 'OPEN', createdAt: hoursAgo(4) },
+      { refCode: 'TKT-DEMO02', userId: verifiedSeller.id, name: verifiedSeller.name, email: verifiedSeller.email, subject: 'Verified badge not showing on my listing', message: 'My seller verification was approved yesterday but my listing still shows as unverified.', status: 'RESOLVED', response: 'The trust marker refreshes with the next listing sync. It is live now. Thanks for flagging!', createdAt: daysFromNow(-12) },
     ],
   })
   const reportedPost = await db.communityPost.findFirst({ where: { status: 'PUBLISHED' }, orderBy: { createdAt: 'desc' } })
@@ -1436,28 +1436,28 @@ async function main() {
   console.log('Seed complete.')
   console.log('Demo accounts (password: %s)', PASSWORD)
   console.log('  Platform staff (Control Center #/admin):')
-  console.log('    admin@carmaze.co.ke      — FOUNDER/ADMIN (full Operations OS)')
-  console.log('    ops@carmaze.co.ke        — REVIEWER/SUPPORT/MODERATOR')
-  console.log('    reviewer@carmaze.co.ke   — REVIEWER (business verification dept)')
-  console.log('    finance@carmaze.co.ke    — FINANCE dept')
-  console.log('    disputes@carmaze.co.ke   — DISPUTES dept (MODERATOR)')
-  console.log('    fraud@carmaze.co.ke      — FRAUD dept (REVIEWER+MODERATOR)')
-  console.log('    support@carmaze.co.ke    — SUPPORT dept')
+  console.log('    admin@carmaze.co.ke      - FOUNDER/ADMIN (full Operations OS)')
+  console.log('    ops@carmaze.co.ke        - REVIEWER/SUPPORT/MODERATOR')
+  console.log('    reviewer@carmaze.co.ke   - REVIEWER (business verification dept)')
+  console.log('    finance@carmaze.co.ke    - FINANCE dept')
+  console.log('    disputes@carmaze.co.ke   - DISPUTES dept (MODERATOR)')
+  console.log('    fraud@carmaze.co.ke      - FRAUD dept (REVIEWER+MODERATOR)')
+  console.log('    support@carmaze.co.ke    - SUPPORT dept')
   console.log('  Businesses:')
-  console.log('    dealer@carmaze.co.ke     — DealerOS (Nairobi Auto Hub + Westlands Motors)')
-  console.log('    staff@carmaze.co.ke      — Dealer sales staff')
-  console.log('    garage@carmaze.co.ke     — GarageOS (Premium Motors Garage + Mombasa Road Tyres)')
-  console.log('    garage.staff@carmaze.co.ke — Garage staff (Premium Motors Garage)')
-  console.log('    demo.admin@carmaze.co.ke — RESTRICTED demo platform admin (read-only tour)')
-  console.log('    supplier@carmaze.co.ke   — SupplierOS (Sifa Auto Spares + unverified Rapid Parts)')
-  console.log('    tyres@carmaze.co.ke      — SupplierOS (Highway Tyre Distributors)')
-  console.log('    equipment@carmaze.co.ke  — SupplierOS (GaragePro Equipment Kenya)')
-  console.log('    logistics@carmaze.co.ke  — LogisticsOS (Swift Movers Logistics, approved)')
+  console.log('    dealer@carmaze.co.ke     - DealerOS (Nairobi Auto Hub + Westlands Motors)')
+  console.log('    staff@carmaze.co.ke      - Dealer sales staff')
+  console.log('    garage@carmaze.co.ke     - GarageOS (Premium Motors Garage + Mombasa Road Tyres)')
+  console.log('    garage.staff@carmaze.co.ke - Garage staff (Premium Motors Garage)')
+  console.log('    demo.admin@carmaze.co.ke - RESTRICTED demo platform admin (read-only tour)')
+  console.log('    supplier@carmaze.co.ke   - SupplierOS (Sifa Auto Spares + unverified Rapid Parts)')
+  console.log('    tyres@carmaze.co.ke      - SupplierOS (Highway Tyre Distributors)')
+  console.log('    equipment@carmaze.co.ke  - SupplierOS (GaragePro Equipment Kenya)')
+  console.log('    logistics@carmaze.co.ke  - LogisticsOS (Swift Movers Logistics, approved)')
   console.log('  Individuals:')
-  console.log('    customer@carmaze.co.ke   — Customer (orders, disputes, custody, loyalty)')
-  console.log('    seller@carmaze.co.ke     — Private seller (unverified)')
-  console.log('    verified.seller@carmaze.co.ke — SELLER_VERIFIED (KYC approved)')
-  console.log('    apply.dealer@carmaze.co.ke / apply.garage@carmaze.co.ke / apply.logistics@carmaze.co.ke — applications in review')
+  console.log('    customer@carmaze.co.ke   - Customer (orders, disputes, custody, loyalty)')
+  console.log('    seller@carmaze.co.ke     - Private seller (unverified)')
+  console.log('    verified.seller@carmaze.co.ke - SELLER_VERIFIED (KYC approved)')
+  console.log('    apply.dealer@carmaze.co.ke / apply.garage@carmaze.co.ke / apply.logistics@carmaze.co.ke - applications in review')
 }
 
 main()

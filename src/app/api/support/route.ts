@@ -19,7 +19,7 @@ export const POST = route(async (req: NextRequest) => {
 
   const body = await parseBody(req, schema)
   // Identity binding: a signed-in user's ticket is always attributed to their
-  // account — client-supplied name/email cannot impersonate another identity.
+  // account: client-supplied name/email cannot impersonate another identity.
   const user = await contextSessionUser()
   const ticket = await db.supportTicket.create({
     data: {

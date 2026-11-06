@@ -58,7 +58,7 @@ export const POST = route(async (req: NextRequest) => {
     const saved = await db.savedVehicle.create({ data: { userId: user.id, vehicleId } })
     return ok({ saved: { id: saved.id } }, { status: 201 })
   } catch (e) {
-    // Already saved — treat as idempotent success.
+    // Already saved: treat as idempotent success.
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
       const existing = await db.savedVehicle.findUnique({
         where: { userId_vehicleId: { userId: user.id, vehicleId } },

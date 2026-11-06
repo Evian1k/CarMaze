@@ -1,6 +1,6 @@
 'use client'
 
-/* Account — profile, phone & email verification, two-factor authentication (TOTP),
+/* Account: profile, phone & email verification, two-factor authentication (TOTP),
  * saved vehicles, enquiries, service requests, saved searches and notifications. */
 
 import { useEffect, useCallback, useState } from 'react'
@@ -225,7 +225,7 @@ export default function AccountView() {
       await apiSend(`/api/quotes/${quoteId}`, 'PATCH', { action: 'accept' })
       const d = await apiGet<{ requests: RequestItem[] }>('/api/service-requests?mine=1')
       setRequests(d.requests)
-      toast.success('Quote accepted — the garage will confirm your booking')
+      toast.success('Quote accepted: the garage will confirm your booking')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed')
     }
@@ -248,7 +248,7 @@ export default function AccountView() {
       setNewSearch('')
       const d = await apiGet<{ searches: SavedSearchItem[] }>('/api/saved-searches')
       setSearches(d.searches)
-      toast.success('Search saved — you will get alerts for new matches')
+      toast.success('Search saved: you will get alerts for new matches')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed')
     }
@@ -317,7 +317,7 @@ export default function AccountView() {
                             <Copy className="h-3 w-3" /> copy
                           </button>
                         </p>
-                        <p className="mt-1 text-muted-foreground">SMS gateway not configured on this deployment — code shown here instead of a real SMS.</p>
+                        <p className="mt-1 text-muted-foreground">SMS gateway not configured on this deployment; code shown here instead of a real SMS.</p>
                       </div>
                     )}
                     <div className="flex gap-2">
@@ -351,7 +351,7 @@ export default function AccountView() {
                           <Copy className="h-3 w-3" /> copy
                         </button>
                       </p>
-                      <p className="mt-1 text-muted-foreground">Email delivery not configured on this deployment — code shown here instead of a real email.</p>
+                      <p className="mt-1 text-muted-foreground">Email delivery not configured on this deployment; code shown here instead of a real email.</p>
                     </div>
                   )}
                   <div className="flex gap-2">
@@ -476,7 +476,7 @@ export default function AccountView() {
         {/* Service requests */}
         <TabsContent value="requests" className="mt-4 space-y-3">
           {requests === null ? <Skeleton className="h-40 rounded-xl" /> : requests.length === 0 ? (
-            <EmptyState icon={<Wrench className="h-6 w-6" />} title="No service requests yet" desc="Request quotes from verified garages — including directly from the 3D customizer." action="Find a garage" onAction={() => navigate('garages')} />
+            <EmptyState icon={<Wrench className="h-6 w-6" />} title="No service requests yet" desc="Request quotes from verified garages; including directly from the 3D customizer." action="Find a garage" onAction={() => navigate('garages')} />
           ) : (
             requests.map((r) => (
               <Card key={r.id}>

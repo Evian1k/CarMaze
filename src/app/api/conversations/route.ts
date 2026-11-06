@@ -23,7 +23,7 @@ function previewOf(body: string): string {
 }
 
 /**
- * POST — start a conversation with an org (customer side only).
+ * POST: start a conversation with an org (customer side only).
  * Reuses the customer's existing OPEN conversation for the same
  * org + vehicle combination instead of creating a new thread.
  */
@@ -43,7 +43,7 @@ export const POST = route(async (req: NextRequest) => {
   // DEMO SANDBOX: demo users may only open conversations with demo businesses.
   await assertDemoResourceGuard(user, { orgId: org.id })
 
-  // A vehicle/service attached to the thread must actually belong to this org —
+  // A vehicle/service attached to the thread must actually belong to this org:
   // otherwise a foreign listing could be spoofed as context in the inbox.
   if (body.vehicleId) {
     const vehicle = await db.vehicle.findUnique({ where: { id: body.vehicleId }, select: { id: true, orgId: true, ownerId: true } })

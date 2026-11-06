@@ -8,7 +8,7 @@ import { notify, notifyMany } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 
 export const ROADSIDE_DISCLAIMER =
-  'CARMAZE connects you with independent providers — this is not an emergency service. For emergencies call 999/112.'
+  'CARMAZE connects you with independent providers: this is not an emergency service. For emergencies call 999/112.'
 
 const ISSUES = ['TOW', 'FLAT_TYRE', 'BATTERY', 'FUEL', 'ENGINE', 'LOCKOUT', 'OTHER'] as const
 
@@ -77,7 +77,7 @@ export const POST = route(async (req: NextRequest) => {
   await notifyMany(providers, {
     type: 'ROADSIDE_REQUEST_NEW',
     title: `New roadside request near ${body.county}`,
-    body: `${ISSUE_LABELS[body.issue]} — ${body.location}. Open Roadside to accept if you can assist.`,
+    body: `${ISSUE_LABELS[body.issue]}: ${body.location}. Open Roadside to accept if you can assist.`,
     link: '/roadside',
   })
 
@@ -122,7 +122,7 @@ export const GET = route(async (req: NextRequest) => {
       orderBy: { createdAt: 'desc' },
       take: 50,
     })
-    // providerOrgId is a plain reference (no Prisma relation) — resolve provider orgs separately.
+    // providerOrgId is a plain reference (no Prisma relation): resolve provider orgs separately.
     const providerIds = [...new Set(requests.map((r) => r.providerOrgId).filter((v): v is string => Boolean(v)))]
     const providers = await db.org.findMany({
       where: { id: { in: providerIds } },
@@ -143,7 +143,7 @@ export const GET = route(async (req: NextRequest) => {
   return fail(400, 'VALIDATION_ERROR', 'Specify ?mine=1 or ?providers=1.')
 })
 
-// ─────────────────────────── PATCH — accept | complete | cancel ───────────────────────────
+// ─────────────────────────── PATCH: accept | complete | cancel ───────────────────────────
 
 const patchSchema = z.object({
   action: z.enum(['accept', 'complete', 'cancel']),
@@ -183,7 +183,7 @@ export const PATCH = route(async (req: NextRequest) => {
       : memberships[0]?.org
     if (!org) throw new ApiError(404, 'NOT_FOUND', 'That garage is not among your roadside-capable memberships.')
 
-    // DEMO ISOLATION: a demo user's request may only be served by a demo org —
+    // DEMO ISOLATION: a demo user's request may only be served by a demo org:
     // real garages must never be dispatched for demo activity.
     if (request.userId !== user.id && org.isDemo !== (await db.user.findUnique({ where: { id: request.userId }, select: { isDemo: true } }))?.isDemo) {
       throw new ApiError(403, 'DEMO_SANDBOXED', 'Demo mode: demo requests can only be accepted by demo garages.')
@@ -206,7 +206,7 @@ export const PATCH = route(async (req: NextRequest) => {
     await notify({
       userId: request.userId,
       type: 'ROADSIDE_ACCEPTED',
-      title: `Roadside request accepted — ${request.refCode}`,
+      title: `Roadside request accepted: ${request.refCode}`,
       body: `${org.name} can assist you${org.phone ? `. Contact: ${org.phone}` : ''}${body.providerNote ? `. Note: ${body.providerNote}` : ''}.`,
       link: '/roadside',
     })
@@ -240,7 +240,7 @@ export const PATCH = route(async (req: NextRequest) => {
     await notify({
       userId: request.userId,
       type: 'ROADSIDE_COMPLETED',
-      title: `Roadside assistance completed — ${request.refCode}`,
+      title: `Roadside assistance completed: ${request.refCode}`,
       body: providerOrg ? `${providerOrg.name} marked your request as completed.` : 'Your roadside request was marked as completed.',
       link: '/roadside',
     })
@@ -252,7 +252,7 @@ export const PATCH = route(async (req: NextRequest) => {
     return ok({ request: updated })
   }
 
-  // action === 'cancel' — requester only, while REQUESTED or ACCEPTED.
+  // action === 'cancel': requester only, while REQUESTED or ACCEPTED.
   if (request.userId !== user.id) {
     throw new ApiError(403, 'FORBIDDEN', 'Only the requester can cancel this request.')
   }
@@ -268,7 +268,7 @@ export const PATCH = route(async (req: NextRequest) => {
     const members = await db.orgMember.findMany({ where: { orgId: request.providerOrgId }, select: { userId: true } })
     await notifyMany(members.map((m) => m.userId), {
       type: 'ROADSIDE_CANCELLED',
-      title: `Roadside request cancelled — ${request.refCode}`,
+      title: `Roadside request cancelled: ${request.refCode}`,
       body: 'The requester cancelled this assistance request.',
       link: '/roadside',
     })

@@ -12,7 +12,7 @@ import { requireOwnOrg, poEvent, reserveStock } from '@/lib/supply'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/supply/orders — role-scoped order lists.
+ * GET /api/supply/orders: role-scoped order lists.
  * Garages see their purchase orders; suppliers see orders sent to them.
  * Supplies tenant isolation via org membership only.
  */
@@ -88,7 +88,7 @@ function safeFirst(raw: string | null): string | null {
 }
 
 /**
- * POST /api/supply/orders — create purchase order(s) from a cart.
+ * POST /api/supply/orders: create purchase order(s) from a cart.
  * A cart may span several suppliers; ONE purchase order is created per
  * supplier (multiple supplier orders). Stock is reserved immediately to
  * prevent overselling. If the order total exceeds the garage's configured
@@ -115,7 +115,7 @@ export const POST = route(async (req: NextRequest) => {
     return fail(400, 'INVALID_PRODUCTS', 'Some products are unavailable. Review your cart and try again.')
   }
 
-  // OVERSELLING GUARD — every line must be covered by real, unreserved stock
+  // OVERSELLING GUARD: every line must be covered by real, unreserved stock
   // across the supplier's active warehouses before an order is created.
   for (const item of body.items) {
     const p = products.find((x) => x.id === item.productId)!
@@ -203,7 +203,7 @@ export const POST = route(async (req: NextRequest) => {
           }
           remaining -= take
         } catch {
-          // race: another order reserved first — availability re-checked at dispatch
+          // race: another order reserved first: availability re-checked at dispatch
         }
       }
       // remaining > 0 cannot happen (availability pre-check) unless a race
@@ -215,7 +215,7 @@ export const POST = route(async (req: NextRequest) => {
     await notifyMany(supplierMembers.map((m) => m.userId), {
       type: 'PO_NEW',
       title: `New purchase order ${order.refCode}`,
-      body: `${ctx.orgName} sent you a purchase order for ${lines.length} product line(s) — ${(subtotal / 100).toLocaleString()} KES (excl. delivery).`,
+      body: `${ctx.orgName} sent you a purchase order for ${lines.length} product line(s): ${(subtotal / 100).toLocaleString()} KES (excl. delivery).`,
       link: '/supplier?tab=orders',
     })
 

@@ -1,11 +1,11 @@
 'use client'
 
-/* SubscriptionsPanel — the customer's centralised subscription dashboard
+/* SubscriptionsPanel: the customer's centralised subscription dashboard
  * section (Account ▸ Subscriptions). Shows business memberships with live
  * per-benefit redemption state, Trusted Customer Programme labels (with the
  * honest privacy story), credit facilities with a real ledger, and every
  * membership invoice/receipt. All numbers come from
- * GET /api/account/subscriptions — nothing is invented client-side. */
+ * GET /api/account/subscriptions: nothing is invented client-side. */
 
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -158,7 +158,7 @@ export function SubscriptionsPanel() {
   async function repay(facilityId: string, amountMinor: number) {
     try {
       const d = await apiSend<{ outstandingMinor: number }>(`/api/org/credit/${facilityId}`, 'POST', { kind: 'REPAYMENT', amountMinor })
-      toast.success(`Repayment recorded — outstanding balance ${money(d.outstandingMinor)}`)
+      toast.success(`Repayment recorded: outstanding balance ${money(d.outstandingMinor)}`)
       load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not record the repayment')
@@ -199,7 +199,7 @@ export function SubscriptionsPanel() {
           icon={<CircleAlert className="h-5 w-5" />}
           label="Pending payments"
           value={money(data.summary.pendingPayments)}
-          hint={pendingInvoiceCount > 0 ? `${pendingInvoiceCount} unpaid invoice${pendingInvoiceCount === 1 ? '' : 's'} — pay via M-Pesa` : 'Nothing due'}
+          hint={pendingInvoiceCount > 0 ? `${pendingInvoiceCount} unpaid invoice${pendingInvoiceCount === 1 ? '' : 's'}: pay via M-Pesa` : 'Nothing due'}
         />
         <StatCard icon={<Landmark className="h-5 w-5" />} label="Outstanding credit" value={money(data.summary.totalOutstandingCredit)} hint="Across all facilities" />
       </div>
@@ -285,7 +285,7 @@ function MembershipsSection({ items, onCancel }: { items: MembershipItem[]; onCa
                   <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-500/10 p-3 text-sm text-amber-800 dark:border-amber-500/40 dark:text-amber-200">
                     <Smartphone className="h-4 w-4 shrink-0" />
                     <span>
-                      Invoice <strong>{m.invoice.refCode}</strong> for {money(m.invoice.amountMinor)} is awaiting payment — pay via M-Pesa to
+                      Invoice <strong>{m.invoice.refCode}</strong> for {money(m.invoice.amountMinor)} is awaiting payment: pay via M-Pesa to
                       activate this membership. Benefits unlock only after payment is confirmed.
                     </span>
                   </div>
@@ -352,7 +352,7 @@ function MembershipsSection({ items, onCancel }: { items: MembershipItem[]; onCa
             <AlertDialogTitle>Cancel {pendingCancel?.tierName} at {pendingCancel?.business.name}?</AlertDialogTitle>
             <AlertDialogDescription>
               Benefits end immediately. Any period you have already paid for is not refunded
-              automatically — the business&apos;s cancellation terms apply. This cannot be undone.
+              automatically: the business&apos;s cancellation terms apply. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -393,7 +393,7 @@ function TrustSection({ items }: { items: TrustProgrammeItem[] }) {
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent side="left" className="max-w-64">
-                    Internal relationship label set by this business — not a credit rating, never shared with other businesses.
+                    Internal relationship label set by this business; not a credit rating, never shared with other businesses.
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -449,7 +449,7 @@ function CreditSection({ items, onAccept, onRepay }: {
                   <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                     {f.business.name}
                     <Badge variant="outline" className={cn(FACILITY_BADGE[f.status] ?? FACILITY_BADGE.CLOSED)}>
-                      {f.status === 'PENDING_APPLICATION' ? 'Application pending' : f.status === 'OFFERED' ? 'Offer — awaiting your acceptance' : f.status.charAt(0) + f.status.slice(1).toLowerCase()}
+                      {f.status === 'PENDING_APPLICATION' ? 'Application pending' : f.status === 'OFFERED' ? 'Offer: awaiting your acceptance' : f.status.charAt(0) + f.status.slice(1).toLowerCase()}
                     </Badge>
                     {overdue && (
                       <Badge variant="outline" className="border-rose-300 bg-rose-500/15 text-rose-800 dark:border-rose-500/40 dark:text-rose-300">
@@ -477,7 +477,7 @@ function CreditSection({ items, onAccept, onRepay }: {
                   <p className="text-sm font-medium text-amber-800 dark:text-amber-300">This business approved a facility for you</p>
                   {f.terms && <p className="mt-1 whitespace-pre-wrap text-sm text-amber-900 dark:text-amber-200">{f.terms}</p>}
                   <p className="mt-2 text-xs text-amber-800/80 dark:text-amber-200/80">
-                    Accept the repayment terms to activate it. Nothing is charged until the business records a charge — and you always see it in the ledger below.
+                    Accept the repayment terms to activate it. Nothing is charged until the business records a charge, and you always see it in the ledger below.
                   </p>
                   <Button size="sm" className="mt-2 min-h-11" onClick={() => onAccept(f.id)}>Accept terms</Button>
                 </div>
@@ -508,7 +508,7 @@ function CreditSection({ items, onAccept, onRepay }: {
         )
       })}
 
-      {/* Repay dialog — honest, ledger-backed */}
+      {/* Repay dialog: honest, ledger-backed */}
       {repayTarget && (
         <RepayDialog
           facility={repayTarget}
@@ -563,8 +563,8 @@ function LedgerTable({ entries }: { entries: CreditEntry[] }) {
                   {charge ? '' : '−'}{money(Math.abs(e.amountMinor))}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{money(e.balanceAfterMinor)}</TableCell>
-                <TableCell className="text-sm">{e.dueDate ? dateLabel(e.dueDate) : '—'}</TableCell>
-                <TableCell className="text-sm">{e.paidAt ? dateLabel(e.paidAt) : charge ? <span className="text-amber-700 dark:text-amber-400">unpaid</span> : '—'}</TableCell>
+                <TableCell className="text-sm">{e.dueDate ? dateLabel(e.dueDate) : 'Not provided'}</TableCell>
+                <TableCell className="text-sm">{e.paidAt ? dateLabel(e.paidAt) : charge ? <span className="text-amber-700 dark:text-amber-400">unpaid</span> : 'Not provided'}</TableCell>
               </TableRow>
             )
           })}
@@ -588,7 +588,7 @@ function RepayDialog({ facility, onClose, onSubmit }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record a repayment — {facility.business.name}</DialogTitle>
+          <DialogTitle>Record a repayment: {facility.business.name}</DialogTitle>
           <DialogDescription>
             Outstanding balance {money(facility.outstandingMinor)}. Entries are appended to the ledger
             and never edited, so your statement stays verifiable.
@@ -668,7 +668,7 @@ function InvoicesSection({ invoices, onPaid }: { invoices: InvoiceItem[]; onPaid
       )}
       <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
         <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        Memberships activate only when their invoice is actually paid — pending invoices never grant benefits.
+        Memberships activate only when their invoice is actually paid; pending invoices never grant benefits.
       </p>
 
       {payTarget && (
@@ -683,7 +683,7 @@ function InvoicesSection({ invoices, onPaid }: { invoices: InvoiceItem[]; onPaid
   )
 }
 
-/** Real M-Pesa STK push for a pending invoice — POST /api/billing/mpesa/stkpush.
+/** Real M-Pesa STK push for a pending invoice; POST /api/billing/mpesa/stkpush.
  * The callback (not this UI) marks the invoice paid; we simply tell the user
  * honestly what happened and reload. */
 function PayInvoiceDialog({ invoice, defaultPhone, onClose, onInitiated }: {
@@ -700,7 +700,7 @@ function PayInvoiceDialog({ invoice, defaultPhone, onClose, onInitiated }: {
     setBusy(true)
     try {
       const d = await apiSend<{ message: string }>('/api/billing/mpesa/stkpush', 'POST', { invoiceId: invoice.id, phone: phone.trim() })
-      toast.success(d.message || 'STK push sent — enter your M-Pesa PIN to complete the payment.')
+      toast.success(d.message || 'STK push sent: enter your M-Pesa PIN to complete the payment.')
       onInitiated()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not start the M-Pesa payment')
@@ -713,10 +713,10 @@ function PayInvoiceDialog({ invoice, defaultPhone, onClose, onInitiated }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Pay {invoice.refCode} — {money(invoice.amountMinor, invoice.currency)}</DialogTitle>
+          <DialogTitle>Pay {invoice.refCode}: {money(invoice.amountMinor, invoice.currency)}</DialogTitle>
           <DialogDescription>
             We send an M-Pesa STK push to your phone. The payment is only confirmed by the Safaricom
-            callback — the invoice stays pending until then.
+            callback: the invoice stays pending until then.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">

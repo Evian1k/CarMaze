@@ -8,7 +8,7 @@ const SESSION_DAYS = 7
 /** Default demo session lifetime: 2 weeks. */
 export const DEMO_SESSION_MINUTES_DEFAULT = 14 * 24 * 60
 
-// Dev fallback secret — in production always set AUTH_SECRET env var.
+// Dev fallback secret: in production always set AUTH_SECRET env var.
 const secret = new TextEncoder().encode(
   process.env.AUTH_SECRET || 'carmaze-dev-secret-change-in-production'
 )
@@ -84,7 +84,7 @@ export type SessionUser = {
 }
 
 /** Demo-scope info carried inside the session JWT (decoded, not trusted for
- * authorisation — role checks always re-read the user from the database). */
+ * authorisation: role checks always re-read the user from the database). */
 export type SessionDemoInfo = { active: true; roleKey: string; expiresAt: string } | null
 
 export async function getSessionDemoInfo(): Promise<SessionDemoInfo> {

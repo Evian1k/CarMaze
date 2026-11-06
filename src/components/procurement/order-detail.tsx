@@ -1,6 +1,6 @@
 'use client'
 
-/* Order detail dialog — the protected order lifecycle for the GARAGE side.
+/* Order detail dialog: the protected order lifecycle for the GARAGE side.
  * Renders the 9-step lifecycle with exactly the backend's action union
  * (POST /api/supply/orders/[id]/action). The action panels themselves
  * (payment, handover, cancel, inspection, release, dispute/return/warranty,
@@ -43,7 +43,7 @@ import {
 const DELIVERY_METHODS = [
   { value: 'DIRECT', label: 'Direct to my branch', hint: 'Supplier delivers to your chosen destination branch.' },
   { value: 'COLLECTION', label: 'Collect from supplier', hint: 'Pick the parts up at one of the supplier\u2019s warehouses.' },
-  { value: 'MEETUP', label: 'Meet at agreed location', hint: 'Propose a handover point — both parties must agree before it is locked.' },
+  { value: 'MEETUP', label: 'Meet at agreed location', hint: 'Propose a handover point: both parties must agree before it is locked.' },
 ]
 
 export function OrderDetailDialog({ orderId, open, onOpenChange, roleFallback, onChanged }: {
@@ -190,7 +190,7 @@ function Stepper({ order }: { order: OrderDetailData }) {
           <StatusChip status={order.status} />
           <span className="text-sm text-muted-foreground">
             {order.status === 'CANCELLED'
-              ? 'This order was cancelled — no further actions apply.'
+              ? 'This order was cancelled: no further actions apply.'
               : order.status === 'REJECTED'
                 ? 'The supplier rejected this order.'
                 : 'Lifecycle paused while the dispute is investigated.'}
@@ -223,7 +223,7 @@ function Stepper({ order }: { order: OrderDetailData }) {
       )}
       {order.status === 'AWAITING_APPROVAL' && (
         <p className="mt-2 text-center text-xs text-amber-600 dark:text-amber-400">
-          Internal approval gate — this order is not visible to the supplier until management approves it.
+          Internal approval gate: this order is not visible to the supplier until management approves it.
         </p>
       )}
     </div>
@@ -262,7 +262,7 @@ function RevisionPanel({ order, busy, setBusy, reload, role }: {
     <section className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
       <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-400">Supplier proposed changes</h3>
       {pending.length === 0 ? (
-        <p className="mt-1 text-sm text-muted-foreground">A revision was proposed on this order — see the timeline below.</p>
+        <p className="mt-1 text-sm text-muted-foreground">A revision was proposed on this order; see the timeline below.</p>
       ) : (
         pending.map((r) => (
           <div key={r.id} className="mt-2 space-y-2">
@@ -274,7 +274,7 @@ function RevisionPanel({ order, busy, setBusy, reload, role }: {
               {(r.changes as { action?: string; qty?: number; unitPriceMinor?: number; productId?: string }[]).map((c, i) => (
                 <li key={i}>
                   {c.action === 'REMOVE' ? 'Remove line' : c.action === 'ADD' ? 'Add line' : 'Update line'}
-                  {c.qty ? ` — qty ${c.qty}` : ''}{c.unitPriceMinor ? ` @ ${money(c.unitPriceMinor, order.currency)}` : ''}
+                  {c.qty ? `: qty ${c.qty}` : ''}{c.unitPriceMinor ? ` @ ${money(c.unitPriceMinor, order.currency)}` : ''}
                 </li>
               ))}
             </ul>
@@ -284,7 +284,7 @@ function RevisionPanel({ order, busy, setBusy, reload, role }: {
                 Approve revision
               </Button>
               <Button size="sm" variant="outline" disabled={!mayDecide || busy === `revision-${r.id}`} onClick={() => decide(r.id, 'DECLINED')}>
-                Decline — original terms
+                Decline: original terms
               </Button>
             </div>
             {!mayDecide && <p className="text-xs text-muted-foreground">Only the owner or GM can decide on revisions.</p>}
@@ -346,7 +346,7 @@ function MoneyPanel({ order, payStatus }: { order: OrderDetailData; payStatus: P
       )}
       <Separator className="my-1" />
       <p className="text-xs text-muted-foreground">
-        Platform commission {payStatus ? `(${money(payStatus.estimatedCommissionMinor, order.currency)})` : ''} is recorded separately and taken from the supplier&apos;s proceeds at release — never charged on top of your total.
+        Platform commission {payStatus ? `(${money(payStatus.estimatedCommissionMinor, order.currency)})` : ''} is recorded separately and taken from the supplier&apos;s proceeds at release: never charged on top of your total.
       </p>
     </section>
   )
@@ -385,7 +385,7 @@ function DeliveryPanel({ order, busy, setBusy, reload, role }: {
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>Reference <span className="font-mono text-foreground">{d.refCode}</span></p>
           {d.scheduledFor && <p className="flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" aria-hidden="true" /> Scheduled {dateTimeLabel(d.scheduledFor)}{d.windowLabel ? ` (${d.windowLabel})` : ''}</p>}
-          {d.courierName && <p>Courier: {d.courierName}{d.driverName ? ` — driver ${d.driverName}` : ''}{d.vehicleReg ? ` (${d.vehicleReg})` : ''}</p>}
+          {d.courierName && <p>Courier: {d.courierName}{d.driverName ? `: driver ${d.driverName}` : ''}{d.vehicleReg ? ` (${d.vehicleReg})` : ''}</p>}
           {d.deliveryRef && <p>Delivery ref: <span className="font-mono">{d.deliveryRef}</span></p>}
           {d.supplierBranch && <p>Collection point: {d.supplierBranch.name}, {[d.supplierBranch.town, d.supplierBranch.county].filter(Boolean).join(', ')}</p>}
           {d.meetup?.address && <p className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Handover point: {d.meetup.address}{d.meetup.lat != null && d.meetup.lng != null ? ` (${d.meetup.lat.toFixed(5)}, ${d.meetup.lng.toFixed(5)})` : ''}</p>}
@@ -395,9 +395,9 @@ function DeliveryPanel({ order, busy, setBusy, reload, role }: {
               <AgreementFlag label="Supplier" agreed={d.meetupAgreedBySupplier} />
             </div>
           )}
-          {d.dispatchedAt && <p>Dispatched {dateTimeLabel(d.dispatchedAt)}{d.expectedAt ? ` — expected by ${dateTimeLabel(d.expectedAt)}` : ''}</p>}
+          {d.dispatchedAt && <p>Dispatched {dateTimeLabel(d.dispatchedAt)}{d.expectedAt ? `: expected by ${dateTimeLabel(d.expectedAt)}` : ''}</p>}
           {d.garageConfirmAt && !d.supplierConfirmAt && (
-            <p className="text-amber-600 dark:text-amber-400">Handover verified by you — awaiting supplier confirmation to mark the delivery DELIVERED.</p>
+            <p className="text-amber-600 dark:text-amber-400">Handover verified by you: awaiting supplier confirmation to mark the delivery DELIVERED.</p>
           )}
           {d.failedReason && <p className="text-rose-600 dark:text-rose-400">Delivery problem: {d.failedReason}</p>}
           <p>Fee agreed: {money(d.feeMinor, order.currency)}</p>
@@ -485,7 +485,7 @@ function ArrangeFormInner({ order, busy, setBusy, reload, onCancel }: {
   const [fee, setFee] = useState(order.delivery ? String(order.delivery.feeMinor / 100) : '0')
   const [courierName, setCourierName] = useState(order.delivery?.courierName ?? '')
 
-  // supplier warehouses are public storefront data — needed for COLLECTION
+  // supplier warehouses are public storefront data; needed for COLLECTION
   useEffect(() => {
     if (method !== 'COLLECTION' || supplierBranches !== null) return
     let stale = false
@@ -508,7 +508,7 @@ function ArrangeFormInner({ order, busy, setBusy, reload, onCancel }: {
         setGeoBusy(false)
         if (!address.trim()) setAddress('Current location (adjust the address text)')
       },
-      () => { setGeoBusy(false); toast.error('Could not read your location — check browser permissions.') },
+      () => { setGeoBusy(false); toast.error('Could not read your location: check browser permissions.') },
       { enableHighAccuracy: true, timeout: 10_000 }
     )
   }
@@ -572,13 +572,13 @@ function ArrangeFormInner({ order, busy, setBusy, reload, onCancel }: {
           {supplierBranches === null ? (
             <Skeleton className="h-9 w-full" />
           ) : supplierBranches.length === 0 ? (
-            <p className="text-sm text-amber-600 dark:text-amber-400">This supplier has no public warehouse listed — choose another method.</p>
+            <p className="text-sm text-amber-600 dark:text-amber-400">This supplier has no public warehouse listed; choose another method.</p>
           ) : (
             <Select value={supplierBranchId} onValueChange={setSupplierBranchId}>
               <SelectTrigger aria-label="Supplier warehouse"><SelectValue placeholder="Choose collection point" /></SelectTrigger>
               <SelectContent>
                 {supplierBranches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>{b.name} ({b.code}){b.town ? ` — ${b.town}` : ''}</SelectItem>
+                  <SelectItem key={b.id} value={b.id}>{b.name} ({b.code}){b.town ? `: ${b.town}` : ''}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

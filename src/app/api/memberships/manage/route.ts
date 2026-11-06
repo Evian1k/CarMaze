@@ -6,7 +6,7 @@ import { audit } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
-/** GET /api/memberships/manage — the customer's own memberships. */
+/** GET /api/memberships/manage: the customer's own memberships. */
 export const GET = route(async () => {
   const user = await requireUser()
   const memberships = await db.businessMembership.findMany({
@@ -49,7 +49,7 @@ export const GET = route(async () => {
 
 const cancelSchema = z.object({ membershipId: z.string().min(1) })
 
-/** PATCH — customer cancels (transparent, immediate; no auto-refund claim). */
+/** PATCH: customer cancels (transparent, immediate; no auto-refund claim). */
 export const PATCH = route(async (req: NextRequest) => {
   const user = await requireUser()
   const body = await parseBody(req, cancelSchema)
@@ -66,5 +66,5 @@ export const PATCH = route(async (req: NextRequest) => {
     await db.invoice.update({ where: { id: membership.invoiceId }, data: { status: 'CANCELLED' } })
   }
   await audit({ actorId: user.id, actorName: user.name, action: 'MEMBERSHIP_CANCELLED', targetType: 'BUSINESS_MEMBERSHIP', targetId: membership.id, metadata: { ref: membership.refCode } })
-  return ok({ message: 'Membership cancelled. Your benefits end immediately; any paid period is not refunded automatically — the business\'s cancellation terms apply.' })
+  return ok({ message: 'Membership cancelled. Your benefits end immediately; any paid period is not refunded automatically; the business\'s cancellation terms apply.' })
 })

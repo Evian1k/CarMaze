@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — HandoverDialog: the Digital Vehicle Handover Record.
+/* CARMAZE: HandoverDialog: the Digital Vehicle Handover Record.
  * A 3-step, animated flow for handing a vehicle over to a garage:
  *   1. Vehicle (identity + road-test authorisation)
  *   2. Condition (notes, valuables, up to 6 photos via /api/upload)
@@ -110,7 +110,7 @@ function HandoverForm({
     setUploading(true)
     const uploaded: string[] = []
     for (const file of list) {
-      if (file.size > 8 * 1024 * 1024) { toast.error(`${file.name} is over 8 MB — skipped`); continue }
+      if (file.size > 8 * 1024 * 1024) { toast.error(`${file.name} is over 8 MB: skipped`); continue }
       try {
         const fd = new FormData()
         fd.append('file', file)
@@ -170,7 +170,7 @@ function HandoverForm({
       <SuccessPanel
         refCode={doneRef}
         title="Vehicle handover recorded"
-        body="The garage has been asked to confirm receipt. Track it in Account → Vehicle Protection — collection requires your authorisation code."
+        body="The garage has been asked to confirm receipt. Track it in Account → Vehicle Protection; collection requires your authorisation code."
       >
         <Button onClick={() => navigate('account?tab=protection')}>Track in Vehicle Protection</Button>
         <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
@@ -303,7 +303,7 @@ function HandoverForm({
                     {uploading ? 'Uploading…' : 'Tap to add up to 6 condition photos'}
                   </button>
                 )}
-                <p className="text-xs text-muted-foreground">Photos timestamp the condition at handover — they protect both you and the garage.</p>
+                <p className="text-xs text-muted-foreground">Photos timestamp the condition at handover; they protect both you and the garage.</p>
               </div>
             </section>
           )}
@@ -312,7 +312,7 @@ function HandoverForm({
             <section aria-label="Requested work" className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="hv-work">Work requested *</Label>
-                <Textarea id="hv-work" rows={3} value={requestedWork} onChange={(e) => setRequestedWork(e.target.value)} placeholder="Describe the work you are authorising — the garage quotes before starting anything extra." />
+                <Textarea id="hv-work" rows={3} value={requestedWork} onChange={(e) => setRequestedWork(e.target.value)} placeholder="Describe the work you are authorising; the garage quotes before starting anything extra." />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="hv-cap">Spending cap in KES (optional)</Label>
@@ -323,15 +323,15 @@ function HandoverForm({
                   onChange={(e) => setSpendCap(e.target.value.replace(/[^\d]/g, ''))}
                   placeholder="e.g. 15000"
                 />
-                <p className="text-xs text-muted-foreground">Spending cap — the garage must get your approval above this amount.</p>
+                <p className="text-xs text-muted-foreground">Spending cap: the garage must get your approval above this amount.</p>
               </div>
 
               {/* Review summary */}
               <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
                 <p className="mb-2 flex items-center gap-1.5 font-semibold"><CarFront className="h-4 w-4 text-primary" aria-hidden="true" /> Review your handover</p>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
-                  <dt className="text-muted-foreground">Vehicle</dt><dd className="font-medium">{vehicleDesc || '—'}{plate ? ` · ${plate}` : ''}</dd>
-                  <dt className="text-muted-foreground">Odometer</dt><dd>{odometerKm ? `${parseInt(odometerKm, 10).toLocaleString()} km` : '—'} · {FUEL_LEVELS.find((f) => f.value === fuelLevel)?.label ?? '—'}</dd>
+                  <dt className="text-muted-foreground">Vehicle</dt><dd className="font-medium">{vehicleDesc || 'Not provided'}{plate ? ` · ${plate}` : ''}</dd>
+                  <dt className="text-muted-foreground">Odometer</dt><dd>{odometerKm ? `${parseInt(odometerKm, 10).toLocaleString()} km` : 'Not provided'} · {FUEL_LEVELS.find((f) => f.value === fuelLevel)?.label ?? 'Not provided'}</dd>
                   <dt className="text-muted-foreground">Road tests</dt><dd>{roadTestAllowed ? 'Authorised for diagnostics' : 'Not authorised'}</dd>
                   <dt className="text-muted-foreground">Photos</dt><dd>{photos.length} attached</dd>
                   <dt className="text-muted-foreground">Cap</dt><dd>{spendCap ? `KES ${parseInt(spendCap, 10).toLocaleString()}` : 'No cap set'}</dd>

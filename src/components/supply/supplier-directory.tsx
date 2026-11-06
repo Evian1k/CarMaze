@@ -1,6 +1,6 @@
 'use client'
 
-/* Supplier directory — public listing of VERIFIED suppliers on the
+/* Supplier directory: public listing of VERIFIED suppliers on the
  * Automotive Supply Network (GET /api/suppliers only returns verified orgs,
  * and the card renders the verified badge only when supplier.verified is
  * true). County filter options are derived from the loaded results.
@@ -94,7 +94,7 @@ export function SupplierDirectory({ suppliers }: { suppliers: SupplierListItem[]
           <p className="font-semibold">No suppliers match</p>
           <p className="max-w-sm text-sm text-muted-foreground">
             {suppliers.length === 0
-              ? 'Verified suppliers appear here as they join the network. Check back soon — or apply to become one.'
+              ? 'Verified suppliers appear here as they join the network. Check back soon: or apply to become one.'
               : 'Try a different county or clear the search.'}
           </p>
           <Button variant="outline" onClick={() => { setQ(''); setCounty('all') }}>Clear filters</Button>

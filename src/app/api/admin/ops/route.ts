@@ -4,7 +4,7 @@ import { STAFF_ROLES } from '@/lib/auth'
 import { mpesaConfigured } from '@/lib/mpesa'
 
 /**
- * GET /api/admin/ops — operations dashboard data:
+ * GET /api/admin/ops: operations dashboard data:
  * failed notification deliveries, payment attempts, open support tickets and
  * honest integration flags recomputed inline (no cached health state).
  */

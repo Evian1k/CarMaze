@@ -1,14 +1,14 @@
 'use client'
 
-/* Trust & Credit managers — business-side, private.
+/* Trust & Credit managers: business-side, private.
  *
  * TrustManager  : the business's Trusted Customer Programme. Labels are
- *                 internal relationship markers — never shared with other
+ *                 internal relationship markers: never shared with other
  *                 businesses and never treated as credit ratings.
  * CreditManager : business-controlled customer credit ledger. CARMAZE is
  *                 management technology only, not a lender.
  *
- * Every number comes from GET /api/org/trust and GET /api/org/credit — the
+ * Every number comes from GET /api/org/trust and GET /api/org/credit; the
  * balances are derived from the append-only ledger server-side. */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -119,7 +119,7 @@ export function TrustManager({ orgId }: { orgId: string }) {
         description: form.description.trim() || undefined,
         terms: form.terms.trim() || undefined,
       })
-      toast.success('Trusted Customer Programme created — invite customers by email')
+      toast.success('Trusted Customer Programme created: invite customers by email')
       load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not create the programme')
@@ -200,18 +200,18 @@ export function TrustManager({ orgId }: { orgId: string }) {
         <CardContent className="space-y-3">
           {programme.description && <p className="text-sm text-muted-foreground">{programme.description}</p>}
 
-          {/* Prominent privacy note — required copy */}
+          {/* Prominent privacy note: required copy */}
           <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-500/10 p-3 dark:border-amber-500/40">
             <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              Labels are private to your business — never shared with other businesses and never treated
+              Labels are private to your business: never shared with other businesses and never treated
               as credit ratings.
             </p>
           </div>
 
           {programme.members.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No members yet. Invite customers by their CARMAZE account email — they must register first.
+              No members yet. Invite customers by their CARMAZE account email; they must register first.
             </div>
           ) : (
             <div className="overflow-hidden rounded-lg border">
@@ -231,13 +231,13 @@ export function TrustManager({ orgId }: { orgId: string }) {
                       <TableRow key={m.id}>
                         <TableCell>
                           <p className="font-medium">{m.customer.name}</p>
-                          <p className="text-xs text-muted-foreground">{m.customer.phone ?? '—'}</p>
+                          <p className="text-xs text-muted-foreground">{m.customer.phone ?? 'Not provided'}</p>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={LABEL_BADGE[m.label] ?? LABEL_BADGE.NEW}>{m.label}</Badge>
                         </TableCell>
                         <TableCell className="max-w-48">
-                          <p className="truncate text-sm text-muted-foreground">{m.note ?? '—'}</p>
+                          <p className="truncate text-sm text-muted-foreground">{m.note ?? 'Not provided'}</p>
                         </TableCell>
                         <TableCell className="text-sm">{timeAgo(m.createdAt)}</TableCell>
                         <TableCell>
@@ -287,7 +287,7 @@ export function TrustManager({ orgId }: { orgId: string }) {
             <AlertDialogTitle>Remove {removeTarget?.customer.name} from “{programme.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
               The customer loses the programme&apos;s relationship status with your business immediately.
-              Their CARMAZE account and history are untouched, and other businesses are unaffected —
+              Their CARMAZE account and history are untouched, and other businesses are unaffected:
               labels never leave your business.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -329,7 +329,7 @@ function CreateTrustForm({ onCreate }: { onCreate: (f: { name: string; descripti
         <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-500/10 p-3 dark:border-amber-500/40">
           <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
           <p className="text-sm text-amber-800 dark:text-amber-200">
-            Labels are private to your business — never shared with other businesses and never treated
+            Labels are private to your business: never shared with other businesses and never treated
             as credit ratings.
           </p>
         </div>
@@ -439,7 +439,7 @@ export function CreditManager({ orgId }: { orgId: string }) {
   async function postEntry(facility: Facility, body: Record<string, unknown>): Promise<boolean> {
     try {
       const d = await apiSend<{ outstandingMinor: number }>(`/api/org/credit/${facility.id}`, 'POST', body)
-      toast.success(`${body.kind === 'CHARGE' ? 'Charge' : 'Repayment'} recorded — outstanding ${money(d.outstandingMinor)}`)
+      toast.success(`${body.kind === 'CHARGE' ? 'Charge' : 'Repayment'} recorded: outstanding ${money(d.outstandingMinor)}`)
       load()
       return true
     } catch (e) {
@@ -447,7 +447,7 @@ export function CreditManager({ orgId }: { orgId: string }) {
       const message = e instanceof Error ? e.message : 'Could not record the entry'
       toast.error(message, {
         description: code === 'LIMIT_EXCEEDED'
-          ? 'The approved limit is enforced by the ledger — the charge was rejected.'
+          ? 'The approved limit is enforced by the ledger; the charge was rejected.'
           : code === 'OVER_REPAYMENT'
             ? 'Repayments cannot exceed the outstanding balance.'
             : code === 'OUTSTANDING_BALANCE'
@@ -491,7 +491,7 @@ export function CreditManager({ orgId }: { orgId: string }) {
           <p className="mt-2 font-medium">No customer credit applications</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             When a customer applies for a pay-later facility it appears here for review. Approval is
-            entirely at your discretion — you set the deposit and repayment terms.
+            entirely at your discretion: you set the deposit and repayment terms.
           </p>
         </div>
       ) : (
@@ -503,7 +503,7 @@ export function CreditManager({ orgId }: { orgId: string }) {
                   <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                     {f.customer.name}
                     <Badge variant="outline" className={cn(FACILITY_BADGE[f.status] ?? FACILITY_BADGE.CLOSED)}>
-                      {f.status === 'PENDING_APPLICATION' ? 'Application to review' : f.status === 'OFFERED' ? 'Offered — awaiting customer' : f.status.charAt(0) + f.status.slice(1).toLowerCase()}
+                      {f.status === 'PENDING_APPLICATION' ? 'Application to review' : f.status === 'OFFERED' ? 'Offered: awaiting customer' : f.status.charAt(0) + f.status.slice(1).toLowerCase()}
                     </Badge>
                     {f.overdue && f.status === 'ACTIVE' && (
                       <Badge variant="outline" className="border-rose-300 bg-rose-500/15 text-rose-800 dark:border-rose-500/40 dark:text-rose-300">
@@ -535,7 +535,7 @@ export function CreditManager({ orgId }: { orgId: string }) {
               {f.status === 'OFFERED' && (
                 <p className="rounded-lg border border-amber-300 bg-amber-500/10 p-3 text-sm text-amber-800 dark:border-amber-500/40 dark:text-amber-200">
                   Waiting for the customer to accept the repayment terms. The facility activates only
-                  when they accept — you cannot activate it for them.
+                  when they accept: you cannot activate it for them.
                 </p>
               )}
 
@@ -638,7 +638,7 @@ export function CreditManager({ orgId }: { orgId: string }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Close {closeTarget?.customer.name}&apos;s facility?</AlertDialogTitle>
             <AlertDialogDescription>
-              Closing is permanent. The balance must be cleared first — the ledger rejects closing a
+              Closing is permanent. The balance must be cleared first: the ledger rejects closing a
               facility with outstanding amounts.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -693,12 +693,12 @@ function Ledger({ entries }: { entries: CreditLedgerEntry[] }) {
                     {isCharge ? '' : '−'}{money(Math.abs(e.amountMinor))}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{money(e.balanceAfterMinor)}</TableCell>
-                  <TableCell className="text-sm">{e.dueDate ? dateLabel(e.dueDate) : '—'}</TableCell>
+                  <TableCell className="text-sm">{e.dueDate ? dateLabel(e.dueDate) : 'Not provided'}</TableCell>
                   <TableCell className="text-sm">
-                    {e.paidAt ? dateLabel(e.paidAt) : isCharge ? <span className="text-amber-700 dark:text-amber-400">unpaid</span> : '—'}
+                    {e.paidAt ? dateLabel(e.paidAt) : isCharge ? <span className="text-amber-700 dark:text-amber-400">unpaid</span> : 'Not provided'}
                   </TableCell>
                   <TableCell className="max-w-40">
-                    <p className="truncate text-xs text-muted-foreground">{e.note ?? '—'}</p>
+                    <p className="truncate text-xs text-muted-foreground">{e.note ?? 'Not provided'}</p>
                   </TableCell>
                 </TableRow>
               )
@@ -732,10 +732,10 @@ function ReviewDialog({ facility, onClose, onApprove, onReject }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto scrollbar-thin sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Review credit application — {facility.customer.name}</DialogTitle>
+          <DialogTitle>Review credit application: {facility.customer.name}</DialogTitle>
           <DialogDescription>
             Requested limit {money(facility.limitMinor)} (set by the customer&apos;s application). You set
-            the deposit and the repayment terms. Sending an offer does not activate anything — the
+            the deposit and the repayment terms. Sending an offer does not activate anything; the
             customer must accept the terms first.
           </DialogDescription>
         </DialogHeader>
@@ -747,7 +747,7 @@ function ReviewDialog({ facility, onClose, onApprove, onReject }: {
           <div className="space-y-1.5">
             <Label htmlFor="credit-terms">Repayment terms (minimum 10 characters)</Label>
             <Textarea id="credit-terms" rows={5} value={terms} onChange={(e) => setTerms(e.target.value)} />
-            {!termsValid && <p className="text-xs text-rose-600 dark:text-rose-400">Terms must be at least 10 characters — write them as the customer will read them.</p>}
+            {!termsValid && <p className="text-xs text-rose-600 dark:text-rose-400">Terms must be at least 10 characters; write them as the customer will read them.</p>}
           </div>
           <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
             Approve → sends the offer to the customer to accept. Reject → the customer is notified with your note.
@@ -803,10 +803,10 @@ function ChargeDialog({ facility, onClose, onSubmit }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record a charge — {facility.customer.name}</DialogTitle>
+          <DialogTitle>Record a charge: {facility.customer.name}</DialogTitle>
           <DialogDescription>
             {money(facility.availableMinor)} available of the {money(facility.limitMinor)} limit. The
-            ledger enforces the limit — a charge beyond it is rejected.
+            ledger enforces the limit: a charge beyond it is rejected.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -873,7 +873,7 @@ function RepayDialog({ facility, onClose, onSubmit }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record a repayment — {facility.customer.name}</DialogTitle>
+          <DialogTitle>Record a repayment: {facility.customer.name}</DialogTitle>
           <DialogDescription>
             Outstanding balance {money(facility.outstandingMinor)}. Repayments are appended to the
             ledger immediately and reduce the balance.

@@ -4,7 +4,7 @@
  * Sandboxed iframes (preview panels, privacy modes, storage-partitioned
  * browsers) can make any `sessionStorage`/`localStorage` access throw a
  * SecurityError. An uncaught throw during render unmounts the whole React
- * tree — the infamous "blank screen". Every read/write goes through these
+ * tree: the infamous "blank screen". Every read/write goes through these
  * guards so a blocked storage backend degrades gracefully to in-memory.
  */
 
@@ -46,7 +46,7 @@ export function sessionSet(key: string, value: string): void {
       store.setItem(key, value)
       return
     } catch {
-      /* quota/blocked — keep in memory */
+      /* quota/blocked: keep in memory */
     }
   }
   memorySession.set(key, value)
@@ -71,7 +71,7 @@ export function localSet(key: string, value: string): void {
       store.setItem(key, value)
       return
     } catch {
-      /* quota/blocked — keep in memory */
+      /* quota/blocked: keep in memory */
     }
   }
   memoryLocal.set(key, value)

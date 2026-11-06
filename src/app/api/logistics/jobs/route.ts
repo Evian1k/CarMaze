@@ -105,7 +105,7 @@ function forMine(j: JobRow) {
 }
 
 /* ─────────────────────────── GET ───────────────────────────
- * ?scope=self   → { partner | null } — branching for the logistics view
+ * ?scope=self   → { partner | null }; branching for the logistics view
  * ?scope=open   → OPEN board for APPROVED partners
  * ?scope=partner→ the partner's own jobs (any status, with events)
  * ?scope=mine   → the requester's own jobs (with otpHint, partner, events)
@@ -143,7 +143,7 @@ export const GET = route(async (req: NextRequest) => {
     const partner = await db.logisticsPartner.findUnique({ where: { ownerUserId: user.id } })
     if (!partner) throw new ApiError(403, 'NOT_A_PARTNER', 'Only approved delivery partners can view the open request board.')
     if (partner.status === 'SUSPENDED') {
-      throw new ApiError(403, 'PARTNER_SUSPENDED', 'Your partner account is suspended — you cannot accept new deliveries. Contact CARMAZE support.')
+      throw new ApiError(403, 'PARTNER_SUSPENDED', 'Your partner account is suspended: you cannot accept new deliveries. Contact CARMAZE support.')
     }
     if (partner.status !== 'APPROVED') {
       throw new ApiError(403, 'PARTNER_NOT_ACTIVE', 'Your partner account is not active yet.')
@@ -202,7 +202,7 @@ export const GET = route(async (req: NextRequest) => {
   throw new ApiError(400, 'BAD_SCOPE', 'Unknown scope. Use self | open | partner | mine.')
 })
 
-/* ─────────────────────────── POST — create a delivery request ─────────────────────────── */
+/* ─────────────────────────── POST: create a delivery request ─────────────────────────── */
 
 const createSchema = z.object({
   cargoDesc: z.string().trim().min(5, 'Describe the cargo (at least 5 characters)').max(300),
@@ -264,7 +264,7 @@ export const POST = route(async (req: NextRequest) => {
           actorId: user.id,
           actorName: user.name,
           actorSide: 'CUSTOMER',
-          note: `Delivery requested — ${body.pickupCounty} → ${body.dropCounty}.`,
+          note: `Delivery requested: ${body.pickupCounty} → ${body.dropCounty}.`,
         },
       },
     },

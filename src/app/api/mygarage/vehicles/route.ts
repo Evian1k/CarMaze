@@ -28,7 +28,7 @@ function dateFromIso(value?: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d
 }
 
-// GET /api/mygarage/vehicles — session user's own vehicles with records + reminders.
+// GET /api/mygarage/vehicles: session user's own vehicles with records + reminders.
 export const GET = route(async () => {
   const user = await requireUser()
   const vehicles = await db.myVehicle.findMany({
@@ -42,7 +42,7 @@ export const GET = route(async () => {
   return ok({ vehicles })
 })
 
-// POST /api/mygarage/vehicles — add a vehicle to the signed-in user's garage.
+// POST /api/mygarage/vehicles: add a vehicle to the signed-in user's garage.
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const rl = rateLimit(`mygarage-vehicle:${user.id}:${getIp(req)}`, 30, 60 * 60 * 1000)

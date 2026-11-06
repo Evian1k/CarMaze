@@ -8,7 +8,7 @@ const voteSchema = z.object({
   optionIndex: z.coerce.number().int().min(0),
 })
 
-// POST /api/community/vote — one vote per user per poll; clicking again removes the vote (toggle),
+// POST /api/community/vote: one vote per user per poll; clicking again removes the vote (toggle),
 // switching options moves the vote. Poll state is persisted as JSON in CommunityPost.pollOptions.
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()

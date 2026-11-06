@@ -38,7 +38,7 @@ export function timeAgo(date: string | Date): string {
 }
 
 export function dateLabel(date: string | Date | null | undefined): string {
-  if (!date) return '—'
+  if (!date) return 'Not set'
   const d = typeof date === 'string' ? new Date(date) : date
   return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })
 }

@@ -49,7 +49,7 @@ export function VehicleCard({ v, saved, onToggleSave }: { v: VehicleCardData; sa
         {img ? (
           <img
             src={img}
-            alt={`${vehicleTitle(v)} — ${v.condition === 'FOREIGN_USED' ? 'foreign used' : v.condition === 'LOCAL_USED' ? 'locally used' : 'brand new'} ${v.bodyType.toLowerCase()} in ${v.county}`}
+            alt={`${vehicleTitle(v)}: ${v.condition === 'FOREIGN_USED' ? 'foreign used' : v.condition === 'LOCAL_USED' ? 'locally used' : 'brand new'} ${v.bodyType.toLowerCase()} in ${v.county}`}
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.07]"
           />
@@ -104,7 +104,7 @@ export function VehicleCard({ v, saved, onToggleSave }: { v: VehicleCardData; sa
           <MapPin className="h-3.5 w-3.5" /> {v.county}
           {v.orgName && <span className="ml-auto max-w-32 truncate">· {v.orgName}</span>}
           {v.orgIsDemo && (
-            <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="Demo listing — sample data, not real inventory">
+            <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="Demo listing: sample data, not real inventory">
               Demo
             </span>
           )}

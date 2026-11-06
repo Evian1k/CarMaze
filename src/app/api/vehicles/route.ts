@@ -189,7 +189,7 @@ export const GET = route(async (req: NextRequest) => {
     return ok({ vehicles })
   }
 
-  // Public search — only PUBLISHED listings are ever visible here.
+  // Public search: only PUBLISHED listings are ever visible here.
   const where: Record<string, unknown> = { status: 'PUBLISHED' }
   const and: Record<string, unknown>[] = []
 
@@ -337,7 +337,7 @@ export const POST = route(async (req: NextRequest) => {
       userId: user.id,
       type: 'LISTING_SUBMITTED',
       title: 'Your listing was submitted',
-      body: `${vehicle.make} ${vehicle.model} ${vehicle.year} is under review — target 24 business hours.`,
+      body: `${vehicle.make} ${vehicle.model} ${vehicle.year} is under review: target 24 business hours.`,
       link: '/my-listings',
     })
   } else {

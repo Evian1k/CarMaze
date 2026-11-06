@@ -29,7 +29,7 @@ function iso(d: Date): string {
   return d.toISOString()
 }
 
-/** GET — incident with timeline, for the reporter, staff, or involved org. */
+/** GET: incident with timeline, for the reporter, staff, or involved org. */
 export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()
   const { id } = await ctx.params
@@ -97,8 +97,8 @@ const patchSchema = z.discriminatedUnion('action', [
 ])
 
 /**
- * PATCH — append a note, add evidence (reporter only), or change status
- * (STAFF ONLY — org members can never resolve/dismiss incidents about their
+ * PATCH: append a note, add evidence (reporter only), or change status
+ * (STAFF ONLY: org members can never resolve/dismiss incidents about their
  * own business).
  */
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
@@ -140,7 +140,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     return ok({ incident: { id, refCode: incident.refCode, status: incident.status } })
   }
 
-  // action === 'status' — staff only, hard block for org members.
+  // action === 'status': staff only, hard block for org members.
   if (!isStaff) {
     throw new ApiError(403, 'FORBIDDEN', 'Only CARMAZE security staff can change an incident status.')
   }

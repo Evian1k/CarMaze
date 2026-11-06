@@ -12,11 +12,11 @@ const bodySchema = z.object({
 })
 
 /**
- * POST /api/billing/subscribe — authenticated users with an org membership
+ * POST /api/billing/subscribe: authenticated users with an org membership
  * (DEALER_OWNER for DEALER plans / GARAGE_OWNER for GARAGE plans).
  *
  * IMPORTANT (honest billing): this creates a PENDING invoice only. The
- * subscription itself is NOT created or activated here — it is activated
+ * subscription itself is NOT created or activated here; it is activated
  * exclusively when payment is confirmed (M-Pesa Daraja callback with
  * ResultCode 0, or a FINANCE manual reconciliation via mark-paid).
  */
@@ -49,14 +49,14 @@ export const POST = route(async (req: NextRequest) => {
   const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
 
   // `[plan:<code>]` suffix is parsed back by the activation helper when the
-  // invoice is paid — no schema changes needed to recover the plan code.
+  // invoice is paid: no schema changes needed to recover the plan code.
   const invoice = await db.invoice.create({
     data: {
       refCode: refCode('INV', 6),
       orgId: org.id,
       userId: user.id,
       type: 'SUBSCRIPTION',
-      description: `${plan.name} subscription — ${plan.intervalMonths} month(s) [plan:${plan.code}]`,
+      description: `${plan.name} subscription: ${plan.intervalMonths} month(s) [plan:${plan.code}]`,
       amountMinor: plan.priceMinor,
       currency: plan.currency,
       status: 'PENDING',
@@ -73,7 +73,7 @@ export const POST = route(async (req: NextRequest) => {
     userId: user.id,
     type: 'INVOICE_ISSUED',
     title: `Invoice ${invoice.refCode} issued`,
-    body: `${plan.name} — KES ${(plan.priceMinor / 100).toLocaleString('en-KE')} for ${plan.intervalMonths} month(s). Pay via M-Pesa to activate.`,
+    body: `${plan.name}: KES ${(plan.priceMinor / 100).toLocaleString('en-KE')} for ${plan.intervalMonths} month(s). Pay via M-Pesa to activate.`,
     link: '/billing',
   })
   await audit({
@@ -86,10 +86,10 @@ export const POST = route(async (req: NextRequest) => {
   })
 
   const message = planChange
-    ? 'Invoice created — complete payment via M-Pesa or your account manager. Your plan change will apply after payment.'
+    ? 'Invoice created: complete payment via M-Pesa or your account manager. Your plan change will apply after payment.'
     : existing
-      ? 'Invoice created — complete payment via M-Pesa or your account manager. The renewal applies after payment.'
-      : 'Invoice created — complete payment via M-Pesa or your account manager.'
+      ? 'Invoice created: complete payment via M-Pesa or your account manager. The renewal applies after payment.'
+      : 'Invoice created: complete payment via M-Pesa or your account manager.'
 
   return ok({ invoice, message }, { status: 201 })
 })

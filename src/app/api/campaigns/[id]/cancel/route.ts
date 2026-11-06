@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 type Ctx = { params: Promise<{ id: string }> }
 
 /**
- * POST /api/campaigns/[id]/cancel — OWNER/MANAGER of the promotion's org only.
+ * POST /api/campaigns/[id]/cancel: OWNER/MANAGER of the promotion's org only.
  * Only PENDING_PAYMENT campaigns can be cancelled (an ACTIVE campaign is paid
  * for and running; a CANCELLED/ENDED one is already closed → 409).
  *
@@ -79,7 +79,7 @@ export const POST = route(async (_req: NextRequest, ctx: Ctx) => {
   await notifyOrgMembers(campaign.orgId, {
     type: 'CAMPAIGN_CANCELLED',
     title: 'Promotion cancelled',
-    body: `${title} (${campaign.refCode}) was cancelled before payment${invoiceRef ? ` — invoice ${invoiceRef} is now cancelled` : ''}.`,
+    body: `${title} (${campaign.refCode}) was cancelled before payment${invoiceRef ? `: invoice ${invoiceRef} is now cancelled` : ''}.`,
     link: '/dealer?tab=billing',
   })
 

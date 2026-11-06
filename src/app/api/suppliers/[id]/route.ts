@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 type Ctx = { params: Promise<{ id: string }> }
 
 /**
- * GET /api/suppliers/[id] — public supplier storefront profile: verification
+ * GET /api/suppliers/[id]: public supplier storefront profile: verification
  * status, branches/warehouses (public locations only), product categories,
  * delivery areas, operating hours, policies, reviews and rating.
  * Contact details are shown only for VERIFIED suppliers.

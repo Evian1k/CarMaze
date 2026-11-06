@@ -48,7 +48,7 @@ async function orderEvent(orderId: string, params: { type: string; actorSide: 'C
 // ───────────────────────────── GET ─────────────────────────────
 
 /**
- * GET /api/orders/[id] — full consumer-order detail for authorised parties:
+ * GET /api/orders/[id]: full consumer-order detail for authorised parties:
  * the buyer, platform staff, or a member of the supplier org.
  * Events are returned newest-first. The delivery OTP is never exposed here.
  */
@@ -68,7 +68,7 @@ export const GET = route<Ctx>(async (_req: NextRequest, ctx: Ctx) => {
   })
   if (!order) return fail(404, 'NOT_FOUND', 'Order not found.')
 
-  // fulfillmentBranchId has no Prisma relation on CustomerOrder — load it directly.
+  // fulfillmentBranchId has no Prisma relation on CustomerOrder; load it directly.
   const fulfillmentBranch = order.fulfillmentBranchId
     ? await db.orgBranch.findUnique({ where: { id: order.fulfillmentBranchId }, select: { id: true, name: true, town: true } })
     : null
@@ -165,7 +165,7 @@ const actionSchema = z.discriminatedUnion('action', [
 ])
 
 /**
- * POST /api/orders/[id] — lifecycle actions on a consumer order.
+ * POST /api/orders/[id]: lifecycle actions on a consumer order.
  *  Supplier: accept (stock leaves the shelf, PENDING invoice issued),
  *            reject (reason required), dispatch (collection code generated
  *            and delivered to the buyer's in-app notifications), mark delivered
@@ -282,7 +282,7 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
             orgId: order.supplierOrgId,
             userId: order.buyerUserId,
             type: 'PARTS_ORDER',
-            description: `Parts order ${order.refCode} — ${order.supplier.name}`,
+            description: `Parts order ${order.refCode}: ${order.supplier.name}`,
             amountMinor: order.totalMinor,
             currency: order.currency,
             status: 'PENDING',
@@ -304,13 +304,13 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
         actorSide: 'SUPPLIER',
         actorId: user.id,
         actorName: user.name,
-        note: `Accepted — fulfilment from ${chosenBranch.name}. Invoice issued, payable within 7 days.`,
+        note: `Accepted: fulfilment from ${chosenBranch.name}. Invoice issued, payable within 7 days.`,
       })
       await notify({
         userId: order.buyerUserId,
         type: 'CUSTOMER_ORDER_ACCEPTED',
         title: `Order ${order.refCode} accepted`,
-        body: `${order.supplier.name} accepted your order (KES ${(order.totalMinor / 100).toLocaleString()}). An invoice is ready — pay it from Account → Orders.`,
+        body: `${order.supplier.name} accepted your order (KES ${(order.totalMinor / 100).toLocaleString()}). An invoice is ready: pay it from Account → Orders.`,
         link: '/account?tab=orders',
       })
       await audit({ actorId: user.id, actorName: user.name, action: 'CUSTOMER_ORDER_ACCEPTED', targetType: 'CUSTOMER_ORDER', targetId: order.id, metadata: { ref: order.refCode, branchId: chosenBranch.id } })
@@ -343,7 +343,7 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
     // ── Supplier: dispatch ──────────────────────────────────────────────
     case 'dispatch': {
       if (!['ACCEPTED', 'CONFIRMED'].includes(order.status)) {
-        return fail(409, 'INVALID_STATE', `Orders can be dispatched once accepted — this order is ${order.status}.`)
+        return fail(409, 'INVALID_STATE', `Orders can be dispatched once accepted: this order is ${order.status}.`)
       }
       const code = sixDigitCode()
       const updated = await db.customerOrder.update({
@@ -363,7 +363,7 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
         note: `Dispatched via ${body.courierName}. Collection code sent to the customer.`,
       })
       // The full collection code is delivered to the buyer through their in-app
-      // notifications — the only channel that actually exists on this deployment.
+      // notifications: the only channel that actually exists on this deployment.
       await notify({
         userId: order.buyerUserId,
         type: 'CUSTOMER_ORDER_DISPATCHED',
@@ -379,7 +379,7 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
     // ── Supplier: mark delivered ────────────────────────────────────────
     case 'delivered': {
       if (order.status !== 'DISPATCHED') {
-        return fail(409, 'INVALID_STATE', `Only dispatched orders can be marked delivered — this order is ${order.status}.`)
+        return fail(409, 'INVALID_STATE', `Only dispatched orders can be marked delivered; this order is ${order.status}.`)
       }
       if (!order.otpHash || !bcrypt.compareSync(body.code, order.otpHash)) {
         throw new ApiError(403, 'INVALID_CODE', 'That collection code does not match. Ask the customer for the code from their notification.')
@@ -389,7 +389,7 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
         where: { id: order.id },
         data: { status: 'DELIVERED', deliveredAt: now },
       })
-      await orderEvent(order.id, { type: 'DELIVERED', actorSide: 'SUPPLIER', actorId: user.id, actorName: user.name, note: 'Delivered — collection code verified.' })
+      await orderEvent(order.id, { type: 'DELIVERED', actorSide: 'SUPPLIER', actorId: user.id, actorName: user.name, note: 'Delivered: collection code verified.' })
       await notify({
         userId: order.buyerUserId,
         type: 'CUSTOMER_ORDER_DELIVERED',
@@ -405,7 +405,7 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
     // ── Buyer: confirm receipt ──────────────────────────────────────────
     case 'confirm': {
       if (order.status !== 'DELIVERED') {
-        return fail(409, 'INVALID_STATE', `You can confirm receipt once the order is delivered — it is currently ${order.status}.`)
+        return fail(409, 'INVALID_STATE', `You can confirm receipt once the order is delivered; it is currently ${order.status}.`)
       }
       const now = new Date()
       await db.customerOrder.update({
@@ -448,7 +448,7 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
     // ── Buyer: open a dispute ─────────────────────────────────────────
     case 'dispute': {
       if (!['DELIVERED', 'COMPLETED'].includes(order.status)) {
-        return fail(409, 'INVALID_STATE', `Disputes can be opened on delivered or completed orders — this order is ${order.status}. For orders still in progress, contact the supplier via the order thread or support.`)
+        return fail(409, 'INVALID_STATE', `Disputes can be opened on delivered or completed orders; this order is ${order.status}. For orders still in progress, contact the supplier via the order thread or support.`)
       }
       const existing = await db.dispute.findFirst({ where: { customerOrderId: order.id, status: { in: ['OPEN', 'UNDER_REVIEW'] } } })
       if (existing) {
@@ -477,7 +477,7 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
       await notifySupplierMembers(order.supplierOrgId, {
         type: 'CUSTOMER_ORDER_DISPUTED',
         title: `Dispute ${dispute.refCode} opened on order ${order.refCode}`,
-        body: `${user.name} reported: ${body.reason.toLowerCase().replace('_', ' ')}. Respond honestly and promptly — our disputes team reviews every case.`,
+        body: `${user.name} reported: ${body.reason.toLowerCase().replace('_', ' ')}. Respond honestly and promptly: our disputes team reviews every case.`,
         link: '/supplier?tab=consumer-orders',
       })
       const staff = await db.user.findMany({
@@ -486,13 +486,13 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
       })
       await notifyMany(staff.map((s) => s.id), {
         type: 'DISPUTE_OPENED',
-        title: `Consumer dispute ${dispute.refCode} — ${order.refCode}`,
+        title: `Consumer dispute ${dispute.refCode}: ${order.refCode}`,
         body: `${body.reason} on order ${order.refCode} from ${order.supplier.name}. Review in the supply console.`,
         link: '/admin?tab=supply',
       })
       await audit({ actorId: user.id, actorName: user.name, action: 'CUSTOMER_ORDER_DISPUTED', targetType: 'DISPUTE', targetId: dispute.id, metadata: { ref: dispute.refCode, order: order.refCode, reason: body.reason } })
 
-      return ok({ order: { id: order.id, refCode: order.refCode, status: 'DISPUTED' }, dispute: { refCode: dispute.refCode }, message: 'Dispute opened. Our disputes team has been notified — you will see the outcome here.' })
+      return ok({ order: { id: order.id, refCode: order.refCode, status: 'DISPUTED' }, dispute: { refCode: dispute.refCode }, message: 'Dispute opened. Our disputes team has been notified: you will see the outcome here.' })
     }
   }
 })

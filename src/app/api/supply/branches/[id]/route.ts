@@ -35,7 +35,7 @@ async function requireBranchAdmin(userId: string, branchId: string) {
   return branch
 }
 
-/** PATCH /api/supply/branches/[id] — update branch (owner/GM). */
+/** PATCH /api/supply/branches/[id]: update branch (owner/GM). */
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()
@@ -72,7 +72,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   return ok({ branch: { ...updated, operatingHours: jsonParse(updated.operatingHours, null), deliveryAreas: jsonParse(updated.deliveryAreas, []) } })
 })
 
-/** DELETE — soft-close a branch (never hard delete: historical orders keep FKs). */
+/** DELETE: soft-close a branch (never hard delete: historical orders keep FKs). */
 export const DELETE = route(async (_req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()

@@ -1,6 +1,6 @@
 'use client'
 
-/* Garages — public directory of verified garages & specialists with
+/* Garages: public directory of verified garages & specialists with
  * category/county filters and a quote-request flow. Data: /api/garages.
  * #/garages/<orgId> renders the shared OrgStorefront business page. */
 
@@ -140,7 +140,7 @@ export default function GaragesView() {
             </Badge>
             <h1 className="max-w-xl text-3xl font-bold text-white sm:text-4xl">Trusted garages &amp; specialists</h1>
             <p className="mt-2 max-w-xl text-sm text-white/80 sm:text-base">
-              Compare approved garages by service and county, then request quotes — real workshops, honest pricing, no obligation.
+              Compare approved garages by service and county, then request quotes: real workshops, honest pricing, no obligation.
             </p>
           </Reveal>
           {user ? (
@@ -221,7 +221,7 @@ export default function GaragesView() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground"><Wrench className="h-6 w-6" /></span>
                 <h3 className="mt-3 font-semibold">No garages match these filters</h3>
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  Try another service category or county — or send an open request and garages will come to you.
+                  Try another service category or county: or send an open request and garages will come to you.
                 </p>
                 <Button className="mt-4" variant="outline" onClick={() => { setCategory(''); setCounty('all'); setSearch('') }}>Clear filters</Button>
               </div>
@@ -273,7 +273,7 @@ export default function GaragesView() {
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-3 text-xs text-muted-foreground">No services listed yet — you can still request a quote.</p>
+                  <p className="mt-3 text-xs text-muted-foreground">No services listed yet; you can still request a quote.</p>
                 )}
 
                 <div className="mt-auto flex gap-2 pt-4">
@@ -308,7 +308,7 @@ export default function GaragesView() {
 
         {!loading && user && (
           <p className="mt-8 text-center text-xs text-muted-foreground">
-            Tip: requests you send — including from the 3D customizer — are tracked under{' '}
+            Tip: requests you send: including from the 3D customizer: are tracked under{' '}
             <button className="underline hover:text-foreground" onClick={() => navigate('account?tab=requests')}>Account → Requests</button>.
           </p>
         )}
@@ -318,9 +318,9 @@ export default function GaragesView() {
       <Dialog open={quoteFor !== null} onOpenChange={(open) => { if (!open) setQuoteFor(null) }}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Request a quote{quoteFor ? ` — ${quoteFor.org.name}` : ''}</DialogTitle>
+            <DialogTitle>Request a quote{quoteFor ? `: ${quoteFor.org.name}` : ''}</DialogTitle>
             <DialogDescription>
-              Describe the work. The garage replies with a quote in your account — you are under no obligation.
+              Describe the work. The garage replies with a quote in your account; you are under no obligation.
             </DialogDescription>
           </DialogHeader>
           {createdRef ? (
@@ -363,7 +363,7 @@ export default function GaragesView() {
                   rows={4}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe the work — symptoms, parts, preferences. Minimum 15 characters."
+                  placeholder="Describe the work: symptoms, parts, preferences. Minimum 15 characters."
                 />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">

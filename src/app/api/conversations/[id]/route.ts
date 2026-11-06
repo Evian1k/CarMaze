@@ -41,7 +41,7 @@ async function participantSide(conversation: { orgId: string; customerId: string
   throw new ApiError(403, 'FORBIDDEN', 'You are not part of this conversation.')
 }
 
-/** GET — full thread for participants; clears the requester's unread flag. */
+/** GET: full thread for participants; clears the requester's unread flag. */
 export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()
   const { id } = await ctx.params
@@ -60,7 +60,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
     orderBy: { createdAt: 'asc' },
   })
 
-  // serviceId is a plain reference (no Prisma relation) — resolve the title manually.
+  // serviceId is a plain reference (no Prisma relation): resolve the title manually.
   const service = conversation.serviceId
     ? await db.garageService.findUnique({ where: { id: conversation.serviceId }, select: { title: true } })
     : null
@@ -118,7 +118,7 @@ function previewOf(body: string): string {
   return body.length > 140 ? `${body.slice(0, 137)}…` : body
 }
 
-/** POST — send a message as CUSTOMER or ORG side. */
+/** POST: send a message as CUSTOMER or ORG side. */
 export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()
   const rl = rateLimit(`conversation-msg:${user.id}`, 30, 5 * 60 * 1000)
@@ -194,7 +194,7 @@ const patchSchema = z.object({
   action: z.enum(['close', 'reopen', 'archive', 'unarchive']),
 })
 
-/** PATCH — close/reopen (either side), archive/unarchive (per side). */
+/** PATCH: close/reopen (either side), archive/unarchive (per side). */
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()
   const { id } = await ctx.params

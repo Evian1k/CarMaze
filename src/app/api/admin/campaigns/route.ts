@@ -6,7 +6,7 @@ import { demoStaffMutationGuard } from '@/lib/demo'
 import { audit } from '@/lib/audit'
 
 /**
- * GET /api/admin/campaigns — all campaigns with org, vehicle, package and
+ * GET /api/admin/campaigns: all campaigns with org, vehicle, package and
  * linked invoice payment state (real impressions/clicks).
  */
 export const GET = route(async () => {
@@ -61,7 +61,7 @@ const patchSchema = z.object({
 })
 
 /**
- * PATCH /api/admin/campaigns — lifecycle control.
+ * PATCH /api/admin/campaigns: lifecycle control.
  * activate: ONLY allowed when the linked invoice is genuinely PAID (or none is
  * linked, which is rejected). A campaign is never activated on hope.
  */
@@ -83,7 +83,7 @@ export const PATCH = route(async (req: NextRequest) => {
         throw new ApiError(409, 'INVOICE_REQUIRED', 'No invoice is linked to this campaign. Payment must be recorded before activation.')
       }
       const invoice = await db.invoice.findUnique({ where: { id: campaign.invoiceId } })
-      if (!invoice) throw new ApiError(409, 'INVOICE_REQUIRED', 'The linked invoice no longer exists — payment cannot be verified.')
+      if (!invoice) throw new ApiError(409, 'INVOICE_REQUIRED', 'The linked invoice no longer exists: payment cannot be verified.')
       if (invoice.status !== 'PAID') {
         throw new ApiError(409, 'INVOICE_UNPAID', `Cannot activate: invoice ${invoice.refCode} is ${invoice.status}. Confirm payment first (mark-paid with a reconciliation note, or M-Pesa callback).`)
       }

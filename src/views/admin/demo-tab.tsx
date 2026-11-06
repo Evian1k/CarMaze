@@ -43,7 +43,7 @@ type DemoAccountsResponse = {
 
 const SESSION_OPTIONS = [60, 240, 480, 1440, 4320, 10080, 20160]
 
-/** Human label for a session length in minutes — supports up to 14 days. */
+/** Human label for a session length in minutes; supports up to 14 days. */
 function sessionLabel(m: number): string {
   if (m >= 1440) {
     const d = m / 1440
@@ -128,7 +128,7 @@ export function DemoTab() {
                   <DialogTitle>Reset demo data?</DialogTitle>
                   <DialogDescription>
                     This re-runs the platform seed and restores the full demo baseline on this deployment. Every signed-in session ends
-                    (accounts are recreated) and you will need to sign in again. Real user data does not exist on this deployment —
+                    (accounts are recreated) and you will need to sign in again. Real user data does not exist on this deployment:
                     the entire database is demo data.
                   </DialogDescription>
                 </DialogHeader>
@@ -151,7 +151,7 @@ export function DemoTab() {
           </div>
         ) : !canManage ? (
           <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-300">
-            You are signed in as a demo administrator — the demo system is visible read-only and cannot be changed from a demo session.
+            You are signed in as a demo administrator; the demo system is visible read-only and cannot be changed from a demo session.
           </div>
         ) : (
           <ul className="mt-4 space-y-2">

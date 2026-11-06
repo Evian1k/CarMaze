@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — single-page application shell.
+/* CARMAZE: single-page application shell.
  * The platform renders on the / route; views are switched via hash routing
  * (#/cars, #/sell, #/dealer, …) so URLs remain shareable while satisfying the
  * single-visible-route deployment. All data comes from real API routes.
@@ -86,7 +86,7 @@ export default function Page() {
           Boolean(window.location.hash)
         )
       } catch {
-        // matchMedia unavailable (ancient engines) — show the intro anyway.
+        // matchMedia unavailable (ancient engines): show the intro anyway.
         return sessionGet('carmaze_intro_seen') === '1' || Boolean(window.location.hash)
       }
     },

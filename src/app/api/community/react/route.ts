@@ -7,7 +7,7 @@ const reactSchema = z.object({
   postId: z.string().min(1),
 })
 
-// POST /api/community/react — toggle the signed-in user's LIKE on a post.
+// POST /api/community/react: toggle the signed-in user's LIKE on a post.
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const body = await parseBody(req, reactSchema)

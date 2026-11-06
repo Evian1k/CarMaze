@@ -4,7 +4,7 @@ import { route, ok, requireUser } from '@/lib/api'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/partners/requests/mine — the signed-in user's referral requests,
+ * GET /api/partners/requests/mine: the signed-in user's referral requests,
  * newest first, with the partner's public identity for display.
  */
 export const GET = route(async () => {

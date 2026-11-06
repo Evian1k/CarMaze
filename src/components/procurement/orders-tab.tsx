@@ -1,6 +1,6 @@
 'use client'
 
-/* Orders tab — the garage purchase-order list with status filter chips and
+/* Orders tab: the garage purchase-order list with status filter chips and
  * the full lifecycle detail dialog (order-detail.tsx). */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -119,7 +119,7 @@ export function OrdersTab({ orgId, role, deepLinkId }: {
           icon={PackageSearch}
           title={orders.length === 0 ? 'No purchase orders yet' : 'No orders match this filter'}
           description={orders.length === 0
-            ? 'Build a cart in the catalogue and check out — purchase orders are tracked here through delivery, inspection and payment release.'
+            ? 'Build a cart in the catalogue and check out; purchase orders are tracked here through delivery, inspection and payment release.'
             : 'Try another status chip or clear the search.'}
         />
       ) : (

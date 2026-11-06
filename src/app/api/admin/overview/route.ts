@@ -7,8 +7,8 @@ import { rateLimit } from '@/lib/rate-limit'
 const REVIEWABLE = ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'RESUBMITTED']
 
 /**
- * GET /api/admin/overview — Control Center summary.
- * Every number is computed live from the database — no cached or fake values.
+ * GET /api/admin/overview: Control Center summary.
+ * Every number is computed live from the database; no cached or fake values.
  */
 export const GET = route(async (req: NextRequest) => {
   await requireRole(...STAFF_ROLES)

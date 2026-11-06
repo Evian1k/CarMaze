@@ -1,8 +1,8 @@
 'use client'
 
-/* Vehicle fitment finder — GET /api/supply/fitment resolves REAL
+/* Vehicle fitment finder: GET /api/supply/fitment resolves REAL
  * compatibility records only. Verdicts: MATCH (structured record),
- * POSSIBLE (brand-level listing match), NO_FITMENT (no data — never
+ * POSSIBLE (brand-level listing match), NO_FITMENT (no data: never
  * claimed to fit). Zero matches gets honest copy + Request-a-Part CTA. */
 
 import { useCallback, useState } from 'react'
@@ -68,7 +68,7 @@ export function FitmentTab({ onRequestPart }: { onRequestPart: () => void }) {
           Vehicle compatibility finder
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          We only report fitment backed by a compatibility record on the product — nothing is assumed.
+          We only report fitment backed by a compatibility record on the product; nothing is assumed.
         </p>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
@@ -127,7 +127,7 @@ export function FitmentTab({ onRequestPart }: { onRequestPart: () => void }) {
         <EmptyState
           icon={CircleSlash}
           title="No verified fitment records"
-          description="No verified fitment records for this vehicle — use Request a Part instead and let suppliers quote the exact part for your make, model and year."
+          description="No verified fitment records for this vehicle; use Request a Part instead and let suppliers quote the exact part for your make, model and year."
         >
           <Button onClick={onRequestPart}>Request a Part</Button>
         </EmptyState>
@@ -186,7 +186,7 @@ function FitCard({ product: p }: { product: FitmentResult }) {
         )}
         {p.fit === 'POSSIBLE' && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            The supplier lists this part for the make generally — no model-level record. Confirm with the supplier before fitting.
+            The supplier lists this part for the make generally; no model-level record. Confirm with the supplier before fitting.
           </p>
         )}
 

@@ -1,12 +1,12 @@
 /**
- * Verification Center — the dedicated document verification management console
+ * Verification Center: the dedicated document verification management console
  * for platform reviewers (part of the Super Admin / Operations OS).
  *
  * Features:
  * - Review queue of every submitted/under-review/more-info document
- * - Inline document preview (private /api/files URL — uploader or staff only)
+ * - Inline document preview (private /api/files URL: uploader or staff only)
  * - Full state machine actions: start review, verify (+expiry), reject,
- *   request info (+due date) — every decision records actor, time and reason
+ *   request info (+due date): every decision records actor, time and reason
  * - Access history per document (who viewed, when)
  * - Filters: status, kind, text search; expired docs are auto-lapsed
  */
@@ -69,7 +69,7 @@ type Doc = {
 type AccessLog = { id: string; viewerName: string; action: string; createdAt: string }
 
 const KIND_LABELS: Record<string, string> = {
-  ID_FRONT: 'ID — front', ID_BACK: 'ID — back', PASSPORT: 'Passport',
+  ID_FRONT: 'ID: front', ID_BACK: 'ID: back', PASSPORT: 'Passport',
   PIN_CERTIFICATE: 'KRA PIN certificate', BUSINESS_LICENSE: 'Business license',
   DIRECTOR_ID: 'Director ID', LOGBOOK: 'Vehicle logbook', OWNERSHIP_AUTH: 'Ownership authorisation',
   DRIVER_LICENSE: 'Driver license', INSURANCE: 'Insurance', VEHICLE_REG: 'Vehicle registration',
@@ -141,7 +141,7 @@ export function VerificationCenter() {
     try {
       const res = await apiSend<{ document: Doc }>(`/api/documents/${selected.id}`, 'PATCH', { action, ...extra })
       setSelected(res.document)
-      toast.success(`Document ${action.replace('_', ' ')} — decision recorded`)
+      toast.success(`Document ${action.replace('_', ' ')}: decision recorded`)
       setNote('')
       await load()
     } catch (e) {
@@ -161,7 +161,7 @@ export function VerificationCenter() {
             <FileSearch className="h-5 w-5 text-primary" aria-hidden="true" /> Verification Center
           </h2>
           <p className="text-sm text-muted-foreground">
-            Document review pipeline. Uploading never verifies — only a recorded reviewer decision does.
+            Document review pipeline. Uploading never verifies: only a recorded reviewer decision does.
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm">
@@ -258,14 +258,14 @@ export function VerificationCenter() {
               <DialogHeader>
                 <DialogTitle className="flex flex-wrap items-center gap-2 text-base">
                   <Badge variant="outline" className={STATUS_TONES[selected.status] ?? ''}>{selected.status.replace(/_/g, ' ')}</Badge>
-                  {selected.refCode} — {KIND_LABELS[selected.kind] ?? selected.kind}
+                  {selected.refCode}: {KIND_LABELS[selected.kind] ?? selected.kind}
                 </DialogTitle>
               </DialogHeader>
 
               <div className="space-y-1 text-sm">
                 <p><span className="text-muted-foreground">Owner:</span> {selected.owner.name} · {selected.owner.email}{selected.owner.phone ? ` · ${selected.owner.phone}` : ''}</p>
                 {selected.application && (
-                  <p><span className="text-muted-foreground">Application:</span> {selected.application.refCode} ({selected.application.type}) — {selected.application.orgName} · status {selected.application.status}</p>
+                  <p><span className="text-muted-foreground">Application:</span> {selected.application.refCode} ({selected.application.type}), {selected.application.orgName} · status {selected.application.status}</p>
                 )}
                 {selected.expiresAt && <p><span className="text-muted-foreground">Valid until:</span> {dateLabel(selected.expiresAt)}</p>}
                 {selected.reviewNote && <p><span className="text-muted-foreground">Last decision note:</span> {selected.reviewNote}</p>}
@@ -289,7 +289,7 @@ export function VerificationCenter() {
                   </div>
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Served via the permissioned private-files endpoint — every staff view is recorded in the access history.
+                  Served via the permissioned private-files endpoint: every staff view is recorded in the access history.
                 </p>
               </div>
 
@@ -354,7 +354,7 @@ export function VerificationCenter() {
                   <p className="mb-1.5 text-sm font-medium">Access history</p>
                   <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2 text-xs text-muted-foreground">
                     {logs.map((l) => (
-                      <p key={l.id}>{l.viewerName} — {l.action.replace('_', ' ').toLowerCase()} · {timeAgo(l.createdAt)}</p>
+                      <p key={l.id}>{l.viewerName}: {l.action.replace('_', ' ').toLowerCase()} · {timeAgo(l.createdAt)}</p>
                     ))}
                   </div>
                 </div>

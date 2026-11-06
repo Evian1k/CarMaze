@@ -10,7 +10,7 @@ import { getMembership } from '@/lib/orgs'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/org/credit?orgId= — business view of its customer credit
+ * GET /api/org/credit?orgId=: business view of its customer credit
  * facilities (owner/GM/finance only). Balances are derived from the ledger.
  */
 export const GET = route(async (req: NextRequest) => {
@@ -54,7 +54,7 @@ const applySchema = z.object({
 })
 
 /**
- * POST — two flows:
+ * POST: two flows:
  *  - Customer applies: { orgId, requestedLimitMinor, purpose } → creates
  *    PENDING_APPLICATION facility for the business to review. Applying never
  *    grants credit; a membership purchase never grants credit.
@@ -111,5 +111,5 @@ export const POST = route(async (req: NextRequest) => {
     link: org.type === 'GARAGE' ? '/garage-dashboard?tab=credit' : '/dealer?tab=credit',
   })
   await audit({ actorId: user.id, actorName: user.name, action: 'CREDIT_APPLICATION', targetType: 'CREDIT_FACILITY', targetId: facility.id, metadata: { orgId: body.orgId, requested: body.requestedLimitMinor } })
-  return ok({ facility, message: 'Application sent. Approval is entirely at the business\'s discretion — a membership never guarantees credit.' }, { status: 201 })
+  return ok({ facility, message: 'Application sent. Approval is entirely at the business\'s discretion; a membership never guarantees credit.' }, { status: 201 })
 })

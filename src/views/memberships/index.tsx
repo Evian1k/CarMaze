@@ -1,9 +1,9 @@
 'use client'
 
-/* CARMAZE — Business Memberships (#/memberships)
+/* CARMAZE: Business Memberships (#/memberships)
  * Public discovery of membership programmes run by verified garages and
  * showrooms. Subscribing is honest billing: it creates a PENDING membership
- * plus a PENDING invoice — benefits only unlock once M-Pesa payment is
+ * plus a PENDING invoice: benefits only unlock once M-Pesa payment is
  * actually confirmed. A membership from one business never applies to
  * another business, and branch applicability is always explicit.
  */
@@ -75,7 +75,7 @@ export default function View() {
   const [error, setError] = useState<string | null>(null)
   const [activeTier, setActiveTier] = useState<{ programme: Programme; tier: Tier } | null>(null)
 
-  // Debounced search — refetch whenever the query/type settles.
+  // Debounced search: refetch whenever the query/type settles.
   useEffect(() => {
     const t = setTimeout(() => {
       const qs = new URLSearchParams()
@@ -101,7 +101,7 @@ export default function View() {
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Business Memberships</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Join a garage or showroom membership programme: predictable service perks, member
-            discounts and priority treatment — with the real terms and limits published up front.
+            discounts and priority treatment: with the real terms and limits published up front.
           </p>
         </header>
       </Reveal>
@@ -181,7 +181,7 @@ export default function View() {
             <p className="font-medium">No membership programmes match</p>
             <p className="max-w-sm text-sm text-muted-foreground">
               {query || type !== 'ALL'
-                ? 'Try a different name or widen the filter — verified garages and showrooms publish programmes as they launch them.'
+                ? 'Try a different name or widen the filter; verified garages and showrooms publish programmes as they launch them.'
                 : 'No verified business has published a membership programme yet. Check back soon.'}
             </p>
             {(query || type !== 'ALL') && (
@@ -204,7 +204,7 @@ export default function View() {
         </>
       )}
 
-      {/* One dialog instance driven by state — survives card re-renders. */}
+      {/* One dialog instance driven by state; survives card re-renders. */}
       {activeTier && (
         <TierDialog
           programme={activeTier.programme}
@@ -217,9 +217,9 @@ export default function View() {
       <footer className="mt-10 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
         <p className="font-medium text-foreground">How CARMAZE memberships work</p>
         <ul className="mt-2 list-inside list-disc space-y-1">
-          <li>Membership activates when payment is confirmed — never on a promise. Pay the invoice via M-Pesa from your subscriptions dashboard.</li>
+          <li>Membership activates when payment is confirmed: never on a promise. Pay the invoice via M-Pesa from your subscriptions dashboard.</li>
           <li><strong className="text-foreground">A membership from one business never applies to another.</strong> Benefits, discounts and credit treatment stay entirely with the business you joined.</li>
-          <li>Branch applicability is shown per tier — some tiers are valid only at selected branches.</li>
+          <li>Branch applicability is shown per tier: some tiers are valid only at selected branches.</li>
         </ul>
       </footer>
     </div>
@@ -385,11 +385,11 @@ function TierDialog({ programme, tier, signedIn, onClose }: {
             </DialogHeader>
             <div className="space-y-3">
               <div className="rounded-lg border bg-muted/50 p-4 text-sm">
-                <p className="font-medium">Invoice {success.invoice.refCode} — {money(success.invoice.amountMinor)}</p>
+                <p className="font-medium">Invoice {success.invoice.refCode}: {money(success.invoice.amountMinor)}</p>
                 <p className="mt-1 text-muted-foreground">{success.message}</p>
               </div>
               <p className="rounded-lg border border-amber-300 bg-amber-500/10 p-3 text-sm text-amber-800 dark:border-amber-500/40 dark:text-amber-200">
-                Membership activates when payment is confirmed — pay the invoice via M-Pesa from your
+                Membership activates when payment is confirmed: pay the invoice via M-Pesa from your
                 subscriptions dashboard. Benefits unlock only after confirmation.
               </p>
             </div>
@@ -410,10 +410,10 @@ function TierDialog({ programme, tier, signedIn, onClose }: {
             <div className="space-y-4">
               {tier.description && <p className="text-sm text-foreground/85">{tier.description}</p>}
 
-              {/* Terms — prominent, exactly as the business published them */}
+              {/* Terms: prominent, exactly as the business published them */}
               {tier.terms && (
                 <div className="rounded-lg border border-amber-300 bg-amber-500/10 p-3 dark:border-amber-500/40">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">Terms — read before subscribing</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">Terms: read before subscribing</p>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-amber-900 dark:text-amber-200">{tier.terms}</p>
                 </div>
               )}
@@ -455,9 +455,9 @@ function TierDialog({ programme, tier, signedIn, onClose }: {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="MONTHLY">Monthly — {money(monthly)}</SelectItem>
+                    <SelectItem value="MONTHLY">Monthly: {money(monthly)}</SelectItem>
                     <SelectItem value="YEARLY">
-                      Yearly — {money(yearly ?? monthly * 10)}
+                      Yearly: {money(yearly ?? monthly * 10)}
                       {saving !== null && savingPct !== null && savingPct > 0 ? ` · save ${savingPct}%` : ''}
                     </SelectItem>
                   </SelectContent>
@@ -467,7 +467,7 @@ function TierDialog({ programme, tier, signedIn, onClose }: {
                     {saving !== null && saving > 0
                       ? `Yearly saves you ${money(saving)} versus paying monthly for 12 months.`
                       : yearly === null
-                        ? 'This business has not published a yearly price — yearly is billed as 10× the monthly price (2 months free).'
+                        ? 'This business has not published a yearly price; yearly is billed as 10× the monthly price (2 months free).'
                         : 'Same price as 12 monthly payments.'}
                   </p>
                 )}
@@ -486,7 +486,7 @@ function TierDialog({ programme, tier, signedIn, onClose }: {
             <DialogFooter>
               <Button variant="outline" onClick={onClose}>Cancel</Button>
               <Button onClick={subscribe} disabled={busy} className="min-h-11">
-                {busy ? 'Creating subscription…' : signedIn ? `Subscribe — ${money(period === 'YEARLY' ? yearly ?? monthly * 10 : monthly)}` : 'Sign in to subscribe'}
+                {busy ? 'Creating subscription…' : signedIn ? `Subscribe: ${money(period === 'YEARLY' ? yearly ?? monthly * 10 : monthly)}` : 'Sign in to subscribe'}
               </Button>
             </DialogFooter>
           </>

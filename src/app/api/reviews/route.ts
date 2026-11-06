@@ -75,7 +75,7 @@ export const POST = route(async (req: NextRequest) => {
   // DEMO SANDBOX: demo users may only review demo businesses.
   await assertDemoResourceGuard(user, { orgId: org.id })
 
-  // Earned reviews only — the qualifying engagement depends on the org type.
+  // Earned reviews only: the qualifying engagement depends on the org type.
   if (org.type === 'GARAGE') {
     const completedBooking = await db.booking.findFirst({
       where: { orgId: org.id, status: 'COMPLETED', request: { customerId: user.id } },
@@ -92,7 +92,7 @@ export const POST = route(async (req: NextRequest) => {
     }
   }
 
-  // Upsert on (orgId, authorId) — authors may update their own rating.
+  // Upsert on (orgId, authorId): authors may update their own rating.
   const existing = await db.orgReview.findUnique({
     where: { orgId_authorId: { orgId: org.id, authorId: user.id } },
   })
@@ -122,7 +122,7 @@ export const POST = route(async (req: NextRequest) => {
             reason: 'REVIEW_EARNED',
             refType: 'ORG_REVIEW',
             refId: review.id,
-            note: `Review published — ${org.name}`,
+            note: `Review published: ${org.name}`,
           },
         })
       }

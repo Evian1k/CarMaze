@@ -1,18 +1,18 @@
 'use client'
 
 /**
- * CARMAZE Control Center (#/admin) — staff-only platform administration
+ * CARMAZE Control Center (#/admin): staff-only platform administration
  * plus the billing console (subscriptions, campaigns, M-Pesa).
  *
  * Honesty rules encoded here:
- *  - Every number comes from a live API aggregate — nothing hardcoded.
+ *  - Every number comes from a live API aggregate; nothing hardcoded.
  *  - Integration chips show REAL configuration state (e.g. M-Pesa
  *    "not configured" is shown in amber, never faked as green).
  *  - Payment actions never pretend success: STK push failures surface the
  *    server's 501/502 states and manual mark-paid requires a written
  *    reconciliation note that is audit-logged.
  * Server-side authorisation is the source of truth; the role gate below is
- * only UX — APIs enforce the same rules.
+ * only UX: APIs enforce the same rules.
  */
 
 import { useEffect, useState, type ReactNode } from 'react'
@@ -122,7 +122,7 @@ const DEPARTMENT_LABELS: Record<string, string> = {
   TECHNICAL: 'Technical',
 }
 
-// Per-tab role gates — tabs without an entry are visible to all staff.
+// Per-tab role gates: tabs without an entry are visible to all staff.
 // Server APIs enforce the same rules; this is UX only.
 const TAB_ROLES: Partial<Record<TabKey, readonly string[]>> = {
   staff: ['ADMIN', 'FOUNDER'],
@@ -427,7 +427,7 @@ export default function View() {
   const [sweeping, setSweeping] = useState(false)
 
   const tabParamRaw = route.query.get('tab')
-  // 'disputes' deep-link alias — some notifications link to /admin?tab=disputes,
+  // 'disputes' deep-link alias: some notifications link to /admin?tab=disputes,
   // but disputes live INSIDE the Supply Network console (its own internal tab).
   // AdminSupplyConsole keeps its own tab state and accepts no initial-subtab
   // prop, so the alias safely maps to the 'supply' tab; the Disputes sub-view
@@ -459,7 +459,7 @@ export default function View() {
     apiSend<{ reviewed: number; reviewerReminders: number; applicantReminders: number; escalations: number }>('/api/applications/sweep', 'POST')
       .then((r) => {
         toast.success(
-          `Sweep complete — ${r.reviewed} active applications checked, ${r.reviewerReminders} reviewer reminders, ${r.applicantReminders} applicant reminders, ${r.escalations} escalations.`
+          `Sweep complete: ${r.reviewed} active applications checked, ${r.reviewerReminders} reviewer reminders, ${r.applicantReminders} applicant reminders, ${r.escalations} escalations.`
         )
       })
       .catch((e: Error) => toast.error(e.message))
@@ -485,7 +485,7 @@ export default function View() {
                 ) : null}
               </h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Platform operations, verification and billing — live aggregates, honest payment states.
+                Platform operations, verification and billing: live aggregates, honest payment states.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -650,7 +650,7 @@ function OverviewTab() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4">
           <h3 className="text-sm font-semibold">Revenue by invoice type</h3>
-          <p className="mb-3 text-xs text-muted-foreground">Paid vs pending (KES) — computed live from invoices.</p>
+          <p className="mb-3 text-xs text-muted-foreground">Paid vs pending (KES): computed live from invoices.</p>
           {hasRevenue ? (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={revenueChartData} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
@@ -664,7 +664,7 @@ function OverviewTab() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyState message="No invoices yet — the revenue chart fills in as subscriptions and campaigns are paid." />
+            <EmptyState message="No invoices yet: the revenue chart fills in as subscriptions and campaigns are paid." />
           )}
         </Card>
 
@@ -744,7 +744,7 @@ function OverviewTab() {
           </ul>
           <Separator className="my-3" />
           <p className="text-xs text-muted-foreground">
-            All figures are computed on request from live database aggregates — nothing cached, nothing estimated.
+            All figures are computed on request from live database aggregates; nothing cached, nothing estimated.
           </p>
         </Card>
       </div>
@@ -767,7 +767,7 @@ function OpsFlag({ label, count, tab }: { label: string; count: number; tab: Tab
 
 // ───────────────────────────── Applications ─────────────────────────────
 
-/** Honest type label — LOGISTICS/SELLER applications were previously
+/** Honest type label: LOGISTICS/SELLER applications were previously
  * mislabelled as "Garage" in this queue. */
 function applicationTypeLabel(type: string): string {
   if (type === 'DEALER') return 'Dealership'
@@ -811,7 +811,7 @@ function ApplicationsTab({ user }: { user: CurrentUser }) {
       </Alert>
 
       {apps.length === 0 ? (
-        <EmptyState message="The review queue is clear — no applications waiting." />
+        <EmptyState message="The review queue is clear: no applications waiting." />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {apps.map((app) => {
@@ -848,7 +848,7 @@ function ApplicationsTab({ user }: { user: CurrentUser }) {
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                   {ageH !== null ? (
                     <span className={overSla ? 'font-semibold text-gold-ink dark:text-[#d9b878]' : 'text-muted-foreground'}>
-                      Age {Math.round(ageH)}h · SLA {app.reviewSlaHours}h {overSla ? '— over target' : ''}
+                      Age {Math.round(ageH)}h · SLA {app.reviewSlaHours}h {overSla ? ' (over target)' : ''}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">Not submitted yet</span>
@@ -874,7 +874,7 @@ function ApplicationsTab({ user }: { user: CurrentUser }) {
         />
       )}
 
-      {/* Delivery-partner oversight (ADMIN/FOUNDER — the API enforces it too). */}
+      {/* Delivery-partner oversight (ADMIN/FOUNDER: the API enforces it too). */}
       {hasAnyRole(user, 'ADMIN', 'FOUNDER') && <LogisticsPartnersSection />}
     </div>
   )
@@ -949,7 +949,7 @@ function ApplicationDetail({ id, user, onClose }: { id: string; user: CurrentUse
             {app?.escalated ? <StatusBadge status="FAILED" label="escalated" /> : null}
           </DialogTitle>
           <DialogDescription>
-            {app ? `${app.orgName} — ${applicationTypeLabel(app.type)}${app.type === 'SELLER' ? '' : ' verification'}` : 'Loading…'}
+            {app ? `${app.orgName}: ${applicationTypeLabel(app.type)}${app.type === 'SELLER' ? '' : ' verification'}` : 'Loading…'}
           </DialogDescription>
         </DialogHeader>
 
@@ -962,17 +962,17 @@ function ApplicationDetail({ id, user, onClose }: { id: string; user: CurrentUse
               <Detail label="Applicant" value={`${app.user.name} (${app.user.email})`} />
               <Detail label="Applicant phone" value={app.user.phone ?? app.phone} />
               <Detail label="Business phone" value={app.phone} />
-              <Detail label="Business email" value={app.email ?? '—'} />
+              <Detail label="Business email" value={app.email ?? 'Not provided'} />
               <Detail label="County / town" value={`${app.county}${app.town ? `, ${app.town}` : ''}`} />
-              <Detail label="Registration no." value={app.regNo ?? '—'} />
+              <Detail label="Registration no." value={app.regNo ?? 'Not set'} />
               <Detail label="Representative" value={app.representative} />
-              <Detail label="Plan interest" value={app.accountType ?? '—'} />
-              {app.type === 'GARAGE' && <Detail label="Service categories" value={app.categories ? app.categories.split(',').join(', ') : '—'} />}
-              <Detail label="Submitted" value={app.submittedAt ? `${dateLabel(app.submittedAt)} (${timeAgo(app.submittedAt)})` : '—'} />
+              <Detail label="Plan interest" value={app.accountType ?? 'Not set'} />
+              {app.type === 'GARAGE' && <Detail label="Service categories" value={app.categories ? app.categories.split(',').join(', ') : 'Not set'} />}
+              <Detail label="Submitted" value={app.submittedAt ? `${dateLabel(app.submittedAt)} (${timeAgo(app.submittedAt)})` : 'Not set'} />
               <Detail label="SLA" value={`${app.reviewSlaHours}h target`} />
               {app.correctionsDueAt && <Detail label="Corrections due" value={dateLabel(app.correctionsDueAt)} />}
               <Detail label="Reviewer" value={app.reviewOwnerName ?? 'Unassigned'} />
-              <Detail label="Physical address" value={app.physicalAddress ?? '—'} />
+              <Detail label="Physical address" value={app.physicalAddress ?? 'Not set'} />
             </div>
 
             {app.notes ? (
@@ -990,7 +990,7 @@ function ApplicationDetail({ id, user, onClose }: { id: string; user: CurrentUse
                 <ul className="space-y-1">
                   {documents.map((d, i) => (
                     <li key={i}>
-                      {/* Protected file route — opens in a new tab for staff review. */}
+                      {/* Protected file route: opens in a new tab for staff review. */}
                       <a href={d.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary underline-offset-2 hover:underline">
                         <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                         {d.name}
@@ -1133,7 +1133,7 @@ function ApplicationDetail({ id, user, onClose }: { id: string; user: CurrentUse
               <AlertDialogAction
                 disabled={busy}
                 onClick={() => {
-                  act({ action: 'approve' }, 'Application approved — organisation created.', true)
+                  act({ action: 'approve' }, 'Application approved: organisation created.', true)
                   setApproveOpen(false)
                 }}
               >
@@ -1229,7 +1229,7 @@ function LogisticsPartnersSection() {
     apiGet<{ partners: (Omit<LogisticsPartnerRow, 'jobsTotal' | 'jobsCompleted' | 'jobsFailed'> & { stats?: LogisticsPartnerStats })[]; summary: LogisticsSummary }>('/api/admin/logistics')
       .then((d) => {
         if (alive) {
-          // API nests job counters under `stats` — flatten for the table shape.
+          // API nests job counters under `stats`; flatten for the table shape.
           setPartners(d.partners.map((p) => ({ ...p, jobsTotal: p.stats?.total ?? 0, jobsCompleted: p.stats?.completed ?? 0, jobsFailed: p.stats?.failed ?? 0 })))
           setSummary(d.summary)
         }
@@ -1262,7 +1262,7 @@ function LogisticsPartnersSection() {
             <Truck className="h-4 w-4 text-primary" aria-hidden /> Logistics partners
           </h2>
           <p className="text-xs text-muted-foreground">
-            Delivery partner oversight — suspend or reinstate accounts, keep internal notes. New partner approvals happen through the review queue above.
+            Delivery partner oversight: suspend or reinstate accounts, keep internal notes. New partner approvals happen through the review queue above.
           </p>
         </div>
         {summary ? (
@@ -1277,7 +1277,7 @@ function LogisticsPartnersSection() {
       {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
       {!error && !partners && <LoadingCards n={2} />}
       {partners && partners.length === 0 && (
-        <EmptyState message="No logistics partners yet — approved delivery partner applications appear here." />
+        <EmptyState message="No logistics partners yet: approved delivery partner applications appear here." />
       )}
 
       {partners && partners.length > 0 && (
@@ -1367,11 +1367,11 @@ function LogisticsPartnersSection() {
       )}
       {partners && partners.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Showing {partners.length} partner{partners.length === 1 ? '' : 's'} — job counts are live aggregates from delivery records.
+          Showing {partners.length} partner{partners.length === 1 ? '' : 's'}: job counts are live aggregates from delivery records.
         </p>
       )}
 
-      {/* Suspend / Reinstate — shared reason dialog */}
+      {/* Suspend / Reinstate: shared reason dialog */}
       <Dialog open={reasonAction !== null} onOpenChange={(open) => !open && setReasonAction(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1385,7 +1385,7 @@ function LogisticsPartnersSection() {
           <Textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder={reasonAction === 'suspend' ? 'e.g. Repeated failed deliveries without proof-of-delivery evidence.' : 'e.g. Suspension reviewed — corrective plan accepted.'}
+            placeholder={reasonAction === 'suspend' ? 'e.g. Repeated failed deliveries without proof-of-delivery evidence.' : 'e.g. Suspension reviewed: corrective plan accepted.'}
             rows={3}
           />
           <DialogFooter>
@@ -1411,11 +1411,11 @@ function LogisticsPartnersSection() {
         </DialogContent>
       </Dialog>
 
-      {/* Internal notes — view history + add */}
+      {/* Internal notes: view history + add */}
       <Dialog open={noteTarget !== null} onOpenChange={(open) => !open && setNoteTarget(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Internal notes — {noteTarget?.name}</DialogTitle>
+            <DialogTitle>Internal notes: {noteTarget?.name}</DialogTitle>
             <DialogDescription>Staff-only notes on this delivery partner. Never shown publicly or to the partner.</DialogDescription>
           </DialogHeader>
           <div className="max-h-60 space-y-2 overflow-y-auto">
@@ -1434,7 +1434,7 @@ function LogisticsPartnersSection() {
               </ul>
             )}
           </div>
-          <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="e.g. Called the owner — driver onboarding in progress." rows={3} />
+          <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="e.g. Called the owner: driver onboarding in progress." rows={3} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setNoteTarget(null)}>
               Close
@@ -1647,7 +1647,7 @@ function ListingsTab() {
             <DialogTitle>Reject {rejecting ? vehicleTitle(rejecting) : 'listing'}</DialogTitle>
             <DialogDescription>The owner receives the reason by notification. Minimum 10 characters.</DialogDescription>
           </DialogHeader>
-          <Textarea value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="e.g. Photos do not match the stated condition — please retake and resubmit." rows={3} />
+          <Textarea value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="e.g. Photos do not match the stated condition; please retake and resubmit." rows={3} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejecting(null)}>
               Cancel
@@ -1656,7 +1656,7 @@ function ListingsTab() {
               variant="destructive"
               disabled={busy || rejectNote.trim().length < 10}
               onClick={() => {
-                if (rejecting) act({ id: rejecting.id, action: 'reject', note: rejectNote.trim() }, 'Listing rejected — owner notified.')
+                if (rejecting) act({ id: rejecting.id, action: 'reject', note: rejectNote.trim() }, 'Listing rejected: owner notified.')
                 setRejecting(null)
               }}
             >
@@ -1673,7 +1673,7 @@ function ListingsTab() {
             <DialogTitle>Suspend {suspending ? vehicleTitle(suspending) : 'listing'}</DialogTitle>
             <DialogDescription>The listing is hidden from the marketplace. A reason is required.</DialogDescription>
           </DialogHeader>
-          <Textarea value={suspendNote} onChange={(e) => setSuspendNote(e.target.value)} placeholder="e.g. Reported for suspicious pricing — suspended pending verification." rows={3} />
+          <Textarea value={suspendNote} onChange={(e) => setSuspendNote(e.target.value)} placeholder="e.g. Reported for suspicious pricing: suspended pending verification." rows={3} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setSuspending(null)}>
               Cancel
@@ -1682,7 +1682,7 @@ function ListingsTab() {
               variant="destructive"
               disabled={busy || suspendNote.trim().length < 10}
               onClick={() => {
-                if (suspending) act({ id: suspending.id, action: 'suspend', note: suspendNote.trim() }, 'Listing suspended — owner notified.')
+                if (suspending) act({ id: suspending.id, action: 'suspend', note: suspendNote.trim() }, 'Listing suspended: owner notified.')
                 setSuspending(null)
               }}
             >
@@ -1791,7 +1791,7 @@ function UsersTab({ user }: { user: CurrentUser }) {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {u.memberships.length === 0
-                        ? '—'
+                        ? 'Not set'
                         : u.memberships.map((m) => `${m.orgName} (${m.role.toLowerCase()})`).join(', ')}
                     </TableCell>
                     <TableCell>
@@ -1899,7 +1899,7 @@ type StaffRow = {
 
 type StaffAction = 'set_department' | 'set_role' | 'suspend' | 'reactivate' | 'remove_staff'
 
-/** Company staff management (ADMIN/FOUNDER only — both the nav gate and the
+/** Company staff management (ADMIN/FOUNDER only: both the nav gate and the
  * APIs enforce it). Invite generates a one-time password that is shown exactly
  * once; row actions cover department, role, suspension and access removal. */
 function StaffTab({ user }: { user: CurrentUser }) {
@@ -1948,7 +1948,7 @@ function StaffTab({ user }: { user: CurrentUser }) {
       await navigator.clipboard.writeText(text)
       toast.success(successMessage)
     } catch {
-      toast.error('Could not copy — please copy it manually')
+      toast.error('Could not copy: please copy it manually')
     }
   }
 
@@ -2017,7 +2017,7 @@ function StaffTab({ user }: { user: CurrentUser }) {
 
       {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
       {!error && !staff && <LoadingCards n={3} />}
-      {staff && staff.length === 0 && <EmptyState message="No staff accounts yet — invite your first team member." />}
+      {staff && staff.length === 0 && <EmptyState message="No staff accounts yet; invite your first team member." />}
 
       {staff && staff.length > 0 && (
         <div className="overflow-hidden rounded-xl border">
@@ -2061,7 +2061,7 @@ function StaffTab({ user }: { user: CurrentUser }) {
                             {DEPARTMENT_LABELS[s.department] ?? s.department.replaceAll('_', ' ').toLowerCase()}
                           </Badge>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-xs text-muted-foreground">Not set</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -2117,7 +2117,7 @@ function StaffTab({ user }: { user: CurrentUser }) {
           <DialogHeader>
             <DialogTitle>Invite staff member</DialogTitle>
             <DialogDescription>
-              Creates a CARMAZE account with an operational staff role and department. A one-time password is generated — share it through a secure channel.
+              Creates a CARMAZE account with an operational staff role and department. A one-time password is generated: share it through a secure channel.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -2180,7 +2180,7 @@ function StaffTab({ user }: { user: CurrentUser }) {
         </DialogContent>
       </Dialog>
 
-      {/* One-time password — shown ONCE, never stored in plaintext, never re-displayed */}
+      {/* One-time password: shown ONCE, never stored in plaintext, never re-displayed */}
       <Dialog open={createdInvite !== null} onOpenChange={(open) => !open && setCreatedInvite(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2193,7 +2193,7 @@ function StaffTab({ user }: { user: CurrentUser }) {
           </DialogHeader>
           <Alert>
             <AlertTriangle className="h-4 w-4" aria-hidden />
-            <AlertTitle>Share this securely — it will not be shown again.</AlertTitle>
+            <AlertTitle>Share this securely: it will not be shown again.</AlertTitle>
             <AlertDescription>
               Production email delivery is not configured yet, so the password is shown here once. Copy it now and hand it over through a secure channel.
             </AlertDescription>
@@ -2216,7 +2216,7 @@ function StaffTab({ user }: { user: CurrentUser }) {
           {action === 'set_department' ? (
             <>
               <DialogHeader>
-                <DialogTitle>Change department — {actionTarget?.name}</DialogTitle>
+                <DialogTitle>Change department: {actionTarget?.name}</DialogTitle>
                 <DialogDescription>Which team this staff member sits in.</DialogDescription>
               </DialogHeader>
               <Select value={actionDept} onValueChange={setActionDept}>
@@ -2243,7 +2243,7 @@ function StaffTab({ user }: { user: CurrentUser }) {
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle>Change role — {actionTarget?.name}</DialogTitle>
+                <DialogTitle>Change role: {actionTarget?.name}</DialogTitle>
                 <DialogDescription>Swaps their operational staff role. Only the four operational roles can be assigned here.</DialogDescription>
               </DialogHeader>
               <Select value={actionRole} onValueChange={setActionRole}>
@@ -2271,13 +2271,13 @@ function StaffTab({ user }: { user: CurrentUser }) {
         </DialogContent>
       </Dialog>
 
-      {/* Suspend — with reason for the audit trail */}
+      {/* Suspend: with reason for the audit trail */}
       <Dialog open={action === 'suspend'} onOpenChange={(open) => !open && setAction(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Suspend {actionTarget?.name}?</DialogTitle>
             <DialogDescription>
-              They immediately lose staff access — the session check rejects suspended accounts on every request, so this takes effect despite stateless sessions.
+              They immediately lose staff access: the session check rejects suspended accounts on every request, so this takes effect despite stateless sessions.
             </DialogDescription>
           </DialogHeader>
           <Textarea value={actionNote} onChange={(e) => setActionNote(e.target.value)} placeholder="Reason (recommended for the audit trail)…" rows={3} />
@@ -2314,7 +2314,7 @@ function StaffTab({ user }: { user: CurrentUser }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove staff access for {actionTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              All staff roles are stripped and their department is cleared — the account continues as a regular customer account. This is audit-logged and the member is notified.
+              All staff roles are stripped and their department is cleared; the account continues as a regular customer account. This is audit-logged and the member is notified.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2390,7 +2390,7 @@ function ReportsTab() {
       {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
       {!error && !reports && <LoadingCards n={3} />}
       {reports && reports.length === 0 && (
-        <EmptyState message={statusFilter === 'OPEN' ? 'No open reports — the community report queue is clear.' : 'No reports with this status.'} />
+        <EmptyState message={statusFilter === 'OPEN' ? 'No open reports: the community report queue is clear.' : 'No reports with this status.'} />
       )}
 
       {reports && reports.length > 0 && (
@@ -2508,7 +2508,7 @@ function PartnersTab() {
         <Handshake className="h-4 w-4" aria-hidden />
         <AlertTitle>Partner network moderation</AlertTitle>
         <AlertDescription>
-          Inspection, insurance, finance, towing, parts and transport partners. Only APPROVED partners appear in public listings — approval is earned through document review, never bought.
+          Inspection, insurance, finance, towing, parts and transport partners. Only APPROVED partners appear in public listings; approval is earned through document review, never bought.
         </AlertDescription>
       </Alert>
 
@@ -2667,13 +2667,13 @@ function PartnerDetail({ partner, onClose, onMutated }: { partner: PartnerRow; o
 
         <div className="space-y-4 text-sm">
           <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
-            <Detail label="Contact person" value={partner.contactName ?? '—'} />
-            <Detail label="Phone" value={partner.phone ?? '—'} />
-            <Detail label="Email" value={partner.email ?? '—'} />
-            <Detail label="Website" value={partner.website ?? '—'} />
+            <Detail label="Contact person" value={partner.contactName ?? 'Not provided'} />
+            <Detail label="Phone" value={partner.phone ?? 'Not provided'} />
+            <Detail label="Email" value={partner.email ?? 'Not provided'} />
+            <Detail label="Website" value={partner.website ?? 'Not provided'} />
             <Detail label="WhatsApp" value={partner.whatsapp ? 'Enabled' : 'Not enabled'} />
             <Detail label="County" value={partner.county} />
-            <Detail label="Service areas" value={serviceAreas.length > 0 ? serviceAreas.join(', ') : '—'} />
+            <Detail label="Service areas" value={serviceAreas.length > 0 ? serviceAreas.join(', ') : 'Not set'} />
             <Detail label="Rating" value={partner.rating !== null ? `${partner.rating.toFixed(1)} / 5` : 'No ratings yet'} />
             <Detail label="Referral requests" value={String(partner.referrals)} />
             <Detail label="Created" value={`${dateLabel(partner.createdAt)} (${timeAgo(partner.createdAt)})`} />
@@ -2744,7 +2744,7 @@ function PartnerDetail({ partner, onClose, onMutated }: { partner: PartnerRow; o
           </div>
         </div>
 
-        {/* Reject / Suspend — shared reason dialog */}
+        {/* Reject / Suspend: shared reason dialog */}
         <Dialog open={reasonAction !== null} onOpenChange={(open) => !open && setReasonAction(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -2765,7 +2765,7 @@ function PartnerDetail({ partner, onClose, onMutated }: { partner: PartnerRow; o
                 disabled={busy || reason.trim().length < 10}
                 onClick={() => {
                   if (reasonAction === 'reject') act({ action: 'reject', reason: reason.trim() }, 'Partner rejected.', true)
-                  else act({ action: 'suspend', reason: reason.trim() }, 'Partner suspended — removed from public listings.', true)
+                  else act({ action: 'suspend', reason: reason.trim() }, 'Partner suspended: removed from public listings.', true)
                   setReasonAction(null)
                 }}
               >
@@ -2781,7 +2781,7 @@ function PartnerDetail({ partner, onClose, onMutated }: { partner: PartnerRow; o
             <AlertDialogHeader>
               <AlertDialogTitle>Approve {partner.name}?</AlertDialogTitle>
               <AlertDialogDescription>
-                The partner becomes eligible for the public partner directory and referral routing. Verify their documents are genuine first — approval is a trust decision and is audit-logged.
+                The partner becomes eligible for the public partner directory and referral routing. Verify their documents are genuine first: approval is a trust decision and is audit-logged.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -2826,9 +2826,9 @@ function PartnerDetail({ partner, onClose, onMutated }: { partner: PartnerRow; o
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Add internal note</DialogTitle>
-              <DialogDescription>Notes are visible to CARMAZE staff only — never shown publicly or to the partner.</DialogDescription>
+              <DialogDescription>Notes are visible to CARMAZE staff only; never shown publicly or to the partner.</DialogDescription>
             </DialogHeader>
-            <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="e.g. Called the business line — permit verification in progress." rows={3} />
+            <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="e.g. Called the business line: permit verification in progress." rows={3} />
             <DialogFooter>
               <Button variant="outline" onClick={() => setNoteOpen(false)}>
                 Cancel
@@ -2988,7 +2988,7 @@ function BillingTab({ user }: { user: CurrentUser }) {
                         </p>
                       ) : null}
                     </TableCell>
-                    <TableCell className="text-sm">{inv.org ? inv.org.name : '—'}</TableCell>
+                    <TableCell className="text-sm">{inv.org ? inv.org.name : 'Not set'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="border-border bg-muted text-muted-foreground">{INVOICE_TYPE_LABELS[inv.type] ?? inv.type}</Badge>
                     </TableCell>
@@ -3034,7 +3034,7 @@ function BillingTab({ user }: { user: CurrentUser }) {
               Manual reconciliation for money received outside M-Pesa (bank transfer, cash, cheque). A written note is mandatory and audit-logged with your name. When M-Pesa callbacks are configured, automatic verification is preferred.
             </DialogDescription>
           </DialogHeader>
-          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={'e.g. Received via bank transfer — reconciled by ' + (user.name ?? 'finance')} rows={3} />
+          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={'e.g. Received via bank transfer: reconciled by ' + (user.name ?? 'finance')} rows={3} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setMarkTarget(null)}>
               Cancel
@@ -3046,7 +3046,7 @@ function BillingTab({ user }: { user: CurrentUser }) {
         </DialogContent>
       </Dialog>
 
-      {/* Refund confirm — mandatory written reason, honest consequences */}
+      {/* Refund confirm: mandatory written reason, honest consequences */}
       <AlertDialog open={refundTarget !== null} onOpenChange={(open) => !open && setRefundTarget(null)}>
         <AlertDialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <AlertDialogHeader>
@@ -3054,11 +3054,11 @@ function BillingTab({ user }: { user: CurrentUser }) {
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>
-                  The invoice becomes REFUNDED — refunded money is not counted as revenue. The payment date is kept as history, and the written reason below is stored in the audit trail with your name. The organisation owner is notified.
+                  The invoice becomes REFUNDED: refunded money is not counted as revenue. The payment date is kept as history, and the written reason below is stored in the audit trail with your name. The organisation owner is notified.
                 </p>
                 {refundTarget?.type === 'SUBSCRIPTION' ? (
                   <p className="rounded-md bg-[#d9b878]/15 px-3 py-2 text-gold-ink dark:text-[#d9b878]">
-                    Consequence: the organisation&apos;s ACTIVE subscription is CANCELLED immediately — the money is returned, so the paid entitlement ends now.
+                    Consequence: the organisation&apos;s ACTIVE subscription is CANCELLED immediately: the money is returned, so the paid entitlement ends now.
                   </p>
                 ) : null}
                 {refundTarget?.type === 'CAMPAIGN' ? (
@@ -3068,7 +3068,7 @@ function BillingTab({ user }: { user: CurrentUser }) {
                 ) : null}
                 {refundTarget?.type === 'LEAD_FEE' ? (
                   <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground">
-                    This invoice has no recurring entitlement — only the invoice status changes.
+                    This invoice has no recurring entitlement: only the invoice status changes.
                   </p>
                 ) : null}
               </div>
@@ -3077,7 +3077,7 @@ function BillingTab({ user }: { user: CurrentUser }) {
           <Textarea
             value={refundReason}
             onChange={(e) => setRefundReason(e.target.value)}
-            placeholder="Reason for the refund (required, at least 10 characters) — e.g. Duplicate payment received for the same subscription period."
+            placeholder="Reason for the refund (required, at least 10 characters): e.g. Duplicate payment received for the same subscription period."
             rows={3}
             aria-label="Refund reason"
           />
@@ -3147,7 +3147,7 @@ function CampaignsTab() {
 
       {error && <ErrorNote message={error} onRetry={() => setReload((r) => r + 1)} />}
       {!error && !campaigns && <LoadingCards n={3} />}
-      {campaigns && campaigns.length === 0 && <EmptyState message="No campaigns yet — dealers create them from their dashboard." />}
+      {campaigns && campaigns.length === 0 && <EmptyState message="No campaigns yet; dealers create them from their dashboard." />}
 
       {campaigns && campaigns.length > 0 && (
         <div className="overflow-hidden rounded-xl border">
@@ -3184,7 +3184,7 @@ function CampaignsTab() {
                     </TableCell>
                     <TableCell className="text-sm">
                       <p>{c.packageName}</p>
-                      <p className="text-xs text-muted-foreground">{c.packagePriceMinor !== null ? money(c.packagePriceMinor) : '—'} · {c.packageDays ?? '?'} days</p>
+                      <p className="text-xs text-muted-foreground">{c.packagePriceMinor !== null ? money(c.packagePriceMinor) : 'Not provided'} · {c.packageDays ?? '?'} days</p>
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={c.status} />
@@ -3193,7 +3193,7 @@ function CampaignsTab() {
                       {c.impressions} / {c.clicks}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                      {c.startsAt ? `${dateLabel(c.startsAt)} → ${c.endsAt ? dateLabel(c.endsAt) : '?'}` : '—'}
+                      {c.startsAt ? `${dateLabel(c.startsAt)} → ${c.endsAt ? dateLabel(c.endsAt) : '?'}` : 'Not set'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1.5">
@@ -3230,7 +3230,7 @@ function CampaignsTab() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirm?.action === 'activate'
-                ? `Activation requires the linked invoice to be PAID — the server verifies this and refuses otherwise. The campaign runs for ${confirm?.row.packageDays ?? 7} days from now.`
+                ? `Activation requires the linked invoice to be PAID; the server verifies this and refuses otherwise. The campaign runs for ${confirm?.row.packageDays ?? 7} days from now.`
                 : confirm?.action === 'end'
                   ? 'The campaign stops immediately and is marked ENDED.'
                   : 'The campaign is cancelled. If it was unpaid, the invoice stays pending for follow-up.'}
@@ -3385,7 +3385,7 @@ function SupportTab() {
           ) : (
             <div>
               <Label>Recorded response</Label>
-              <p className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm">{openTicket?.response ?? '—'}</p>
+              <p className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm">{openTicket?.response ?? 'Not set'}</p>
             </div>
           )}
         </DialogContent>
@@ -3400,7 +3400,7 @@ function NotificationsTab({ user }: { user: CurrentUser }) {
   const [data, setData] = useState<OpsData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
-  // Broadcast composer state (ADMIN/FOUNDER only — server enforces the same rule)
+  // Broadcast composer state (ADMIN/FOUNDER only: server enforces the same rule)
   const canBroadcast = hasAnyRole(user, 'ADMIN', 'FOUNDER')
   const [broadcasts, setBroadcasts] = useState<BroadcastRow[] | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
@@ -3463,7 +3463,7 @@ function NotificationsTab({ user }: { user: CurrentUser }) {
         <AlertTitle>Honest delivery records</AlertTitle>
         <AlertDescription>
           Email and SMS providers are not configured on this deployment, so those channel deliveries are recorded as FAILED instead of pretending
-          success. Configure SMTP_URL / SMS_API_KEY to activate them — in-app notifications always work.
+          success. Configure SMTP_URL / SMS_API_KEY to activate them; in-app notifications always work.
         </AlertDescription>
       </Alert>
 
@@ -3486,7 +3486,7 @@ function NotificationsTab({ user }: { user: CurrentUser }) {
         </div>
         <Separator className="my-3" />
         {broadcasts && broadcasts.length === 0 ? (
-          <EmptyState message="No broadcasts have been sent yet. Admins can compose one with “New broadcast” — every send is audit-logged with the exact recipient count." />
+          <EmptyState message="No broadcasts have been sent yet. Admins can compose one with “New broadcast”; every send is audit-logged with the exact recipient count." />
         ) : broadcasts && broadcasts.length > 0 ? (
           <ul className="max-h-64 divide-y overflow-y-auto">
             {broadcasts.map((b) => (
@@ -3518,7 +3518,7 @@ function NotificationsTab({ user }: { user: CurrentUser }) {
         <h3 className="text-sm font-semibold">Failed notification deliveries</h3>
         <p className="mb-2 text-xs text-muted-foreground">Channel attempts that could not be completed, newest first.</p>
         {data.failedDeliveries.length === 0 ? (
-          <EmptyState message="No failed deliveries — all notification channels are healthy or unused." />
+          <EmptyState message="No failed deliveries: all notification channels are healthy or unused." />
         ) : (
           <ul className="max-h-72 divide-y overflow-y-auto">
             {data.failedDeliveries.map((d) => (
@@ -3538,7 +3538,7 @@ function NotificationsTab({ user }: { user: CurrentUser }) {
 
       <Card className="p-4">
         <h3 className="text-sm font-semibold">Payment attempts</h3>
-        <p className="mb-2 text-xs text-muted-foreground">Every M-Pesa attempt is recorded with its real outcome — including failures.</p>
+        <p className="mb-2 text-xs text-muted-foreground">Every M-Pesa attempt is recorded with its real outcome; including failures.</p>
         {data.paymentAttempts.length === 0 ? (
           <EmptyState message="No payment attempts recorded yet. Attempts appear here the moment a dealer tries to pay." />
         ) : (
@@ -3564,7 +3564,7 @@ function NotificationsTab({ user }: { user: CurrentUser }) {
                       <StatusBadge status={p.status} />
                     </TableCell>
                     <TableCell className="max-w-[220px] truncate text-xs text-muted-foreground" title={p.resultDesc ?? ''}>
-                      {p.resultDesc ?? '—'}
+                      {p.resultDesc ?? 'Not provided'}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{timeAgo(p.createdAt)}</TableCell>
                   </TableRow>
@@ -3611,7 +3611,7 @@ function NotificationsTab({ user }: { user: CurrentUser }) {
             </div>
             <div>
               <Label htmlFor="broadcast-link">Link (optional)</Label>
-              <Input id="broadcast-link" value={bLink} onChange={(e) => setBLink(e.target.value)} placeholder="/cars — in-app hash route the notification opens" maxLength={200} />
+              <Input id="broadcast-link" value={bLink} onChange={(e) => setBLink(e.target.value)} placeholder="/cars: in-app hash route the notification opens" maxLength={200} />
             </div>
           </div>
           <DialogFooter>
@@ -3625,7 +3625,7 @@ function NotificationsTab({ user }: { user: CurrentUser }) {
         </DialogContent>
       </Dialog>
 
-      {/* Broadcast confirmation — shows the recipient estimate before sending */}
+      {/* Broadcast confirmation: shows the recipient estimate before sending */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent className="sm:max-w-lg">
           <AlertDialogHeader>
@@ -3645,7 +3645,7 @@ function NotificationsTab({ user }: { user: CurrentUser }) {
                     'This goes to active staff accounts (support, reviewers, moderators, finance, admin, founder).'}
                 </p>
                 <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground">
-                  In-app delivery is real. EMAIL/SMS rows will honestly record the provider state — with no provider configured they are stored as FAILED, never as sent.
+                  In-app delivery is real. EMAIL/SMS rows will honestly record the provider state; with no provider configured they are stored as FAILED, never as sent.
                 </p>
               </div>
             </AlertDialogDescription>
@@ -3715,7 +3715,7 @@ function SettingsTab({ user }: { user: CurrentUser }) {
     try {
       parsed = JSON.parse(drafts[key])
     } catch {
-      toast.error('Invalid JSON — fix the syntax before saving.')
+      toast.error('Invalid JSON: fix the syntax before saving.')
       return
     }
     setBusy(true)
@@ -3734,7 +3734,7 @@ function SettingsTab({ user }: { user: CurrentUser }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Platform configuration as JSON documents. Changes apply live across the site and are audit-logged (key only — values stay out of the audit trail).
+        Platform configuration as JSON documents. Changes apply live across the site and are audit-logged (key only: values stay out of the audit trail).
       </p>
       <div className="grid gap-4 lg:grid-cols-2">
         {data.settings.map((s) => (
@@ -3847,11 +3847,11 @@ function AuditTab() {
                           {e.targetId ? ` · ${e.targetId}` : ''}
                         </span>
                       ) : (
-                        '—'
+                        'Not set'
                       )}
                     </TableCell>
                     <TableCell className="max-w-[280px] truncate font-mono text-[11px] text-muted-foreground" title={e.metadata ?? ''}>
-                      {e.metadata ?? '—'}
+                      {e.metadata ?? 'Not set'}
                     </TableCell>
                   </TableRow>
                 ))}

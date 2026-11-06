@@ -7,7 +7,7 @@ import { audit } from '@/lib/audit'
 import { rateLimit } from '@/lib/rate-limit'
 
 /**
- * GET /api/admin/demo-accounts — demo account registry + recent demo sign-ins.
+ * GET /api/admin/demo-accounts: demo account registry + recent demo sign-ins.
  * ADMIN/FOUNDER only. Demo users are blocked from managing the demo system.
  */
 export const GET = route(async () => {
@@ -45,7 +45,7 @@ const patchSchema = z.object({
   sessionMinutes: z.number().int().min(15).max(DEMO_SESSION_MINUTES_MAX).optional(),
 })
 
-/** PATCH /api/admin/demo-accounts — enable/disable a demo role, adjust session length. */
+/** PATCH /api/admin/demo-accounts: enable/disable a demo role, adjust session length. */
 export const PATCH = route(async (req: NextRequest) => {
   const user = await requireRole('ADMIN', 'FOUNDER')
   if (user.isDemo) return fail(403, 'DEMO_SANDBOXED', 'Demo mode: managing the demo system is disabled for demo accounts.')

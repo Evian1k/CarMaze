@@ -7,7 +7,7 @@ import { route, ok, fail, ApiError, getIp } from '@/lib/api'
 type Ctx = { params: Promise<{ id: string }> }
 
 /**
- * POST /api/vehicles/[id]/view — increments views with per-IP+vehicle dedupe.
+ * POST /api/vehicles/[id]/view: increments views with per-IP+vehicle dedupe.
  * A ViewEvent row (unique key) marks "already counted in the last 24h".
  * Old rows are pruned opportunistically.
  */
@@ -50,7 +50,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   })
 
   // Real promotion metrics: a counted view of a promoted listing is one
-  // campaign interaction (the viewer reached the listing) — increment clicks
+  // campaign interaction (the viewer reached the listing): increment clicks
   // for every ACTIVE campaign on this vehicle. Deduped short-circuits above
   // never reach this, so repeat views from the same IP are not double-counted.
   await db.campaign.updateMany({

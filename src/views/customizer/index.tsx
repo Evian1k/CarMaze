@@ -1,7 +1,7 @@
 'use client'
 
 /*
- * CARMAZE — 3D Car Customizer view.
+ * CARMAZE: 3D Car Customizer view.
  * Left: live WebGL showroom (Canvas lives here; the scene contents are in
  * ./car-scene). Right: control panel where every control mutates the CarConfig
  * state and therefore the 3D scene. Saving posts the validated config to
@@ -137,7 +137,7 @@ export default function View() {
       })
       .catch(() => {
         if (cancelled) return
-        setBanner('This shared configuration is no longer available — showing default setup')
+        setBanner('This shared configuration is no longer available; showing default setup')
         setConfigId(null)
         configIdRef.current = null
         savedSnapshotRef.current = null
@@ -248,7 +248,7 @@ export default function View() {
       toast.success('Link copied to clipboard')
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
-      toast.error('Copy failed — select the link text and copy manually.')
+      toast.error('Copy failed: select the link text and copy manually.')
     }
   }
 
@@ -275,7 +275,7 @@ export default function View() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">3D Studio</h1>
           <p className="text-sm text-muted-foreground">
-            Build your Sedan Classic — paint, rims, glass, stance. Every control updates the live model.
+            Build your Sedan Classic: paint, rims, glass, stance. Every control updates the live model.
           </p>
         </div>
         <Badge variant="outline" className="ml-auto gap-1.5">
@@ -651,7 +651,7 @@ function WebglFallback() {
         <h2 className="text-lg font-semibold">3D Studio needs WebGL</h2>
         <p className="max-w-prose text-sm text-muted-foreground">
           Your browser or device does not support WebGL, which powers the live 3D customizer. You can still browse the
-          marketplace and request modification quotes from verified garages — our team can apply any configuration with
+          marketplace and request modification quotes from verified garages; our team can apply any configuration with
           you directly.
         </p>
         <Button type="button" onClick={() => navigate('cars')} className="gap-2">

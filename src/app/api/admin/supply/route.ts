@@ -13,7 +13,7 @@ import { assertDemoResourceGuard } from '@/lib/demo'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/admin/supply — platform staff console for the Automotive Supply
+ * GET /api/admin/supply: platform staff console for the Automotive Supply
  * Network: supplier applications, verification queue, product moderation,
  * counterfeit reports, disputes, order/payment monitoring, low-risk scores.
  */
@@ -88,7 +88,7 @@ export const GET = route(async (req: NextRequest) => {
 })
 
 const actionSchema = z.discriminatedUnion('action', [
-  // supplier verification — never automatic
+  // supplier verification: never automatic
   z.object({ action: z.literal('verify-supplier'), orgId: z.string().min(1), note: z.string().max(500).optional() }),
   z.object({ action: z.literal('unverify-supplier'), orgId: z.string().min(1), note: z.string().max(500) }),
   z.object({ action: z.literal('suspend-supplier'), orgId: z.string().min(1), note: z.string().max(500) }),
@@ -119,7 +119,7 @@ const actionSchema = z.discriminatedUnion('action', [
 
 /** Resolve the demo-ecosystem subject of a supply-console action from the
  * database (owner user or owning org). Returns null when the record does not
- * exist — demo sessions are then blocked rather than trusted. */
+ * exist: demo sessions are then blocked rather than trusted. */
 async function supplyActionSubject(body: { action: string; orgId?: string; applicationId?: string; productId?: string; disputeId?: string; orderId?: string; refundId?: string }): Promise<{ ownerId?: string | null; orgId?: string | null } | null> {
   switch (body.action) {
     case 'verify-supplier':
@@ -162,14 +162,14 @@ async function supplyActionSubject(body: { action: string; orgId?: string; appli
   }
 }
 
-/** POST — all sensitive actions are logged to the audit trail. */
+/** POST: all sensitive actions are logged to the audit trail. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireRole(ROLE.SUPPORT, ROLE.REVIEWER, ROLE.MODERATOR, ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
   const body = await parseBody(req, actionSchema)
   const staffSide = 'ADMIN' as const
 
   // FINANCE SPLIT: reconciling a payment marks an invoice PAID and processing
-  // a refund moves money state — restricted to FINANCE/ADMIN/FOUNDER instead
+  // a refund moves money state: restricted to FINANCE/ADMIN/FOUNDER instead
   // of every staff role.
   if ((body.action === 'reconcile-payment' || body.action === 'process-refund') && !hasRole(user, ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)) {
     return fail(403, 'FINANCE_ONLY', 'Payment reconciliation and refunds are restricted to the Finance department.')
@@ -248,7 +248,7 @@ export const POST = route(async (req: NextRequest) => {
       }
       await db.application.update({
         where: { id: app.id },
-        data: { status: 'APPROVED', orgId: org.id, decisionNote: body.note ?? null, events: { create: { type: 'APPROVED', actorId: user.id, actorName: user.name, note: body.note ?? 'Documents reviewed. Business account created — verification (listing) follows separately.' } } },
+        data: { status: 'APPROVED', orgId: org.id, decisionNote: body.note ?? null, events: { create: { type: 'APPROVED', actorId: user.id, actorName: user.name, note: body.note ?? 'Documents reviewed. Business account created: verification (listing) follows separately.' } } },
       })
       await notify({ userId: app.userId, type: 'SUPPLIER_APPROVED', title: 'Supplier application approved', body: `${app.orgName} is registered. Add your warehouses and products in the Supplier Portal. Verification status shows once platform review completes.`, link: '/supplier' })
       await audit({ actorId: user.id, actorName: user.name, action: 'SUPPLIER_APPLICATION_APPROVED', targetType: 'APPLICATION', targetId: app.id, metadata: { orgId: org.id } })
@@ -323,7 +323,7 @@ export const POST = route(async (req: NextRequest) => {
         })
         await db.disputeEvent.create({ data: { disputeId: dispute.id, type: 'RESOLUTION', actorId: user.id, actorName: user.name, note: `${body.resolution}: ${body.note}` } })
         if (body.resolution === 'REJECTED') {
-          // Complaint not upheld — the delivered order stands as completed.
+          // Complaint not upheld: the delivered order stands as completed.
           await db.customerOrder.update({ where: { id: order.id }, data: { status: 'COMPLETED', completedAt: order.completedAt ?? new Date() } })
           await db.customerOrderEvent.create({ data: { orderId: order.id, type: 'NOTE', actorSide: 'SYSTEM', actorName: user.name, note: `Dispute ${dispute.refCode} not upheld: ${body.note}` } })
         } else if (body.resolution === 'REPLACEMENT') {
@@ -338,7 +338,7 @@ export const POST = route(async (req: NextRequest) => {
         await notify({
           userId: order.buyerUserId,
           type: 'DISPUTE_RESOLVED',
-          title: `Dispute ${dispute.refCode} resolved — ${body.resolution.replaceAll('_', ' ').toLowerCase()}`,
+          title: `Dispute ${dispute.refCode} resolved: ${body.resolution.replaceAll('_', ' ').toLowerCase()}`,
           body: body.note,
           link: '/account?tab=orders',
         })
@@ -389,7 +389,7 @@ export const POST = route(async (req: NextRequest) => {
       if (order.invoiceId) await db.invoice.update({ where: { id: order.invoiceId }, data: { status: 'PAID', paidAt: new Date(), paidVia: 'MANUAL' } })
       await poEvent(order.id, { type: 'PAYMENT', actorId: user.id, actorName: user.name, actorSide: staffSide, note: `Payment reconciled (provider ref ${body.providerRef}). Funds protected pending inspection.` })
       await audit({ actorId: user.id, actorName: user.name, action: 'ORDER_PAYMENT_RECONCILED', targetType: 'PURCHASE_ORDER', targetId: order.id, metadata: { providerRef: body.providerRef } })
-      await notifyMany((await db.orgMember.findMany({ where: { orgId: order.garageOrgId }, select: { userId: true } })).map((m) => m.userId), { type: 'ORDER_PAYMENT', title: `Payment protected — ${order.refCode}`, body: 'Finance confirmed the payment. The supplier can now dispatch; funds release after your inspection.', link: '/procurement?tab=orders' })
+      await notifyMany((await db.orgMember.findMany({ where: { orgId: order.garageOrgId }, select: { userId: true } })).map((m) => m.userId), { type: 'ORDER_PAYMENT', title: `Payment protected: ${order.refCode}`, body: 'Finance confirmed the payment. The supplier can now dispatch; funds release after your inspection.', link: '/procurement?tab=orders' })
       return ok({ message: 'Payment reconciled and protected. Supplier can dispatch.' })
     }
     case 'process-refund': {

@@ -24,7 +24,7 @@ const patchSchema = z.object({
   active: z.boolean().optional(),
 })
 
-/** PATCH — update / archive a tier (owner/GM). */
+/** PATCH: update / archive a tier (owner/GM). */
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()
@@ -55,7 +55,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   return ok({ tier: { ...updated, benefits: jsonParse(updated.benefits, []) } })
 })
 
-/** DELETE — archive a tier (soft; existing memberships keep their terms). */
+/** DELETE: archive a tier (soft; existing memberships keep their terms). */
 export const DELETE = route(async (_req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()

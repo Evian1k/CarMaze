@@ -3,7 +3,7 @@ import { Logo } from '@/components/brand/logo'
 /**
  * Branded pre-hydration screen. Replaces the old empty `<div>` gate: the
  * first server-rendered paint is a warm, on-brand loading state instead of
- * a white void — so slow networks, disabled JS or blocked storage never
+ * a white void: so slow networks, disabled JS or blocked storage never
  * present a blank page.
  *
  * Deterministic markup (no randomness/dates) so SSR and the hydration

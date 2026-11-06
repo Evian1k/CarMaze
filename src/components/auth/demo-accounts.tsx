@@ -1,6 +1,6 @@
 'use client'
 
-/* Explore CARMAZE Demo Accounts — server-driven catalog of demo experiences.
+/* Explore CARMAZE Demo Accounts: server-driven catalog of demo experiences.
  * The frontend NEVER holds demo credentials: clicking "Explore Demo" posts a
  * roleKey to /api/auth/demo, and the server maps it to the demo account and
  * creates a secure, sandboxed session (default: 2 weeks, server-configured). */

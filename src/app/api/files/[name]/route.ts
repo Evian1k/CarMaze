@@ -16,7 +16,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()
   const { name } = await ctx.params
 
-  // strict filename validation — no traversal
+  // strict filename validation: no traversal
   if (!/^[A-Za-z0-9_-]+\.[a-f0-9]{16}\.(jpg|png|webp|pdf)$/.test(name)) {
     return fail(400, 'INVALID_NAME', 'Invalid document reference.')
   }
@@ -32,7 +32,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
     const mime = ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg'
 
     // Access history: every staff view of a verification document is logged.
-    // (Owner views are not logged — they are accessing their own file.)
+    // (Owner views are not logged: they are accessing their own file.)
     try {
       const doc = await db.verificationDocument.findFirst({
         where: { fileUrl: `/api/files/${name}` },

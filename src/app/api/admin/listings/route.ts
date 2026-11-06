@@ -11,7 +11,7 @@ const LISTING_STATUSES = ['ALL', 'DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'RESERV
 const PAGE_SIZE = 12
 
 /**
- * GET /api/admin/listings?status=PENDING_REVIEW&page=1 — moderation queue.
+ * GET /api/admin/listings?status=PENDING_REVIEW&page=1: moderation queue.
  * Includes photos, owner and org for real review decisions.
  */
 export const GET = route(async (req: NextRequest) => {
@@ -49,8 +49,8 @@ const patchSchema = z.object({
 })
 
 /**
- * PATCH /api/admin/listings — moderation actions (REVIEWER/MODERATOR/ADMIN/FOUNDER).
- * Every action writes a ListingEvent, an audit log entry and — where relevant —
+ * PATCH /api/admin/listings: moderation actions (REVIEWER/MODERATOR/ADMIN/FOUNDER).
+ * Every action writes a ListingEvent, an audit log entry and: where relevant:
  * an honest notification to the owner.
  */
 export const PATCH = route(async (req: NextRequest) => {

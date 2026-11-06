@@ -1,6 +1,6 @@
 'use client'
 
-/* SupplierOS — the supplier portal of the CARMAZE Automotive Supply Network.
+/* SupplierOS: the supplier portal of the CARMAZE Automotive Supply Network.
  *
  * Gate logic (driven by GET /api/orgs/me):
  *   A) No SUPPLIER membership  → "Become a verified supplier" application form
@@ -55,7 +55,7 @@ export default function View() {
   const [reloadToken, setReloadToken] = useState(0)
 
   // Real server state: the signed-in user's own SUPPLIER application, if any.
-  // Gates show genuine review progress from /api/auth/me — no client-side guessing.
+  // Gates show genuine review progress from /api/auth/me; no client-side guessing.
   const supplierApp = useMemo(
     () => applications.find((a) => a.type === 'SUPPLIER') ?? null,
     [applications]
@@ -124,7 +124,7 @@ export default function View() {
     )
   }
 
-  // State C — active supplier business(es)
+  // State C: active supplier business(es)
   if (current) {
     if (current.org.status !== 'ACTIVE') {
       return (
@@ -133,7 +133,7 @@ export default function View() {
             <CircleAlert className="h-4 w-4" />
             <AlertTitle>{current.org.name} is currently {current.org.status.toLowerCase()}</AlertTitle>
             <AlertDescription>
-              Your supplier workspace is paused. Contact CARMAZE support to resolve this — your data is safe.
+              Your supplier workspace is paused. Contact CARMAZE support to resolve this: your data is safe.
             </AlertDescription>
           </Alert>
         </div>
@@ -152,7 +152,7 @@ export default function View() {
     }
   }
 
-  // State A/B — application flow (no active supplier membership)
+  // State A/B: application flow (no active supplier membership)
   if (appInReview && supplierApp) {
     return (
       <UnderReview
@@ -193,7 +193,7 @@ function SupplierDashboard({ memberships, membership, activeOrgId, onOrgChange, 
   const org = membership.org
   const role = membership.role
 
-  // Shared fetches — one request per tab switch group, reused by several tabs.
+  // Shared fetches: one request per tab switch group, reused by several tabs.
   const products = useFetch<{ products: ProductItem[] }>('/api/supply/products')
   const orders = useFetch<{ orders: OrderListItem[] }>(`/api/supply/orders?orgId=${activeOrgId}`)
   const consumerOrders = useFetch<{ orders: ConsumerOrder[]; counts: Record<string, number> }>(`/api/orders?scope=supplier&orgId=${activeOrgId}`)

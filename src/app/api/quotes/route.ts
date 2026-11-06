@@ -6,7 +6,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { notify } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 
-// ─────────────────────────── POST — garage sends a quote ───────────────────────────
+// ─────────────────────────── POST: garage sends a quote ───────────────────────────
 
 const quoteSchema = z.object({
   requestId: z.string().min(1),
@@ -43,7 +43,7 @@ async function resolveQuotingOrg(userId: string, requestId: string, orgId?: stri
     }
   }
   if (memberships.length === 1) return memberships[0].org
-  throw new ApiError(400, 'ORG_REQUIRED', 'You manage more than one garage — specify which garage is quoting (orgId).')
+  throw new ApiError(400, 'ORG_REQUIRED', 'You manage more than one garage: specify which garage is quoting (orgId).')
 }
 
 export const POST = route(async (req: NextRequest) => {
@@ -71,12 +71,12 @@ export const POST = route(async (req: NextRequest) => {
     throw new ApiError(409, 'CATEGORY_NOT_OFFERED', `Add an active "${request.category.replaceAll('_', ' ').toLowerCase()}" service to your garage before quoting on this request.`)
   }
 
-  // One quote per org per request — upsert keeps our own quote current.
+  // One quote per org per request; upsert keeps our own quote current.
   const existing = await db.quote.findUnique({
     where: { requestId_orgId: { requestId: request.id, orgId: org.id } },
   })
   if (existing?.status === 'ACCEPTED') {
-    throw new ApiError(409, 'QUOTE_ACCEPTED', 'The customer already accepted this quote — manage it under Bookings.')
+    throw new ApiError(409, 'QUOTE_ACCEPTED', 'The customer already accepted this quote: manage it under Bookings.')
   }
 
   const quote = existing

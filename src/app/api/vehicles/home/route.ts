@@ -4,7 +4,7 @@ import { route, ok } from '@/lib/api'
 
 export const dynamic = 'force-dynamic'
 
-/** Homepage payload — published listings only, cache-friendly. */
+/** Homepage payload: published listings only, cache-friendly. */
 export const GET = route(async (_req: NextRequest) => {
   const include = {
     photos: { orderBy: { order: 'asc' as const } },

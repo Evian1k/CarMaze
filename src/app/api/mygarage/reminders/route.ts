@@ -28,7 +28,7 @@ async function assertOwnedReminder(id: string, userId: string) {
   return reminder
 }
 
-// GET /api/mygarage/reminders — ACTIVE first (by dueDate asc), then DONE/DISMISSED; with owning vehicle summary.
+// GET /api/mygarage/reminders: ACTIVE first (by dueDate asc), then DONE/DISMISSED; with owning vehicle summary.
 export const GET = route(async () => {
   const user = await requireUser()
   const reminders = await db.reminder.findMany({
@@ -58,7 +58,7 @@ export const GET = route(async () => {
   })
 })
 
-// POST /api/mygarage/reminders — create an in-app reminder on an owned vehicle.
+// POST /api/mygarage/reminders: create an in-app reminder on an owned vehicle.
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const rl = rateLimit(`mygarage-reminder:${user.id}:${getIp(req)}`, 60, 60 * 60 * 1000)
@@ -82,7 +82,7 @@ export const POST = route(async (req: NextRequest) => {
   return ok({ reminder }, { status: 201 })
 })
 
-// PATCH /api/mygarage/reminders?id= — owner updates status/fields.
+// PATCH /api/mygarage/reminders?id=: owner updates status/fields.
 // Real recurring logic: marking DONE on a reminder with intervalDays creates the next occurrence.
 export const PATCH = route(async (req: NextRequest) => {
   const user = await requireUser()
@@ -129,7 +129,7 @@ export const PATCH = route(async (req: NextRequest) => {
   return ok({ reminder: updated, next })
 })
 
-// DELETE /api/mygarage/reminders?id= — owner only.
+// DELETE /api/mygarage/reminders?id=: owner only.
 export const DELETE = route(async (req: NextRequest) => {
   const user = await requireUser()
   const id = new URL(req.url).searchParams.get('id')

@@ -1,6 +1,6 @@
 'use client'
 
-/* Full product detail page — GET /api/supply/products/[id].
+/* Full product detail page: GET /api/supply/products/[id].
  * Real data only: spec table, recorded compatibility (with admin-verified
  * ticks or an honest "no records" message), per-warehouse availability,
  * price history, reviews with a signed-in review form, wholesale-aware
@@ -146,7 +146,7 @@ export function ProductDetail({ productId }: { productId: string }) {
   const error = errState?.key === fetchKey ? errState.message : null
   const data = state?.data ?? null
 
-  // Deep links skip the landing — make sure saved bookmarks are hydrated.
+  // Deep links skip the landing: make sure saved bookmarks are hydrated.
   useEffect(() => {
     if (user) void hydrateSaved()
   }, [user, hydrateSaved])
@@ -192,7 +192,7 @@ function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: Prod
   const hasWholesale = Boolean(p.wholesalePriceMinor && p.wholesaleMinQty > 0)
   const wholesaleUnlocked = hasWholesale && qty >= (p.wholesaleMinQty ?? 0)
   const maxQty = p.availableQty > 0 ? p.availableQty : 0
-  // Consumer ordering: signed-in customers only — never the listing's own
+  // Consumer ordering: signed-in customers only: never the listing's own
   // supplier, and never supplier-platform accounts (they buy via procurement).
   const isSupplierUser = isOwner || hasAnyRole(user, 'SUPPLIER_OWNER', 'SUPPLIER_STAFF')
   const canOrder = signedIn && !isSupplierUser
@@ -374,12 +374,12 @@ function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: Prod
             {hasWholesale && (
               <p className={`mt-2 text-xs ${wholesaleUnlocked ? 'font-medium text-primary' : 'text-muted-foreground'}`}>
                 {wholesaleUnlocked
-                  ? `Wholesale price unlocked at qty ${p.wholesaleMinQty} — you save ${money((p.unitPriceMinor - (p.wholesalePriceMinor ?? 0)) * qty, p.currency)} on this line`
+                  ? `Wholesale price unlocked at qty ${p.wholesaleMinQty}: you save ${money((p.unitPriceMinor - (p.wholesalePriceMinor ?? 0)) * qty, p.currency)} on this line`
                   : `Add ${p.wholesaleMinQty - qty} more to unlock wholesale pricing (min qty ${p.wholesaleMinQty})`}
               </p>
             )}
 
-            {/* Consumer order CTA — signed-in non-supplier users */}
+            {/* Consumer order CTA: signed-in non-supplier users */}
             <div className="mt-3 border-t border-border pt-3">
               {canOrder ? (
                 <>
@@ -387,7 +387,7 @@ function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: Prod
                     <PackageCheck className="h-4 w-4" aria-hidden="true" /> Order this part
                   </Button>
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    Order {qty} × {p.name} for {money(p.unitPriceMinor * qty, p.currency)} + delivery — pay by M-Pesa once the supplier accepts.
+                    Order {qty} × {p.name} for {money(p.unitPriceMinor * qty, p.currency)} + delivery: pay by M-Pesa once the supplier accepts.
                   </p>
                 </>
               ) : !signedIn ? (
@@ -498,15 +498,15 @@ function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: Prod
             </TableHeader>
             <TableBody>
               <SpecRow label="SKU" value={p.sku} mono />
-              <SpecRow label="MPN (manufacturer part no.)" value={p.mpn ?? '—'} mono />
-              <SpecRow label="OEM reference" value={p.oemRef ?? '—'} mono />
-              <SpecRow label="Brand" value={p.brand ?? '—'} />
+              <SpecRow label="MPN (manufacturer part no.)" value={p.mpn ?? 'Not provided'} mono />
+              <SpecRow label="OEM reference" value={p.oemRef ?? 'Not provided'} mono />
+              <SpecRow label="Brand" value={p.brand ?? 'Not provided'} />
               <SpecRow label="Condition" value={SUPPLY_CONDITION_LABELS[p.condition] ?? p.condition} />
               <SpecRow label="Warranty" value={p.warrantyMonths > 0 ? `${p.warrantyMonths} month${p.warrantyMonths === 1 ? '' : 's'}` : 'None offered'} />
               <SpecRow label="Returns" value={p.returnable ? 'Accepted' : 'Not accepted'} />
               <SpecRow label="Batch tracked" value={p.batchTracked ? 'Yes' : 'No'} />
               <SpecRow label="Serial tracked" value={p.serialTracked ? 'Yes' : 'No'} />
-              <SpecRow label="Category" value={p.category?.name ?? '—'} />
+              <SpecRow label="Category" value={p.category?.name ?? 'Not provided'} />
               <SpecRow label="Listed" value={dateLabel(p.createdAt)} />
             </TableBody>
           </Table>
@@ -522,7 +522,7 @@ function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: Prod
             <p className="font-medium">No fitment records provided</p>
             <p className="max-w-md text-sm text-muted-foreground">
               The supplier has not recorded specific fitment for this part. Contact the supplier to confirm fitment
-              before purchasing — never assume an unlisted part fits.
+              before purchasing: never assume an unlisted part fits.
             </p>
           </div>
         ) : (
@@ -545,7 +545,7 @@ function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: Prod
                     <TableCell>
                       {row.yearFrom || row.yearTo ? `${row.yearFrom ?? '…'}–${row.yearTo ?? '…'}` : 'All years'}
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell">{row.engine ?? '—'}</TableCell>
+                    <TableCell className="hidden sm:table-cell">{row.engine ?? 'Not provided'}</TableCell>
                     <TableCell>
                       {row.verified ? (
                         <span className="inline-flex items-center gap-1 text-primary">
@@ -565,7 +565,7 @@ function ProductDetailBody({ data, isOwner, signedIn, onReviewed }: { data: Prod
         {p.vehicleMakes.length > 0 && (
           <div className="mt-3">
             <p className="text-xs text-muted-foreground">
-              Brand-level quick filter (indicative only — the table above is authoritative):
+              Brand-level quick filter (indicative only: the table above is authoritative):
             </p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {p.vehicleMakes.map((m) => <Badge key={m} variant="secondary">{m}</Badge>)}
@@ -655,7 +655,7 @@ function OrderPartDialog({ open, product, initialQty, onClose }: {
         navigate('/account?tab=orders')
       })
       .catch((e) => {
-        toast.error(e instanceof Error ? e.message : 'Could not place the order — please try again.')
+        toast.error(e instanceof Error ? e.message : 'Could not place the order: please try again.')
       })
       .finally(() => setBusy(false))
   }
@@ -666,7 +666,7 @@ function OrderPartDialog({ open, product, initialQty, onClose }: {
         <DialogHeader>
           <DialogTitle>Order this part</DialogTitle>
           <DialogDescription>
-            {product.name} — {money(product.unitPriceMinor, product.currency)} per unit. The supplier confirms stock and accepts before you pay.
+            {product.name}: {money(product.unitPriceMinor, product.currency)} per unit. The supplier confirms stock and accepts before you pay.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -707,7 +707,7 @@ function OrderPartDialog({ open, product, initialQty, onClose }: {
           <div className="space-y-1.5">
             <Label htmlFor="ord-notes">Notes for the supplier (optional)</Label>
             <Textarea id="ord-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500}
-              placeholder="e.g. Fits a 2015 Hilux — please confirm compatibility." />
+              placeholder="e.g. Fits a 2015 Hilux: please confirm compatibility." />
           </div>
           <div className="space-y-1 rounded-lg bg-muted/50 px-3 py-2 text-sm">
             <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{money(subtotal, product.currency)}</span></div>
@@ -768,7 +768,7 @@ function ReviewsSection({
       comment: comment.trim() || undefined,
     })
       .then((d) => {
-        toast.success(d.verifiedPurchase ? 'Review recorded — marked as a verified purchase' : 'Review recorded. Thank you!')
+        toast.success(d.verifiedPurchase ? 'Review recorded: marked as a verified purchase' : 'Review recorded. Thank you!')
         setRating(0)
         setComment('')
         onReviewed()
@@ -793,7 +793,7 @@ function ReviewsSection({
       </div>
 
       {reviews.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">No reviews yet — be the first to rate this part.</p>
+        <p className="mt-3 text-sm text-muted-foreground">No reviews yet: be the first to rate this part.</p>
       ) : (
         <ul className="mt-3 space-y-3">
           {reviews.map((r) => (

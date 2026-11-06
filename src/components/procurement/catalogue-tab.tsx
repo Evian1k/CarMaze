@@ -1,8 +1,8 @@
 'use client'
 
-/* Catalogue tab — real product search across the Automotive Supply Network
+/* Catalogue tab: real product search across the Automotive Supply Network
  * (GET /api/supply/catalogue). Filters: q, category, condition, in-stock
- * toggle, optional vehicle fitment (make/model/year — the route resolves
+ * toggle, optional vehicle fitment (make/model/year: the route resolves
  * real compatibility records only), sort + pagination. */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -156,7 +156,7 @@ export function CatalogueTab({ role }: { role: string }) {
             aria-expanded={fitOpen}
           >
             <SlidersHorizontal className={cn('h-3.5 w-3.5 transition-transform', fitOpen && 'text-primary')} aria-hidden="true" />
-            Vehicle fitment filter {fitOpen ? '— on' : '— off'}
+            Vehicle fitment filter {fitOpen ? ': on' : ': off'}
             <span className="text-[11px]">(only products listing a real compatibility record)</span>
           </button>
           {fitOpen && (
@@ -291,7 +291,7 @@ function ProductCard({ product: p, role }: { product: CatalogueProduct; role: st
             </Button>
           </div>
           {!outOfStock && role === 'MECHANIC' && (
-            <p className="text-[11px] text-muted-foreground">Mechanic view — a manager or procurement can check out.</p>
+            <p className="text-[11px] text-muted-foreground">Mechanic view: a manager or procurement can check out.</p>
           )}
         </div>
       </CardContent>

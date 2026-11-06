@@ -138,7 +138,7 @@ export const POST = route(async (req: NextRequest) => {
     metadata: { enquiryId: enquiry.id, refCode: enquiry.refCode, phoneShare: body.phoneShare },
   })
 
-  // Notify the seller side — dealer members or the private owner.
+  // Notify the seller side: dealer members or the private owner.
   if (vehicle.orgId) {
     const members = await db.orgMember.findMany({
       where: { orgId: vehicle.orgId, ...sellerSideFilter() },
@@ -149,7 +149,7 @@ export const POST = route(async (req: NextRequest) => {
       {
         type: 'ENQUIRY',
         title: 'New buyer enquiry',
-        body: `${vehicle.make} ${vehicle.model} ${vehicle.year} (${vehicle.refCode}) — from ${user.name}.`,
+        body: `${vehicle.make} ${vehicle.model} ${vehicle.year} (${vehicle.refCode}): from ${user.name}.`,
         link: '/dealer',
       }
     )
@@ -158,7 +158,7 @@ export const POST = route(async (req: NextRequest) => {
       userId: vehicle.ownerId,
       type: 'ENQUIRY',
       title: 'New buyer enquiry',
-      body: `${vehicle.make} ${vehicle.model} ${vehicle.year} (${vehicle.refCode}) — from ${user.name}.`,
+      body: `${vehicle.make} ${vehicle.model} ${vehicle.year} (${vehicle.refCode}): from ${user.name}.`,
       link: '/my-listings',
     })
   }

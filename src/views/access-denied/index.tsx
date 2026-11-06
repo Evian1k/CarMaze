@@ -1,6 +1,6 @@
 'use client'
 
-/* Access-denied screen — shown when the signed-in user opens a view their
+/* Access-denied screen: shown when the signed-in user opens a view their
  * role does not authorise. Offers a safe route back to the user's own
  * dashboard, and reports repeated suspicious attempts to the platform
  * (rate-limited, fire-and-forget; the backend independently enforces every
@@ -19,7 +19,7 @@ export default function AccessDeniedView({ reason, view }: { reason: 'unauthenti
   const { user } = useAuth()
   const reported = useRef(0)
 
-  // Record the attempt (max 1 report per view per mount window) — repeated
+  // Record the attempt (max 1 report per view per mount window): repeated
   // probes are visible in the platform audit trail.
   useEffect(() => {
     if (reason !== 'forbidden') return

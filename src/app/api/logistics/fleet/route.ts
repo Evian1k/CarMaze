@@ -12,7 +12,7 @@ async function requireActivePartner(userId: string) {
   const partner = await db.logisticsPartner.findUnique({ where: { ownerUserId: userId } })
   if (!partner) throw new ApiError(403, 'NOT_A_PARTNER', 'Only approved delivery partners manage a fleet.')
   if (partner.status === 'SUSPENDED') {
-    throw new ApiError(403, 'PARTNER_SUSPENDED', 'Your partner account is suspended — fleet management is disabled. Contact CARMAZE support.')
+    throw new ApiError(403, 'PARTNER_SUSPENDED', 'Your partner account is suspended: fleet management is disabled. Contact CARMAZE support.')
   }
   if (partner.status !== 'APPROVED') {
     throw new ApiError(403, 'PARTNER_NOT_ACTIVE', 'Your partner account is not active yet.')
@@ -20,7 +20,7 @@ async function requireActivePartner(userId: string) {
   return partner
 }
 
-/** GET /api/logistics/fleet — the partner's drivers, newest first, with the
+/** GET /api/logistics/fleet: the partner's drivers, newest first, with the
  * count of non-terminal jobs each driver is currently carrying. */
 export const GET = route(async () => {
   const user = await requireUser()
@@ -61,7 +61,7 @@ const createSchema = z.object({
   vehicleType: z.enum(VEHICLE_TYPES).optional().or(z.literal('')),
 })
 
-/** POST /api/logistics/fleet — add a driver (starts ACTIVE). Rate limited to
+/** POST /api/logistics/fleet: add a driver (starts ACTIVE). Rate limited to
  * 30 creates/hour per partner. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()

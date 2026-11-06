@@ -1,6 +1,6 @@
 'use client'
 
-/* Approvals tab — purchase orders held at AWAITING_APPROVAL by the garage's
+/* Approvals tab: purchase orders held at AWAITING_APPROVAL by the garage's
  * spending-limit gate. Owner/GM only (mirrors order.approve server matrix). */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -91,7 +91,7 @@ export function ApprovalsTab({ orgId, role }: { orgId: string; role: string }) {
       <EmptyState
         icon={ShieldCheck}
         title="Management approval area"
-        description={`Your role (${role || '—'}) cannot approve purchase orders. Ask the owner or general manager.`}
+        description={`Your role (${role || 'unassigned'}) cannot approve purchase orders. Ask the owner or general manager.`}
       />
     )
   }
@@ -101,7 +101,7 @@ export function ApprovalsTab({ orgId, role }: { orgId: string; role: string }) {
       <div>
         <h2 className="text-sm font-semibold">Approval queue</h2>
         <p className="text-xs text-muted-foreground">
-          Orders above the garage&apos;s spending limit are held here — suppliers only see them after approval.
+          Orders above the garage&apos;s spending limit are held here: suppliers only see them after approval.
         </p>
       </div>
 
@@ -150,7 +150,7 @@ export function ApprovalsTab({ orgId, role }: { orgId: string; role: string }) {
                 {noteId === o.id ? (
                   <div className={cn('mt-3 space-y-2 rounded-lg border border-border bg-background/40 p-3')}>
                     <Label htmlFor={`approve-note-${o.id}`}>Approval note (optional)</Label>
-                    <Textarea id={`approve-note-${o.id}`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} className="min-h-16" placeholder="e.g. Approved — urgent fleet job" />
+                    <Textarea id={`approve-note-${o.id}`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} className="min-h-16" placeholder="e.g. Approved: urgent fleet job" />
                     <div className="flex gap-2">
                       <Button size="sm" disabled={busyId === o.id} onClick={() => approve(o)}>
                         {busyId === o.id ? <BtnSpinner className="mr-1.5" /> : <Check className="mr-1.5 h-4 w-4" aria-hidden="true" />} Approve & send
@@ -161,7 +161,7 @@ export function ApprovalsTab({ orgId, role }: { orgId: string; role: string }) {
                 ) : rejectId === o.id ? (
                   <div className="mt-3 space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
                     <Label htmlFor={`reject-reason-${o.id}`}>Rejection reason *</Label>
-                    <Textarea id={`reject-reason-${o.id}`} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} className="min-h-16" placeholder="e.g. Over budget this month — re-order in May" />
+                    <Textarea id={`reject-reason-${o.id}`} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} className="min-h-16" placeholder="e.g. Over budget this month: re-order in May" />
                     <div className="flex gap-2">
                       <Button size="sm" variant="destructive" disabled={busyId === o.id} onClick={() => reject(o)}>
                         {busyId === o.id ? <BtnSpinner className="mr-1.5" /> : <Ban className="mr-1.5 h-4 w-4" aria-hidden="true" />} Reject order

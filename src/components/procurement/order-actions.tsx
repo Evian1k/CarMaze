@@ -1,6 +1,6 @@
 'use client'
 
-/* Order lifecycle action panels (garage side) — cancel (step 2 hook-in),
+/* Order lifecycle action panels (garage side): cancel (step 2 hook-in),
  * inspection (7), payment release (8), dispute / return / warranty (9),
  * the claims record and the merged order+delivery timeline.
  * Payment + handover live in order-payment.tsx. */
@@ -68,7 +68,7 @@ export function CancelSection({ order, busy, setBusy, reload, role }: {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Ban className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Cancel order</h3>
-          <p className="text-xs text-muted-foreground">Possible until dispatch{order.paymentStatus === 'PROTECTED' ? '' : ' — stock reservations are released and the supplier is notified'}.</p>
+          <p className="text-xs text-muted-foreground">Possible until dispatch{order.paymentStatus === 'PROTECTED' ? '' : ': stock reservations are released and the supplier is notified'}.</p>
         </div>
         {!open && (
           <Button variant="outline" size="sm" disabled={!mayCancel || busy !== ''} onClick={() => setOpen(true)}>
@@ -80,7 +80,7 @@ export function CancelSection({ order, busy, setBusy, reload, role }: {
       {open && (
         <div className="mt-3 space-y-2 rounded-lg border border-border bg-background/40 p-3">
           <Label htmlFor="cancel-reason">Reason *</Label>
-          <Textarea id="cancel-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} className="min-h-16" placeholder="e.g. Customer job rescheduled — needed next week instead" />
+          <Textarea id="cancel-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} className="min-h-16" placeholder="e.g. Customer job rescheduled: needed next week instead" />
           <div className="flex gap-2">
             <Button variant="destructive" size="sm" onClick={submit} disabled={busy === 'cancel'}>
               {busy === 'cancel' ? <BtnSpinner className="mr-1.5" /> : null} Confirm cancellation
@@ -93,7 +93,7 @@ export function CancelSection({ order, busy, setBusy, reload, role }: {
   )
 }
 
-// ─────────────────────────── Step 7 — inspection ───────────────────────────
+// ─────────────────────────── Step 7: inspection ───────────────────────────
 
 export function InspectionPanel({ order, busy, setBusy, reload, role }: {
   order: OrderDetailData
@@ -139,7 +139,7 @@ export function InspectionPanel({ order, busy, setBusy, reload, role }: {
         <ClipboardCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" /> Delivery inspection
       </h3>
       <p className="text-sm text-muted-foreground">
-        Check every line against the job sheet. What you accept here is what the supplier gets paid — shortfalls raise an automatic partial refund request.
+        Check every line against the job sheet. What you accept here is what the supplier gets paid; shortfalls raise an automatic partial refund request.
       </p>
       <ul className="space-y-2">
         {order.items.map((it) => (
@@ -171,7 +171,7 @@ export function InspectionPanel({ order, busy, setBusy, reload, role }: {
           >
             <span className="block text-sm font-semibold">{r === 'ACCEPT' ? 'Accept all' : r === 'PARTIAL' ? 'Partial acceptance' : 'Issues reported'}</span>
             <span className="mt-0.5 block leading-snug">
-              {r === 'ACCEPT' ? 'Everything matches the order.' : r === 'PARTIAL' ? 'Accept the quantities set above.' : 'Record problems — release is blocked until resolved.'}
+              {r === 'ACCEPT' ? 'Everything matches the order.' : r === 'PARTIAL' ? 'Accept the quantities set above.' : 'Record problems: release is blocked until resolved.'}
             </span>
           </button>
         ))}
@@ -189,7 +189,7 @@ export function InspectionPanel({ order, busy, setBusy, reload, role }: {
   )
 }
 
-// ─────────────────────────── Step 8 + 9 — release / dispute / return / warranty ───────────────────────────
+// ─────────────────────────── Step 8 + 9: release / dispute / return / warranty ───────────────────────────
 
 export function PostDeliveryActions({ order, busy, setBusy, reload, role }: {
   order: OrderDetailData
@@ -218,7 +218,7 @@ export function PostDeliveryActions({ order, busy, setBusy, reload, role }: {
             Release <span className="font-bold tabular-nums">{money(accepted, order.currency)}</span> of the protected funds to the supplier.
           </p>
           <p className="text-xs text-muted-foreground">
-            Platform commission is deducted from the supplier&apos;s proceeds at this point — you are never charged extra.
+            Platform commission is deducted from the supplier&apos;s proceeds at this point: you are never charged extra.
           </p>
           <Button disabled={!releasable || !mayRelease || busy === 'release'} onClick={async () => {
             setBusy('release')
@@ -237,7 +237,7 @@ export function PostDeliveryActions({ order, busy, setBusy, reload, role }: {
           </Button>
           {!mayRelease && <p className="text-xs text-muted-foreground">Release needs the owner, GM, procurement or accountant role.</p>}
           {!releasable && order.paymentStatus !== 'PROTECTED' && (
-            <p className="text-xs text-muted-foreground">Funds are not in a protected state — release follows the provider&apos;s confirmation only.</p>
+            <p className="text-xs text-muted-foreground">Funds are not in a protected state; release follows the provider&apos;s confirmation only.</p>
           )}
         </div>
       )}
@@ -359,7 +359,7 @@ function DisputeDialog({ order, mayDispute, busy, setBusy, reload }: {
       <Dialog open={open} onOpenChange={(v) => { if (busy !== 'dispute') setOpen(v) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Open a dispute — {order.refCode}</DialogTitle>
+            <DialogTitle>Open a dispute: {order.refCode}</DialogTitle>
             <DialogDescription>
               Platform admins investigate with the full order, payment and delivery record. Funds may be frozen where the provider supports it.
             </DialogDescription>
@@ -414,7 +414,7 @@ function ReturnDialog({ order, mayReturn, busy, setBusy, reload }: {
       <Dialog open={open} onOpenChange={(v) => { if (busy !== 'return') setOpen(v) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Request a return — {order.refCode}</DialogTitle>
+            <DialogTitle>Request a return: {order.refCode}</DialogTitle>
             <DialogDescription>The supplier is notified with the quantities you select.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -483,7 +483,7 @@ function WarrantyDialog({ order, mayClaim, busy, setBusy, reload }: {
       <Dialog open={open} onOpenChange={(v) => { if (busy !== 'warranty') setOpen(v) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Warranty claim — {order.refCode}</DialogTitle>
+            <DialogTitle>Warranty claim: {order.refCode}</DialogTitle>
             <DialogDescription>Claim against the supplier&apos;s warranty window on a specific item.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -493,7 +493,7 @@ function WarrantyDialog({ order, mayClaim, busy, setBusy, reload }: {
                 <SelectTrigger aria-label="Warranty item"><SelectValue placeholder="Choose item" /></SelectTrigger>
                 <SelectContent>
                   {warrantied.map((it) => (
-                    <SelectItem key={it.id} value={it.productId}>{it.name} — {it.warrantyMonths}-month warranty</SelectItem>
+                    <SelectItem key={it.id} value={it.productId}>{it.name}: {it.warrantyMonths}-month warranty</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -544,7 +544,7 @@ export function ClaimsPanel({ order }: { order: OrderDetailData }) {
             <span className="text-xs text-muted-foreground">· <When at={d.createdAt} /></span>
           </div>
           <p className="mt-1 text-muted-foreground">{d.details}</p>
-          {d.resolution && <p className="mt-1 text-xs">Resolution: <span className="font-semibold">{d.resolution}</span>{d.resolutionNote ? ` — ${d.resolutionNote}` : ''}</p>}
+          {d.resolution && <p className="mt-1 text-xs">Resolution: <span className="font-semibold">{d.resolution}</span>{d.resolutionNote ? `: ${d.resolutionNote}` : ''}</p>}
         </div>
       ))}
       {order.refunds.map((r) => (

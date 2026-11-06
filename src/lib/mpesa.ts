@@ -1,10 +1,10 @@
-// CARMAZE — Safaricom Daraja (M-Pesa) server-side integration.
+// CARMAZE: Safaricom Daraja (M-Pesa) server-side integration.
 //
 // STATUS: Integration interface is fully implemented. Live/sandbox calls
 // require credentials that are NOT configured on this deployment:
 //   MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE (or MPESA_BUSINESS_SHORTCODE),
 //   MPESA_PASSKEY, MPESA_ENV (sandbox|production), MPESA_CALLBACK_URL, optional MPESA_BASE_URL.
-// Without credentials every attempt fails honestly with MPESA_NOT_CONFIGURED —
+// Without credentials every attempt fails honestly with MPESA_NOT_CONFIGURED:
 // we never simulate a successful payment.
 
 export type MpesaConfig = {

@@ -97,7 +97,7 @@ function About({ contact }: { contact: ContactInfo | null }) {
     try {
       const d = await apiSend<{ ticket: { refCode: string } }>('/api/support', 'POST', { name, email, subject, message })
       setRef(d.ticket.refCode)
-      toast.success(`Support ticket ${d.ticket.refCode} created — we will reply by email.`)
+      toast.success(`Support ticket ${d.ticket.refCode} created: we will reply by email.`)
       setName(''); setEmail(''); setSubject(''); setMessage('')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not send message')
@@ -113,7 +113,7 @@ function About({ contact }: { contact: ContactInfo | null }) {
           <h1 className="text-2xl font-bold">About CARMAZE</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
             CARMAZE is a Kenyan automotive ecosystem connecting buyers, private sellers, verified dealerships, garages and roadside
-            providers. We combine a trusted marketplace with real operational tools — dealer onboarding with follow-up, a 3D
+            providers. We combine a trusted marketplace with real operational tools; dealer onboarding with follow-up, a 3D
             customizer connected to garage quoting, and ownership records that stay with the car.
           </p>
         </section>
@@ -182,7 +182,7 @@ function Terms() {
   return (
     <article className="prose-sm space-y-4 text-sm leading-relaxed text-muted-foreground">
       <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground"><FileText className="h-6 w-6 text-primary" /> Terms of Service</h1>
-      <p><em className="text-xs">Pilot version — subject to legal review before commercial launch. Last updated: {new Date().toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })}</em></p>
+      <p><em className="text-xs">Pilot version: subject to legal review before commercial launch. Last updated: {new Date().toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })}</em></p>
       <h2 className="pt-2 font-semibold text-foreground">1. What CARMAZE does</h2>
       <p>CARMAZE provides a platform for advertising and discovering vehicles, requesting automotive services and connecting with dealerships and garages in Kenya. We are not a party to any sale between buyers and sellers.</p>
       <h2 className="pt-2 font-semibold text-foreground">2. Vehicle transactions</h2>
@@ -192,7 +192,7 @@ function Terms() {
       <h2 className="pt-2 font-semibold text-foreground">4. Fees</h2>
       <p>Private vehicle listings are free during the pilot. Dealer and garage subscriptions and paid promotions are billed in advance (M-Pesa where configured). We do not charge a commission on vehicle sales during the pilot; any future transaction fee requires a separately signed agreement.</p>
       <h2 className="pt-2 font-semibold text-foreground">5. Services marketplace</h2>
-      <p>Quotes and bookings made through CARMAZE are contracts between you and the garage. Garages are independently owned businesses. CARMAZE roadside assistance is a connection service — it is not an emergency service. In an emergency, call 999 or 112.</p>
+      <p>Quotes and bookings made through CARMAZE are contracts between you and the garage. Garages are independently owned businesses. CARMAZE roadside assistance is a connection service; it is not an emergency service. In an emergency, call 999 or 112.</p>
       <h2 className="pt-2 font-semibold text-foreground">6. Community conduct</h2>
       <p>Be honest and respectful. No impersonation, spam, fake reviews, or misleading verification claims. Sponsored content must be labelled and is moderated.</p>
       <h2 className="pt-2 font-semibold text-foreground">7. Liability</h2>
@@ -207,7 +207,7 @@ function Privacy() {
   return (
     <article className="prose-sm space-y-4 text-sm leading-relaxed text-muted-foreground">
       <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground"><ShieldCheck className="h-6 w-6 text-primary" /> Privacy Policy</h1>
-      <p><em className="text-xs">Pilot version — prepared with Kenyan Data Protection Act (2019) principles in mind; subject to legal review.</em></p>
+      <p><em className="text-xs">Pilot version: prepared with Kenyan Data Protection Act (2019) principles in mind; subject to legal review.</em></p>
       <h2 className="pt-2 font-semibold text-foreground">What we collect</h2>
       <p>Account details (name, email, optional phone), listing and enquiry content, garage and ownership records you choose to store, verification documents submitted during dealer/garage onboarding, and technical logs needed to run the service.</p>
       <h2 className="pt-2 font-semibold text-foreground">How we use it</h2>
@@ -237,7 +237,7 @@ function Safety() {
           <li>Inspect any vehicle in person (or via a trusted agent) before paying.</li>
           <li>Verify registration documents against the physical number plate and logbook.</li>
           <li>Be wary of prices far below market value and of sellers pressuring urgent payment.</li>
-          <li>Report suspicious listings or messages using the Report action — every report is reviewed by our team.</li>
+          <li>Report suspicious listings or messages using the Report action; every report is reviewed by our team.</li>
         </ul>
       </section>
       <section className="rounded-xl border border-border bg-card p-5">

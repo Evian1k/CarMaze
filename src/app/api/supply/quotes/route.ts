@@ -12,7 +12,7 @@ import { jsonParse } from '@/lib/supply'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/supply/quotes —
+ * GET /api/supply/quotes:
  *   Garage members: their own quote requests (with offers).
  *   Supplier members: open requests matching their delivery areas.
  */
@@ -85,7 +85,7 @@ const createSchema = z.object({
   expiresInDays: z.number().int().min(1).max(30).default(7),
 })
 
-/** POST — garage raises a Request-a-Part quotation (photo / SKU / part number
+/** POST: garage raises a Request-a-Part quotation (photo / SKU / part number
  * / description). Verified suppliers in the delivery area are notified. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()

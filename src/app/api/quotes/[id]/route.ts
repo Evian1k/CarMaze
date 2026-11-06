@@ -33,7 +33,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     throw new ApiError(409, 'INVALID_STATE', `This quote is already ${quote.status.toLowerCase()}.`)
   }
   if (!['OPEN', 'QUOTING'].includes(quote.request.status)) {
-    throw new ApiError(409, 'INVALID_STATE', `This request is ${quote.request.status.toLowerCase()} — quotes can no longer be changed.`)
+    throw new ApiError(409, 'INVALID_STATE', `This request is ${quote.request.status.toLowerCase()}: quotes can no longer be changed.`)
   }
 
   if (body.action === 'accept') {
@@ -59,8 +59,8 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     const members = await db.orgMember.findMany({ where: { orgId: quote.org.id }, select: { userId: true } })
     await notifyMany(members.map((m) => m.userId), {
       type: 'QUOTE_ACCEPTED',
-      title: `Quote accepted — ${quote.request.refCode}`,
-      body: `${user.name} accepted your quote. The booking is confirmed — schedule it under Bookings.`,
+      title: `Quote accepted: ${quote.request.refCode}`,
+      body: `${user.name} accepted your quote. The booking is confirmed: schedule it under Bookings.`,
       link: '/garage-dashboard?tab=bookings',
     })
 

@@ -51,7 +51,7 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [scrolled, setScrolled] = useState(false)
 
-  // Header gains elevation once the page scrolls — depth cue for the blur bar.
+  // Header gains elevation once the page scrolls; depth cue for the blur bar.
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8)
     onScroll()
@@ -312,7 +312,7 @@ export function AppShell({ route, children }: { route: RouteInfo; children: Reac
           <div>
             <Logo size="lg" showTagline />
             <p className="mt-3 max-w-56 text-xs leading-relaxed text-muted-foreground">
-              Kenya&apos;s connected automotive ecosystem. Buy, sell, customise and care for vehicles — all in one place.
+              Kenya&apos;s connected automotive ecosystem. Buy, sell, customise and care for vehicles: all in one place.
             </p>
           </div>
           <div>

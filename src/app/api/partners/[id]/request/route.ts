@@ -24,7 +24,7 @@ const schema = z.object({
 })
 
 /**
- * POST /api/partners/[id]/request — send a referral request to a partner.
+ * POST /api/partners/[id]/request: send a referral request to a partner.
  * Requires a signed-in account (any role). The partner must be APPROVED and
  * verified. Creates a PartnerRequest, bumps the partner's referral counter
  * (one transaction), audits the referral and notifies the requester with the
@@ -39,7 +39,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const body = await parseBody(req, schema)
 
   const partner = await db.partner.findUnique({ where: { id } })
-  // Unknown id and "exists but not listed" look identical — no existence leak.
+  // Unknown id and "exists but not listed" look identical; no existence leak.
   if (!partner || partner.status !== 'APPROVED' || !partner.verified) {
     throw new ApiError(404, 'NOT_FOUND', 'This partner is not currently accepting requests.')
   }
@@ -76,7 +76,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   await notify({
     userId: user.id,
     type: 'PARTNER_REQUEST_SENT',
-    title: `Request sent to ${partner.name} — ${request.refCode}`,
+    title: `Request sent to ${partner.name}: ${request.refCode}`,
     body: `Your request was delivered to ${partner.name}. Quote ref ${request.refCode} when they call, and track its status under Partner Network → My requests.`,
     link: '/partners',
   })

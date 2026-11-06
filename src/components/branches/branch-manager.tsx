@@ -2,7 +2,7 @@
 
 /* Multi-branch panels for GarageOS / DealerOS.
  *
- * BranchManager  : branches & warehouses of the business — create, edit,
+ * BranchManager  : branches & warehouses of the business: create, edit,
  *                  operating hours, delivery areas, close. Owner/GM only
  *                  (enforced server-side, noted in the UI).
  * TransfersPanel : inter-branch vehicle transfers (showrooms). A vehicle has
@@ -104,7 +104,7 @@ export function BranchManager({ orgId, orgType }: { orgId: string; orgType: stri
   async function doClose(branch: Branch) {
     try {
       await apiSend(`/api/supply/branches/${branch.id}`, 'DELETE')
-      toast.success(`${branch.name} closed — historical records are preserved`)
+      toast.success(`${branch.name} closed: historical records are preserved`)
       load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not close the branch')
@@ -141,7 +141,7 @@ export function BranchManager({ orgId, orgType }: { orgId: string; orgType: stri
           <Building2 className="mx-auto h-8 w-8 text-muted-foreground" />
           <p className="mt-2 font-medium">No branches yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Add your first location — it becomes the primary branch and anchors inventory, transfers
+            Add your first location: it becomes the primary branch and anchors inventory, transfers
             and delivery coverage.
           </p>
           <Button variant="outline" className="mt-4 min-h-11" onClick={() => setCreateOpen(true)}>Create the first branch</Button>
@@ -174,7 +174,7 @@ export function BranchManager({ orgId, orgType }: { orgId: string; orgType: stri
           <AlertDialogHeader>
             <AlertDialogTitle>Close {closeTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              The branch stops appearing as an active location. It is never hard-deleted — historical
+              The branch stops appearing as an active location. It is never hard-deleted: historical
               stock movements, transfers and orders keep their records. Make another branch primary
               first if this one is primary.
             </AlertDialogDescription>
@@ -517,7 +517,7 @@ function BranchFormDialog({ orgId, branch, onClose, onSaved }: {
               <div className="flex items-center justify-between">
                 <div>
                   <Label htmlFor="br-primary">Primary branch</Label>
-                  <p className="text-xs text-muted-foreground">The main location — making this primary unpicks it from the current primary.</p>
+                  <p className="text-xs text-muted-foreground">The main location: making this primary unpicks it from the current primary.</p>
                 </div>
                 <Switch id="br-primary" checked={form.isPrimary} onCheckedChange={(v) => setForm({ ...form, isPrimary: v })} />
               </div>
@@ -552,7 +552,7 @@ function BranchFormDialog({ orgId, branch, onClose, onSaved }: {
 // ═══════════════════════════ TransfersPanel ═══════════════════════════
 
 export function TransfersPanel({ orgId, orgType }: { orgId: string; orgType: string }) {
-  // Showroom feature only — render nothing for other org types.
+  // Showroom feature only: render nothing for other org types.
   if (orgType !== 'DEALER') return null
   return <TransfersContent orgId={orgId} />
 }
@@ -637,7 +637,7 @@ function TransfersContent({ orgId }: { orgId: string }) {
           <GitBranch className="mx-auto h-8 w-8 text-muted-foreground" />
           <p className="mt-2 font-medium">No transfers yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Move stock between branches with a documented chain of custody — request, authorise,
+            Move stock between branches with a documented chain of custody; request, authorise,
             dispatch with a condition report, and receive at the destination.
           </p>
         </div>
@@ -684,7 +684,7 @@ function TransfersContent({ orgId }: { orgId: string }) {
                 <div className="flex flex-wrap justify-end gap-2">
                   {t.status === 'REQUESTED' && (
                     <>
-                      <Button size="sm" className="min-h-11" onClick={() => action(t, { action: 'approve' }, 'Transfer authorised — prepare dispatch')}>
+                      <Button size="sm" className="min-h-11" onClick={() => action(t, { action: 'approve' }, 'Transfer authorised: prepare dispatch')}>
                         Approve
                       </Button>
                       <Button size="sm" variant="ghost" className="min-h-11 text-muted-foreground hover:text-destructive" onClick={() => setRejectTarget(t)}>
@@ -774,7 +774,7 @@ function TransfersContent({ orgId }: { orgId: string }) {
             const done = await action(
               receiveTarget,
               { action: 'receive', receivedByName: payload.receivedByName, ...payload },
-              'Vehicle received — inventory record updated'
+              'Vehicle received: inventory record updated'
             )
             if (done) setReceiveTarget(null)
           }}
@@ -848,7 +848,7 @@ function RequestTransferDialog({ orgId, vehicles, branches, onClose, onSaved }: 
       await apiSend('/api/org/transfers', 'POST', {
         orgId, vehicleId, toBranchId, ...(note.trim() ? { note: note.trim() } : {}),
       })
-      toast.success('Transfer requested — it requires authorisation before dispatch')
+      toast.success('Transfer requested: it requires authorisation before dispatch')
       onSaved()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not request the transfer')
@@ -959,7 +959,7 @@ function ConditionReportDialog({ mode, transfer, onClose, onSubmit }: {
           </DialogTitle>
           <DialogDescription>
             {mode === 'dispatch'
-              ? `Condition report out — ${transfer.fromBranch.name} → ${transfer.toBranch.name}. Odometer and notes become part of the custody history.`
+              ? `Condition report out: ${transfer.fromBranch.name} → ${transfer.toBranch.name}. Odometer and notes become part of the custody history.`
               : `Condition report in at ${transfer.toBranch.name}. On receipt the vehicle's inventory record moves to the destination branch.`}
           </DialogDescription>
         </DialogHeader>

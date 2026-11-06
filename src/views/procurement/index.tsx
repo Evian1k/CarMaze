@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE Procurement — GarageOS procurement portal for the Automotive
+/* CARMAZE Procurement: GarageOS procurement portal for the Automotive
  * Supply Network. Gate: an ACTIVE GARAGE org membership from /api/orgs/me.
  * Tabs are hash-driven (?tab=) so links from notifications deep-open the
  * right workbench (and ?order=<id> opens an order detail directly). */
@@ -81,7 +81,7 @@ export default function ProcurementView() {
         </div>
         <h1 className="mt-4 text-2xl font-bold">Procurement</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Sign in with your garage account to buy parts from the verified supplier network — catalogue, fitment, quotes, protected payments and delivery tracking.
+          Sign in with your garage account to buy parts from the verified supplier network; catalogue, fitment, quotes, protected payments and delivery tracking.
         </p>
         <Button className="mt-6" onClick={() => navigate('signin')}>Sign in</Button>
       </div>
@@ -110,7 +110,7 @@ export default function ProcurementView() {
         <h1 className="mt-4 text-2xl font-bold">Procurement is for garages</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {membershipsError
-            ? 'We could not verify your business memberships just now — that is usually a temporary session issue.'
+            ? 'We could not verify your business memberships just now; that is usually a temporary session issue.'
             : user
               ? <>You are signed in as <span className="font-medium text-foreground">{user.name}</span>, but this workbench needs an <span className="font-medium text-foreground">active garage business</span> membership. Suppliers and dealers have their own portals.</>
               : 'An active garage business membership is required.'}
@@ -120,7 +120,7 @@ export default function ProcurementView() {
           {membershipsError && <Button variant="outline" onClick={loadMemberships}><RefreshCw className="mr-1.5 h-4 w-4" aria-hidden="true" /> Retry</Button>}
         </div>
         <p className="mt-4 text-xs text-muted-foreground">
-          Onboarding takes a few minutes: apply from the Garage directory, get approved, add a branch — then order parts with protected payments.
+          Onboarding takes a few minutes: apply from the Garage directory, get approved, add a branch: then order parts with protected payments.
         </p>
       </div>
     )
@@ -225,7 +225,7 @@ export default function ProcurementView() {
         </TabsContent>
       </Tabs>
 
-      {/* Floating cart — always one tap away from anywhere in the portal */}
+      {/* Floating cart: always one tap away from anywhere in the portal */}
       {cartCount > 0 && !cartOpen && (
         <Button
           size="lg"

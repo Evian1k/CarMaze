@@ -15,14 +15,14 @@ const bodySchema = z.object({
 })
 
 /**
- * GET /api/campaigns?mine=1 — promotions of the organisations the caller
- * belongs to (any role — SALES/STAFF may view; only OWNER/MANAGER can buy or
+ * GET /api/campaigns?mine=1: promotions of the organisations the caller
+ * belongs to (any role: SALES/STAFF may view; only OWNER/MANAGER can buy or
  * cancel). Also returns the active promotion packages so the purchase form
  * has one source of truth. Org scoping mirrors /api/billing/invoices.
  *
  * Opportunistic expiry sweep: campaigns whose endsAt has passed are marked
  * ENDED so the portal shows honest statuses (same pattern as the view-event
- * prune — real data maintenance, no fake numbers).
+ * prune: real data maintenance, no fake numbers).
  */
 export const GET = route(async (req: NextRequest) => {
   const user = await requireUser()
@@ -111,12 +111,12 @@ export const GET = route(async (req: NextRequest) => {
 })
 
 /**
- * POST /api/campaigns — purchase a promotion for one of the caller's PUBLISHED
+ * POST /api/campaigns: purchase a promotion for one of the caller's PUBLISHED
  * listings. OWNER/MANAGER of a DEALER or GARAGE org only.
  *
  * HONEST BILLING (same contract as /api/billing/subscribe): this creates a
  * PENDING_PAYMENT campaign + a PENDING CAMPAIGN invoice only. The campaign is
- * NOT activated here — it is activated exclusively when the invoice is paid
+ * NOT activated here: it is activated exclusively when the invoice is paid
  * (M-Pesa Daraja callback or FINANCE manual reconciliation), via
  * /api/billing/_activate.ts.
  */
@@ -158,7 +158,7 @@ export const POST = route(async (req: NextRequest) => {
     return fail(404, 'PACKAGE_NOT_FOUND', 'That promotion package does not exist or is no longer offered.')
   }
 
-  // One pending/active promotion per listing — prevents paying twice for the same slot.
+  // One pending/active promotion per listing: prevents paying twice for the same slot.
   const existing = await db.campaign.findFirst({
     where: { vehicleId: vehicle.id, status: { in: ['PENDING_PAYMENT', 'ACTIVE'] } },
     select: { refCode: true, status: true },
@@ -168,7 +168,7 @@ export const POST = route(async (req: NextRequest) => {
       409,
       'CAMPAIGN_EXISTS',
       existing.status === 'PENDING_PAYMENT'
-        ? `This listing already has an unpaid promotion (${existing.refCode}) — complete or cancel it first.`
+        ? `This listing already has an unpaid promotion (${existing.refCode}): complete or cancel it first.`
         : `This listing already has an active promotion (${existing.refCode}).`
     )
   }
@@ -188,7 +188,7 @@ export const POST = route(async (req: NextRequest) => {
         orgId,
         userId: user.id,
         type: 'CAMPAIGN',
-        description: `Promotion — ${pkg.name} for ${title}`,
+        description: `Promotion: ${pkg.name} for ${title}`,
         amountMinor: pkg.priceMinor,
         currency: pkg.currency,
         status: 'PENDING',
@@ -226,8 +226,8 @@ export const POST = route(async (req: NextRequest) => {
 
   await notifyOrgMembers(orgId, {
     type: 'CAMPAIGN_CREATED',
-    title: 'Promotion created — complete payment to activate',
-    body: `${pkg.name} for ${title} (${campaign.refCode}). Invoice ${invoice.refCode} is due ${dueDate.toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })} — pay via M-Pesa to start the promotion.`,
+    title: 'Promotion created: complete payment to activate',
+    body: `${pkg.name} for ${title} (${campaign.refCode}). Invoice ${invoice.refCode} is due ${dueDate.toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}. Pay via M-Pesa to start the promotion.`,
     link: dashboardLink,
   })
 

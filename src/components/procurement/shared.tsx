@@ -1,6 +1,6 @@
 'use client'
 
-/* Procurement portal shared primitives — API response types, role gates,
+/* Procurement portal shared primitives: API response types, role gates,
  * status chips, qty steppers and small widgets used across the
  * procurement tabs. Semantic tokens only; dark-mode-first. */
 

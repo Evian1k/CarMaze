@@ -52,7 +52,7 @@ export async function requireUser(): Promise<SessionUser> {
   return user
 }
 
-/** Session user or null — for endpoints that change for signed-in users but
+/** Session user or null: for endpoints that change for signed-in users but
  * also work anonymously (e.g. product detail). */
 export async function requireUserOptional(): Promise<SessionUser | null> {
   try {

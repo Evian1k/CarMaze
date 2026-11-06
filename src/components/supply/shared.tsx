@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — Automotive Supply Network shared bits.
+/* CARMAZE: Automotive Supply Network shared bits.
  * Types mirror the real API routes exactly (verified against the handlers):
  *  - /api/supply/catalogue          → supplier.rating
  *  - /api/supply/fitment            → supplier.supplierRating
@@ -99,7 +99,7 @@ export type FitmentRecord = {
   verified: boolean
 }
 
-/** Shape returned by GET /api/supply/fitment — note supplierRating field name. */
+/** Shape returned by GET /api/supply/fitment: note supplierRating field name. */
 export type FitmentProduct = {
   id: string
   refCode: string
@@ -165,7 +165,7 @@ export function toCardSupplier(
 
 // ───────────────────────────── Presentational bits ────────────────────────────
 
-/** Gold rating stars — honest: renders nothing when there are no ratings. */
+/** Gold rating stars: honest: renders nothing when there are no ratings. */
 export function Stars({ avg, className, size = 'sm' }: { avg: number; className?: string; size?: 'sm' | 'md' }) {
   if (!avg || avg <= 0) return null
   const rounded = Math.round(avg)
@@ -186,7 +186,7 @@ export function Stars({ avg, className, size = 'sm' }: { avg: number; className?
 }
 
 /**
- * Verified badge — renders ONLY when the supplier is actually verified.
+ * Verified badge: renders ONLY when the supplier is actually verified.
  * An unverified supplier must never display a shield.
  */
 export function VerifiedBadge({ verified, className }: { verified: boolean; className?: string }) {
@@ -209,7 +209,7 @@ export function VerifiedTick({ verified, name }: { verified: boolean; name: stri
   )
 }
 
-/** Supplier logo with initials fallback — resilient to broken image URLs. */
+/** Supplier logo with initials fallback: resilient to broken image URLs. */
 export function SupplierAvatar({
   name,
   logoUrl,
@@ -251,7 +251,7 @@ export function SupplierAvatar({
   )
 }
 
-/** Honest fitment verdict badges — wording never overstates the data. */
+/** Honest fitment verdict badges: wording never overstates the data. */
 export function FitBadge({ fit, className }: { fit: FitVerdict; className?: string }) {
   if (fit === 'MATCH') {
     return (
@@ -284,9 +284,9 @@ export function FitHint({ fit, make, model }: { fit: FitVerdict; make: string; m
     )
   }
   if (fit === 'POSSIBLE') {
-    return <p className="text-xs text-gold-ink">Brand-level match — confirm fitment before purchase</p>
+    return <p className="text-xs text-gold-ink">Brand-level match: confirm fitment before purchase</p>
   }
-  return <p className="text-xs text-muted-foreground">No fitment record — verify with the supplier before purchase</p>
+  return <p className="text-xs text-muted-foreground">No fitment record: verify with the supplier before purchase</p>
 }
 
 /** Stock status line with semantic colouring. */

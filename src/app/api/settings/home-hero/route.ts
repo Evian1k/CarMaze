@@ -2,13 +2,13 @@ import { db } from '@/lib/db'
 import { route, ok } from '@/lib/api'
 
 /**
- * GET /api/settings/home-hero — public.
+ * GET /api/settings/home-hero: public.
  *
  * Returns the optional homepage hero configuration stored in SystemSetting
  * key "home_hero" (JSON: { headline, subheadline, ctaLabel?, ctaHref? }),
  * written by admins via PUT /api/admin/settings. When nothing (valid) is
  * stored, `hero` is null and the homepage falls back to its built-in copy.
- * A corrupt stored value degrades to null — it must never crash the homepage.
+ * A corrupt stored value degrades to null; it must never crash the homepage.
  */
 export const GET = route(async () => {
   const row = await db.systemSetting.findUnique({ where: { key: 'home_hero' } })
@@ -35,7 +35,7 @@ export const GET = route(async () => {
       })
     }
   } catch {
-    // stored value was not valid JSON — treat as unconfigured
+    // stored value was not valid JSON; treat as unconfigured
   }
 
   return ok({ hero: null })

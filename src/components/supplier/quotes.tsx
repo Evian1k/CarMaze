@@ -1,8 +1,8 @@
 'use client'
 
-/* SupplierOS — Quotes tab: Request-a-Part quote requests routed to this
+/* SupplierOS: Quotes tab: Request-a-Part quote requests routed to this
  * supplier. Submit or update an offer (amount, lead days, note, optional
- * itemised lines). Offering requires a VERIFIED supplier account — the API
+ * itemised lines). Offering requires a VERIFIED supplier account: the API
  * enforces it; the UI shows the same requirement honestly. */
 
 import { useState } from 'react'
@@ -52,7 +52,7 @@ export function QuotesTab({ orgId, role, verified }: Props) {
         <h2 className="text-lg font-semibold tracking-tight">Quote requests</h2>
         <p className="text-sm text-muted-foreground">
           {unquoted > 0
-            ? `${unquoted} request${unquoted === 1 ? '' : 's'} without your offer — respond while garages are still comparing.`
+            ? `${unquoted} request${unquoted === 1 ? '' : 's'} without your offer: respond while garages are still comparing.`
             : 'Request-a-Part enquiries routed to your business.'}
         </p>
       </div>
@@ -62,7 +62,7 @@ export function QuotesTab({ orgId, role, verified }: Props) {
           <BadgeCheck className="h-4 w-4" />
           <AlertTitle>Offers require a verified supplier account</AlertTitle>
           <AlertDescription>
-            Only verified suppliers can send quotations. Your application is still under platform review — offers unlock
+            Only verified suppliers can send quotations. Your application is still under platform review; offers unlock
             automatically once verification completes.
           </AlertDescription>
         </Alert>
@@ -76,7 +76,7 @@ export function QuotesTab({ orgId, role, verified }: Props) {
         <EmptyState
           icon={<MessageSquareQuote className="h-8 w-8" />}
           title="No quote requests right now"
-          detail="Garages raise Request-a-Part enquiries with photos or part numbers. Requests routed to your delivery counties appear here — add delivery areas on your warehouses to widen coverage."
+          detail="Garages raise Request-a-Part enquiries with photos or part numbers. Requests routed to your delivery counties appear here; add delivery areas on your warehouses to widen coverage."
         />
       ) : (
         <div className="space-y-3">
@@ -225,7 +225,7 @@ function OfferDialog({ request, canOffer, onClose, onSaved }: {
           ? lines.map((l) => ({ name: l.name.trim(), partNumber: l.partNumber.trim() || undefined, qty: Number(l.qty), unitPriceMinor: kesToMinor(l.unitPrice)! }))
           : undefined,
       })
-      toast.success(existing ? 'Offer updated — the garage sees your latest quotation.' : 'Offer sent to the garage.')
+      toast.success(existing ? 'Offer updated: the garage sees your latest quotation.' : 'Offer sent to the garage.')
       onSaved()
     } catch (e) {
       toast.error(await errMessage(e, 'Could not submit the offer.'))
@@ -238,11 +238,11 @@ function OfferDialog({ request, canOffer, onClose, onSaved }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-h-[92vh] overflow-y-auto scrollbar-thin sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{existing ? 'Update your offer' : 'Send an offer'} — {request.refCode}</DialogTitle>
+          <DialogTitle>{existing ? 'Update your offer' : 'Send an offer'}: {request.refCode}</DialogTitle>
           <DialogDescription>
             {request.title} · for {request.garage?.name ?? 'the garage'}
             {request.budgetMinor != null && request.budgetMinor > 0 ? ` · budget ~${money(request.budgetMinor)}` : ''}.
-            {' '}Offering is an upsert — sending again replaces your previous quotation and resets its status to pending.
+            {' '}Offering is an upsert: sending again replaces your previous quotation and resets its status to pending.
           </DialogDescription>
         </DialogHeader>
 

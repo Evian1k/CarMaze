@@ -8,7 +8,7 @@ import { PARTNER_STATUSES, parsePartnerNotes, parseServiceAreas } from '@/lib/pa
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/admin/partners?status= — full partner list for staff, every status
+ * GET /api/admin/partners?status=: full partner list for staff, every status
  * included (PENDING / APPROVED / SUSPENDED / REJECTED), newest first, plus
  * live counts grouped by status.
  *

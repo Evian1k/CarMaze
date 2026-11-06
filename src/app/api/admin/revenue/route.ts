@@ -7,7 +7,7 @@ import { getFees } from '@/lib/supply'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/admin/revenue — platform monetization dashboard.
+ * GET /api/admin/revenue: platform monetization dashboard.
  *
  * TRANSPARENCY RULE: gross transaction value is NEVER reported as platform
  * revenue. Platform revenue = commissions (recorded separately on completed

@@ -1,6 +1,6 @@
 'use client'
 
-/* Theme provider — wires next-themes into the CARMAZE app shell.
+/* Theme provider: wires next-themes into the CARMAZE app shell.
  *
  * - attribute="class": toggling adds/removes `.dark` on <html>, which flips
  *   the token palette defined in globals.css (warm off-white ↔ charcoal).

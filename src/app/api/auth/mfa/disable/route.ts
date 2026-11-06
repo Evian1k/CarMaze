@@ -11,7 +11,7 @@ const schema = z.object({
   password: z.string().min(1, 'Enter your password to confirm'),
 })
 
-/** Turn TOTP MFA off — requires the current password as proof of identity. */
+/** Turn TOTP MFA off: requires the current password as proof of identity. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const body = await parseBody(req, schema)

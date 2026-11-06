@@ -21,7 +21,7 @@ async function assertOwnedVehicle(myVehicleId: string, userId: string) {
   return vehicle
 }
 
-// GET /api/mygarage/records?vehicleId= — owner-only convenience listing (records are embedded in vehicles GET).
+// GET /api/mygarage/records?vehicleId=: owner-only convenience listing (records are embedded in vehicles GET).
 export const GET = route(async (req: NextRequest) => {
   const user = await requireUser()
   const vehicleId = new URL(req.url).searchParams.get('vehicleId')
@@ -32,7 +32,7 @@ export const GET = route(async (req: NextRequest) => {
   return ok({ records })
 })
 
-// POST /api/mygarage/records — log a service/repair/inspection entry on an owned vehicle.
+// POST /api/mygarage/records: log a service/repair/inspection entry on an owned vehicle.
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const rl = rateLimit(`mygarage-record:${user.id}:${getIp(req)}`, 60, 60 * 60 * 1000)
@@ -62,7 +62,7 @@ export const POST = route(async (req: NextRequest) => {
   return ok({ record }, { status: 201 })
 })
 
-// DELETE /api/mygarage/records?id= — owner of the vehicle only.
+// DELETE /api/mygarage/records?id=: owner of the vehicle only.
 export const DELETE = route(async (req: NextRequest) => {
   const user = await requireUser()
   const id = new URL(req.url).searchParams.get('id')

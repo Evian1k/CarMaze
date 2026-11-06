@@ -37,7 +37,7 @@ function iso(d: Date): string {
   return d.toISOString()
 }
 
-/** GET — full custody record for participants (customer owner or garage member). */
+/** GET: full custody record for participants (customer owner or garage member). */
 export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()
   const { id } = await ctx.params
@@ -107,7 +107,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
         notes: rt.notes,
         incident: rt.incident,
       })),
-      // authCodeHash is NEVER exposed — only metadata for verification UX.
+      // authCodeHash is NEVER exposed: only metadata for verification UX.
       collectionAuth: custody.collectionAuth
         ? {
             collectorName: custody.collectionAuth.collectorName,
@@ -162,7 +162,7 @@ const WORK_STATUSES = ['INSPECTION', 'AWAITING_APPROVAL', 'WORK_IN_PROGRESS'] as
 const STATUS_ACTION_FROM = ['RECEIVED', 'INSPECTION', 'AWAITING_APPROVAL', 'WORK_IN_PROGRESS', 'ROAD_TEST_REQUESTED'] as const
 
 /**
- * PATCH — custody lifecycle transitions.
+ * PATCH: custody lifecycle transitions.
  * ORG actions: receive, status, note, request-roadtest, start-roadtest, end-roadtest.
  * CUSTOMER actions: authorize-roadtest, decline-roadtest, collect-self, dispute.
  * Every transition is guarded; violations return 400 INVALID_TRANSITION.
@@ -221,7 +221,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       await notify({
         userId: custody.customerId,
         type: 'CUSTODY_UPDATE',
-        title: `Your vehicle was received — ${custody.refCode}`,
+        title: `Your vehicle was received: ${custody.refCode}`,
         body: `${custody.org.name} received your ${custody.vehicleDesc}. Track progress in Vehicle Protection.`,
         link: '/account?tab=protection',
       })
@@ -260,7 +260,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
             actorId: user.id,
             actorName: user.name,
             actorSide: 'ORG',
-            note: body.note ?? (body.status === 'READY_FOR_COLLECTION' ? 'Work completed — ready for collection.' : null),
+            note: body.note ?? (body.status === 'READY_FOR_COLLECTION' ? 'Work completed: ready for collection.' : null),
           },
         }),
       ])
@@ -268,7 +268,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         await notify({
           userId: custody.customerId,
           type: 'CUSTODY_UPDATE',
-          title: `Ready for collection — ${custody.refCode}`,
+          title: `Ready for collection: ${custody.refCode}`,
           body: `Your ${custody.vehicleDesc} is ready for collection at ${custody.org.name}.`,
           link: '/account?tab=protection',
         })
@@ -311,14 +311,14 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
             actorId: user.id,
             actorName: user.name,
             actorSide: 'ORG',
-            note: `Road test requested — ${body.purpose} (driver: ${body.driverName}).`,
+            note: `Road test requested: ${body.purpose} (driver: ${body.driverName}).`,
           },
         }),
       ])
       await notify({
         userId: custody.customerId,
         type: 'CUSTODY_UPDATE',
-        title: `Road test requested — ${custody.refCode}`,
+        title: `Road test requested: ${custody.refCode}`,
         body: `${custody.org.name} asks permission to road test your ${custody.vehicleDesc}: ${body.purpose}.`,
         link: '/account?tab=protection',
       })
@@ -378,7 +378,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
             actorId: user.id,
             actorName: user.name,
             actorSide: 'ORG',
-            note: incident ? 'Road test ended — incident reported.' : `Road test ended (odometer ${body.endOdometerKm} km).`,
+            note: incident ? 'Road test ended: incident reported.' : `Road test ended (odometer ${body.endOdometerKm} km).`,
           },
         }),
       ])
@@ -396,7 +396,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         await notify({
           userId: custody.customerId,
           type: 'CUSTODY_UPDATE',
-          title: `Road test incident — ${custody.refCode}`,
+          title: `Road test incident: ${custody.refCode}`,
           body: `The garage reported an incident during the road test of your ${custody.vehicleDesc}. See the custody timeline for details.`,
           link: '/account?tab=protection',
         })
@@ -428,7 +428,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       ])
       await notifyOrgMembers(custody.orgId, {
         ...orgLink,
-        title: `Road test authorised — ${custody.refCode}`,
+        title: `Road test authorised: ${custody.refCode}`,
         body: `${user.name} authorised the road test of the ${custody.vehicleDesc}.`,
       })
       await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_ROADTEST_AUTHORISED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, roadTestId: rt.id } })
@@ -455,13 +455,13 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
             actorId: user.id,
             actorName: user.name,
             actorSide: 'CUSTOMER',
-            note: body.note ? `Customer declined the road test — ${body.note}` : 'Customer declined the road test.',
+            note: body.note ? `Customer declined the road test: ${body.note}` : 'Customer declined the road test.',
           },
         }),
       ])
       await notifyOrgMembers(custody.orgId, {
         ...orgLink,
-        title: `Road test declined — ${custody.refCode}`,
+        title: `Road test declined: ${custody.refCode}`,
         body: `${user.name} declined the road test of the ${custody.vehicleDesc}.`,
       })
       await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_ROADTEST_DECLINED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, roadTestId: rt.id } })
@@ -494,7 +494,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       ])
       await notifyOrgMembers(custody.orgId, {
         ...orgLink,
-        title: `Vehicle collected — ${custody.refCode}`,
+        title: `Vehicle collected: ${custody.refCode}`,
         body: `${user.name} collected the ${custody.vehicleDesc}.`,
       })
       await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_COLLECTED_SELF', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode } })
@@ -505,7 +505,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     case 'dispute': {
       requireCustomer()
       if (custody.status === 'RETURNED') {
-        invalid('A returned custody record cannot be disputed — contact CARMAZE support instead.')
+        invalid('A returned custody record cannot be disputed; contact CARMAZE support instead.')
       }
       const incident = await db.securityIncident.create({
         data: {
@@ -548,13 +548,13 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       const staff = await staffUserIds('ADMIN', 'FOUNDER')
       await notifyMany(staff, {
         type: 'INCIDENT_CREATED',
-        title: `Custody dispute — ${custody.refCode}`,
+        title: `Custody dispute: ${custody.refCode}`,
         body: `${user.name} disputed custody at ${custody.org.name}. Review the incident queue.`,
         link: '/admin?tab=incidents',
       })
       await notifyOrgMembers(custody.orgId, {
         ...orgLink,
-        title: `Custody dispute opened — ${custody.refCode}`,
+        title: `Custody dispute opened: ${custody.refCode}`,
         body: `${user.name} raised a dispute on the ${custody.vehicleDesc}. CARMAZE security has been notified.`,
       })
       await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_DISPUTED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, incidentId: incident.id } })

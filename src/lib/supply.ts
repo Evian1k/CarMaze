@@ -1,4 +1,4 @@
-// CARMAZE — Automotive Supply Network core domain library.
+// CARMAZE: Automotive Supply Network core domain library.
 // Tenancy guards, role permissions, fee configuration, stock reservations
 // and event writers shared by every supply API route.
 //
@@ -33,7 +33,7 @@ export type SupplyAction =
   | 'finance.read'
 
 const MATRIX: Record<SupplyAction, string[][]> = {
-  // [supplierRoles, garageRoles] — an empty list means that side can't act
+  // [supplierRoles, garageRoles]: an empty list means that side can't act
   'catalogue.write': [['OWNER', 'OPERATIONS'], []],
   'catalogue.read': [['OWNER', 'OPERATIONS', 'WAREHOUSE', 'SALES', 'PROCUREMENT', 'ACCOUNTANT'], ['OWNER', 'GM', 'BRANCH_MANAGER', 'PROCUREMENT', 'MECHANIC', 'ACCOUNTANT', 'INVENTORY']],
   'stock.write': [['OWNER', 'OPERATIONS', 'WAREHOUSE'], ['OWNER', 'GM', 'INVENTORY']],
@@ -64,7 +64,7 @@ export type OrgContext = {
 
 /**
  * Resolve the acting user's org membership for the given org id, enforcing
- * type and status. This is the single tenancy gate — every supply endpoint
+ * type and status. This is the single tenancy gate: every supply endpoint
  * resolves access through it. Users only ever see data for orgs they belong to.
  */
 export async function requireOrgMember(
@@ -177,15 +177,15 @@ export function money(minor: number, currency = 'KES'): string {
 export const PO_ACTIVE_STATUSES = ['SUBMITTED', 'AWAITING_APPROVAL', 'ACCEPTED', 'REVISED', 'CONFIRMED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'INSPECTED', 'DISPUTED'] as const
 
 export const PO_STATUS_LABELS: Record<string, string> = {
-  SUBMITTED: 'Submitted — awaiting supplier',
+  SUBMITTED: 'Submitted: awaiting supplier',
   AWAITING_APPROVAL: 'Awaiting management approval',
   ACCEPTED: 'Accepted by supplier',
-  REVISED: 'Revised — awaiting your approval',
+  REVISED: 'Revised: awaiting your approval',
   REJECTED: 'Rejected by supplier',
-  CONFIRMED: 'Confirmed — arrange payment',
+  CONFIRMED: 'Confirmed: arrange payment',
   DISPATCHED: 'Dispatched',
   IN_TRANSIT: 'In transit',
-  DELIVERED: 'Delivered — inspect to release',
+  DELIVERED: 'Delivered: inspect to release',
   INSPECTED: 'Inspected',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',

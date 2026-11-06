@@ -12,7 +12,7 @@ const registerSchema = z.object({
   email: z.string().trim().toLowerCase().email('Enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters').max(100),
   phone: z.string().trim().regex(/^(\+?254|0)[17]\d{8}$/, 'Enter a valid Kenyan phone number (e.g. 0712 345 678)').optional().or(z.literal('')),
-  ref: z.string().trim().min(1).max(32).optional(), // referral code from the invite link — attribution only
+  ref: z.string().trim().min(1).max(32).optional(), // referral code from the invite link; attribution only
 })
 
 const REFERRAL_SIGNUP_POINTS = 500
@@ -20,7 +20,7 @@ const REFERRAL_SIGNUP_CAP = 50
 
 /** Resolve a referral code to its owner, case-insensitively (SQLite stores
  * codes uppercase; `contains` maps to LIKE which is case-insensitive for ASCII).
- * Returns null for unknown/garbage codes — registration still succeeds. */
+ * Returns null for unknown/garbage codes: registration still succeeds. */
 async function findReferrer(code: string) {
   const normalized = code.trim().toUpperCase()
   if (!normalized) return null
@@ -36,7 +36,7 @@ async function findReferrer(code: string) {
   return null
 }
 
-/** Best-effort referral attribution — runs AFTER the account is created and
+/** Best-effort referral attribution: runs AFTER the account is created and
  * NEVER blocks or fails registration. Guards (each silently skips the award):
  * unknown code · referrer suspended · self-referral (same email) · referrer
  * already earned the max 50 referral-signup awards. */
@@ -71,12 +71,12 @@ async function attributeReferral(newUserId: string, newUserName: string, newUser
     await notify({
       userId: referrer.id,
       type: 'LOYALTY_POINTS',
-      title: `You earned ${REFERRAL_SIGNUP_POINTS} points — a friend joined CARMAZE`,
+      title: `You earned ${REFERRAL_SIGNUP_POINTS} points: a friend joined CARMAZE`,
       body: `${newUserName} signed up with your referral link. Your points are in Rewards → My Account.`,
       link: '/account?tab=rewards',
     })
   } catch (e) {
-    // Attribution is optional enrichment — log and let registration succeed.
+    // Attribution is optional enrichment: log and let registration succeed.
     console.error('[register] referral attribution failed (ignored)', e)
   }
 }

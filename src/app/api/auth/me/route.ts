@@ -15,7 +15,7 @@ export const GET = route(async () => {
     include: { org: { select: { id: true, name: true, type: true, status: true } } },
   })
 
-  // Onboarding application progress per platform type — lets gates show the
+  // Onboarding application progress per platform type; lets gates show the
   // real review state instead of a client-side guess (applicants only ever
   // see their own applications here).
   const applications = await db.application.findMany({

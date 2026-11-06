@@ -7,11 +7,11 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/supply/fitment?make=&model=&year=&engine=&q=
- * Vehicle Part Compatibility Engine — returns products with REAL fitment
+ * Vehicle Part Compatibility Engine: returns products with REAL fitment
  * records matching the given vehicle, each with an explicit `fit` verdict:
- *   MATCH       — structured record matches
- *   POSSIBLE    — brand-level match only (make matches, no model record)
- *   NO_FITMENT  — product exists but has no fitment data (never claimed to fit)
+ *   MATCH      : structured record matches
+ *   POSSIBLE   : brand-level match only (make matches, no model record)
+ *   NO_FITMENT : product exists but has no fitment data (never claimed to fit)
  * Nothing is ever invented: products without records are clearly marked.
  */
 export const GET = route(async (req: NextRequest) => {
@@ -99,7 +99,7 @@ export const GET = route(async (req: NextRequest) => {
     summary: {
       matches: matchCount,
       note: matchCount === 0
-        ? 'No verified fitment records match this vehicle. Check the part number search or request a part from suppliers — never assume an unlisted part fits.'
+        ? 'No verified fitment records match this vehicle. Check the part number search or request a part from suppliers; never assume an unlisted part fits.'
         : `${matchCount} product(s) list a compatibility record for this vehicle.`,
     },
   })

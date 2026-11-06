@@ -16,7 +16,7 @@ function parseList(raw: string | null | undefined): string[] {
   }
 }
 
-/** GET /api/admin/logistics — delivery-partner list for staff with live job
+/** GET /api/admin/logistics: delivery-partner list for staff with live job
  * stats and owner contact. ADMIN | FOUNDER only. */
 export const GET = route(async (req: NextRequest) => {
   await requireRole(ROLE.ADMIN, ROLE.FOUNDER)

@@ -8,12 +8,12 @@ import { rateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/audit'
 
 /**
- * POST /api/admin/broadcast — ADMIN / FOUNDER only.
+ * POST /api/admin/broadcast: ADMIN / FOUNDER only.
  *
  * Sends an in-app announcement to a selected audience and records the same
  * honest EMAIL / SMS delivery rows as every other notification in this
  * deployment (see src/lib/notify.ts): when no provider is configured the
- * EMAIL / SMS deliveries are recorded FAILED with the reason — we never
+ * EMAIL / SMS deliveries are recorded FAILED with the reason; we never
  * pretend a channel was delivered.
  *
  * Audience resolution (status ACTIVE users only):
@@ -78,7 +78,7 @@ async function resolveRecipients(audience: 'ALL' | 'CUSTOMERS' | 'DEALERS' | 'GA
   return [...new Set(ids)].slice(0, BROADCAST_CAP)
 }
 
-/** Chunked honest delivery creation — mirrors notify() semantics exactly. */
+/** Chunked honest delivery creation: mirrors notify() semantics exactly. */
 async function createBroadcastNotifications(
   userIds: string[],
   payload: { title: string; body: string; link?: string }
@@ -142,7 +142,7 @@ export const POST = route(async (req: NextRequest) => {
 
   const recipients = await resolveRecipients(body.audience)
   if (recipients.length === 0) {
-    return fail(409, 'NO_RECIPIENTS', `No active users match the "${body.audience}" audience — nothing was sent.`)
+    return fail(409, 'NO_RECIPIENTS', `No active users match the "${body.audience}" audience: nothing was sent.`)
   }
 
   const channels = await createBroadcastNotifications(recipients, { title: body.title, body: body.body, link: body.link })
@@ -172,7 +172,7 @@ export const POST = route(async (req: NextRequest) => {
   })
 })
 
-/** GET /api/admin/broadcast — last 20 broadcasts from the audit trail (staff). */
+/** GET /api/admin/broadcast: last 20 broadcasts from the audit trail (staff). */
 export const GET = route(async () => {
   await requireRole(...STAFF_ROLES)
 
@@ -187,7 +187,7 @@ export const GET = route(async () => {
     try {
       meta = e.metadata ? (JSON.parse(e.metadata) as typeof meta) : {}
     } catch {
-      // corrupt metadata — degrade gracefully, never crash the tab
+      // corrupt metadata: degrade gracefully, never crash the tab
     }
     return {
       id: e.id,

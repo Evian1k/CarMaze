@@ -5,11 +5,11 @@ import { route, ok, fail, parseBody, requireRole } from '@/lib/api'
 import { audit } from '@/lib/audit'
 import { rateLimit } from '@/lib/rate-limit'
 
-/** Reset lock — only one demo-data reset may run at a time. */
+/** Reset lock: only one demo-data reset may run at a time. */
 let resetInFlight: { running: boolean; startedAt: number } = { running: false, startedAt: 0 }
 
 /**
- * POST /api/admin/demo-accounts/reset — restore demo data to its seeded
+ * POST /api/admin/demo-accounts/reset: restore demo data to its seeded
  * baseline by re-running the idempotent seed.
  *
  * HONESTY: on this deployment the entire database is demo/seed data, so the

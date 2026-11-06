@@ -34,10 +34,10 @@ const createSchema = z.object({
 })
 
 /**
- * GET /api/supply/products — supplier's own catalogue (tenant-isolated).
- * POST — create a product (SUPPLIER business, catalogue.write permission).
+ * GET /api/supply/products: supplier's own catalogue (tenant-isolated).
+ * POST: create a product (SUPPLIER business, catalogue.write permission).
  * Provenance notes are supplier-supplied evidence only; authenticityVerified
- * is NEVER settable here — only platform admins can verify authenticity.
+ * is NEVER settable here: only platform admins can verify authenticity.
  */
 export const GET = route(async (req: NextRequest) => {
   const user = await requireUser()

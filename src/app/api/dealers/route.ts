@@ -5,7 +5,7 @@ import { route, ok } from '@/lib/api'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/dealers — public showroom directory.
+ * GET /api/dealers: public showroom directory.
  * ACTIVE DEALER orgs with their live listing count and latest 3 published vehicles.
  */
 export const GET = route(async (_req: NextRequest) => {

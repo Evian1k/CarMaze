@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — storefront dialogs: Message (conversations), Quote (service
+/* CARMAZE: storefront dialogs: Message (conversations), Quote (service
  * requests), Booking (fixed-price service slot requests), Test drive and
  * Review. All are auth-aware (401 → sign-in), mobile-friendly and animated.
  * Each dialog = outer shell (Dialog) + inner form that mounts fresh every
@@ -84,7 +84,7 @@ function useSubmitGuard() {
   const user = useAuth((s) => s.user)
   return function guard(): boolean {
     if (!user) {
-      toast.info('Sign in to continue', { description: 'Create a free CARMAZE account first — it takes a minute.' })
+      toast.info('Sign in to continue', { description: 'Create a free CARMAZE account first: it takes a minute.' })
       navigate('signin')
       return false
     }
@@ -185,7 +185,7 @@ function MessageForm({
 
   if (doneRef) {
     return (
-      <SuccessPanel refCode={doneRef} title="Message sent" body={`${org.name} has been notified — replies appear in your messages.`}>
+      <SuccessPanel refCode={doneRef} title="Message sent" body={`${org.name} has been notified: replies appear in your messages.`}>
         <Button onClick={() => navigate('account?tab=messages')}>Open my messages</Button>
         <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
       </SuccessPanel>
@@ -235,9 +235,9 @@ export function QuoteDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Request a quote{presetTitle ? ` — ${presetTitle}` : ''}</DialogTitle>
+          <DialogTitle>Request a quote{presetTitle ? `: ${presetTitle}` : ''}</DialogTitle>
           <DialogDescription>
-            Your request is sent to garages matching the category — {org.name} is notified instantly and replies with a quote in your account. No obligation.
+            Your request is sent to garages matching the category; {org.name} is notified instantly and replies with a quote in your account. No obligation.
           </DialogDescription>
         </DialogHeader>
         <QuoteForm onOpenChange={onOpenChange} org={org} presetCategory={presetCategory} presetTitle={presetTitle} />
@@ -257,7 +257,7 @@ function QuoteForm({
   const guard = useSubmitGuard()
   const [category, setCategory] = useState(presetCategory)
   const [vehicle, setVehicle] = useState('')
-  const [description, setDescription] = useState(presetTitle ? `Request for "${presetTitle}" — ` : '')
+  const [description, setDescription] = useState(presetTitle ? `Request for "${presetTitle}": ` : '')
   const [county, setCounty] = useState(org.county || 'Nairobi')
   const [town, setTown] = useState('')
   const [sending, setSending] = useState(false)
@@ -291,7 +291,7 @@ function QuoteForm({
 
   if (doneRef) {
     return (
-      <SuccessPanel refCode={doneRef} title="Request sent" body="Quotes will appear in your account — accept one and the booking is confirmed.">
+      <SuccessPanel refCode={doneRef} title="Request sent" body="Quotes will appear in your account; accept one and the booking is confirmed.">
         <Button onClick={() => navigate('account?tab=requests')}>View my requests</Button>
         <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
       </SuccessPanel>
@@ -323,7 +323,7 @@ function QuoteForm({
             rows={4}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe the work — symptoms, parts, preferences. Minimum 15 characters."
+            placeholder="Describe the work: symptoms, parts, preferences. Minimum 15 characters."
           />
           <p className={`text-xs ${description.trim().length < 15 ? 'text-muted-foreground' : 'text-primary'}`}>
             {description.trim().length}/15 characters minimum
@@ -356,7 +356,7 @@ function QuoteForm({
 }
 
 // ─────────────────────────── BookingDialog ───────────────────────────
-// NOTE: /api/bookings has no POST — bookings are created when a quote is
+// NOTE: /api/bookings has no POST: bookings are created when a quote is
 // accepted. So "Book this service" submits a service request carrying the
 // preferred slot; the garage confirms and quotes, and the booking is locked.
 
@@ -376,7 +376,7 @@ export function BookingDialog({
             <CalendarCheck className="h-5 w-5 text-primary" aria-hidden="true" /> Book: {service.title}
           </DialogTitle>
           <DialogDescription>
-            Pick a preferred slot in the next 14 days. {org.name} confirms the appointment and sends a fixed quote — accepting it locks the booking.
+            Pick a preferred slot in the next 14 days. {org.name} confirms the appointment and sends a fixed quote; accepting it locks the booking.
           </DialogDescription>
         </DialogHeader>
         <BookingForm onOpenChange={onOpenChange} org={org} service={service} />
@@ -407,7 +407,7 @@ function BookingForm({
 
   function submit() {
     if (!date || !time) { toast.error('Pick a preferred date and time'); return }
-    const description = `Booking request: ${service.title} — preferred slot ${date} ${time}.${notes.trim() ? ` Notes: ${notes.trim()}` : ''}`
+    const description = `Booking request: ${service.title}, preferred slot ${date} ${time}.${notes.trim() ? ` Notes: ${notes.trim()}` : ''}`
     if (description.trim().length < 15) { toast.error('Add a few more details (15 characters minimum)'); return }
     if (!guard()) return
     setSending(true)
@@ -438,7 +438,7 @@ function BookingForm({
       <SuccessPanel
         refCode={doneRef}
         title="Booking request sent"
-        body={`${org.name} will confirm your slot (${slotLabel}) — you'll get the fixed quote to accept in your account.`}
+        body={`${org.name} will confirm your slot (${slotLabel}): you'll get the fixed quote to accept in your account.`}
       >
         <Button onClick={() => navigate('account?tab=requests')}>View my requests</Button>
         <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
@@ -514,7 +514,7 @@ export function TestDriveDialog({
             <CarFront className="h-5 w-5 text-primary" aria-hidden="true" /> Book a test drive
           </DialogTitle>
           <DialogDescription>
-            {vehicleLabel}{org ? ` — ${org.name}` : ''}. Choose a slot in the next 14 days; the showroom will confirm your appointment.
+            {vehicleLabel}{org ? `: ${org.name}` : ''}. Choose a slot in the next 14 days; the showroom will confirm your appointment.
           </DialogDescription>
         </DialogHeader>
         <TestDriveForm onOpenChange={onOpenChange} org={org} vehicleId={vehicleId} vehicleLabel={vehicleLabel} />
@@ -641,7 +641,7 @@ export function ReviewDialog({
             <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" /> Review {org.name}
           </DialogTitle>
           <DialogDescription>
-            Reviews are earned: post after a completed engagement with this business — a booked service for garages, a completed test drive for showrooms. Be honest and specific.
+            Reviews are earned: post after a completed engagement with this business; a booked service for garages, a completed test drive for showrooms. Be honest and specific.
           </DialogDescription>
         </DialogHeader>
         <ReviewForm onOpenChange={onOpenChange} org={org} onSubmitted={onSubmitted} />
@@ -675,7 +675,7 @@ function ReviewForm({
       .then((d) => {
         const r = d.review
         onSubmitted({ id: r.id, rating: r.rating, comment: r.comment, authorName: r.author?.name ?? 'You', createdAt: r.createdAt })
-        toast.success('Thanks — your review is live')
+        toast.success('Thanks: your review is live')
         onOpenChange(false)
       })
       .catch((e) => {

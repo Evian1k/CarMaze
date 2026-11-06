@@ -207,7 +207,7 @@ export default function View() {
           </div>
           <h1 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">My Garage</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to keep your private ownership records — service history, costs and reminders for every car you own.
+            Sign in to keep your private ownership records; service history, costs and reminders for every car you own.
           </p>
           <Button className="mt-6" onClick={() => navigate('signin')}>
             Sign in to continue
@@ -246,14 +246,14 @@ export default function View() {
           <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 p-3.5">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-xs leading-relaxed text-foreground/80">
-              <span className="font-medium">Private by default.</span> You choose what to share — nothing here is
+              <span className="font-medium">Private by default.</span> You choose what to share: nothing here is
               public, and reminders live in your notification center only.
             </p>
           </div>
           <div className="flex items-start gap-2.5 rounded-lg border border-gold/40 bg-gold/10 p-3.5">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold-ink dark:text-gold" />
             <p className="text-xs leading-relaxed text-foreground/80">
-              CARMAZE does not send SMS or email reminders in this deployment — check the Alerts tab.
+              CARMAZE does not send SMS or email reminders in this deployment; check the Alerts tab.
             </p>
           </div>
         </div>
@@ -573,7 +573,7 @@ function SelectedVehiclePanel({
             <Separator className="my-5" />
             <div className="grid gap-3 text-sm sm:grid-cols-2">
               <DetailRow label="Purchased on" value={dateLabel(vehicle.purchaseDate)} />
-              <DetailRow label="Purchase price" value={vehicle.purchasePriceMinor != null ? money(vehicle.purchasePriceMinor) : '—'} />
+              <DetailRow label="Purchase price" value={vehicle.purchasePriceMinor != null ? money(vehicle.purchasePriceMinor) : 'Not provided'} />
               <DetailRow
                 label="Total spent on records"
                 value={money(vehicle.records.reduce((s, r) => s + (r.costMinor ?? 0), 0))}
@@ -779,7 +779,7 @@ function MileageUpdater({ vehicle, onChanged }: { vehicle: GarageVehicle; onChan
           {busy ? 'Saving…' : 'Save'}
         </Button>
       </div>
-      <p className="mt-1.5 text-xs text-muted-foreground">Update any time — logging a higher-mileage service record also updates this automatically.</p>
+      <p className="mt-1.5 text-xs text-muted-foreground">Update any time: logging a higher-mileage service record also updates this automatically.</p>
     </div>
   )
 }
@@ -1033,7 +1033,7 @@ function AddReminderDialog({
       intervalDays: recurring ? parseInt(interval, 10) : undefined,
     })
       .then(() => {
-        toast.success('Reminder created — it will also appear in your Alerts tab.')
+        toast.success('Reminder created: it will also appear in your Alerts tab.')
         setTitle(''); setDueDate(''); setRecurring(false)
         onClose()
         onCreated()
@@ -1047,7 +1047,7 @@ function AddReminderDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add a reminder</DialogTitle>
-          <DialogDescription>In-app only — you will see it here and in your Alerts tab.</DialogDescription>
+          <DialogDescription>In-app only: you will see it here and in your Alerts tab.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid grid-cols-2 gap-3">

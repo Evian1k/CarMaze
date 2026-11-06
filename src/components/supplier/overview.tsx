@@ -1,6 +1,6 @@
 'use client'
 
-/* SupplierOS — Overview tab: stat cards (published products, open orders,
+/* SupplierOS: Overview tab: stat cards (published products, open orders,
  * awaiting-response orders, warehouses), verification status card and a
  * recent-orders mini list. All numbers come from the live endpoints; nothing
  * is simulated. Verification is displayed exactly as the API reports it. */
@@ -74,7 +74,7 @@ export function OverviewTab({ orgId, orgName, membership, products, orders, bran
             label="Awaiting your response"
             value={awaiting}
             icon={<Inbox className="h-5 w-5" />}
-            hint={awaiting > 0 ? 'Garages are waiting — respond early' : 'Inbox clear'}
+            hint={awaiting > 0 ? 'Garages are waiting: respond early' : 'Inbox clear'}
             onClick={() => navigate('/supplier?tab=orders')}
           />
         )}
@@ -185,7 +185,7 @@ function VerificationCard({ profile, orgName }: { profile: FetchState<SupplierPr
           <p className="text-sm font-semibold">Verified business</p>
           <p className="text-xs leading-relaxed text-muted-foreground">
             {orgName} passed CARMAZE document review. The verified badge is shown to garages on your storefront and
-            catalogue listings. Verification status is controlled by the platform — it is never self-claimed.
+            catalogue listings. Verification status is controlled by the platform; it is never self-claimed.
           </p>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -202,9 +202,9 @@ function VerificationCard({ profile, orgName }: { profile: FetchState<SupplierPr
   ) : (
     <Alert className={cn('border-accent/60')}>
       <ShieldAlert className="h-4 w-4" />
-      <AlertTitle>Verification pending — platform review required</AlertTitle>
+      <AlertTitle>Verification pending: platform review required</AlertTitle>
       <AlertDescription>
-        {orgName} is registered but not yet verified. Unverified suppliers are never shown as verified publicly —
+        {orgName} is registered but not yet verified. Unverified suppliers are never shown as verified publicly:
         your storefront, contact details and catalogue go live to garages once the CARMAZE review team approves your
         documents. You can keep preparing your catalogue and warehouses in the meantime.
       </AlertDescription>

@@ -20,7 +20,7 @@ const schema = z.object({
   note: z.string().trim().max(300).optional().nullable(),
 })
 
-/** GET — compatibility records for a product (public). */
+/** GET: compatibility records for a product (public). */
 export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const rows = await db.productCompatibility.findMany({ where: { productId: id }, orderBy: [{ make: 'asc' }, { model: 'asc' }] })
@@ -28,7 +28,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
 })
 
 /**
- * POST — owning supplier adds a fitment reference. Records are stored with
+ * POST: owning supplier adds a fitment reference. Records are stored with
  * source=SUPPLIER and verified=false until platform admins review disputed
  * fitment. The engine never invents compatibility.
  */
@@ -61,7 +61,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   return ok({ compatibility: row }, { status: 201 })
 })
 
-/** DELETE — remove a fitment record (owning supplier). */
+/** DELETE: remove a fitment record (owning supplier). */
 export const DELETE = route(async (req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()

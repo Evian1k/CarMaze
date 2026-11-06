@@ -101,7 +101,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     await notifyMany(sellers, {
       type: 'ENQUIRY_REPLY',
       title: 'Buyer replied to your enquiry',
-      body: `${enquiry.vehicle.make} ${enquiry.vehicle.model} ${enquiry.vehicle.year} (${enquiry.refCode}) — from ${user.name}.`,
+      body: `${enquiry.vehicle.make} ${enquiry.vehicle.model} ${enquiry.vehicle.year} (${enquiry.refCode}): from ${user.name}.`,
       link: enquiry.vehicle.orgId ? '/dealer' : '/my-listings',
     })
   }

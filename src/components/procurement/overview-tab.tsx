@@ -1,6 +1,6 @@
 'use client'
 
-/* Overview tab — procurement workbench stats computed from the real order
+/* Overview tab: procurement workbench stats computed from the real order
  * feed, the garage's low-stock alert list, and quick reorder from the most
  * recent completed order. */
 
@@ -70,7 +70,7 @@ export function OverviewTab({ orgId, role, onNav, onBrowse, onRequestPart }: {
     setRemovingId(productId)
     try {
       await apiSend(`/api/supply/alerts?productId=${encodeURIComponent(productId)}`, 'DELETE')
-      toast.success(`Stock alert removed — ${name}`)
+      toast.success(`Stock alert removed: ${name}`)
       loadAlerts()
     } catch (e) {
       toast.error(e instanceof ClientApiError ? e.message : 'Could not remove the alert.')
@@ -90,7 +90,7 @@ export function OverviewTab({ orgId, role, onNav, onBrowse, onRequestPart }: {
             <StatCard icon={ClipboardList} label="Open orders" value={stats.open} sub="active with suppliers" onClick={() => onNav('orders')} />
             <StatCard icon={Hourglass} label="Awaiting approval" value={stats.awaitingApproval} sub={canApprove(role) ? 'needs owner/GM sign-off' : 'owner/GM sign-off'} accent={stats.awaitingApproval > 0} onClick={() => onNav(canApprove(role) ? 'approvals' : 'orders')} />
             <StatCard icon={Truck} label="Dispatched / in transit" value={stats.transit} sub="on the way to you" onClick={() => onNav('orders')} />
-            <StatCard icon={PackageCheck} label="Delivered — inspect" value={stats.delivered} sub="inspection releases payment" accent={stats.delivered > 0} onClick={() => onNav('orders')} />
+            <StatCard icon={PackageCheck} label="Delivered: inspect" value={stats.delivered} sub="inspection releases payment" accent={stats.delivered > 0} onClick={() => onNav('orders')} />
             <StatCard icon={Wallet} label="Spend this month" value={compactMoney(stats.monthSpend)} sub="purchase orders created" onClick={() => onNav('spend')} />
           </>
         )}

@@ -9,7 +9,7 @@ import { getFees, setFees } from '@/lib/supply'
 
 export const dynamic = 'force-dynamic'
 
-/** GET /api/admin/fees — central fee & commission configuration. */
+/** GET /api/admin/fees: central fee & commission configuration. */
 export const GET = route(async () => {
   await requireRole(ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
   const fees = await getFees()
@@ -25,7 +25,7 @@ const schema = z.object({
   membershipPlatformFeePct: z.number().min(0).max(30),
 })
 
-/** PUT — update fee configuration (fully audited). */
+/** PUT: update fee configuration (fully audited). */
 export const PUT = route(async (req: NextRequest) => {
   const user = await requireRole(ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
   // DEMO SANDBOX: platform-wide economics are never configurable from a demo session.

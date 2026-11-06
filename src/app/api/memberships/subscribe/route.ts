@@ -15,11 +15,11 @@ const schema = z.object({
 })
 
 /**
- * POST /api/memberships/subscribe — customer subscribes to a business
+ * POST /api/memberships/subscribe: customer subscribes to a business
  * membership tier. HONEST BILLING (same policy as platform plans): this
  * creates a PENDING BusinessMembership + PENDING invoice. It becomes ACTIVE
  * only when the invoice is actually paid (M-Pesa callback with ResultCode 0
- * or FINANCE manual reconciliation) — never on a frontend claim.
+ * or FINANCE manual reconciliation): never on a frontend claim.
  */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
@@ -55,7 +55,7 @@ export const POST = route(async (req: NextRequest) => {
       orgId: tier.orgId,
       userId: user.id,
       type: 'MEMBERSHIP',
-      description: `${tier.name} membership (${body.billingPeriod.toLowerCase()}) — ${tier.org.name} [membership:pending]`,
+      description: `${tier.name} membership (${body.billingPeriod.toLowerCase()}): ${tier.org.name} [membership:pending]`,
       amountMinor: amount,
       currency: 'KES',
       status: 'PENDING',
@@ -82,7 +82,7 @@ export const POST = route(async (req: NextRequest) => {
   const staff = await db.orgMember.findMany({ where: { orgId: tier.orgId, role: { in: ['OWNER', 'MANAGER', 'GM'] } }, select: { userId: true } })
   await notifyMany(staff.map((m) => m.userId), {
     type: 'MEMBERSHIP_PENDING',
-    title: `New membership pending — ${tier.name}`,
+    title: `New membership pending: ${tier.name}`,
     body: `${user.name} subscribed to ${tier.name}. Membership activates when payment is confirmed.`,
     link: tier.org.type === 'GARAGE' ? '/garage-dashboard?tab=memberships' : '/dealer?tab=memberships',
   })
@@ -91,6 +91,6 @@ export const POST = route(async (req: NextRequest) => {
   return ok({
     membership: { id: membership.id, refCode: membership.refCode, status: membership.status },
     invoice: { id: invoice.id, refCode: invoice.refCode, amountMinor: invoice.amountMinor },
-    message: 'Membership created — complete the M-Pesa payment to activate. Benefits unlock only after payment confirmation.',
+    message: 'Membership created: complete the M-Pesa payment to activate. Benefits unlock only after payment confirmation.',
   }, { status: 201 })
 })

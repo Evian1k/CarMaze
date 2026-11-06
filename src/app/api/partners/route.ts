@@ -6,13 +6,13 @@ import { PARTNER_CATEGORIES, parseServiceAreas } from '@/lib/partners'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/partners — public Partner Network directory.
+ * GET /api/partners: public Partner Network directory.
  *
  * Only partners with status APPROVED **and** verified=true are ever listed.
  * Filters: ?category= (exact enum), ?county= (matches partner county OR any of
  * its declared service areas), ?q= (case-insensitive match on name/description).
  *
- * Public-safe fields ONLY — notes, contactName, email and rejectionReason are
+ * Public-safe fields ONLY: notes, contactName, email and rejectionReason are
  * staff-side data and must never appear in this response.
  */
 export const GET = route(async (req: NextRequest) => {
@@ -23,7 +23,7 @@ export const GET = route(async (req: NextRequest) => {
 
   // Exact-match filters go to SQL; SQLite has no case-insensitive `contains`
   // in Prisma and serviceAreas is a JSON string, so q/county filter in memory
-  // (the directory is small — verified partners only).
+  // (the directory is small: verified partners only).
   const rows = await db.partner.findMany({
     where: {
       status: 'APPROVED',

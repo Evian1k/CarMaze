@@ -8,7 +8,7 @@ import { localGet, localSet } from '@/lib/safe-storage'
 type Props = { children: ReactNode }
 type State = { error: Error | null }
 
-/** Detects "stale chunk" failures — the tab held old build references while
+/** Detects "stale chunk" failures: the tab held old build references while
  * the dev server (or a deploy) swapped assets underneath it. The fix is one
  * hard reload; the session guard prevents a reload loop. */
 let lastBoundaryError: unknown = null
@@ -32,7 +32,7 @@ function recoverChunkError(): boolean {
     if (localGet('carmaze_chunk_recovered') === '1') return false
     localSet('carmaze_chunk_recovered', '1')
   } catch {
-    /* storage blocked — still attempt the single reload */
+    /* storage blocked: still attempt the single reload */
   }
   window.location.reload()
   return true

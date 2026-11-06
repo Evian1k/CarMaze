@@ -1,6 +1,6 @@
 'use client'
 
-/* DealerOS — dealer onboarding + dealership management portal.
+/* DealerOS: dealer onboarding + dealership management portal.
  * Three states driven by GET /api/orgs/me:
  *   A) Not applied            → marketing + 4-step application wizard
  *   B) Pending / corrections  → status card, event timeline, resubmit form
@@ -289,8 +289,8 @@ const ROLE_BADGE: Record<string, string> = {
 }
 
 const ACCOUNT_TYPES = [
-  { value: 'dealer-starter', label: 'Dealer Starter — KES 4,900/mo, 10 listings' },
-  { value: 'dealer-pro', label: 'Dealer Pro — KES 9,900/mo, 40 listings' },
+  { value: 'dealer-starter', label: 'Dealer Starter: KES 4,900/mo, 10 listings' },
+  { value: 'dealer-pro', label: 'Dealer Pro: KES 9,900/mo, 40 listings' },
 ]
 
 // ───────────────────────────── Helpers ─────────────────────────────
@@ -310,13 +310,13 @@ async function copyText(text: string) {
     await navigator.clipboard.writeText(text)
     toast.success('Copied to clipboard')
   } catch {
-    toast.error('Copy failed — please select the text and copy manually.')
+    toast.error('Copy failed: please select the text and copy manually.')
   }
 }
 
 type FetchState<T> = { data: T | null; error: FetchError | null; loading: boolean; reload: () => void }
 
-/** GET hook — all state updates happen in async callbacks (lint-safe). */
+/** GET hook: all state updates happen in async callbacks (lint-safe). */
 function useFetch<T>(url: string | null): FetchState<T> {
   const [completed, setCompleted] = useState<{ key: string; data: T | null; error: FetchError | null } | null>(null)
   const [tick, setTick] = useState(0)
@@ -455,17 +455,17 @@ function DocUploader({ docs, onAdd, onRemove, uploading, idPrefix }: {
         </ul>
       )}
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <ShieldCheck className="h-3.5 w-3.5" /> Documents are private — only CARMAZE reviewers can view them.
+        <ShieldCheck className="h-3.5 w-3.5" /> Documents are private: only CARMAZE reviewers can view them.
       </p>
     </div>
   )
 }
 
-// ───────────────────────────── State A — Not applied ─────────────────────────────
+// ───────────────────────────── State A: Not applied ─────────────────────────────
 
 const BENEFITS = [
   { icon: <BadgeCheck className="h-5 w-5" />, title: 'Verified badge', detail: 'Pass document review and earn the trust marker buyers look for.' },
-  { icon: <MessageSquare className="h-5 w-5" />, title: 'Enquiry inbox', detail: 'Structured customer conversations on every listing — no WhatsApp scatter.' },
+  { icon: <MessageSquare className="h-5 w-5" />, title: 'Enquiry inbox', detail: 'Structured customer conversations on every listing: no WhatsApp scatter.' },
   { icon: <Handshake className="h-5 w-5" />, title: 'Dealer matching', detail: 'Send offers on private cars flagged “match with dealers” before anyone else.' },
   { icon: <Users className="h-5 w-5" />, title: 'Team accounts', detail: 'Add sales staff with their own logins and role-based access.' },
   { icon: <Wallet className="h-5 w-5" />, title: 'M-Pesa billing', detail: 'Subscriptions and promotions paid via Safaricom Daraja STK push.' },
@@ -522,7 +522,7 @@ function NotApplied({ previousApp, onDone }: { previousApp: DealerApplication | 
       }
       toast.success('Document uploaded')
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Upload failed — please try again.')
+      toast.error(e instanceof Error ? e.message : 'Upload failed: please try again.')
     } finally {
       setUploading(false)
     }
@@ -582,9 +582,9 @@ function NotApplied({ previousApp, onDone }: { previousApp: DealerApplication | 
         notes: form.notes.trim() || undefined,
       })
       if (status === 'SUBMITTED') {
-        toast.success(`Application submitted — ${res.application.refCode}. Initial review target: 24 business hours.`)
+        toast.success(`Application submitted: ${res.application.refCode}. Initial review target: 24 business hours.`)
       } else {
-        toast.success(`Draft saved — ${res.application.refCode}. You can finish and submit any time.`)
+        toast.success(`Draft saved: ${res.application.refCode}. You can finish and submit any time.`)
       }
       setOpen(false)
       onDone()
@@ -602,9 +602,9 @@ function NotApplied({ previousApp, onDone }: { previousApp: DealerApplication | 
         <Badge variant="secondary" className="mb-3 gap-1.5 border-transparent bg-accent/30 text-accent-foreground">
           <Sparkles className="h-3.5 w-3.5" /> For verified dealerships
         </Badge>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">DealerOS — run your dealership on CARMAZE</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">DealerOS: run your dealership on CARMAZE</h1>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-          One workspace for listings, customer enquiries, offers, your team and billing. Apply once — our review team
+          One workspace for listings, customer enquiries, offers, your team and billing. Apply once: our review team
           verifies your business within 24 business hours. No verification badge is ever bought.
         </p>
       </div>
@@ -642,7 +642,7 @@ function NotApplied({ previousApp, onDone }: { previousApp: DealerApplication | 
           Apply for dealership verification <ArrowRight className="h-4 w-4" />
         </Button>
         <p className="text-xs text-muted-foreground">
-          Already have a CARMAZE account? Use it — the application is linked to your login.
+          Already have a CARMAZE account? Use it: the application is linked to your login.
         </p>
       </div>
 
@@ -652,7 +652,7 @@ function NotApplied({ previousApp, onDone }: { previousApp: DealerApplication | 
           <DialogHeader>
             <DialogTitle>Dealership application</DialogTitle>
             <DialogDescription>
-              Step {step} of 4 · {WIZARD_STEPS[step - 1]} — initial review target is 24 business hours.
+              Step {step} of 4 · {WIZARD_STEPS[step - 1]}; initial review target is 24 business hours.
             </DialogDescription>
           </DialogHeader>
 
@@ -721,14 +721,14 @@ function NotApplied({ previousApp, onDone }: { previousApp: DealerApplication | 
                     {ACCOUNT_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Interest only — you choose (or change) your plan after approval, in Billing.</p>
+                <p className="text-xs text-muted-foreground">Interest only: you choose (or change) your plan after approval, in Billing.</p>
               </div>
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertTitle>Your CARMAZE account</AlertTitle>
                 <AlertDescription>
                   This application is linked to the account you are signed in with. Verification decisions and messages
-                  arrive as in-app notifications — no separate dealer login is created.
+                  arrive as in-app notifications: no separate dealer login is created.
                 </AlertDescription>
               </Alert>
             </div>
@@ -753,12 +753,12 @@ function NotApplied({ previousApp, onDone }: { previousApp: DealerApplication | 
           {step === 4 && (
             <div className="grid gap-4">
               <dl className="grid gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
-                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Dealership</dt><dd className="text-right font-medium">{form.orgName || '—'}</dd></div>
-                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Reg. number</dt><dd className="text-right">{form.regNo || '—'}</dd></div>
-                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Location</dt><dd className="text-right">{[form.town, form.county].filter(Boolean).join(', ') || '—'}</dd></div>
-                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Phone</dt><dd className="text-right">{form.phone || '—'}</dd></div>
-                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Representative</dt><dd className="text-right">{form.representative || '—'}</dd></div>
-                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Plan interest</dt><dd className="text-right">{form.accountType || '—'}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Dealership</dt><dd className="text-right font-medium">{form.orgName || 'Not set'}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Reg. number</dt><dd className="text-right">{form.regNo || 'Not set'}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Location</dt><dd className="text-right">{[form.town, form.county].filter(Boolean).join(', ') || 'Not set'}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Phone</dt><dd className="text-right">{form.phone || 'Not provided'}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Representative</dt><dd className="text-right">{form.representative || 'Not set'}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Plan interest</dt><dd className="text-right">{form.accountType || 'Not set'}</dd></div>
                 <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Documents</dt><dd className="text-right">{docs.length} uploaded</dd></div>
               </dl>
               <label className="flex items-start gap-2.5 text-sm leading-relaxed" htmlFor="wz-consent">
@@ -795,7 +795,7 @@ function NotApplied({ previousApp, onDone }: { previousApp: DealerApplication | 
   )
 }
 
-// ───────────────────────────── State B — Pending application ─────────────────────────────
+// ───────────────────────────── State B: Pending application ─────────────────────────────
 
 function PendingApplication({ app, onUpdated }: { app: DealerApplication; onUpdated: () => void }) {
   const [docs, setDocs] = useState<DocItem[]>([])
@@ -819,7 +819,7 @@ function PendingApplication({ app, onUpdated }: { app: DealerApplication; onUpda
       }
       toast.success('Document uploaded')
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Upload failed — please try again.')
+      toast.error(e instanceof Error ? e.message : 'Upload failed: please try again.')
     } finally {
       setUploading(false)
     }
@@ -837,7 +837,7 @@ function PendingApplication({ app, onUpdated }: { app: DealerApplication; onUpda
         documents: docs.length > 0 ? docs : undefined,
         notes: notes.trim() || undefined,
       })
-      toast.success('Information resubmitted — the review team has been notified.')
+      toast.success('Information resubmitted: the review team has been notified.')
       onUpdated()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not resubmit.')
@@ -859,7 +859,7 @@ function PendingApplication({ app, onUpdated }: { app: DealerApplication; onUpda
           <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-mono text-xs">{app.refCode}</span>
             <span aria-hidden>·</span>
-            <span>Submitted {app.submittedAt ? dateLabel(app.submittedAt) : '—'}</span>
+            <span>Submitted {app.submittedAt ? dateLabel(app.submittedAt) : 'Not set'}</span>
             <span aria-hidden>·</span>
             <span className="flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> Initial review target: 24 business hours</span>
           </CardDescription>
@@ -870,7 +870,7 @@ function PendingApplication({ app, onUpdated }: { app: DealerApplication; onUpda
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Review is taking longer than our target</AlertTitle>
               <AlertDescription>
-                Your application has been escalated to senior staff — no action is needed from you. We are sorry for the wait.
+                Your application has been escalated to senior staff; no action is needed from you. We are sorry for the wait.
               </AlertDescription>
             </Alert>
           )}
@@ -910,7 +910,7 @@ function PendingApplication({ app, onUpdated }: { app: DealerApplication; onUpda
           {!needsInfo && app.status !== 'APPROVED' && (
             <p className="text-sm leading-relaxed text-muted-foreground">
               Your application is in the review queue. You will receive an in-app notification as soon as the review team
-              updates it — this page updates automatically when you revisit.
+              updates it: this page updates automatically when you revisit.
             </p>
           )}
           {app.status === 'APPROVED' && (
@@ -919,7 +919,7 @@ function PendingApplication({ app, onUpdated }: { app: DealerApplication; onUpda
               <AlertTitle>Application approved</AlertTitle>
               <AlertDescription>
                 Your dealership has been verified. If your DealerOS workspace does not appear shortly, sign out and back in
-                once — or contact support with your reference {app.refCode}.
+                once: or contact support with your reference {app.refCode}.
               </AlertDescription>
             </Alert>
           )}
@@ -949,7 +949,7 @@ function PendingApplication({ app, onUpdated }: { app: DealerApplication; onUpda
   )
 }
 
-// ───────────────────────────── State C — Dashboard tabs ─────────────────────────────
+// ───────────────────────────── State C: Dashboard tabs ─────────────────────────────
 
 function OverviewTab({ orgId, dash }: { orgId: string; dash: FetchState<DashboardData> }) {
   const copilot = useFetch<{ insights: Insight[]; generatedAt: string }>(`/api/dealer/copilot?orgId=${orgId}`)
@@ -988,7 +988,7 @@ function OverviewTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboar
               <div className="space-y-2"><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></div>
             )}
             {copilot.error && (
-              <p className="text-sm text-muted-foreground">Copilot is unavailable right now — {copilot.error.message}</p>
+              <p className="text-sm text-muted-foreground">Copilot is unavailable right now; {copilot.error.message}</p>
             )}
             {copilot.data?.insights.map((ins) => (
               <div
@@ -1049,7 +1049,7 @@ function OverviewTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboar
                 </>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-muted-foreground">No subscription on this dealership yet — pick a plan to publish listings.</p>
+                  <p className="text-muted-foreground">No subscription on this dealership yet; pick a plan to publish listings.</p>
                   <Button size="sm" onClick={() => navigate('/dealer?tab=billing')}>Choose a plan</Button>
                 </div>
               )}
@@ -1062,7 +1062,7 @@ function OverviewTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboar
             </CardHeader>
             <CardContent>
               {d.recentEnquiries.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No enquiries yet — they appear here the moment a customer asks about a listing.</p>
+                <p className="text-sm text-muted-foreground">No enquiries yet: they appear here the moment a customer asks about a listing.</p>
               ) : (
                 <ul className="divide-y">
                   {d.recentEnquiries.map((e) => (
@@ -1143,7 +1143,7 @@ function VehicleRowActions({ v, onDone }: { v: VehicleItem; onDone: () => void }
 }
 
 function InventoryTab({ orgId, dash }: { orgId: string; dash: FetchState<DashboardData> }) {
-  // Org-scoped "mine" query — orgId is validated server-side against the
+  // Org-scoped "mine" query: orgId is validated server-side against the
   // caller's memberships, so this only ever returns this org's vehicles.
   const vehicles = useFetch<{ vehicles: VehicleItem[] }>(orgId ? `/api/vehicles?mine=1&orgId=${encodeURIComponent(orgId)}` : null)
   const usage = dash.data?.listingUsage ?? null
@@ -1157,7 +1157,7 @@ function InventoryTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboa
         <div className="min-w-48 flex-1">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Active listings</span>
-            <span>{usage ? `${usage.used} of ${usage.limit ?? '∞'} used` : '—'}</span>
+            <span>{usage ? `${usage.used} of ${usage.limit ?? '∞'} used` : 'Not set'}</span>
           </div>
           <Progress className="mt-1" value={usage?.limit ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0} />
         </div>
@@ -1169,18 +1169,18 @@ function InventoryTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboa
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Listings go through CARMAZE review before publishing — submitted vehicles appear in the marketplace once approved.
+          Listings go through CARMAZE review before publishing; submitted vehicles appear in the marketplace once approved.
         </AlertDescription>
       </Alert>
 
       {vehicles.loading && !vehicles.data ? (
         <LoadingBlock label="Loading your inventory…" />
       ) : moduleMissing ? (
-        <ModuleNotice loading title="Inventory module is loading…" detail="The listings service is being integrated — your vehicles will appear here shortly." retry={vehicles.reload} />
+        <ModuleNotice loading title="Inventory module is loading…" detail="The listings service is being integrated; your vehicles will appear here shortly." retry={vehicles.reload} />
       ) : vehicles.error ? (
         <ModuleNotice title="Could not load inventory" detail={vehicles.error.message} retry={vehicles.reload} />
       ) : list.length === 0 ? (
-        <EmptyState icon={<Car className="h-8 w-8" />} title="No vehicles yet" detail="Add your first vehicle — it will go through CARMAZE review before it is published." />
+        <EmptyState icon={<Car className="h-8 w-8" />} title="No vehicles yet" detail="Add your first vehicle; it will go through CARMAZE review before it is published." />
       ) : (
         <>
           {/* Desktop table */}
@@ -1300,7 +1300,7 @@ function EnquiriesTab({ orgId }: { orgId: string }) {
 
   if (enquiries.loading && !enquiries.data) return <LoadingBlock label="Loading enquiries…" />
   if (moduleMissing) {
-    return <ModuleNotice loading title="Enquiry inbox is loading…" detail="The messaging service is being integrated — customer enquiries will appear here." retry={enquiries.reload} />
+    return <ModuleNotice loading title="Enquiry inbox is loading…" detail="The messaging service is being integrated; customer enquiries will appear here." retry={enquiries.reload} />
   }
   if (enquiries.error) return <ModuleNotice title="Could not load enquiries" detail={enquiries.error.message} retry={enquiries.reload} />
 
@@ -1310,7 +1310,7 @@ function EnquiriesTab({ orgId }: { orgId: string }) {
         <Alert className="border-accent/60 bg-accent/10">
           <MessageSquareReply className="h-4 w-4" />
           <AlertDescription>
-            {openCount} open {openCount === 1 ? 'enquiry' : 'enquiries'} — respond promptly. Customers who get a reply
+            {openCount} open {openCount === 1 ? 'enquiry' : 'enquiries'}: respond promptly. Customers who get a reply
             within 24 hours are far more likely to visit the yard.
           </AlertDescription>
         </Alert>
@@ -1428,10 +1428,10 @@ function OffersTab({ orgId }: { orgId: string }) {
                 <TableBody>
                   {list.map((o) => (
                     <TableRow key={o.id}>
-                      <TableCell className="pl-4 text-sm font-medium">{o.vehicle ? vehicleTitle(o.vehicle) : '—'}</TableCell>
+                      <TableCell className="pl-4 text-sm font-medium">{o.vehicle ? vehicleTitle(o.vehicle) : 'Not set'}</TableCell>
                       <TableCell className="text-sm font-semibold">{money(o.amountMinor)}</TableCell>
                       <TableCell><StatusBadge status={o.status} labels={{ PENDING: 'Pending', ACCEPTED: 'Accepted', REJECTED: 'Rejected', EXPIRED: 'Expired', WITHDRAWN: 'Withdrawn' }} classes={GENERIC_BADGE_CLASS} /></TableCell>
-                      <TableCell className="text-sm">{o.expiresAt ? dateLabel(o.expiresAt) : '—'}</TableCell>
+                      <TableCell className="text-sm">{o.expiresAt ? dateLabel(o.expiresAt) : 'Not set'}</TableCell>
                       <TableCell className="pr-4 text-right text-sm text-muted-foreground">{timeAgo(o.createdAt)}</TableCell>
                     </TableRow>
                   ))}
@@ -1533,7 +1533,7 @@ function BuyingTab({ orgId }: { orgId: string }) {
         </div>
         {mineList.length === 0 ? (
           <div className="mt-3">
-            <EmptyState icon={<ClipboardList className="h-8 w-8" />} title="No buying requests" detail="Post what you are sourcing — private sellers with matching cars get notified." />
+            <EmptyState icon={<ClipboardList className="h-8 w-8" />} title="No buying requests" detail="Post what you are sourcing; private sellers with matching cars get notified." />
           </div>
         ) : (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -1569,7 +1569,7 @@ function BuyingTab({ orgId }: { orgId: string }) {
 
       <section aria-labelledby="dealer-board">
         <h2 id="dealer-board" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Dealer board</h2>
-        <p className="mt-1 text-xs text-muted-foreground">What other verified dealerships are sourcing right now — useful for market awareness. Read-only.</p>
+        <p className="mt-1 text-xs text-muted-foreground">What other verified dealerships are sourcing right now; useful for market awareness. Read-only.</p>
         {board.loading && !board.data ? (
           <div className="mt-3"><Skeleton className="h-16 w-full" /></div>
         ) : board.error?.status === 404 ? (
@@ -1717,7 +1717,7 @@ function StaffTab({ orgId, viewerRole }: { orgId: string; viewerRole: string }) 
 
   if (staff.loading && !staff.data) return <LoadingBlock label="Loading your team…" />
   if (staff.error?.status === 403) {
-    return <ModuleNotice title="Owner or manager access required" detail="Ask the dealership owner to manage team accounts — you can still use the rest of DealerOS." />
+    return <ModuleNotice title="Owner or manager access required" detail="Ask the dealership owner to manage team accounts; you can still use the rest of DealerOS." />
   }
   if (staff.error?.status === 404) {
     return <ModuleNotice loading title="Staff module is loading…" retry={staff.reload} />
@@ -1808,10 +1808,10 @@ function StaffTab({ orgId, viewerRole }: { orgId: string; viewerRole: string }) 
               <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}>
                 <SelectTrigger aria-label="Role"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="SALES">Sales — handle enquiries</SelectItem>
-                  <SelectItem value="MANAGER">Manager — full operations access</SelectItem>
-                  <SelectItem value="FINANCE">Finance — billing and offers</SelectItem>
-                  <SelectItem value="STAFF">Staff — basic access</SelectItem>
+                  <SelectItem value="SALES">Sales: handle enquiries</SelectItem>
+                  <SelectItem value="MANAGER">Manager: full operations access</SelectItem>
+                  <SelectItem value="FINANCE">Finance: billing and offers</SelectItem>
+                  <SelectItem value="STAFF">Staff: basic access</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1834,7 +1834,7 @@ function StaffTab({ orgId, viewerRole }: { orgId: string; viewerRole: string }) 
               <div className="space-y-3">
                 <p>
                   A CARMAZE account was created for <strong>{oneTime?.email}</strong>. This temporary password is shown
-                  <strong> only once</strong> — copy it now and share it through a private channel.
+                  <strong> only once</strong>: copy it now and share it through a private channel.
                 </p>
                 <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2">
                   <code className="flex-1 select-all font-mono text-sm font-semibold">{oneTime?.password}</code>
@@ -1889,7 +1889,7 @@ function BillingTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboard
     setBusyCode(planCode)
     try {
       const res = await apiSend<{ message?: string; invoice?: { refCode?: string } }>('/api/billing/subscribe', 'POST', { planCode })
-      toast.success(res.message ?? `Subscribed to ${planCode} — an invoice was created and is awaiting payment.`)
+      toast.success(res.message ?? `Subscribed to ${planCode}: an invoice was created and is awaiting payment.`)
       dash.reload()
       invoices.reload()
     } catch (e) {
@@ -1910,7 +1910,7 @@ function BillingTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboard
     setPayError(null)
     try {
       const res = await apiSend<{ message?: string }>('/api/billing/mpesa/stkpush', 'POST', { invoiceId: payInvoice.id, phone: cleaned })
-      toast.success(res.message ?? `STK push sent to ${cleaned} — enter your M-Pesa PIN to complete payment for ${payInvoice.refCode}.`)
+      toast.success(res.message ?? `STK push sent to ${cleaned}: enter your M-Pesa PIN to complete payment for ${payInvoice.refCode}.`)
       setPayInvoice(null)
       setPhone('')
       invoices.reload()
@@ -1932,7 +1932,7 @@ function BillingTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboard
           <CardContent className="px-6 py-10">
             <LoadingBlock label="Billing module loading…" />
             <p className="mt-3 text-center text-xs text-muted-foreground">
-              Plans and invoices are served by the billing service — it is being integrated and will appear here.
+              Plans and invoices are served by the billing service; it is being integrated and will appear here.
             </p>
           </CardContent>
         </Card>
@@ -1957,7 +1957,7 @@ function BillingTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboard
                 <span className="text-xs text-muted-foreground">{dash.data.listingUsage.used} of {subscription.listingLimit} listings · {dash.data.stats.staffCount} of {subscription.staffLimit} staff</span>
               </div>
             ) : (
-              <p className="text-muted-foreground">No active subscription — choose a plan below to publish listings.</p>
+              <p className="text-muted-foreground">No active subscription: choose a plan below to publish listings.</p>
             )}
           </CardContent>
         </Card>
@@ -2056,7 +2056,7 @@ function BillingTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboard
         </section>
       )}
 
-      {/* Promotions — buy/manage listing campaigns (same M-Pesa flow) */}
+      {/* Promotions: buy/manage listing campaigns (same M-Pesa flow) */}
       <PromotionsSection />
 
       {/* M-Pesa payment dialog */}
@@ -2065,7 +2065,7 @@ function BillingTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboard
           <DialogHeader>
             <DialogTitle>Pay {payInvoice ? money(payInvoice.amountMinor, payInvoice.currency) : ''} via M-Pesa</DialogTitle>
             <DialogDescription>
-              {payInvoice ? `Invoice ${payInvoice.refCode} — ${payInvoice.description}` : ''} An STK push will be sent to your phone.
+              {payInvoice ? `Invoice ${payInvoice.refCode}: ${payInvoice.description}` : ''} An STK push will be sent to your phone.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
@@ -2124,7 +2124,7 @@ function ProfileTab({ org, viewerRole, onSaved }: { org: DealerOrg; viewerRole: 
         town: form.town.trim(),
         county: form.county,
       })
-      toast.success('Dealership profile updated — changes are live on your public showroom.')
+      toast.success('Dealership profile updated: changes are live on your public showroom.')
       onSaved()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not update the profile.')
@@ -2159,7 +2159,7 @@ function ProfileTab({ org, viewerRole, onSaved }: { org: DealerOrg; viewerRole: 
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="pf-desc">Description</Label>
-            <Textarea id="pf-desc" rows={4} value={form.description} onChange={(e) => set('description', e.target.value)} disabled={!canEdit} placeholder="What makes your dealership different — specialisations, warranties, trade-ins…" maxLength={2000} />
+            <Textarea id="pf-desc" rows={4} value={form.description} onChange={(e) => set('description', e.target.value)} disabled={!canEdit} placeholder="What makes your dealership different: specialisations, warranties, trade-ins…" maxLength={2000} />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="pf-loc">Physical address</Label>
@@ -2203,7 +2203,7 @@ function ProfileTab({ org, viewerRole, onSaved }: { org: DealerOrg; viewerRole: 
   )
 }
 
-// ───────────────────────────── State C — Dashboard shell ─────────────────────────────
+// ───────────────────────────── State C: Dashboard shell ─────────────────────────────
 
 function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
   memberships: Membership[]
@@ -2402,7 +2402,7 @@ export default function View() {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Sign in to open DealerOS</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          DealerOS is the workspace for verified CARMAZE dealerships — listings, enquiries, your team and billing in one place.
+          DealerOS is the workspace for verified CARMAZE dealerships; listings, enquiries, your team and billing in one place.
         </p>
         <Button size="lg" className="min-h-11" onClick={() => navigate('/signin?next=/dealer')}>
           <LogIn className="h-4 w-4" /> Sign in
@@ -2420,7 +2420,7 @@ export default function View() {
     )
   }
 
-  // State C — approved dealership(s)
+  // State C: approved dealership(s)
   if (current) {
     if (current.org.status !== 'ACTIVE') {
       return (
@@ -2429,7 +2429,7 @@ export default function View() {
             <CircleAlert className="h-4 w-4" />
             <AlertTitle>{current.org.name} is currently {current.org.status.toLowerCase()}</AlertTitle>
             <AlertDescription>
-              Your dealership workspace is paused. Contact CARMAZE support to resolve this — your data is safe.
+              Your dealership workspace is paused. Contact CARMAZE support to resolve this: your data is safe.
             </AlertDescription>
           </Alert>
         </div>
@@ -2447,12 +2447,12 @@ export default function View() {
     }
   }
 
-  // State B — application in review
+  // State B: application in review
   if (app && (REVIEWABLE_STATUSES.includes(app.status) || app.status === 'APPROVED')) {
     return <PendingApplication app={app} onUpdated={refresh} />
   }
 
-  // State A — not applied (or rejected / draft)
+  // State A: not applied (or rejected / draft)
   return <NotApplied previousApp={app} onDone={refresh} />
 }
 
@@ -2574,7 +2574,7 @@ function TestDrivesTab({ orgId }: { orgId: string }) {
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         {pendingCount > 0
-          ? `${pendingCount} drive${pendingCount === 1 ? '' : 's'} need action — confirm requests and record odometers at handover and return.`
+          ? `${pendingCount} drive${pendingCount === 1 ? '' : 's'} need action: confirm requests and record odometers at handover and return.`
           : 'Test drives requested from your listings. Record the odometer and condition when keys go out and come back.'}
       </p>
 
@@ -2623,7 +2623,7 @@ function TestDrivesTab({ orgId }: { orgId: string }) {
                           )}
                           {'overdue' in d && d.overdue && (
                             <Badge variant="outline" className="border-destructive/50 bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive">
-                              <XCircle className="h-3 w-3" /> Overdue — check return
+                              <XCircle className="h-3 w-3" /> Overdue: check return
                             </Badge>
                           )}
                         </div>
@@ -2686,7 +2686,7 @@ function TestDrivesTab({ orgId }: { orgId: string }) {
         onClose={() => setStartFor(null)}
         onSubmit={async (payload) => {
           if (!startFor) return
-          await patchDrive(startFor.id, { action: 'start', ...payload }, 'Drive started — keys handed over')
+          await patchDrive(startFor.id, { action: 'start', ...payload }, 'Drive started: keys handed over')
           setStartFor(null)
         }}
       />
@@ -2698,7 +2698,7 @@ function TestDrivesTab({ orgId }: { orgId: string }) {
         onClose={() => setCompleteFor(null)}
         onSubmit={async (payload) => {
           if (!completeFor) return
-          await patchDrive(completeFor.id, { action: 'complete', ...payload }, 'Drive completed — vehicle returned')
+          await patchDrive(completeFor.id, { action: 'complete', ...payload }, 'Drive completed: vehicle returned')
           setCompleteFor(null)
         }}
       />

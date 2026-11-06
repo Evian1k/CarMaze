@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — Seller dashboard (#/my-listings)
+/* CARMAZE: Seller dashboard (#/my-listings)
  * Listings management (all statuses), offers received with accept/reject,
  * and enquiry threads with replies. Dealer org members see their org's
  * listings, offers and enquiries too (server-scoped by membership).
@@ -80,7 +80,7 @@ function statusBadgeVariant(status: string): 'default' | 'secondary' | 'destruct
 export default function View() {
   const { user, loading: authLoading } = useAuth()
 
-  // Seller verification status — drives the banner under the page header.
+  // Seller verification status: drives the banner under the page header.
   const sellerVerified = hasAnyRole(user, 'SELLER_VERIFIED')
   const { app: sellerApp, loading: sellerAppLoading } = useSellerApplication(!!user && !sellerVerified)
   const sellerAppActive = sellerApp !== null && SELLER_ACTIVE_STATUSES.includes(sellerApp.status)
@@ -166,7 +166,7 @@ export default function View() {
       .then((res) => {
         toast.success(
           action === 'accept'
-            ? 'Offer accepted — your listing is now Reserved'
+            ? 'Offer accepted: your listing is now Reserved'
             : 'Offer rejected',
           { description: action === 'accept' ? `The dealer (${offer.org.name}) has been notified.` : undefined }
         )
@@ -245,14 +245,14 @@ export default function View() {
         </Button>
       </header>
 
-      {/* Seller verification banner — the full workflow lives on #/sell */}
+      {/* Seller verification banner: the full workflow lives on #/sell */}
       {!user || sellerVerified || sellerAppLoading ? null : sellerAppActive && sellerApp ? (
         sellerApp.status === 'MORE_INFO_REQUIRED' ? (
           <div className="mb-6 flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
               <p className="text-sm leading-relaxed">
-                Seller verification needs your attention — ref{' '}
+                Seller verification needs your attention: ref{' '}
                 <span className="font-mono font-semibold">{sellerApp.refCode}</span>. The review team requested more
                 information before your account can be verified.
               </p>
@@ -265,7 +265,7 @@ export default function View() {
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4 text-sm sm:items-center">
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground sm:mt-0" aria-hidden="true" />
             <p className="leading-relaxed">
-              Seller verification in review — ref <span className="font-mono font-semibold">{sellerApp.refCode}</span>
+              Seller verification in review: ref <span className="font-mono font-semibold">{sellerApp.refCode}</span>
             </p>
           </div>
         )
@@ -312,7 +312,7 @@ export default function View() {
                 <Car className="h-10 w-10 text-muted-foreground" />
                 <p className="font-medium">No listings yet</p>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  List your first car — it&apos;s free, and your contact details stay private until you decide to share them.
+                  List your first car: it&apos;s free, and your contact details stay private until you decide to share them.
                 </p>
                 <Button className="h-11 px-5" onClick={() => navigate('sell')}>Sell your car</Button>
               </CardContent>
@@ -348,12 +348,12 @@ export default function View() {
                         </div>
                         {v.status === 'PENDING_REVIEW' && (
                           <p className="mt-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                            Under review — our team checks listings before they go public (target: 24 business hours).
+                            Under review: our team checks listings before they go public (target: 24 business hours).
                           </p>
                         )}
                         {v.status === 'REJECTED' && (
                           <p className="mt-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                            <span className="font-semibold">Rejected{v.reviewNote ? ':' : ' — edit and resubmit.'}</span>
+                            <span className="font-semibold">Rejected{v.reviewNote ? ':' : ': edit and resubmit.'}</span>
                             {v.reviewNote ? ` ${v.reviewNote}` : ''}
                           </p>
                         )}
@@ -397,7 +397,7 @@ export default function View() {
                                   <AlertDialogTitle>Mark as sold?</AlertDialogTitle>
                                   <AlertDialogDescription>
                                     Your listing will show as sold and buyers can no longer enquire. Only mark it sold when payment
-                                    has been completed — this can&apos;t be undone by you.
+                                    has been completed: this can&apos;t be undone by you.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>

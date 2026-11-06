@@ -1,10 +1,10 @@
 'use client'
 
-/* CARMAZE — OrgStorefront: the shared public business page behind
+/* CARMAZE: OrgStorefront: the shared public business page behind
  * #/garages/<orgId> and #/showrooms/<orgId>. One showpiece view for both
  * GARAGE and DEALER orgs: parallax cover hero, sticky contact bar, about +
  * gallery lightbox, services & pricing or live inventory, earned reviews,
- * FAQ, contact & hours, trust strip — and an in-place storefront editor for
+ * FAQ, contact & hours, trust strip: and an in-place storefront editor for
  * OWNER/MANAGER members (PATCH /api/orgs/storefront). */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -237,7 +237,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
                       >
                         <img
                           src={url}
-                          alt={`${org.name} — gallery photo ${i + 1}`}
+                          alt={`${org.name}: gallery photo ${i + 1}`}
                           loading="lazy"
                           className="aspect-[4/3] w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                         />
@@ -257,7 +257,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold tracking-tight">Services &amp; pricing</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Transparent menu — request a quote for anything bespoke.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Transparent menu: request a quote for anything bespoke.</p>
                 </div>
                 <Button variant="outline" className="hidden h-11 shrink-0 gap-1.5 sm:inline-flex" onClick={() => setHandoverCfg({ open: true })}>
                   <Wrench className="h-4 w-4" aria-hidden="true" /> Hand over vehicle
@@ -267,7 +267,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
             {services.length === 0 ? (
               <Reveal>
                 <div className="mt-4 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  No fixed services listed yet — request a quote and {org.name} will respond with a tailored price.
+                  No fixed services listed yet: request a quote and {org.name} will respond with a tailored price.
                 </div>
               </Reveal>
             ) : (
@@ -308,7 +308,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
                 <div>
                   <h2 className="text-xl font-bold tracking-tight">Current inventory</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {vehicles.length > 0 ? `${vehicles.length} live ${vehicles.length === 1 ? 'listing' : 'listings'} — sold and reserved badges are always genuine.` : 'No live listings right now.'}
+                    {vehicles.length > 0 ? `${vehicles.length} live ${vehicles.length === 1 ? 'listing' : 'listings'}: sold and reserved badges are always genuine.` : 'No live listings right now.'}
                   </p>
                 </div>
                 <Button variant="outline" className="hidden h-11 shrink-0 gap-1.5 sm:inline-flex" onClick={() => navigate(`cars?org=${org.id}`)}>
@@ -319,7 +319,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
             {vehicles.length === 0 ? (
               <Reveal>
                 <div className="mt-4 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  Nothing live at the moment — message the showroom and they can alert you when stock arrives.
+                  Nothing live at the moment: message the showroom and they can alert you when stock arrives.
                 </div>
               </Reveal>
             ) : (
@@ -364,7 +364,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
                     transition={{ type: 'spring', stiffness: 220, damping: 18 }}
                     className="text-5xl font-extrabold leading-none text-foreground"
                   >
-                    {rating.count > 0 ? rating.avg.toFixed(1) : '—'}
+                    {rating.count > 0 ? rating.avg.toFixed(1) : 'No ratings yet'}
                   </motion.span>
                   <span className="pb-1 text-sm text-muted-foreground">/ 5</span>
                 </div>
@@ -389,7 +389,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
                 <RatingDistribution reviews={reviews} />
                 {reviews.length === 0 ? (
                   <p className="mt-6 rounded-xl border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
-                    No reviews yet — be the first to share your experience after a completed service.
+                    No reviews yet: be the first to share your experience after a completed service.
                   </p>
                 ) : (
                   <Stagger className="mt-6 space-y-3" gap={0.05}>
@@ -459,7 +459,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
                   {org.callEnabled && org.phone && (
                     <div>
                       <Button variant="outline" className="h-11 w-full gap-2" asChild>
-                        <a href={`tel:${org.phone}`} aria-label="Call business — leaves CARMAZE">
+                        <a href={`tel:${org.phone}`} aria-label="Call business: leaves CARMAZE">
                           <Phone className="h-4 w-4 text-primary" aria-hidden="true" /> Call {org.phone} <ExternalChip />
                         </a>
                       </Button>
@@ -473,16 +473,16 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
                           href={whatsappHref(org.phone, `Hi ${org.name}, I found you on CARMAZE.`)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          aria-label="Chat on WhatsApp — opens WhatsApp, outside CARMAZE"
+                          aria-label="Chat on WhatsApp: opens WhatsApp, outside CARMAZE"
                         >
                           <MessageCircle className="h-4 w-4 text-[#25D366]" aria-hidden="true" /> WhatsApp {org.phone} <ExternalChip />
                         </a>
                       </Button>
-                      <p className="mt-1 text-xs text-muted-foreground">Opens WhatsApp — this happens outside CARMAZE.</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Opens WhatsApp: this happens outside CARMAZE.</p>
                     </div>
                   )}
                   {!org.callEnabled && !org.whatsappEnabled && (
-                    <p className="text-xs text-muted-foreground">This business prefers in-app messaging — use the button below.</p>
+                    <p className="text-xs text-muted-foreground">This business prefers in-app messaging; use the button below.</p>
                   )}
                   <Button className="h-11 w-full gap-2" onClick={() => openMessage({})}>
                     <MessageCircle className="h-4 w-4" aria-hidden="true" /> Message us
@@ -511,7 +511,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
                 </>
               )}
             </p>
-            <p className="text-xs text-muted-foreground">Payments and workmanship stay between you and the business — CARMAZE keeps the record.</p>
+            <p className="text-xs text-muted-foreground">Payments and workmanship stay between you and the business; CARMAZE keeps the record.</p>
           </footer>
         </Reveal>
       </main>
@@ -605,7 +605,7 @@ export default function OrgStorefront({ orgId }: { orgId: string }) {
 }
 
 // ─────────────────────────── hero (own component so useScroll's target ref
-// is always hydrated — the hook must never run before the cover exists) ──
+// is always hydrated: the hook must never run before the cover exists) ──
 
 function HeroCover({
   org, verified, rating, responseLabel, isGarage,
@@ -617,7 +617,7 @@ function HeroCover({
   isGarage: boolean
 }) {
   const reduce = useReducedMotion()
-  // Page-level scroll clamped to the hero region — equivalent to a target-ref
+  // Page-level scroll clamped to the hero region; equivalent to a target-ref
   // parallax (hero always sits at the top of the page) without the
   // "ref not hydrated" failure mode of useScroll({ target }).
   const { scrollY } = useScroll()
@@ -627,7 +627,7 @@ function HeroCover({
   const place = [org.location, org.town, org.county].filter(Boolean).join(', ') || 'Kenya'
 
   return (
-    <section className="relative overflow-hidden bg-[#10130f]" aria-label={`${org.name} — business overview`}>
+    <section className="relative overflow-hidden bg-[#10130f]" aria-label={`${org.name}: business overview`}>
       <motion.div className="absolute inset-0" style={cover ? { y: coverY, scale: coverScale } : undefined}>
         {cover ? (
           <img src={cover} alt="" className="h-[115%] w-full object-cover" />
@@ -731,7 +731,7 @@ function ActionBar({
       <span className="flex-1" aria-hidden="true" />
       {org.callEnabled && org.phone && (
         <Button variant="outline" className="h-10 shrink-0 gap-1.5" asChild>
-          <a href={`tel:${org.phone}`} aria-label="Call business — leaves CARMAZE" title="Call business — leaves CARMAZE">
+          <a href={`tel:${org.phone}`} aria-label="Call business: leaves CARMAZE" title="Call business: leaves CARMAZE">
             <Phone className="h-4 w-4 text-primary" aria-hidden="true" /> Call <ExternalChip />
           </a>
         </Button>
@@ -742,8 +742,8 @@ function ActionBar({
             href={whatsappHref(org.phone, `Hi ${org.name}, I found you on CARMAZE.`)}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="WhatsApp — opens WhatsApp, outside CARMAZE"
-            title="Opens WhatsApp — this happens outside CARMAZE"
+            aria-label="WhatsApp: opens WhatsApp, outside CARMAZE"
+            title="Opens WhatsApp: this happens outside CARMAZE"
           >
             <MessageCircle className="h-4 w-4 text-[#25D366]" aria-hidden="true" /> WhatsApp <ExternalChip />
           </a>

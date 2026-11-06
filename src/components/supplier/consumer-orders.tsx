@@ -1,6 +1,6 @@
 'use client'
 
-/* SupplierOS — Consumer orders tab: B2C parts orders placed directly by
+/* SupplierOS: Consumer orders tab: B2C parts orders placed directly by
  * signed-in customers (deliberately separate from the B2B purchase-order
  * workflow). Accept (choosing the fulfilling warehouse), reject with a
  * reason, dispatch with a courier, and mark delivered by verifying the
@@ -8,7 +8,7 @@
  *
  * HONESTY RULES:
  *  - The customer's collection code is never displayed here (the buyer owns
- *    it — it was delivered to their notifications). Only the server-provided
+ *    it: it was delivered to their notifications). Only the server-provided
  *    hint is shown, and delivery requires the code the customer/courier reads out.
  *  - Payment states are rendered exactly as the API reports them.
  */
@@ -275,7 +275,7 @@ function ConsumerOrderDetailDialog({ orderId, orgId, canRespond, branches, onClo
       onChanged()
       return res
     } catch (e) {
-      toast.error(await errMessage(e, 'Action failed — please try again.'))
+      toast.error(await errMessage(e, 'Action failed: please try again.'))
       return null
     } finally {
       setBusy(null)
@@ -340,7 +340,7 @@ function ConsumerOrderDetailDialog({ orderId, orgId, canRespond, branches, onClo
                     {order.courierName && <div>Courier: {order.courierName}</div>}
                     {order.otpHint && (
                       <div className="rounded-md bg-muted/60 px-2 py-1.5">
-                        Collection code ends <span className="font-mono font-semibold text-foreground">··{order.otpHint}</span> — the customer received the full code in their notifications. Ask them to read it out at handover.
+                        Collection code ends <span className="font-mono font-semibold text-foreground">··{order.otpHint}</span>: the customer received the full code in their notifications. Ask them to read it out at handover.
                       </div>
                     )}
                     {order.notes && <div className="rounded-md bg-muted/60 px-2 py-1.5">Customer note: “{order.notes}”</div>}
@@ -361,11 +361,11 @@ function ConsumerOrderDetailDialog({ orderId, orgId, canRespond, branches, onClo
                   {order.invoice ? (
                     <p className="text-xs text-muted-foreground">
                       A {money(order.invoice.amountMinor, order.currency)} invoice was issued to the customer
-                      {order.invoice.dueDate ? ` — due ${dateLabel(order.invoice.dueDate)}` : ''}.
+                      {order.invoice.dueDate ? `: due ${dateLabel(order.invoice.dueDate)}` : ''}.
                       {order.invoice.status === 'PAID' ? ' It has been paid.' : ' The customer pays it via M-Pesa from their account; states update only when the provider confirms.'}
                     </p>
                   ) : (
-                    <p className="text-xs text-muted-foreground">No invoice yet — one is issued automatically when you accept the order.</p>
+                    <p className="text-xs text-muted-foreground">No invoice yet: one is issued automatically when you accept the order.</p>
                   )}
                 </CardContent>
               </Card>
@@ -439,7 +439,7 @@ function AcceptRejectSection({ order, busy, act, branches }: {
                 {activeBranches.map((b) => (
                   <SelectItem key={b.id} value={b.id}>{b.name} ({b.kind === 'WAREHOUSE' ? 'Warehouse' : 'Branch'} · {b.county})</SelectItem>
                 ))}
-                {activeBranches.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">No active branches — add one under Warehouses first.</div>}
+                {activeBranches.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">No active branches; add one under Warehouses first.</div>}
               </SelectContent>
             </Select>
           </div>
@@ -583,7 +583,7 @@ function MarkDeliveredSection({ order, busy, act }: {
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold"><PackageCheck className="h-4 w-4 text-primary" /> Mark delivered</p>
           <p className="text-xs text-muted-foreground">
-            Enter the 6-digit collection code the customer received{order.otpHint ? ` — it ends ··${order.otpHint}` : ''}. This proves the handover.
+            Enter the 6-digit collection code the customer received{order.otpHint ? `: it ends ··${order.otpHint}` : ''}. This proves the handover.
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">

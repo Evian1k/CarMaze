@@ -17,10 +17,10 @@ const createSchema = z.object({
 })
 
 /**
- * POST — the customer authorises a named collector with a single-use 6-digit
+ * POST: the customer authorises a named collector with a single-use 6-digit
  * code. Only one active authorisation exists per custody: because the schema
  * keeps one row per custody (unique custodyId), issuing a new code replaces
- * the previous hash — the old code instantly stops validating, which is the
+ * the previous hash: the old code instantly stops validating, which is the
  * same effect as revoking it.
  */
 export const POST = route(async (req: NextRequest, ctx: Ctx) => {
@@ -83,7 +83,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   return ok({ code })
 })
 
-/** DELETE — revoke the active collection authorisation. */
+/** DELETE: revoke the active collection authorisation. */
 export const DELETE = route(async (_req: NextRequest, ctx: Ctx) => {
   const user = await requireUser()
   const { id } = await ctx.params

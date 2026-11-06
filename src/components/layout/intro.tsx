@@ -7,14 +7,14 @@ import { Volume2, VolumeX } from 'lucide-react'
 import { sessionSet } from '@/lib/safe-storage'
 
 /**
- * Cinematic intro — luxury-commercial sequence built as layered motion:
+ * Cinematic intro: luxury-commercial sequence built as layered motion:
  *
  *   0.0s  darkness + rising gold embers (engine-warmth mood)
  *   0.5s  night-road reveal with slow cinematic dolly push
  *         (uses the AI-generated intro video when available, with a
  *          graceful image + CSS fallback so the site never breaks)
  *   1.4s  headlight sweeps + converging gold light trails
- *   2.6s  official CARMAZE brand emblem reveal — bloom flash, drop-in and
+ *   2.6s  official CARMAZE brand emblem reveal: bloom flash, drop-in and
  *         a one-shot gold shine sweep. The emblem is the approved asset
  *         (public/brand/carmaze-logo-512.png); it is never redrawn or
  *         re-typed, and it already carries the wordmark + tagline.
@@ -27,7 +27,7 @@ import { sessionSet } from '@/lib/safe-storage'
 
 const EASE_OUT = [0.22, 0.61, 0.36, 1] as const
 
-/** Synthesised low engine rumble — no audio asset required. */
+/** Synthesised low engine rumble: no audio asset required. */
 function useEngineRumble() {
   const ctxRef = useRef<AudioContext | null>(null)
   const nodesRef = useRef<{ osc: OscillatorNode; sub: OscillatorNode; gain: GainNode } | null>(null)
@@ -93,7 +93,7 @@ function useEngineRumble() {
       nodesRef.current = { osc, sub, gain }
       setOn(true)
     } catch {
-      /* audio unavailable — silent intro is fine */
+      /* audio unavailable: silent intro is fine */
     }
   }, [])
 
@@ -124,7 +124,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
     } catch { /* audio teardown must never block dismissal */ }
     try {
       sessionSet('carmaze_intro_seen', '1')
-    } catch { /* blocked storage — intro will simply replay next visit */ }
+    } catch { /* blocked storage: intro will simply replay next visit */ }
     setLeaving(true)
     window.setTimeout(onDone, 620)
   }, [onDone, rumble])
@@ -155,7 +155,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
       window.setTimeout(() => {
         if (cancelled) return
         // Data-saver / 2g users skip straight to the lightweight image
-        // fallback — the ~1MB clip never enters their download queue.
+        // fallback: the ~1MB clip never enters their download queue.
         const conn = (navigator as Navigator & {
           connection?: { saveData?: boolean; effectiveType?: string }
         }).connection
@@ -251,7 +251,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
           )}
         </div>
 
-        {/* ── Layer 4: official brand emblem — cinematic reveal ── */}
+        {/* ── Layer 4: official brand emblem: cinematic reveal ── */}
         <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
           <motion.div
             initial={{ opacity: 0, scale: 0.82, y: 16 }}
@@ -268,10 +268,10 @@ export function Intro({ onDone }: { onDone: () => void }) {
                 <span className="cmz-logo-shine absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
               )}
             </span>
-            {/* The official asset — wordmark and tagline live inside it. */}
+            {/* The official asset: wordmark and tagline live inside it. */}
             <img
               src="/brand/carmaze-logo-512.png"
-              alt="CARMAZE — Find. Connect. Drive."
+              alt="CARMAZE: Find. Connect. Drive."
               width={512}
               height={512}
               className="relative h-44 w-44 select-none object-contain drop-shadow-[0_18px_50px_rgba(0,0,0,0.7)] sm:h-60 sm:w-60"

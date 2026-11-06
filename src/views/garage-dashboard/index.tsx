@@ -1,6 +1,6 @@
 'use client'
 
-/* Garage Dashboard — GarageOS for approved garages, plus the garage
+/* Garage Dashboard: GarageOS for approved garages, plus the garage
  * application wizard for new providers. Real data via /api/garages?mine=1,
  * /api/service-requests?org=1, /api/quotes, /api/bookings, /api/reviews. */
 
@@ -237,7 +237,7 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Procurement workbench</CardTitle>
-              <CardDescription>Buy parts from verified suppliers on the Automotive Supply Network — protected payments, delivery verification, quote requests and spending analytics.</CardDescription>
+              <CardDescription>Buy parts from verified suppliers on the Automotive Supply Network; protected payments, delivery verification, quote requests and spending analytics.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               <Button onClick={() => navigate('procurement')}><Package className="mr-2 h-4 w-4" /> Open Procurement Portal</Button>
@@ -252,7 +252,7 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
         <TabsContent value="profile" className="mt-4">
           <div className="space-y-6">
             <ProfileTab garage={activeGarage} onSaved={onRefresh} />
-            {/* Billing — promotions (garage packages apply to the org, same M-Pesa flow) */}
+            {/* Billing: promotions (garage packages apply to the org, same M-Pesa flow) */}
             <PromotionsSection />
           </div>
         </TabsContent>
@@ -279,11 +279,11 @@ function OverviewTab({ garage, onGo }: { garage: MyGarage; onGo: (tab: string) =
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">Rating</CardTitle></CardHeader>
           <CardContent className="flex items-center gap-4">
-            <div className="text-4xl font-bold">{garage.rating.count > 0 ? garage.rating.avg.toFixed(1) : '—'}</div>
+            <div className="text-4xl font-bold">{garage.rating.count > 0 ? garage.rating.avg.toFixed(1) : 'No ratings yet'}</div>
             <div>
               <Stars avg={garage.rating.avg} />
               <p className="mt-1 text-xs text-muted-foreground">
-                {garage.rating.count > 0 ? `${garage.rating.count} verified review${garage.rating.count === 1 ? '' : 's'} from completed bookings` : 'No reviews yet — they come from completed bookings.'}
+                {garage.rating.count > 0 ? `${garage.rating.count} verified review${garage.rating.count === 1 ? '' : 's'} from completed bookings` : 'No reviews yet: they come from completed bookings.'}
               </p>
             </div>
           </CardContent>
@@ -305,7 +305,7 @@ function OverviewTab({ garage, onGo }: { garage: MyGarage; onGo: (tab: string) =
         <AlertTitle>How leads work</AlertTitle>
         <AlertDescription>
           You see requests whose category matches an <strong>active service</strong> you list, plus every request you already quoted.
-          Send quotes from the Requests tab — customers accept in their account and a booking is created automatically.
+          Send quotes from the Requests tab: customers accept in their account and a booking is created automatically.
         </AlertDescription>
       </Alert>
     </div>
@@ -400,7 +400,7 @@ function ServicesTab({ orgId, services, onChanged }: { orgId: string; services: 
       </div>
 
       {services.length === 0 ? (
-        <EmptyBlock icon={<Wrench className="h-6 w-6" />} title="No services yet" desc="Add the categories you cover — e.g. general servicing, tyres, or modifications — so matching requests reach you." />
+        <EmptyBlock icon={<Wrench className="h-6 w-6" />} title="No services yet" desc="Add the categories you cover; e.g. general servicing, tyres, or modifications: so matching requests reach you." />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {services.map((s) => (
@@ -481,7 +481,7 @@ function useOrgRequests(orgId: string) {
     return () => { cancelled = true }
   }, [orgId, tick])
   const refresh = useCallback(() => setTick((t) => t + 1), [])
-  // Stale while switching orgs or refetching — renders as loading.
+  // Stale while switching orgs or refetching; renders as loading.
   const requests = feed && feed.orgId === orgId && feed.tick === tick ? feed.requests : null
   return { requests, refresh }
 }
@@ -530,7 +530,7 @@ function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Eligible requests match your active service categories. Sending another quote updates your previous one — customers never see other garages&apos; prices.
+        Eligible requests match your active service categories. Sending another quote updates your previous one; customers never see other garages&apos; prices.
       </p>
 
       {requests === null ? (
@@ -539,7 +539,7 @@ function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[
         <EmptyBlock
           icon={<ClipboardList className="h-6 w-6" />}
           title="No eligible requests right now"
-          desc="Add more service categories or check back — new requests notify garages offering that category instantly."
+          desc="Add more service categories or check back; new requests notify garages offering that category instantly."
         />
       ) : (
         <div className="space-y-3">
@@ -633,7 +633,7 @@ function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[
   )
 }
 
-/** Quotes tab — sent quotes derived from the org feed (own quotes only, tenant-safe). */
+/** Quotes tab: sent quotes derived from the org feed (own quotes only, tenant-safe). */
 function QuotesTab({ orgId }: { orgId: string }) {
   const { requests } = useOrgRequests(orgId)
   const quoted = requests?.filter((r) => r.myQuote) ?? []
@@ -734,11 +734,11 @@ function BookingsTab({ orgId, onChanged }: { orgId: string; onChanged: () => voi
                   </Badge>
                   <Badge variant="outline">{SERVICE_CATEGORY_LABELS[b.request.category] ?? b.request.category}</Badge>
                 </div>
-                {/* Customer contact is visible here only — justified by an accepted booking. */}
+                {/* Customer contact is visible here only; justified by an accepted booking. */}
                 <p className="mt-1 text-xs text-muted-foreground">
                   {b.request.customer.name}{b.request.customer.phone ? ` · ${b.request.customer.phone}` : ''} · {b.request.county}{b.request.town ? ` · ${b.request.town}` : ''}
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">{b.request.vehicleDesc ? `${b.request.vehicleDesc} — ` : ''}{b.request.description}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{b.request.vehicleDesc ? `${b.request.vehicleDesc}: ` : ''}{b.request.description}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Scheduled: {b.scheduledAt ? new Date(b.scheduledAt).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' }) : 'not scheduled yet'}
                 </p>
@@ -768,7 +768,7 @@ function BookingsTab({ orgId, onChanged }: { orgId: string; onChanged: () => voi
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Schedule booking</DialogTitle>
-            <DialogDescription>{scheduleFor?.request.refCode} — pick the date and time the customer should come in (or you go out).</DialogDescription>
+            <DialogDescription>{scheduleFor?.request.refCode}: pick the date and time the customer should come in (or you go out).</DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
             <Label htmlFor="bk-when">Date &amp; time</Label>
@@ -793,7 +793,7 @@ function BookingsTab({ orgId, onChanged }: { orgId: string; onChanged: () => voi
             <DialogTitle>{notesFor?.action === 'complete' ? 'Complete booking' : 'Cancel booking'}</DialogTitle>
             <DialogDescription>
               {notesFor?.booking.request.refCode}
-              {notesFor?.action === 'complete' ? ' — the customer will be asked to leave a review.' : ' — the request is closed for quoting.'}
+              {notesFor?.action === 'complete' ? ': the customer will be asked to leave a review.' : ': the request is closed for quoting.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
@@ -841,7 +841,7 @@ function ReviewsTab({ orgId, rating }: { orgId: string; rating: { avg: number; c
     <div className="space-y-4">
       <Card className="p-4">
         <div className="flex items-center gap-4">
-          <div className="text-4xl font-bold">{rating.count > 0 ? rating.avg.toFixed(1) : '—'}</div>
+          <div className="text-4xl font-bold">{rating.count > 0 ? rating.avg.toFixed(1) : 'No ratings yet'}</div>
           <div>
             <Stars avg={rating.avg} />
             <p className="mt-1 text-xs text-muted-foreground">
@@ -854,7 +854,7 @@ function ReviewsTab({ orgId, rating }: { orgId: string; rating: { avg: number; c
       {reviews === null ? (
         <div className="space-y-3">{[0, 1].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
       ) : reviews.length === 0 ? (
-        <EmptyBlock icon={<MessageSquareText className="h-6 w-6" />} title="No reviews yet" desc="Complete bookings to earn verified reviews — only customers with a completed booking can review." />
+        <EmptyBlock icon={<MessageSquareText className="h-6 w-6" />} title="No reviews yet" desc="Complete bookings to earn verified reviews; only customers with a completed booking can review." />
       ) : (
         reviews.map((r) => (
           <Card key={r.id} className="p-4">
@@ -992,7 +992,7 @@ function ApplicationWizard({ user, onDone }: { user: NonNullable<ReturnType<type
       notes: notes.trim() || undefined,
     })
       .then(() => {
-        toast.success('Application submitted — review usually starts within 24 business hours')
+        toast.success('Application submitted: review usually starts within 24 business hours')
         onDone()
       })
       .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not submit application'))
@@ -1006,7 +1006,7 @@ function ApplicationWizard({ user, onDone }: { user: NonNullable<ReturnType<type
         <h1 className="text-2xl font-bold">List your garage on CARMAZE</h1>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
-        Apply once — our team verifies your business, then your garage goes live in the directory and you start receiving quote requests.
+        Apply once: our team verifies your business, then your garage goes live in the directory and you start receiving quote requests.
       </p>
 
       <div className="mt-6 flex items-center gap-2" aria-hidden="true">
@@ -1091,7 +1091,7 @@ function ApplicationWizard({ user, onDone }: { user: NonNullable<ReturnType<type
             <div className="space-y-2">
               <Label>Verification documents</Label>
               <p className="text-xs text-muted-foreground">
-                Business permit / registration certificate. JPG, PNG or PDF up to 5MB. Stored privately — only reviewers see them.
+                Business permit / registration certificate. JPG, PNG or PDF up to 5MB. Stored privately: only reviewers see them.
               </p>
               <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:bg-muted/60">
                 <Upload className="h-4 w-4" />
@@ -1170,7 +1170,7 @@ function ApplicationStatus({ application, onResubmitted, onNewApplication }: {
       ...(docs.length > 0 ? { documents: docs } : {}),
       notes: notes.trim() || 'Requested information provided.',
     })
-      .then(() => { toast.success('Resubmitted — reviewers have been notified'); onResubmitted() })
+      .then(() => { toast.success('Resubmitted: reviewers have been notified'); onResubmitted() })
       .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not resubmit'))
       .finally(() => setSubmitting(false))
   }
@@ -1347,7 +1347,7 @@ const CUSTODY_FLOW = [
 
 const ROAD_TEST_META: Record<string, { label: string; badge: string }> = {
   REQUESTED: { label: 'Awaiting customer authorisation', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
-  AUTHORISED: { label: 'Authorised — ready to start', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+  AUTHORISED: { label: 'Authorised: ready to start', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
   IN_PROGRESS: { label: 'On the road', badge: 'border-indigo-300 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' },
   COMPLETED: { label: 'Completed', badge: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
   DECLINED: { label: 'Declined by customer', badge: 'bg-muted text-muted-foreground' },
@@ -1410,7 +1410,7 @@ function CustodyTab() {
 
       <p className="text-sm text-muted-foreground">
         Every vehicle handed over for work is tracked through custody. A vehicle can only be released with the
-        customer&apos;s 6-digit collection code or their personal collection confirmation — there is no way around it.
+        customer&apos;s 6-digit collection code or their personal collection confirmation; there is no way around it.
       </p>
 
       {custodies === null ? (
@@ -1553,7 +1553,7 @@ function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
             {disputed && (
               <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-4" role="alert">
                 <p className="flex items-center gap-2 text-sm font-semibold text-destructive">
-                  <Ban className="h-4 w-4" /> Custody disputed — incident opened.
+                  <Ban className="h-4 w-4" /> Custody disputed: incident opened.
                 </p>
                 <p className="mt-1 text-sm leading-relaxed text-destructive/90">
                   CARMAZE security will review. You cannot close this dispute.
@@ -1565,7 +1565,7 @@ function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
             <div className="grid gap-3 text-sm sm:grid-cols-2">
               <div className="rounded-lg border p-3 sm:col-span-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Requested work</p>
-                <p className="mt-1">{detail.requestedWork ?? '—'}</p>
+                <p className="mt-1">{detail.requestedWork ?? 'Not set'}</p>
               </div>
               <div className="rounded-lg border p-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Authorised spend cap</p>
@@ -1742,7 +1742,7 @@ function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
                 )}
                 <p className="mt-2 text-sm text-muted-foreground">
                   Ask the person collecting for their 6-digit code and enter it with their name. The vehicle is marked
-                  returned only after the code verifies — never hand over keys without it.
+                  returned only after the code verifies: never hand over keys without it.
                 </p>
                 <Button className="mt-3 min-h-11 gap-2" onClick={() => setDialog('verify')}>
                   <ShieldCheck className="h-4 w-4" /> Verify collection
@@ -1790,7 +1790,7 @@ function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
       busy={busy}
       onCancel={() => setDialog(null)}
       onSubmit={async (payload) => {
-        const ok = await patchCustody({ action: 'status', status: 'READY_FOR_COLLECTION', ...payload }, 'Marked ready for collection — the customer can now authorise release')
+        const ok = await patchCustody({ action: 'status', status: 'READY_FOR_COLLECTION', ...payload }, 'Marked ready for collection: the customer can now authorise release')
         return ok
       }}
     />
@@ -1808,14 +1808,14 @@ function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
       open={dialog === 'roadtest-request'}
       busy={busy}
       onCancel={() => setDialog(null)}
-      onSubmit={(purpose, driverName) => patchCustody({ action: 'request-roadtest', purpose, driverName }, 'Road test requested — awaiting customer authorisation')}
+      onSubmit={(purpose, driverName) => patchCustody({ action: 'request-roadtest', purpose, driverName }, 'Road test requested: awaiting customer authorisation')}
     />
 
     {/* ── Start road test dialog ── */}
     <OdometerDialog
       open={dialog === 'roadtest-start'}
       title="Start road test"
-      description={activeRoadTest ? `${activeRoadTest.purpose} — driver ${activeRoadTest.driverName}. Record the odometer before leaving the yard.` : ''}
+      description={activeRoadTest ? `${activeRoadTest.purpose}: driver ${activeRoadTest.driverName}. Record the odometer before leaving the yard.` : ''}
       label="Odometer out (km)"
       submitLabel="Start test"
       busy={busy}
@@ -1831,7 +1831,7 @@ function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
       onCancel={() => setDialog(null)}
       onSubmit={(km, notes, incident) => patchCustody(
         { action: 'end-roadtest', roadTestId: activeRoadTest?.id, endOdometerKm: km, notes: notes || undefined, incident: incident || undefined },
-        incident ? 'Road test ended — incident flagged and CARMAZE notified' : 'Road test completed',
+        incident ? 'Road test ended: incident flagged and CARMAZE notified' : 'Road test completed',
       )}
     />
 
@@ -1846,13 +1846,13 @@ function CustodyDetailDialog({ custodyId, onClose, onChanged }: {
         setBusy(true)
         try {
           await apiSend(`/api/custody/${custodyId}/collect`, 'POST', { collectorName, authCode })
-          toast.success('Code verified — vehicle released. Custody closed as RETURNED.')
+          toast.success('Code verified: vehicle released. Custody closed as RETURNED.')
           setDialog(null)
           await load(custodyId, true)
           onChanged()
           return true
         } catch (e) {
-          toast.error(e instanceof Error ? e.message : 'Verification failed — check the name and code.')
+          toast.error(e instanceof Error ? e.message : 'Verification failed: check the name and code.')
           return false
         } finally {
           setBusy(false)
@@ -1878,7 +1878,7 @@ function custodyEventLabel(ev: OrgCustodyEvent): string {
     COLLECTION_AUTH_CREATED: 'Third-party collection authorised',
     COLLECTION_AUTH_REVOKED: 'Collection authorisation revoked',
     COLLECT_SELF: 'Customer confirmed personal collection',
-    COLLECTED: 'Vehicle collected — code verified',
+    COLLECTED: 'Vehicle collected: code verified',
     DISPUTE: 'Dispute opened',
     INCIDENT: 'Incident reported',
   }
@@ -1979,7 +1979,7 @@ function ReadyForCollectionDialog({ open, busy, onCancel, onSubmit }: {
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Mark ready for collection</DialogTitle>
-          <DialogDescription>Record what was done — the customer sees this before authorising release.</DialogDescription>
+          <DialogDescription>Record what was done: the customer sees this before authorising release.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -2063,7 +2063,7 @@ function NoteDialog({ open, busy, onCancel, onSubmit }: {
           <DialogTitle>Add a note to the custody record</DialogTitle>
           <DialogDescription>Notes are visible to the customer in their Vehicle Protection timeline.</DialogDescription>
         </DialogHeader>
-        <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Customer called — approved extra coolant flush." aria-label="Note" />
+        <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Customer called: approved extra coolant flush." aria-label="Note" />
         <DialogFooter>
           <Button variant="ghost" onClick={onCancel}>Cancel</Button>
           <Button disabled={busy || !valid} onClick={() => { onSubmit(note.trim()); setNote('') }} className="min-h-11">Save note</Button>
@@ -2168,7 +2168,7 @@ function EndRoadTestDialog({ open, roadTest, busy, onCancel, onSubmit }: {
         <DialogHeader>
           <DialogTitle>End road test</DialogTitle>
           <DialogDescription>
-            {roadTest ? `${roadTest.purpose} — out at ${roadTest.startOdometerKm != null ? `${roadTest.startOdometerKm.toLocaleString()} km` : '—'}.` : ''} Record the return odometer.
+            {roadTest ? `${roadTest.purpose}: out at ${roadTest.startOdometerKm != null ? `${roadTest.startOdometerKm.toLocaleString()} km` : 'Not provided'}.` : ''} Record the return odometer.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -2227,7 +2227,7 @@ function VerifyCollectionDialog({ open, busy, vehicleLabel, onCancel, onSubmit }
         <DialogHeader>
           <DialogTitle>Verify collection</DialogTitle>
           <DialogDescription>
-            {vehicleLabel && `${vehicleLabel} — `}enter the collector&apos;s name and the 6-digit code the customer shared.
+            {vehicleLabel && `${vehicleLabel}: `}enter the collector&apos;s name and the 6-digit code the customer shared.
             The code is single-use and valid for 48 hours.
           </DialogDescription>
         </DialogHeader>

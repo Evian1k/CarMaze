@@ -1,9 +1,9 @@
 'use client'
 
-/* Vehicle Part Compatibility Finder — "Find parts for your vehicle".
+/* Vehicle Part Compatibility Finder: "Find parts for your vehicle".
  * Queries GET /api/supply/fitment and renders an honest verdict for every
  * result: MATCH (recorded fitment), POSSIBLE (brand-level only) and
- * NO_FITMENT (no record — verify before purchase). The API's summary note is
+ * NO_FITMENT (no record: verify before purchase). The API's summary note is
  * shown verbatim so we never overstate fitment confidence.
  */
 
@@ -73,7 +73,7 @@ export function FitmentFinder() {
           <div>
             <h2 className="text-base font-bold sm:text-lg">Find parts for your vehicle</h2>
             <p className="text-xs text-muted-foreground">
-              We only mark a part as fitting when a real fitment record says so — nothing is guessed.
+              We only mark a part as fitting when a real fitment record says so; nothing is guessed.
             </p>
           </div>
         </div>
@@ -140,7 +140,7 @@ export function FitmentFinder() {
 
         {!loading && !error && !searched && (
           <p className="mt-4 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">
-            Enter your vehicle&apos;s make — model and year sharpen the result. Results marked
+            Enter your vehicle&apos;s make: model and year sharpen the result. Results marked
             <span className="mx-1 font-medium text-foreground">Possible fit</span>
             matched the brand only; always confirm with the supplier before ordering.
           </p>

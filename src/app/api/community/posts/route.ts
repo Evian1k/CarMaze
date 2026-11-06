@@ -40,7 +40,7 @@ const createSchema = z.object({
   pollOptions: z.array(z.string().trim().min(1, 'Poll options cannot be empty').max(80)).min(2).max(4).optional(),
 })
 
-// GET /api/community/posts?category=&page=&q= — public read of PUBLISHED posts.
+// GET /api/community/posts?category=&page=&q=: public read of PUBLISHED posts.
 export const GET = route(async (req: NextRequest) => {
   const url = new URL(req.url)
   const category = url.searchParams.get('category') || ''
@@ -125,7 +125,7 @@ export const GET = route(async (req: NextRequest) => {
   })
 })
 
-// POST /api/community/posts — auth; rate limited 5 per 10 minutes.
+// POST /api/community/posts: auth; rate limited 5 per 10 minutes.
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const rl = rateLimit(`community-post:${user.id}:${getIp(req)}`, 5, 10 * 60 * 1000)
@@ -145,7 +145,7 @@ export const POST = route(async (req: NextRequest) => {
       linkRef: body.linkRef || null,
       pollOptions: poll ? JSON.stringify(poll) : null,
       status: 'PUBLISHED',
-      isSponsored: false, // CARMAZE does not sell fake promotion — community posts are always organic.
+      isSponsored: false, // CARMAZE does not sell fake promotion; community posts are always organic.
     },
   })
   await audit({ actorId: user.id, actorName: user.name, action: 'COMMUNITY_POST_CREATED', targetType: 'POST', targetId: post.id, metadata: { category: body.category } })

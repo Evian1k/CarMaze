@@ -1,9 +1,9 @@
 'use client'
 
-/* CARMAZE homepage — hero, search, module showcases. All sections link into
+/* CARMAZE homepage: hero, search, module showcases. All sections link into
  * the connected platform views; recent/featured listings are real DB data.
  * Motion: parallax hero, scroll-reveal sections, animated counters and a
- * trust marquee — all reduced-motion aware. */
+ * trust marquee: all reduced-motion aware. */
 
 import { useEffect, useRef, useState } from 'react'
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
@@ -27,18 +27,18 @@ type HomeData = {
 /** Admin-configurable hero copy (SystemSetting "home_hero"). */
 type HeroCopy = { headline: string; subheadline: string; ctaLabel?: string; ctaHref?: string }
 
-/** Built-in copy — shown verbatim whenever no admin has configured the hero. */
+/** Built-in copy: shown verbatim whenever no admin has configured the hero. */
 const DEFAULT_HERO: HeroCopy = {
   headline: 'Find your next car with confidence.',
-  subheadline: 'Verified dealers, honest listings, trusted garages and real ownership tools — one ecosystem, built for Kenya.',
+  subheadline: 'Verified dealers, honest listings, trusted garages and real ownership tools: one ecosystem, built for Kenya.',
 }
 
 const MODULES = [
-  { icon: GitCompareArrows, title: 'Sell your car', desc: 'Free private listings with optional dealer matching — compare real offers.', href: '/sell', cta: 'List your car' },
-  { icon: GitCompareArrows, title: 'Compare vehicles', desc: 'Shortlist and compare up to 3 vehicles side by side — specs, price and mileage.', href: '/cars', cta: 'Compare cars' },
+  { icon: GitCompareArrows, title: 'Sell your car', desc: 'Free private listings with optional dealer matching; compare real offers.', href: '/sell', cta: 'List your car' },
+  { icon: GitCompareArrows, title: 'Compare vehicles', desc: 'Shortlist and compare up to 3 vehicles side by side; specs, price and mileage.', href: '/cars', cta: 'Compare cars' },
   { icon: FolderKanban, title: 'DealerOS', desc: 'Dealers get inventory, enquiries, staff and follow-up tools in one dashboard.', href: '/dealer', cta: 'Dealer portal' },
   { icon: Wrench, title: 'Trusted garages', desc: 'Quotes, bookings and reviews from verified service providers.', href: '/garages', cta: 'Find a garage' },
-  { icon: Sparkles, title: '3D customizer', desc: 'Visualise paint, wheels and accessories in real time — then request quotes.', href: '/customizer', cta: 'Customise now' },
+  { icon: Sparkles, title: '3D customizer', desc: 'Visualise paint, wheels and accessories in real time: then request quotes.', href: '/customizer', cta: 'Customise now' },
   { icon: Users, title: 'Community', desc: 'Advice, owner experiences, events and showcases from Kenyan drivers.', href: '/community', cta: 'Join in' },
   { icon: LifeBuoy, title: 'Roadside help', desc: 'Connect with nearby towing and roadside providers when you are stuck.', href: '/roadside', cta: 'Get help' },
   { icon: Car, title: 'My Garage', desc: 'Your ownership records, service history and maintenance reminders.', href: '/my-garage', cta: 'Open My Garage' },
@@ -62,7 +62,7 @@ export default function HomeView() {
   const heroRef = useRef<HTMLElement>(null)
   const reduce = useReducedMotion()
 
-  // Hero parallax — background drifts slower than content as you scroll.
+  // Hero parallax: background drifts slower than content as you scroll.
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
   const bgY = useTransform(scrollYProgress, [0, 1], ['0%', reduce ? '0%' : '18%'])
   const fgY = useTransform(scrollYProgress, [0, 1], ['0%', reduce ? '0%' : '36%'])
@@ -72,7 +72,7 @@ export default function HomeView() {
     apiGet<HomeData>('/api/vehicles/home')
       .then(setData)
       .catch(() => setData({ recent: [], featured: [], stats: { publishedListings: 0, verifiedDealers: 0, garages: 0 } }))
-    // Optional admin-configured hero copy — falls back to DEFAULT_HERO when unset.
+    // Optional admin-configured hero copy: falls back to DEFAULT_HERO when unset.
     apiGet<{ hero: HeroCopy | null }>('/api/settings/home-hero')
       .then((d) => {
         if (d.hero) setHero(d.hero)
@@ -158,7 +158,7 @@ export default function HomeView() {
                 id="hero-q"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search make or model — e.g. Prado, Demio…"
+                placeholder="Search make or model: e.g. Prado, Demio…"
                 className="h-11 border-none bg-white/10 text-white placeholder:text-white/45 focus-visible:ring-accent"
               />
               <label className="sr-only" htmlFor="hero-body">Body type</label>
@@ -243,7 +243,7 @@ export default function HomeView() {
             <Button variant="ghost" onClick={() => navigate('cars')}>View all <ArrowRight className="ml-1 h-4 w-4" /></Button>
           </div>
         </Reveal>
-        {/* key forces a fresh mount once data lands — variants propagate to real cards */}
+        {/* key forces a fresh mount once data lands; variants propagate to real cards */}
         <Stagger key={data ? 'featured-loaded' : 'featured-loading'} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {!data
             ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="cmz-shimmer aspect-[16/10] rounded-xl" />)
@@ -282,7 +282,7 @@ export default function HomeView() {
         <Reveal>
           <h2 id="modules-heading" className="text-xl font-bold sm:text-2xl">More than a marketplace</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Every CARMAZE module is connected — a configuration from the customizer can become a garage quote; a private listing can receive verified dealer offers.
+            Every CARMAZE module is connected: a configuration from the customizer can become a garage quote; a private listing can receive verified dealer offers.
           </p>
         </Reveal>
         <Stagger className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -337,7 +337,7 @@ export default function HomeView() {
             <div className="h-full rounded-xl border border-border bg-card p-6 transition-transform duration-300 hover:-translate-y-1">
               <Boxes className="h-6 w-6 text-primary" />
               <h3 className="mt-3 font-semibold">Run a dealership on DealerOS</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Inventory, enquiries, offers, staff permissions, subscriptions and follow-up automation — with real analytics from your data.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Inventory, enquiries, offers, staff permissions, subscriptions and follow-up automation: with real analytics from your data.</p>
               <Button size="sm" variant="outline" className="mt-4" onClick={() => navigate('dealer')}>Apply as a dealer</Button>
             </div>
           </StaggerItem>

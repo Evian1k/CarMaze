@@ -1,4 +1,4 @@
-// CARMAZE 3D Customizer — configuration model, curated palettes and helpers.
+// CARMAZE 3D Customizer: configuration model, curated palettes and helpers.
 // This module is the single source of truth for the CarConfig shape shared by
 // the view, the 3D scene and (shape-wise) the zod validation on the API side.
 

@@ -1,6 +1,6 @@
 'use client'
 
-/* SupplierOS — Orders tab: protected purchase-order workflow (supplier side).
+/* SupplierOS: Orders tab: protected purchase-order workflow (supplier side).
  * Respond (accept / reject / propose revision), dispatch after funds are
  * protected, confirm handover, and open disputes. Full order detail with the
  * merged event timeline comes from GET /api/supply/orders/[id].
@@ -8,7 +8,7 @@
  * HONESTY RULES:
  *  - Dispatch is only offered when the API state allows it (CONFIRMED +
  *    payment PROTECTED + delivery AGREED). When funds are not protected the
- *    exact reason is shown — we never pretend money is held.
+ *    exact reason is shown: we never pretend money is held.
  *  - The handover OTP is never displayed here (the garage owns it). Only the
  *    server-provided hint (last two digits) and the QR-token presence are shown.
  */
@@ -212,7 +212,7 @@ function OrderDetailDialog({ orderId, role, canRespond, canDispute, products, on
       onChanged()
       return res
     } catch (e) {
-      toast.error(await errMessage(e, 'Action failed — please try again.'))
+      toast.error(await errMessage(e, 'Action failed: please try again.'))
       return null
     } finally {
       setBusy(null)
@@ -261,7 +261,7 @@ function OrderDetailDialog({ orderId, role, canRespond, canDispute, products, on
             {order.status === 'REVISED' && (
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Revision proposed — waiting on the garage</AlertTitle>
+                <AlertTitle>Revision proposed: waiting on the garage</AlertTitle>
                 <AlertDescription>
                   The garage must approve or decline your revision before the order can proceed. You&apos;ll be notified of their decision.
                 </AlertDescription>
@@ -293,7 +293,7 @@ function OrderDetailDialog({ orderId, role, canRespond, canDispute, products, on
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Order under dispute</AlertTitle>
                 <AlertDescription>
-                  {order.disputes.map((d) => `${d.refCode} (${DISPUTE_REASON_LABELS[d.reason] ?? d.reason}) — ${d.status}`).join('; ')}
+                  {order.disputes.map((d) => `${d.refCode} (${DISPUTE_REASON_LABELS[d.reason] ?? d.reason}): ${d.status}`).join('; ')}
                   {' '}Platform admins investigate with all order, payment and delivery evidence.
                 </AlertDescription>
               </Alert>
@@ -382,7 +382,7 @@ function RespondSection({ order, busy, act, products }: {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               maxLength={500}
-              placeholder={mode === 'accept' ? 'e.g. All items in stock — dispatch within 24h of delivery arrangement.' : 'e.g. Brake pads SKU discontinued; we can propose an equivalent.'}
+              placeholder={mode === 'accept' ? 'e.g. All items in stock: dispatch within 24h of delivery arrangement.' : 'e.g. Brake pads SKU discontinued; we can propose an equivalent.'}
             />
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="ghost" onClick={() => { setMode('choose'); setNote('') }} disabled={busy !== null}>Back</Button>
@@ -554,7 +554,7 @@ function RevisionEditor({ order, busy, act, products, onDone }: {
         <div className="space-y-1.5">
           <Label htmlFor="rv-note">Note to the garage (required, min 3 chars)</Label>
           <Textarea id="rv-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500}
-            placeholder="Explain the changes — e.g. price update for this quarter's freight costs." />
+            placeholder="Explain the changes: e.g. price update for this quarter's freight costs." />
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
@@ -669,7 +669,7 @@ function DispatchSection({ order, busy, act }: {
       }
       toast.success('Evidence uploaded')
     } catch (e) {
-      toast.error(await errMessage(e, 'Upload failed — please try again.'))
+      toast.error(await errMessage(e, 'Upload failed: please try again.'))
     } finally {
       setUploading(false)
     }
@@ -692,7 +692,7 @@ function DispatchSection({ order, busy, act }: {
           )}
           {!deliveryAgreed && (
             <p className="text-xs text-muted-foreground">
-              Delivery must be arranged and agreed before dispatch — currently:{' '}
+              Delivery must be arranged and agreed before dispatch; currently:{' '}
               <strong>{order.delivery ? DELIVERY_STATUS_LABELS[order.delivery.status] ?? order.delivery.status : 'not arranged'}</strong>.
             </p>
           )}
@@ -708,7 +708,7 @@ function DispatchSection({ order, busy, act }: {
           <div>
             <p className="flex items-center gap-2 text-sm font-semibold"><Truck className="h-4 w-4 text-primary" /> Dispatch order</p>
             <p className="text-xs text-muted-foreground">
-              Funds are protected. Record the handover details — the garage receives a 6-digit handover code to verify delivery.
+              Funds are protected. Record the handover details: the garage receives a 6-digit handover code to verify delivery.
             </p>
           </div>
           {!open && (
@@ -786,7 +786,7 @@ function DispatchSection({ order, busy, act }: {
                   </button>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">Packing photos or signed waybills — visible to the garage and platform reviewers.</p>
+              <p className="text-xs text-muted-foreground">Packing photos or signed waybills; visible to the garage and platform reviewers.</p>
             </div>
 
             <div className="flex flex-wrap justify-end gap-2">
@@ -847,7 +847,7 @@ function DisputeSection({ orderId, busy, act }: {
       }
       toast.success('Evidence uploaded')
     } catch (e) {
-      toast.error(await errMessage(e, 'Upload failed — please try again.'))
+      toast.error(await errMessage(e, 'Upload failed: please try again.'))
     } finally {
       setUploading(false)
     }
@@ -985,7 +985,7 @@ function ItemsTable({ order }: { order: NonNullable<OrderDetail['order']> }) {
                 <td className="px-3 py-2 text-right">{i.qty}</td>
                 <td className="px-3 py-2 text-right">{money(i.unitPriceMinor, order.currency)}</td>
                 <td className="px-3 py-2 text-right">{money(i.lineTotalMinor, order.currency)}</td>
-                <td className="px-3 py-2 text-right">{i.qtyAccepted ?? '—'}</td>
+                <td className="px-3 py-2 text-right">{i.qtyAccepted ?? 'Not set'}</td>
               </tr>
             ))}
           </tbody>
@@ -1054,7 +1054,7 @@ function HandoverVerification({ d }: { d: NonNullable<OrderDetail['order']['deli
       <p className="flex items-center gap-1.5 font-medium text-foreground"><ShieldCheck className="h-3.5 w-3.5 text-primary" /> Handover verification</p>
       <p className="mt-1">
         {d.otpHint
-          ? <>The garage holds the 6-digit handover code — it ends <span className="font-mono font-semibold text-foreground">··{d.otpHint}</span>. You never see the full code; they read it out only at handover.</>
+          ? <>The garage holds the 6-digit handover code; it ends <span className="font-mono font-semibold text-foreground">··{d.otpHint}</span>. You never see the full code; they read it out only at handover.</>
           : 'The garage receives a 6-digit handover code at dispatch; it is verified at delivery.'}
       </p>
       <p className="mt-0.5">
@@ -1072,7 +1072,7 @@ function PaymentPanel({ order }: { order: NonNullable<OrderDetail['order']> }) {
         <p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-muted-foreground" /> Payment</p>
         {!p ? (
           <p className="text-xs text-muted-foreground">
-            No payment yet. After confirmation the garage pays via M-Pesa into protected escrow — funds release to you
+            No payment yet. After confirmation the garage pays via M-Pesa into protected escrow; funds release to you
             after the garage accepts the delivery.
           </p>
         ) : (
@@ -1091,7 +1091,7 @@ function PaymentPanel({ order }: { order: NonNullable<OrderDetail['order']> }) {
                 ? 'Funds are held in protection and release after the garage inspects and accepts the delivery.'
                 : p.status === 'RELEASED' || p.status === 'PARTIALLY_RELEASED'
                   ? 'Released funds are paid out per the platform finance schedule; the commission is recorded separately.'
-                  : 'Payment states change only when the payment provider or platform finance confirms them — this panel never assumes.'}
+                  : 'Payment states change only when the payment provider or platform finance confirms them; this panel never assumes.'}
             </p>
           </>
         )}
@@ -1149,7 +1149,7 @@ function Timeline({ order }: { order: NonNullable<OrderDetail['order']> }) {
       {order.inspectionStatus && (
         <p className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
           Garage inspection result: <strong className="text-foreground">{order.inspectionStatus}</strong>
-          {order.acceptedTotalMinor !== null ? ` — accepted value ${money(order.acceptedTotalMinor, order.currency)}.` : ''}
+          {order.acceptedTotalMinor !== null ? `: accepted value ${money(order.acceptedTotalMinor, order.currency)}.` : ''}
         </p>
       )}
     </div>

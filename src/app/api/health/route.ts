@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { route, ok } from '@/lib/api'
 import { mpesaConfigured } from '@/lib/mpesa'
 
-/** Health check — real DB connectivity + honest integration status. */
+/** Health check: real DB connectivity + honest integration status. */
 export const GET = route(async () => {
   let dbStatus = 'connected'
   try {

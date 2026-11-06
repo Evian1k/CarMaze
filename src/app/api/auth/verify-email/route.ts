@@ -34,7 +34,7 @@ export const POST = route(async (req: NextRequest) => {
       devCode: smtpConfigured ? undefined : code,
       message: smtpConfigured
         ? 'A verification code was sent to your email address.'
-        : 'Email delivery is not configured on this deployment — showing the development code instead. This is not a real email delivery.',
+        : 'Email delivery is not configured on this deployment; showing the development code instead. This is not a real email delivery.',
     })
   }
 

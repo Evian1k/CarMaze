@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — shared storefront building blocks: stars, open-now logic
+/* CARMAZE: shared storefront building blocks: stars, open-now logic
  * (computed in Africa/Nairobi via Intl), gallery lightbox, animated rating
  * distribution, opening-hours table, skeleton + missing-org states. */
 
@@ -137,14 +137,14 @@ export function GalleryLightbox({
           if (e.key === 'ArrowLeft') step(-1)
         }}
       >
-        <DialogTitle className="sr-only">{altBase} — photo {(index ?? 0) + 1} of {count}</DialogTitle>
+        <DialogTitle className="sr-only">{altBase}: photo {(index ?? 0) + 1} of {count}</DialogTitle>
         <div className="relative flex h-full items-center justify-center" aria-live="polite">
           <AnimatePresence mode="wait" initial={false}>
             {index !== null && images[index] && (
               <motion.img
                 key={images[index] + index}
                 src={images[index]}
-                alt={`${altBase} — photo ${(index ?? 0) + 1} of ${count}`}
+                alt={`${altBase}: photo ${(index ?? 0) + 1} of ${count}`}
                 className="max-h-[80vh] w-full rounded-lg object-contain"
                 initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, x: 24 }}
                 animate={{ opacity: 1, scale: 1, x: 0 }}
@@ -277,7 +277,7 @@ export function StorefrontMissing({ kind }: { kind: 'GARAGE' | 'DEALER' | 'UNKNO
         <Button variant="outline" className="h-11 px-5" onClick={() => navigate('showrooms')}>Browse showrooms</Button>
       </div>
       <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-        <Clock className="h-3.5 w-3.5" /> HTTP 404 — not found or inactive
+        <Clock className="h-3.5 w-3.5" /> HTTP 404: not found or inactive
       </p>
     </div>
   )

@@ -9,10 +9,10 @@ import { verifyWebhookSignature, webhookRejected } from '@/lib/webhook-auth'
 export const dynamic = 'force-dynamic'
 
 /**
- * POST /api/supply/payments/webhook — Safaricom Daraja callback for PROTECTED
+ * POST /api/supply/payments/webhook: Safaricom Daraja callback for PROTECTED
  * ORDER payments. Idempotent: repeated callbacks for the same
  * CheckoutRequestID are recorded but processed once. The order only becomes
- * PROTECTED on ResultCode 0 — a supplier's dispatch confirmation can never
+ * PROTECTED on ResultCode 0: a supplier's dispatch confirmation can never
  * create this state.
  *
  * Source validation: when MPESA_WEBHOOK_SECRET is configured, requests must

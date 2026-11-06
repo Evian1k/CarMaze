@@ -7,7 +7,7 @@ import { requireOwnOrg } from '@/lib/supply'
 
 export const dynamic = 'force-dynamic'
 
-/** GET — garage stock alerts (procurement intelligence). */
+/** GET: garage stock alerts (procurement intelligence). */
 export const GET = route(async () => {
   const user = await requireUser()
   const ctx = await requireOwnOrg(user, 'GARAGE')
@@ -37,7 +37,7 @@ const postSchema = z.object({
   minQty: z.number().int().min(1).max(1000).default(1),
 })
 
-/** POST — create/update a low-stock alert for the garage. */
+/** POST: create/update a low-stock alert for the garage. */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const ctx = await requireOwnOrg(user, 'GARAGE', 'stock.write')
@@ -52,7 +52,7 @@ export const POST = route(async (req: NextRequest) => {
   return ok({ alert }, { status: 201 })
 })
 
-/** DELETE ?productId= — remove alert. */
+/** DELETE ?productId=: remove alert. */
 export const DELETE = route(async (req: NextRequest) => {
   const user = await requireUser()
   const ctx = await requireOwnOrg(user, 'GARAGE')

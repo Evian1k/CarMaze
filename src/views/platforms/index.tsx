@@ -1,10 +1,10 @@
 'use client'
 
-/* CARMAZE Platforms (#/platforms) — public landing page for the ecosystem's
+/* CARMAZE Platforms (#/platforms): public landing page for the ecosystem's
  * nine platform surfaces. Describes what each surface honestly does and links
  * into the relevant hash routes. No fake stats: the live listing count is only
  * shown when /api/vehicles/home actually loads. Verification is performed by a
- * human team — uploading documents never self-verifies an account. */
+ * human team: uploading documents never self-verifies an account. */
 
 import { useEffect, useState } from 'react'
 import {
@@ -78,7 +78,7 @@ const PLATFORMS: Platform[] = [
     icon: ShieldCheck,
     name: 'Operations OS (Super Admin)',
     desc: 'Verification center, moderation and finance tools for the CARMAZE operations team.',
-    badge: 'Staff only — no public registration',
+    badge: 'Staff only: no public registration',
     ctas: [],
   },
   {
@@ -90,7 +90,7 @@ const PLATFORMS: Platform[] = [
 ]
 
 export default function PlatformsView() {
-  // Real listing count from the live API — omitted silently if the request fails.
+  // Real listing count from the live API; omitted silently if the request fails.
   const [publishedListings, setPublishedListings] = useState<number | null>(null)
 
   useEffect(() => {
@@ -103,7 +103,7 @@ export default function PlatformsView() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* ── Hero — deep brand green stays dark in both themes ── */}
+      {/* ── Hero: deep brand green stays dark in both themes ── */}
       <section className="bg-brand-deep text-brand-deep-foreground" aria-labelledby="platforms-heading">
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
           <Reveal>
@@ -115,8 +115,8 @@ export default function PlatformsView() {
               One ecosystem. Nine platforms.
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-brand-deep-foreground/80 sm:text-base">
-              CARMAZE connects everyone in Kenya&apos;s vehicle journey — buyers, private sellers,
-              dealerships, garages, parts suppliers and delivery operators — on nine connected
+              CARMAZE connects everyone in Kenya&apos;s vehicle journey: buyers, private sellers,
+              dealerships, garages, parts suppliers and delivery operators: on nine connected
               surfaces. Here is what each one honestly does.
             </p>
             {publishedListings !== null && (
@@ -156,7 +156,7 @@ export default function PlatformsView() {
                 <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
                   Applications for dealer, garage, supplier, seller and logistics accounts are
                   reviewed by a human verification team. Uploading documents never self-verifies
-                  an account — badges appear only after our review is complete. No platform
+                  an account: badges appear only after our review is complete. No platform
                   subscription or payment grants a verified status.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">

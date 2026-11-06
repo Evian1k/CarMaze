@@ -1,6 +1,6 @@
 'use client'
 
-/* Saved supply items (products & suppliers) — backed by /api/supply/saved.
+/* Saved supply items (products & suppliers): backed by /api/supply/saved.
  * Hydrates once per session for signed-in users; toggles optimistically and
  * reverts on failure. Signed-out users are sent to sign-in, never silently
  * failed.
@@ -41,7 +41,7 @@ export const useSavedSupply = create<SavedState>()((set, get) => ({
       for (const s of data.suppliers ?? []) suppliers[s.id] = true
       set({ products, suppliers, hydrated: true, hydrating: false })
     } catch {
-      // 401 or network issue — treat as not-signed-in state; toggles will prompt.
+      // 401 or network issue: treat as not-signed-in state; toggles will prompt.
       set({ hydrated: true, hydrating: false })
     }
   },

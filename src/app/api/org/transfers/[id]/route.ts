@@ -32,7 +32,7 @@ const schema = z.discriminatedUnion('action', [
 ])
 
 /**
- * POST — transfer lifecycle. Approve (owner/GM) → dispatch from source branch
+ * POST: transfer lifecycle. Approve (owner/GM) → dispatch from source branch
  * (condition report out) → receive at destination (condition report in) →
  * vehicle.branchId moves to the destination (one authoritative inventory
  * record). Every step writes an immutable event.
@@ -57,7 +57,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       if (!approver) return fail(403, 'PERMISSION_DENIED', 'Only management authorises transfers.')
       if (transfer.status !== 'REQUESTED') return fail(409, 'INVALID_STATE', `Transfer is ${transfer.status}.`)
       await db.vehicleTransfer.update({ where: { id }, data: { status: 'APPROVED', approvedById: user.id, events: { create: { type: 'APPROVED', actorId: user.id, actorName: user.name, note: body.note ?? 'Authorised.' } } } })
-      await notifyCompany(`${transfer.refCode} approved — prepare dispatch from ${transfer.fromBranch.name}.`)
+      await notifyCompany(`${transfer.refCode} approved: prepare dispatch from ${transfer.fromBranch.name}.`)
       await audit({ actorId: user.id, actorName: user.name, action: 'TRANSFER_APPROVED', targetType: 'VEHICLE_TRANSFER', targetId: id })
       return ok({ message: 'Transfer authorised.' })
     }
@@ -79,7 +79,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
           events: { create: { type: 'DISPATCHED', actorId: user.id, actorName: user.name, note: body.conditionNotes ? `Dispatched. Condition: ${body.conditionNotes.slice(0, 200)}` : 'Dispatched with condition report.' } },
         },
       })
-      await notifyCompany(`${transfer.refCode} dispatched from ${transfer.fromBranch.name} — expect arrival at ${transfer.toBranch.name}.`)
+      await notifyCompany(`${transfer.refCode} dispatched from ${transfer.fromBranch.name}: expect arrival at ${transfer.toBranch.name}.`)
       await audit({ actorId: user.id, actorName: user.name, action: 'TRANSFER_DISPATCHED', targetType: 'VEHICLE_TRANSFER', targetId: id })
       return ok({ message: 'Dispatch recorded with condition report.' })
     }
@@ -96,7 +96,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       })
       // single authoritative inventory record moves to the destination branch
       await db.vehicle.update({ where: { id: transfer.vehicleId }, data: { branchId: transfer.toBranchId } })
-      await notifyCompany(`${transfer.refCode} received at ${transfer.toBranch.name} — custody complete.`)
+      await notifyCompany(`${transfer.refCode} received at ${transfer.toBranch.name}: custody complete.`)
       await audit({ actorId: user.id, actorName: user.name, action: 'TRANSFER_RECEIVED', targetType: 'VEHICLE_TRANSFER', targetId: id })
       return ok({ message: 'Vehicle received. Inventory record updated.' })
     }

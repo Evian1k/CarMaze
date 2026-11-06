@@ -12,12 +12,12 @@ import { audit } from '@/lib/audit'
 /**
  * Company staff management (Super Admin capability).
  *
- * GET /api/admin/staff — list every user holding at least one staff role.
- * POST /api/admin/staff — invite a company staff member with a one-time password.
+ * GET /api/admin/staff: list every user holding at least one staff role.
+ * POST /api/admin/staff: invite a company staff member with a one-time password.
  *
  * Scope note: this endpoint can only grant the four operational staff roles
  * (SUPPORT, REVIEWER, MODERATOR, FINANCE). ADMIN / FOUNDER accounts can only
- * be promoted by the Super Admin through a separate, more privileged flow —
+ * be promoted by the Super Admin through a separate, more privileged flow:
  * deliberately out of scope here (see ROLE_NOT_ALLOWED below).
  */
 
@@ -37,7 +37,7 @@ const postSchema = z.object({
   name: z.string().trim().min(2, 'Full name is required').max(80),
   email: z.string().trim().toLowerCase().email('Enter a valid email address').max(120),
   // Parsed as a plain string so ADMIN/FOUNDER attempts get the explicit
-  // ROLE_NOT_ALLOWED error (not a generic validation error) — the restriction
+  // ROLE_NOT_ALLOWED error (not a generic validation error): the restriction
   // is a policy rule, not a typo.
   role: z.string().trim().toUpperCase(),
   department: z.enum(STAFF_DEPARTMENTS),
@@ -45,7 +45,7 @@ const postSchema = z.object({
 })
 
 /**
- * GET /api/admin/staff — company staff directory. ADMIN/FOUNDER only.
+ * GET /api/admin/staff: company staff directory. ADMIN/FOUNDER only.
  * Roles are stored as a comma-separated string, so the staff filter runs in
  * JS (the SQLite connector cannot match inside CSV columns reliably).
  */
@@ -73,7 +73,7 @@ export const GET = route(async () => {
   return ok({ staff, departments: STAFF_DEPARTMENTS })
 })
 
-// Unambiguous alphabet (no I, O, 0, 1, l) for shareable passwords — same
+// Unambiguous alphabet (no I, O, 0, 1, l) for shareable passwords: same
 // generation as /api/orgs/staff so every one-time password feels consistent.
 const PW_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
 
@@ -85,10 +85,10 @@ function generatePassword(len = 12): string {
 }
 
 /**
- * POST /api/admin/staff — invite a company staff member. ADMIN/FOUNDER only.
+ * POST /api/admin/staff: invite a company staff member. ADMIN/FOUNDER only.
  *
  * The generated 12-character password is returned ONCE in this response and is
- * only ever persisted as a bcrypt hash (cost 10) — never in plaintext.
+ * only ever persisted as a bcrypt hash (cost 10): never in plaintext.
  *
  * HONEST DELIVERY NOTE: the new staff member gets an in-app notification only.
  * Production SMTP email delivery of the one-time password is a documented
@@ -127,7 +127,7 @@ export const POST = route(async (req: NextRequest) => {
     data: {
       email: body.email,
       name: body.name,
-      passwordHash: await hashPassword(oneTimePassword), // bcrypt cost 10 — plaintext never stored
+      passwordHash: await hashPassword(oneTimePassword), // bcrypt cost 10: plaintext never stored
       roles: `CUSTOMER,${body.role}`,
       status: 'ACTIVE',
       department: body.department,
@@ -139,7 +139,7 @@ export const POST = route(async (req: NextRequest) => {
     userId: created.id,
     type: 'STAFF_ACCOUNT_CREATED',
     title: 'Your CARMAZE company staff account was created',
-    body: 'Your company staff account was created — sign in with the one-time password provided by your administrator.',
+    body: 'Your company staff account was created: sign in with the one-time password provided by your administrator.',
     link: '/account',
   })
 
@@ -157,7 +157,7 @@ export const POST = route(async (req: NextRequest) => {
     {
       user: { id: created.id, name: created.name, email: created.email, role: body.role, department: body.department },
       oneTimePassword,
-      note: 'Share this password securely — it will not be shown again.',
+      note: 'Share this password securely: it will not be shown again.',
     },
     { status: 201 }
   )

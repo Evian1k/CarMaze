@@ -114,11 +114,11 @@ export async function activatePaidInvoice(
         const staff = await db.orgMember.findMany({ where: { orgId: membership.orgId }, select: { userId: true } })
         await notifyMany(staff.map((m) => m.userId), {
           type: 'MEMBERSHIP_ACTIVE',
-          title: `Membership active — ${membership.tier.name}`,
+          title: `Membership active: ${membership.tier.name}`,
           body: `${invoice.refCode} paid. New member joined ${membership.tier.name}.`,
           link: membership.org.type === 'GARAGE' ? '/garage-dashboard?tab=memberships' : '/dealer?tab=memberships',
         })
-        await notify({ userId: membership.customerId, type: 'MEMBERSHIP_ACTIVE', title: `Membership active — ${membership.tier.name}`, body: 'Your membership is now active. Benefits are available at participating branches.', link: '/account?tab=subscriptions' })
+        await notify({ userId: membership.customerId, type: 'MEMBERSHIP_ACTIVE', title: `Membership active: ${membership.tier.name}`, body: 'Your membership is now active. Benefits are available at participating branches.', link: '/account?tab=subscriptions' })
       }
     }
   }
@@ -138,7 +138,7 @@ export async function activatePaidInvoice(
       await db.purchaseOrder.update({ where: { id: order.id }, data: { paymentStatus: 'PROTECTED' } })
       protectedOrder = order.refCode
       const garageMembers = await db.orgMember.findMany({ where: { orgId: order.garageOrgId, role: { in: ['OWNER', 'GM', 'PROCUREMENT'] } }, select: { userId: true } })
-      await notifyMany(garageMembers.map((m) => m.userId), { type: 'ORDER_PAYMENT', title: `Payment protected — ${order.refCode}`, body: 'Provider confirmed the payment. The supplier can now dispatch; funds release after your inspection.', link: '/procurement?tab=orders' })
+      await notifyMany(garageMembers.map((m) => m.userId), { type: 'ORDER_PAYMENT', title: `Payment protected: ${order.refCode}`, body: 'Provider confirmed the payment. The supplier can now dispatch; funds release after your inspection.', link: '/procurement?tab=orders' })
     }
   }
 
@@ -147,7 +147,7 @@ export async function activatePaidInvoice(
     const members = await db.orgMember.findMany({ where: { orgId: invoice.orgId }, select: { userId: true } })
     await notifyMany(members.map((m) => m.userId), {
       type: 'PAYMENT_CONFIRMED',
-      title: `Payment received — ${invoice.refCode}`,
+      title: `Payment received: ${invoice.refCode}`,
       body: `Invoice ${invoice.refCode} (${(invoice.amountMinor / 100).toLocaleString()} ${invoice.currency}) was confirmed via ${paidVia === 'MPESA' ? 'M-Pesa' : 'manual reconciliation'}.`,
       link: '/dealer?tab=billing',
     })

@@ -1,6 +1,6 @@
 'use client'
 
-/* CARMAZE — StorefrontSettingsDialog: for garage/dealer OWNER & MANAGER
+/* CARMAZE: StorefrontSettingsDialog: for garage/dealer OWNER & MANAGER
  * members, edits the public storefront (cover, gallery, hours, specialities,
  * FAQs, service areas, contact toggles, response time) and PATCHes
  * /api/orgs/storefront?id=<orgId>. The inner form mounts fresh each open. */
@@ -192,7 +192,7 @@ function SettingsForm({
               <Plus className="h-3.5 w-3.5" /> Add FAQ
             </Button>
           </div>
-          {faqs.length === 0 && <p className="text-xs text-muted-foreground">No FAQs yet — add common questions customers ask.</p>}
+          {faqs.length === 0 && <p className="text-xs text-muted-foreground">No FAQs yet; add common questions customers ask.</p>}
           <div className="space-y-3">
             {faqs.map((f, i) => (
               <div key={i} className="space-y-2 rounded-lg border border-border p-3">

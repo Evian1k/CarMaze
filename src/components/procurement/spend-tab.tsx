@@ -1,6 +1,6 @@
 'use client'
 
-/* Spend analytics — computed client-side from the real purchase-order feed.
+/* Spend analytics: computed client-side from the real purchase-order feed.
  * These are PURCHASES (garage spend on parts), never revenue. Monthly bars
  * are plain CSS divs; CSV export is a client-side blob download. */
 
@@ -70,7 +70,7 @@ export function SpendTab({ orgId }: { orgId: string }) {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-    toast.success('CSV exported — amounts are in minor units (cents).')
+    toast.success('CSV exported: amounts are in minor units (cents).')
   }
 
   return (
@@ -79,7 +79,7 @@ export function SpendTab({ orgId }: { orgId: string }) {
         <Info className="h-4 w-4" aria-hidden="true" />
         <AlertTitle>Purchases, not revenue</AlertTitle>
         <AlertDescription>
-          Everything on this page is money the garage <span className="font-semibold">spends</span> on parts and services — your outbound procurement spend. Cancelled and rejected orders are excluded.
+          Everything on this page is money the garage <span className="font-semibold">spends</span> on parts and services; your outbound procurement spend. Cancelled and rejected orders are excluded.
         </AlertDescription>
       </Alert>
 
@@ -110,7 +110,7 @@ export function SpendTab({ orgId }: { orgId: string }) {
             </Card>
             <Card className="border-border bg-card p-4">
               <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Wallet className="h-3.5 w-3.5" aria-hidden="true" /> Busiest supplier</span>
-              <span className="mt-1 block truncate text-lg font-bold">{analysis.topSupplier?.name ?? '—'}</span>
+              <span className="mt-1 block truncate text-lg font-bold">{analysis.topSupplier?.name ?? 'Not set'}</span>
               <span className="text-xs text-muted-foreground">{analysis.topSupplier ? `${money(analysis.topSupplier.total)} · ${analysis.topSupplier.count} order(s)` : ''}</span>
             </Card>
           </div>
@@ -187,7 +187,7 @@ function analyse(orders: OrderListItem[]) {
   const countedOrders = counted.length
   const avgOrder = countedOrders > 0 ? Math.round(totalSpend / countedOrders) : 0
 
-  // monthly buckets — oldest first, 12 buckets ending this month
+  // monthly buckets: oldest first, 12 buckets ending this month
   const now = new Date()
   const months: { key: string; label: string; total: number }[] = []
   for (let i = MONTHS_SHOWN - 1; i >= 0; i -= 1) {

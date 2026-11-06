@@ -19,13 +19,13 @@ const schema = z.object({
 })
 
 /**
- * POST /api/supply/orders/[id]/pay — protected payment for a confirmed order.
+ * POST /api/supply/orders/[id]/pay: protected payment for a confirmed order.
  *
  * HONEST PAYMENT BOUNDARY:
  *  - With Daraja credentials configured, an STK push is raised; the order only
  *    becomes PROTECTED when Safaricom's callback confirms ResultCode 0
  *    (webhook below, idempotent).
- *  - Without credentials, the attempt fails with MPESA_NOT_CONFIGURED — never
+ *  - Without credentials, the attempt fails with MPESA_NOT_CONFIGURED: never
  *    a simulated success. Platform FINANCE staff can reconcile a real
  *    paybill/bank statement against the invoice via the admin Supply console,
  *    which sets PROTECTED with provider MANUAL_RECONCILED and a full audit row.
@@ -48,7 +48,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
 
   if (order.status !== 'CONFIRMED') return fail(409, 'INVALID_STATE', `Payment opens after the order is confirmed (current: ${order.status}).`)
   if (order.payment && ['PROTECTED', 'PROCESSING'].includes(order.payment.status)) {
-    return fail(409, 'ALREADY_PROTECTED', order.payment.status === 'PROTECTED' ? 'This order is already paid and protected.' : 'A payment is already in progress — check your phone.')
+    return fail(409, 'ALREADY_PROTECTED', order.payment.status === 'PROTECTED' ? 'This order is already paid and protected.' : 'A payment is already in progress: check your phone.')
   }
 
   const fees = await getFees()
@@ -97,7 +97,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         taxMinor: order.taxMinor,
         platformFeeMinor: estimatedCommission,
         totalMinor: order.totalMinor,
-        note: 'Platform commission is recorded separately and taken from supplier proceeds at release — not charged on top.',
+        note: 'Platform commission is recorded separately and taken from supplier proceeds at release; not charged on top.',
       },
       customerMessage: push.customerMessage,
       message: 'Enter your M-Pesa PIN. The order becomes protected only when Safaricom confirms the payment.',
@@ -109,7 +109,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       await poEvent(id, { type: 'PAYMENT', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: 'M-Pesa attempt failed: provider not configured on this deployment. Manual reconciliation by platform finance is available.' })
       await notifyMany(
         (await db.orgMember.findMany({ where: { orgId: order.garageOrgId, role: { in: ['OWNER', 'GM'] } }, select: { userId: true } })).map((m) => m.userId),
-        { type: 'ORDER_PAYMENT', title: `Payment pending for ${order.refCode}`, body: 'M-Pesa is not configured on this deployment. Platform finance can reconcile your payment manually — the order is protected only after reconciliation.', link: '/procurement?tab=orders' }
+        { type: 'ORDER_PAYMENT', title: `Payment pending for ${order.refCode}`, body: 'M-Pesa is not configured on this deployment. Platform finance can reconcile your payment manually; the order is protected only after reconciliation.', link: '/procurement?tab=orders' }
       )
       return fail(503, 'MPESA_NOT_CONFIGURED', e.message, {
         breakdown: {
@@ -128,7 +128,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   }
 })
 
-/** GET — payment status poll for the garage UI. */
+/** GET: payment status poll for the garage UI. */
 export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()

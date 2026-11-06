@@ -38,7 +38,7 @@ async function loadPartner(id: string) {
   return partner
 }
 
-/** PATCH /api/admin/logistics/[id] — staff moderation of a delivery partner:
+/** PATCH /api/admin/logistics/[id]: staff moderation of a delivery partner:
  * suspend (blocks all partner actions), reinstate, or leave a note on the
  * partner timeline. ADMIN | FOUNDER only. */
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
@@ -51,7 +51,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
 
   if (body.action === 'suspend') {
     if (!body.note || body.note.length < 5) {
-      throw new ApiError(400, 'VALIDATION_ERROR', 'Give a clear suspension reason (at least 5 characters) — it is shown to the partner.')
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Give a clear suspension reason (at least 5 characters): it is shown to the partner.')
     }
     if (partner.status === 'SUSPENDED') {
       throw new ApiError(409, 'INVALID_STATE', 'This partner is already suspended.')
@@ -76,7 +76,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     await notify({
       userId: partner.ownerUserId,
       type: 'LOGISTICS_PARTNER_SUSPENDED',
-      title: `Delivery partner account suspended — ${partner.name}`,
+      title: `Delivery partner account suspended: ${partner.name}`,
       body: `${body.note} Your delivery operations are paused. Contact CARMAZE support to resolve this.`,
       link: '/logistics',
     })
@@ -107,7 +107,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     await notify({
       userId: partner.ownerUserId,
       type: 'LOGISTICS_PARTNER_REINSTATED',
-      title: `Delivery partner account reinstated — ${partner.name}`,
+      title: `Delivery partner account reinstated: ${partner.name}`,
       body: body.note || 'Your account is active again. You can accept deliveries and manage your fleet.',
       link: '/logistics',
     })

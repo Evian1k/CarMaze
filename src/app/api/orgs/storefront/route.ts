@@ -44,7 +44,7 @@ const patchSchema = z.object({
   responseMinutes: z.number().int().min(5).max(1440).optional(),
 })
 
-/** PATCH ?id=orgId — storefront editor for org OWNER/MANAGER. */
+/** PATCH ?id=orgId: storefront editor for org OWNER/MANAGER. */
 export const PATCH = route(async (req: NextRequest) => {
   const user = await requireUser()
   const rl = rateLimit(`storefront:${getIp(req)}:${user.id}`, 30, 60 * 60 * 1000)

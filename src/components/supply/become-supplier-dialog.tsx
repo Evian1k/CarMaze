@@ -1,10 +1,10 @@
 'use client'
 
-/* "Become a supplier" application dialog — POST /api/suppliers.
+/* "Become a supplier" application dialog: POST /api/suppliers.
  * Requires sign-in (register mode). Supporting documents are uploaded via
  * POST /api/upload (FormData, field "file") and attached to the application.
  * On success the API's message is shown verbatim: applications are reviewed
- * by the verification team — a supplier is NEVER auto-verified.
+ * by the verification team: a supplier is NEVER auto-verified.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -61,7 +61,7 @@ export function BecomeSupplierDialog({ open, onOpenChange }: { open: boolean; on
   useEffect(() => {
     if (open && !user) {
       onOpenChange(false)
-      toast.info('Create a free account first — business applications are tied to it')
+      toast.info('Create a free account first: business applications are tied to it')
       navigate('signin?mode=register')
     }
   }, [open, user, onOpenChange])
@@ -144,7 +144,7 @@ export function BecomeSupplierDialog({ open, onOpenChange }: { open: boolean; on
           </DialogTitle>
           <DialogDescription>
             Join the Automotive Supply Network. Our verification team reviews business registration documents before
-            any supplier is verified — approval is never automatic.
+            any supplier is verified: approval is never automatic.
           </DialogDescription>
         </DialogHeader>
 
@@ -207,7 +207,7 @@ export function BecomeSupplierDialog({ open, onOpenChange }: { open: boolean; on
                   id="sup-cats"
                   value={categories}
                   onChange={(e) => setCategories(e.target.value)}
-                  placeholder="Comma separated — e.g. Filters, Brake parts, Lubricants, Tyres"
+                  placeholder="Comma separated: e.g. Filters, Brake parts, Lubricants, Tyres"
                   maxLength={300}
                 />
               </div>
@@ -223,7 +223,7 @@ export function BecomeSupplierDialog({ open, onOpenChange }: { open: boolean; on
                 />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label>Supporting documents (registration cert, permits — JPG, PNG, WebP or PDF, up to 8)</Label>
+                <Label>Supporting documents (registration cert, permits: JPG, PNG, WebP or PDF, up to 8)</Label>
                 <div className="flex items-center gap-2">
                   <input
                     ref={fileInputRef}
@@ -289,7 +289,7 @@ export function BecomeSupplierDialog({ open, onOpenChange }: { open: boolean; on
               </Button>
             </DialogFooter>
             <p className="text-center text-xs text-muted-foreground">
-              Applying as <Badge variant="secondary">{user?.email ?? 'your account'}</Badge> — sign in required
+              Applying as <Badge variant="secondary">{user?.email ?? 'your account'}</Badge>: sign in required
             </p>
           </>
         )}

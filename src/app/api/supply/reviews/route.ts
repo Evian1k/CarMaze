@@ -14,7 +14,7 @@ const schema = z.object({
 })
 
 /**
- * POST /api/supply/reviews — review a product. Ratings come only from real
+ * POST /api/supply/reviews: review a product. Ratings come only from real
  * users; when an orderId is supplied the review is marked verifiedPurchase
  * after checking the order belongs to the author and contains the product
  * and was completed (COMPLETED / INSPECTED).

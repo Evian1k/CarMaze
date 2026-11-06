@@ -31,7 +31,7 @@ export const POST = route(async (req: NextRequest) => {
       devCode: smsConfigured ? undefined : code,
       message: smsConfigured
         ? 'A verification code was sent to your phone.'
-        : 'SMS gateway is not configured on this deployment — showing the development code instead. This is not a real SMS delivery.',
+        : 'SMS gateway is not configured on this deployment; showing the development code instead. This is not a real SMS delivery.',
     })
   }
 

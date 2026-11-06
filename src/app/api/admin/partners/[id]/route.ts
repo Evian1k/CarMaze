@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 type Ctx = { params: Promise<{ id: string }> }
 
 /**
- * PATCH /api/admin/partners/[id] — staff moderation of a partner application
+ * PATCH /api/admin/partners/[id]: staff moderation of a partner application
  * or listing. Discriminated on `action`:
  *
  *  - approve     → status APPROVED, verified=true, rejectionReason cleared
@@ -21,12 +21,12 @@ type Ctx = { params: Promise<{ id: string }> }
  *  - suspend     → status SUSPENDED, requires `reason` (10–1000 chars).
  *                  Reason is stored in `rejectionReason` (the single "status
  *                  reason" field; cleared again on approve/reactivate).
- *  - reactivate  → status APPROVED — only valid from SUSPENDED (else 409)
+ *  - reactivate  → status APPROVED: only valid from SUSPENDED (else 409)
  *  - note        → appends {by, at, text} to the JSON notes array (staff-only)
  *
  * Every action writes an AuditLog (PARTNER_APPROVED / PARTNER_REJECTED /
  * PARTNER_SUSPENDED / PARTNER_REACTIVATED / PARTNER_NOTED). Partners are
- * businesses, not accounts — where a registered user matches the partner's
+ * businesses, not accounts: where a registered user matches the partner's
  * email, they receive an honest in-app notification; otherwise delivery is
  * skipped (never faked).
  */
@@ -70,7 +70,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       await notifyPartnerContact(partner.email, {
         type: 'PARTNER_APPROVED',
         title: `${partner.name} is live on the CARMAZE Partner Network`,
-        body: 'Business verification is complete — your listing is now visible in the public Partner Network directory.',
+        body: 'Business verification is complete: your listing is now visible in the public Partner Network directory.',
         link: '/partners',
       })
       break
@@ -89,7 +89,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       await notifyPartnerContact(partner.email, {
         type: 'PARTNER_REJECTED',
         title: `Partner application ${partner.refCode} was not approved`,
-        body: `Reason: ${body.reason} — you are welcome to reapply once the issue is addressed. No payment is charged for applying.`,
+        body: `Reason: ${body.reason}: you are welcome to reapply once the issue is addressed. No payment is charged for applying.`,
         link: '/partners',
       })
       break
@@ -165,7 +165,7 @@ function serialize(p: NonNullable<Awaited<ReturnType<typeof db.partner.findUniqu
   return { ...p, serviceAreas: parseServiceAreas(p.serviceAreas), notesList: parsePartnerNotes(p.notes) }
 }
 
-/** Partner rows hold business contacts, not user accounts — notify the
+/** Partner rows hold business contacts, not user accounts: notify the
  * matching registered user when one exists, otherwise skip honestly. */
 async function notifyPartnerContact(
   email: string | null,

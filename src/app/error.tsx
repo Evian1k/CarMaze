@@ -29,7 +29,7 @@ export default function RouteError({
           return
         }
       } catch {
-        /* storage blocked — fall through to the recovery UI */
+        /* storage blocked: fall through to the recovery UI */
       }
     }
   }, [error])
@@ -42,7 +42,7 @@ export default function RouteError({
         </div>
         <h1 className="mt-4 text-lg font-semibold">Something hit a bump</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          This section ran into an unexpected error. Try again — reloading
+          This section ran into an unexpected error. Try again: reloading
           usually gets you back on the road.
         </p>
         <div className="mt-5 flex justify-center gap-2">

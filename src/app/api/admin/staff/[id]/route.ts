@@ -8,16 +8,16 @@ import { notify } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 
 /**
- * PATCH /api/admin/staff/[id] — manage a company staff member. ADMIN/FOUNDER only.
+ * PATCH /api/admin/staff/[id]: manage a company staff member. ADMIN/FOUNDER only.
  *
  * Actions (audited as STAFF_<ACTION> with the target user id):
  *  - set_department → reassign the staff department
  *  - set_role       → swap the operational staff role (SUPPORT/REVIEWER/
  *                     MODERATOR/FINANCE). ADMIN/FOUNDER holders are out of
- *                     scope — only the Super Admin can change admin roles.
+ *                     scope: only the Super Admin can change admin roles.
  *  - suspend        → status SUSPENDED. Session honesty: JWTs are stateless,
  *                     but getSessionUser() rejects non-ACTIVE users on EVERY
- *                     request — so suspension kills API access immediately
+ *                     request: so suspension kills API access immediately
  *                     despite the cookie remaining technically valid.
  *  - reactivate     → status ACTIVE again
  *  - remove_staff   → strip ALL staff roles from the roles string (leaving
@@ -90,7 +90,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     }
 
     case 'set_role': {
-      // Admin accounts are outside the assignable set — demoting/promoting an
+      // Admin accounts are outside the assignable set; demoting/promoting an
       // ADMIN through this endpoint would bypass the Super Admin flow.
       if (targetRoles.includes('ADMIN')) {
         throw new ApiError(
@@ -163,7 +163,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       const removedRoles = targetRoles.filter((r) => STAFF_ROLES.includes(r))
       const roles = targetRoles.filter((r) => !STAFF_ROLES.includes(r)).join(',') || 'CUSTOMER'
       updated = await db.user.update({ where: { id }, data: { roles, department: null } })
-      message = 'Staff access removed — the account continues as a regular customer account.'
+      message = 'Staff access removed: the account continues as a regular customer account.'
       await notify({
         userId: target.id,
         type: 'STAFF_ACCESS_REMOVED',

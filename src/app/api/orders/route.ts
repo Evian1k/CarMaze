@@ -30,7 +30,7 @@ function safeFirstImage(raw: string | null): string | null {
 // ───────────────────────────── GET ─────────────────────────────
 
 /**
- * GET /api/orders — consumer parts orders.
+ * GET /api/orders: consumer parts orders.
  *  - ?scope=supplier&orgId=X → supplier member view (orders sent to that org)
  *    with counts by status. Membership + org type are verified server-side.
  *  - default → the caller's own orders as a buyer.
@@ -107,7 +107,7 @@ export const GET = route(async (req: NextRequest) => {
     })
   }
 
-  // Default — the caller's own orders as a buyer.
+  // Default: the caller's own orders as a buyer.
   const orders = await db.customerOrder.findMany({
     where: { buyerUserId: user.id },
     include: {
@@ -174,10 +174,10 @@ const createSchema = z.object({
 })
 
 /**
- * POST /api/orders — a signed-in customer orders parts from verified suppliers.
+ * POST /api/orders: a signed-in customer orders parts from verified suppliers.
  * A cart may span several suppliers: ONE order is created per supplier.
  * Prices ALWAYS come from product.unitPriceMinor (never the client). Stock is
- * checked per item (a single branch must cover the line) but NOT decremented —
+ * checked per item (a single branch must cover the line) but NOT decremented:
  * stock leaves the shelf when the supplier accepts the order.
  */
 export const POST = route(async (req: NextRequest) => {
@@ -189,7 +189,7 @@ export const POST = route(async (req: NextRequest) => {
 
   const productIds = body.items.map((i) => i.productId)
   if (new Set(productIds).size !== productIds.length) {
-    return fail(400, 'DUPLICATE_ITEMS', 'Each product can appear only once — merge duplicate lines into one quantity.')
+    return fail(400, 'DUPLICATE_ITEMS', 'Each product can appear only once: merge duplicate lines into one quantity.')
   }
   const products = await db.product.findMany({
     where: {
@@ -206,7 +206,7 @@ export const POST = route(async (req: NextRequest) => {
     return fail(400, 'INVALID_PRODUCTS', 'Some products are unavailable. Review your order and try again.')
   }
 
-  // Overselling guard — each line must be covered by unreserved stock at a
+  // Overselling guard: each line must be covered by unreserved stock at a
   // SINGLE branch (the supplier fulfils from one branch when accepting).
   for (const item of body.items) {
     const p = products.find((x) => x.id === item.productId)!
@@ -218,7 +218,7 @@ export const POST = route(async (req: NextRequest) => {
     }
   }
 
-  // Group items per supplier — one order per supplier.
+  // Group items per supplier: one order per supplier.
   const bySupplier = new Map<string, typeof body.items>()
   for (const item of body.items) {
     const product = products.find((p) => p.id === item.productId)!
@@ -269,8 +269,8 @@ export const POST = route(async (req: NextRequest) => {
               actorId: user.id,
               actorName: user.name,
               note: body.deliveryMethod === 'COLLECTION'
-                ? 'Order placed — customer will collect from the supplier.'
-                : 'Order placed — delivery to the customer requested.',
+                ? 'Order placed: customer will collect from the supplier.'
+                : 'Order placed: delivery to the customer requested.',
             },
           },
         },
@@ -288,7 +288,7 @@ export const POST = route(async (req: NextRequest) => {
     await notifyMany(members.map((m) => m.userId), {
       type: 'CUSTOMER_ORDER_NEW',
       title: `New consumer order ${order.refCode}`,
-      body: `${user.name} ordered ${lines.length} product line(s) — KES ${(totalMinor / 100).toLocaleString()} (${body.deliveryMethod === 'COLLECTION' ? 'customer collection' : 'delivery'}).`,
+      body: `${user.name} ordered ${lines.length} product line(s): KES ${(totalMinor / 100).toLocaleString()} (${body.deliveryMethod === 'COLLECTION' ? 'customer collection' : 'delivery'}).`,
       link: '/supplier?tab=consumer-orders',
     })
 
@@ -305,7 +305,7 @@ export const POST = route(async (req: NextRequest) => {
   return ok({
     orders: created,
     message: created.length > 1
-      ? `${created.length} orders placed — one per supplier. Track them in Account → Orders.`
+      ? `${created.length} orders placed: one per supplier. Track them in Account → Orders.`
       : 'Order placed. Track it in Account → Orders.',
   }, { status: 201 })
 })

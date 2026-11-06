@@ -1,6 +1,6 @@
 'use client'
 
-// Super Admin — Automotive Supply Network console.
+// Super Admin: Automotive Supply Network console.
 // Supplier verification, product moderation + independent authenticity
 // review, dispute resolution, payment reconciliation, refund administration.
 // Every sensitive action is audit-logged server-side.
@@ -171,7 +171,7 @@ export function AdminSupplyConsole() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Supplier applications</CardTitle>
-                <CardDescription>Document review required. Approval creates the business account — verification (public listing) is a separate, explicit decision.</CardDescription>
+                <CardDescription>Document review required. Approval creates the business account: verification (public listing) is a separate, explicit decision.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {data.applications.map((a) => (
@@ -302,7 +302,7 @@ export function AdminSupplyConsole() {
             <CardHeader>
               <CardTitle className="text-base">Authenticity review queue</CardTitle>
               <CardDescription>
-                Provenance evidence below is supplier-declared. Verifying is an independent CARMAZE decision — business verification and product authenticity are separate judgements.
+                Provenance evidence below is supplier-declared. Verifying is an independent CARMAZE decision: business verification and product authenticity are separate judgements.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -359,13 +359,13 @@ export function AdminSupplyConsole() {
                   </p>
                   {d.customerOrder ? (
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Order {d.customerOrder.refCode} — {d.customerOrder.buyer.name} vs {d.customerOrder.supplier.name} · {money(d.customerOrder.totalMinor)} ({d.customerOrder.paymentStatus})
+                      Order {d.customerOrder.refCode}: {d.customerOrder.buyer.name} vs {d.customerOrder.supplier.name} · {money(d.customerOrder.totalMinor)} ({d.customerOrder.paymentStatus})
                       {d.customerOrder.invoice ? ` · invoice ${d.customerOrder.invoice.refCode} ${d.customerOrder.invoice.status}` : ''}
                       {d.amountFrozenMinor ? ` · ${money(d.amountFrozenMinor)} frozen` : ''}
                     </p>
                   ) : d.order ? (
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Order {d.order.refCode} — {d.order.garage.name} vs {d.order.supplier.name} · {money(d.order.totalMinor)} ({d.order.paymentStatus})
+                      Order {d.order.refCode}: {d.order.garage.name} vs {d.order.supplier.name} · {money(d.order.totalMinor)} ({d.order.paymentStatus})
                       {d.amountFrozenMinor ? ` · ${money(d.amountFrozenMinor)} frozen` : ''}
                     </p>
                   ) : null}
@@ -373,7 +373,7 @@ export function AdminSupplyConsole() {
                   {d.events.length > 0 && (
                     <div className="mt-2 max-h-32 space-y-1 overflow-y-auto scrollbar-thin text-xs text-muted-foreground">
                       {d.events.map((ev) => (
-                        <p key={ev.id}><span className="font-medium">{ev.actorName}</span> ({ev.type.replaceAll('_', ' ').toLowerCase()}) — {ev.note}</p>
+                        <p key={ev.id}><span className="font-medium">{ev.actorName}</span> ({ev.type.replaceAll('_', ' ').toLowerCase()}): {ev.note}</p>
                       ))}
                     </div>
                   )}
@@ -391,7 +391,7 @@ export function AdminSupplyConsole() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Orders in flight</CardTitle>
-              <CardDescription>Reconcile real provider statements against pending order payments (MANUAL_RECONCILED — fully audit-logged). Dispatch is blocked until payment is protected.</CardDescription>
+              <CardDescription>Reconcile real provider statements against pending order payments (MANUAL_RECONCILED: fully audit-logged). Dispatch is blocked until payment is protected.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto scrollbar-thin">
@@ -532,7 +532,7 @@ export function AdminSupplyConsole() {
       <Dialog open={Boolean(reconcileDialog)} onOpenChange={(o) => !o && setReconcileDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reconcile payment — {reconcileDialog?.refCode}</DialogTitle>
+            <DialogTitle>Reconcile payment: {reconcileDialog?.refCode}</DialogTitle>
             <DialogDescription>
               Record the real M-Pesa/paybill transaction reference after checking your provider statement. This marks funds as PROTECTED (provider MANUAL_RECONCILED) and lets the supplier dispatch. Funds release only after the garage&apos;s inspection.
             </DialogDescription>

@@ -5,7 +5,7 @@ import { route, ok, ApiError, parseBody, requireRole } from '@/lib/api'
 import { demoStaffMutationGuard } from '@/lib/demo'
 import { audit } from '@/lib/audit'
 
-/** GET /api/admin/tickets?status= — support queue (any staff). */
+/** GET /api/admin/tickets?status=: support queue (any staff). */
 export const GET = route(async (req: NextRequest) => {
   await requireRole('SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER')
   const url = new URL(req.url)
@@ -24,7 +24,7 @@ const patchSchema = z.object({
   response: z.string().trim().max(3000).optional(),
 })
 
-/** PATCH /api/admin/tickets — progress / resolve with an optional response. */
+/** PATCH /api/admin/tickets: progress / resolve with an optional response. */
 export const PATCH = route(async (req: NextRequest) => {
   const user = await requireRole('SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER')
   const body = await parseBody(req, patchSchema)

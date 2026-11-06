@@ -44,7 +44,7 @@ export function GarageAssistant({ onSelect }: Props) {
       }
       setGuidance(data.guidance)
       setChips(Array.isArray(data.categoryLabels) ? data.categoryLabels : [])
-      toast.success('Guidance ready — pick a service below to continue.')
+      toast.success('Guidance ready: pick a service below to continue.')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Something went wrong. Please try again.'
       setError(msg)
@@ -57,7 +57,7 @@ export function GarageAssistant({ onSelect }: Props) {
   return (
     <AiPanel
       ariaLabel="AI garage assistant"
-      title="Describe the problem — we'll point you to the right service"
+      title="Describe the problem: we'll point you to the right service"
       subtitle="Tell us what your car is doing (or not doing) and we'll suggest where to start."
     >
       <div className="flex flex-col gap-3">
@@ -90,7 +90,7 @@ export function GarageAssistant({ onSelect }: Props) {
             )}
           </Button>
           <AiDisclaimer>
-            General guidance only — not a mechanical diagnosis. Safety concerns: see a professional immediately.
+            General guidance only: not a mechanical diagnosis. Safety concerns: see a professional immediately.
           </AiDisclaimer>
         </div>
 

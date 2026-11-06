@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { route, ok, ApiError } from '@/lib/api'
 
-// CARMAZE 3D Customizer — restore a shared configuration by its share id.
+// CARMAZE 3D Customizer: restore a shared configuration by its share id.
 // GET /api/customizer/configs/[shareId]
 //  - 200 { modelId, config, createdAt, views }
 //  - 404 CONFIG_NOT_FOUND     unknown share id
@@ -28,7 +28,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
     throw new ApiError(410, 'CONFIG_INVALID', 'This shared configuration is no longer valid')
   }
 
-  // Fire-and-forget view counter — never blocks or fails the read.
+  // Fire-and-forget view counter: never blocks or fails the read.
   void db.customizerConfig
     .update({ where: { shareId }, data: { views: { increment: 1 } } })
     .catch(() => {})

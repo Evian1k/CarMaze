@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 const SYSTEM_PROMPT = `You are CARMAZE's car-finder assistant for Kenya. Convert the buyer's description into search filters. Respond with ONLY JSON: {summary: string (1-2 sentences, friendly), filters: {q?, make?, bodyType?, county?, fuel?, transmission?, condition?, minPriceMinor?, maxPriceMinor?, minYear?, maxYear?}}. bodyType must be one of SUV SEDAN HATCHBACK PICKUP MINIVAN COUPE WAGON TRUCK MOTORBIKE or omitted. fuel: PETROL DIESEL HYBRID ELECTRIC. transmission: AUTOMATIC MANUAL. condition: BRAND_NEW FOREIGN_USED LOCAL_USED. Prices in KES cents (minor units): e.g. 4,000,000 KES = 400000000. Only include filters clearly implied. Never invent vehicle data.`
 
 const schema = z.object({
-  query: z.string().trim().min(5, 'Tell us a bit more — at least 5 characters.').max(600),
+  query: z.string().trim().min(5, 'Tell us a bit more: at least 5 characters.').max(600),
 })
 
 const BODY_TYPES = ['SUV', 'SEDAN', 'HATCHBACK', 'PICKUP', 'MINIVAN', 'COUPE', 'WAGON', 'TRUCK', 'MOTORBIKE']
@@ -47,7 +47,7 @@ type CoercedFilters = {
   maxYear?: number
 }
 
-/** Extract the first '{' … last '}' span and parse — tolerates markdown fences / chatter. */
+/** Extract the first '{' … last '}' span and parse; tolerates markdown fences / chatter. */
 function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
   const candidate = (fenced?.[1] ?? text).trim()
@@ -79,7 +79,7 @@ function asInt(v: unknown, min: number, max: number): number | undefined {
   return i >= min && i <= max ? i : undefined
 }
 
-/** Validate/coerce LLM output — any field we can't trust is dropped, never guessed. */
+/** Validate/coerce LLM output: any field we can't trust is dropped, never guessed. */
 function coerceFilters(raw: unknown): CoercedFilters {
   const r = (raw ?? {}) as RawFilters
   const out: CoercedFilters = {}
@@ -109,7 +109,7 @@ function coerceFilters(raw: unknown): CoercedFilters {
 }
 
 export const POST = route(async (req: NextRequest) => {
-  // Rate limit FIRST — stricter for anonymous callers to prevent abuse.
+  // Rate limit FIRST: stricter for anonymous callers to prevent abuse.
   const user = await getSessionUser()
   const rl = user
     ? rateLimit(`ai-finder:${user.id}`, 15, 60 * 60 * 1000)
@@ -147,7 +147,7 @@ export const POST = route(async (req: NextRequest) => {
     return fail(503, 'AI_UNAVAILABLE', 'The AI assistant is temporarily unavailable. Please try again shortly.')
   }
 
-  // Query REAL published listings only — the AI never invents vehicles.
+  // Query REAL published listings only: the AI never invents vehicles.
   const where: Prisma.VehicleWhereInput = { status: 'PUBLISHED' }
   const and: Prisma.VehicleWhereInput[] = []
   if (filters.q) {
@@ -203,7 +203,7 @@ export const POST = route(async (req: NextRequest) => {
 
   let message = summary
   if (vehicles.length === 0) {
-    message = `${summary} No current listings match — try widening the budget or body type.`
+    message = `${summary} No current listings match; try widening the budget or body type.`
   }
 
   await db.aiUsage.create({ data: { userId: user?.id ?? null, feature: 'car-finder', ok: true } })
