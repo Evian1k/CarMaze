@@ -5,8 +5,8 @@ import { db } from '@/lib/db'
 
 const SESSION_COOKIE = 'carmaze_session'
 const SESSION_DAYS = 7
-/** Demo sessions are intentionally short-lived. */
-export const DEMO_SESSION_MINUTES_DEFAULT = 240
+/** Default demo session lifetime: 2 weeks. */
+export const DEMO_SESSION_MINUTES_DEFAULT = 14 * 24 * 60
 
 // Dev fallback secret — in production always set AUTH_SECRET env var.
 const secret = new TextEncoder().encode(

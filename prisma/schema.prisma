@@ -24,7 +24,7 @@ model DemoAccount {
   description    String
   dashboard      String   // hash route opened after demo sign-in
   enabled        Boolean  @default(true)
-  sessionMinutes Int      @default(240) // demo session lifetime
+  sessionMinutes Int      @default(20160) // demo session lifetime (2 weeks; cap 14 days)
   restrictedNote String?  // shown in the UI, e.g. admin demo restriction
   lastResetAt    DateTime?
   resetCount     Int      @default(0)

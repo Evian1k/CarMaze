@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, parseBody, requireRole } from '@/lib/api'
+import { DEMO_SESSION_MINUTES_MAX } from '@/lib/demo'
 import { audit } from '@/lib/audit'
 import { rateLimit } from '@/lib/rate-limit'
 
@@ -41,7 +42,7 @@ export const GET = route(async () => {
 const patchSchema = z.object({
   roleKey: z.string().min(1),
   enabled: z.boolean().optional(),
-  sessionMinutes: z.number().int().min(15).max(24 * 60).optional(),
+  sessionMinutes: z.number().int().min(15).max(DEMO_SESSION_MINUTES_MAX).optional(),
 })
 
 /** PATCH /api/admin/demo-accounts — enable/disable a demo role, adjust session length. */

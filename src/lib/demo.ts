@@ -107,6 +107,12 @@ const DEFINITIONS: Record<DemoRoleKey, { email: string; label: string; descripti
 
 export const DEMO_ROLE_KEYS = Object.keys(DEFINITIONS) as DemoRoleKey[]
 
+/** Demo session lifetime bounds.
+ * Default and hard maximum: 2 weeks (14 days = 20160 minutes). Administrators
+ * may configure anything between 15 minutes and this cap per demo role. */
+export const DEMO_SESSION_MINUTES_MAX = 14 * 24 * 60
+export const DEMO_SESSION_MINUTES_DEFAULT = DEMO_SESSION_MINUTES_MAX
+
 function isDemoRoleKey(v: string): v is DemoRoleKey {
   return Object.prototype.hasOwnProperty.call(DEFINITIONS, v)
 }
@@ -151,7 +157,7 @@ export async function startDemoSession(roleKeyRaw: string, ip: string): Promise<
     throw new ApiError(500, 'DEMO_MISCONFIGURED', 'Demo configuration error. The platform team has been notified.')
   }
 
-  const maxAgeSeconds = Math.max(15, Math.min(row.sessionMinutes, 24 * 60)) * 60
+  const maxAgeSeconds = Math.max(15, Math.min(row.sessionMinutes, DEMO_SESSION_MINUTES_MAX)) * 60
   await createSession(user.id, { maxAgeSeconds, demoRole: roleKey })
   await audit({ action: 'DEMO_LOGIN', targetType: 'USER', targetId: user.id, metadata: { roleKey, ip } })
 

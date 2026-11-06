@@ -41,7 +41,20 @@ type DemoAccountsResponse = {
   canManage: boolean
 }
 
-const SESSION_OPTIONS = [60, 120, 240, 480]
+const SESSION_OPTIONS = [60, 240, 480, 1440, 4320, 10080, 20160]
+
+/** Human label for a session length in minutes — supports up to 14 days. */
+function sessionLabel(m: number): string {
+  if (m >= 1440) {
+    const d = m / 1440
+    return `${d} day${d === 1 ? '' : 's'}`
+  }
+  if (m >= 60) {
+    const h = m / 60
+    return `${h} h`
+  }
+  return `${m} min`
+}
 
 export function DemoTab() {
   const { user } = useAuth()
@@ -99,7 +112,7 @@ export function DemoTab() {
             </h2>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
               Demo accounts open the correct role dashboard with backend-enforced, sandboxed permissions: they can never reach real users,
-              trigger real M-Pesa payments or mutate records outside the demo ecosystem. Sessions are short-lived and carry a DEMO MODE banner.
+              trigger real M-Pesa payments or mutate records outside the demo ecosystem. Sessions expire automatically (default: 2 weeks, configurable below) and carry a DEMO MODE banner.
             </p>
           </div>
           {canManage && (
@@ -171,7 +184,7 @@ export function DemoTab() {
                       </SelectTrigger>
                       <SelectContent>
                         {SESSION_OPTIONS.map((m) => (
-                          <SelectItem key={m} value={String(m)}>{m >= 60 ? `${m / 60} h` : `${m} min`}</SelectItem>
+                          <SelectItem key={m} value={String(m)}>{sessionLabel(m)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

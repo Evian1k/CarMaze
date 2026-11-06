@@ -26,8 +26,13 @@ function expiresLabel(iso: string): string {
   const mins = Math.floor(ms / 60000)
   if (mins < 60) return `${mins} min left`
   const h = Math.floor(mins / 60)
-  const m = mins % 60
-  return m === 0 ? `${h} h left` : `${h} h ${m} min left`
+  if (h < 48) {
+    const m = mins % 60
+    return m === 0 ? `${h} h left` : `${h} h ${m} min left`
+  }
+  const d = Math.floor(h / 24)
+  const remH = h % 24
+  return remH === 0 ? `${d} d left` : `${d} d ${remH} h left`
 }
 
 export function DemoBanner() {

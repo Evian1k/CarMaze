@@ -3,7 +3,7 @@
 /* Explore CARMAZE Demo Accounts — server-driven catalog of demo experiences.
  * The frontend NEVER holds demo credentials: clicking "Explore Demo" posts a
  * roleKey to /api/auth/demo, and the server maps it to the demo account and
- * creates a secure, short-lived, sandboxed session. */
+ * creates a secure, sandboxed session (default: 2 weeks, server-configured). */
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
@@ -160,7 +160,7 @@ export function DemoAccountsSection({ collapsedByDefault = false }: { collapsedB
               </ul>
             )}
             <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
-              Demo sessions run on isolated demo data with a DEMO MODE banner. Actions that would reach real users or trigger real payments are blocked.
+              Demo sessions run for 2 weeks on isolated demo data with a DEMO MODE banner. Actions that would reach real users or trigger real payments are blocked.
             </p>
           </>
         )}
