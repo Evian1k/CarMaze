@@ -89,7 +89,30 @@ export function SignInGate() {
   )
 }
 
-export function UnderReview({ alreadyExists = false, orgName, onReset }: { alreadyExists?: boolean; orgName?: string; onReset?: () => void }) {
+const STATUS_COPY: Record<string, string> = {
+  SUBMITTED: 'Application received — queued for a reviewer.',
+  UNDER_REVIEW: 'A reviewer is actively checking your documents right now.',
+  MORE_INFO_REQUIRED: 'The review team has requested additional information — check your notifications for what is needed.',
+  RESUBMITTED: 'Your updates were received and the review has resumed.',
+}
+
+export function UnderReview({
+  alreadyExists = false,
+  orgName,
+  status,
+  refCode,
+  decisionNote,
+  correctionsDueAt,
+  onReset,
+}: {
+  alreadyExists?: boolean
+  orgName?: string
+  status?: string
+  refCode?: string
+  decisionNote?: string
+  correctionsDueAt?: string
+  onReset?: () => void
+}) {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-16">
       <Card className="border-border bg-card">
@@ -106,8 +129,32 @@ export function UnderReview({ alreadyExists = false, orgName, onReset }: { alrea
               ? 'Our records show a supplier application from your account that is still being processed. You can resubmit only after it is decided.'
               : 'Our verification team reviews business registration documents before any supplier is verified. This typically takes a few working days.'}
           </CardDescription>
+          {(refCode || status) && (
+            <p className="text-xs text-muted-foreground">
+              {refCode ? <span className="font-mono">{refCode}</span> : null}
+              {refCode && status ? ' · ' : ''}
+              {status ? status.replaceAll('_', ' ').toLowerCase() : ''}
+            </p>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
+          {status && STATUS_COPY[status] && (
+            <Alert>
+              <ShieldCheck className="h-4 w-4" />
+              <AlertTitle>Current status</AlertTitle>
+              <AlertDescription>
+                {STATUS_COPY[status]}
+                {correctionsDueAt && status === 'MORE_INFO_REQUIRED' ? ` Corrections are due by ${new Date(correctionsDueAt).toLocaleDateString('en-KE')}.` : ''}
+              </AlertDescription>
+            </Alert>
+          )}
+          {decisionNote && (
+            <Alert>
+              <ShieldCheck className="h-4 w-4" />
+              <AlertTitle>Note from the review team</AlertTitle>
+              <AlertDescription>{decisionNote}</AlertDescription>
+            </Alert>
+          )}
           <Alert>
             <ShieldCheck className="h-4 w-4" />
             <AlertTitle>What happens next</AlertTitle>

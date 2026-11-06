@@ -259,7 +259,7 @@ export default function AccountView() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">My Account</h1>
-          <p className="text-sm text-muted-foreground">{user.email} · member since {dateLabel(user.id ? undefined : undefined) === '—' ? '' : ''}{new Date().getFullYear()}</p>
+          <p className="text-sm text-muted-foreground">{user.email}{user.createdAt ? ` · member since ${dateLabel(user.createdAt)}` : ''}</p>
         </div>
         {!user.phoneVerified && user.phone && <Badge variant="outline" className="gap-1 text-amber-700 border-amber-300"><PhoneCall className="h-3.5 w-3.5" /> Phone not verified</Badge>}
       </div>

@@ -4,20 +4,29 @@ import { route, ok } from '@/lib/api'
 import { parseCallback, type DarajaCallback } from '@/lib/mpesa'
 import { activatePaidInvoice, auditPaymentConfirmed } from '../../_activate'
 import { audit } from '@/lib/audit'
+import { verifyWebhookSignature, webhookRejected } from '@/lib/webhook-auth'
 
 /**
  * POST /api/billing/mpesa/callback — PUBLIC endpoint called by Safaricom Daraja.
  *
- * SECURITY NOTE (documented limitation): production deployments should verify
- * the callback source (Safaricom IP allow-listing at the edge / mutual TLS)
- * before trusting the payload. This deployment accepts the callback without
- * source validation; tampering is mitigated by the fact that a callback can
- * only resolve attempts that were genuinely initiated through stkpush.
+ * SECURITY: when MPESA_WEBHOOK_SECRET is configured, callbacks must present it
+ * in the x-carmaze-signature header (timing-safe compare). Without the secret
+ * the callback is accepted without source validation — a documented limitation
+ * mitigated by the fact that a callback can only resolve attempts that were
+ * genuinely initiated through stkpush, and every unsigned acceptance is
+ * audit-logged.
  *
  * Daraja requires a fast 200 {ResultCode: 0} acknowledgement regardless of the
  * business outcome, so every branch below responds Accepted.
  */
 export const POST = route(async (req: NextRequest) => {
+  const sig = verifyWebhookSignature(req)
+  if (!sig.ok) {
+    await audit({ action: 'MPESA_CALLBACK_SIGNATURE_REJECTED', targetType: 'PAYMENT' })
+    const rej = webhookRejected()
+    return Response.json(rej.body, { status: rej.status })
+  }
+
   let payload: DarajaCallback | null = null
   try {
     payload = (await req.json()) as DarajaCallback

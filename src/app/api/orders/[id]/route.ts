@@ -157,6 +157,11 @@ const actionSchema = z.discriminatedUnion('action', [
   }),
   z.object({ action: z.literal('confirm') }),
   z.object({ action: z.literal('cancel') }),
+  z.object({
+    action: z.literal('dispute'),
+    reason: z.enum(['MISSING_ITEMS', 'DAMAGED', 'WRONG_ITEM', 'COUNTERFEIT', 'NOT_RECEIVED', 'OTHER']),
+    details: z.string().trim().min(20, 'Describe the problem in at least 20 characters so the supplier and our disputes team can act on it').max(2000),
+  }),
 ])
 
 /**
@@ -191,6 +196,9 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
   }
   if (['confirm', 'cancel'].includes(body.action) && !isBuyer) {
     return fail(403, 'FORBIDDEN', 'Only the buyer can perform this action.')
+  }
+  if (body.action === 'dispute' && !isBuyer) {
+    return fail(403, 'FORBIDDEN', 'Only the buyer can open a dispute on this order.')
   }
 
   switch (body.action) {
@@ -435,6 +443,56 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
       await audit({ actorId: user.id, actorName: user.name, action: 'CUSTOMER_ORDER_CANCELLED', targetType: 'CUSTOMER_ORDER', targetId: order.id, metadata: { ref: order.refCode } })
 
       return ok({ order: { id: order.id, refCode: order.refCode, status: 'CANCELLED' }, message: 'Order cancelled.' })
+    }
+
+    // ── Buyer: open a dispute ─────────────────────────────────────────
+    case 'dispute': {
+      if (!['DELIVERED', 'COMPLETED'].includes(order.status)) {
+        return fail(409, 'INVALID_STATE', `Disputes can be opened on delivered or completed orders — this order is ${order.status}. For orders still in progress, contact the supplier via the order thread or support.`)
+      }
+      const existing = await db.dispute.findFirst({ where: { customerOrderId: order.id, status: { in: ['OPEN', 'UNDER_REVIEW'] } } })
+      if (existing) {
+        return fail(409, 'DISPUTE_EXISTS', `This order already has an open dispute (${existing.refCode}). Our disputes team is on it.`)
+      }
+      const dispute = await db.$transaction(async (tx) => {
+        const d = await tx.dispute.create({
+          data: {
+            refCode: refCode('DSP', 6),
+            customerOrderId: order.id,
+            openedById: user.id,
+            openedBySide: 'CUSTOMER',
+            reason: body.reason,
+            details: body.details,
+            status: 'OPEN',
+            amountFrozenMinor: order.paymentStatus === 'PAID' ? order.totalMinor : null,
+            events: { create: { type: 'CREATED', actorId: user.id, actorName: user.name, note: `Dispute opened by the customer: ${body.reason}. ${body.details}` } },
+          },
+        })
+        await tx.customerOrder.update({ where: { id: order.id }, data: { status: 'DISPUTED' } })
+        await tx.customerOrderEvent.create({
+          data: { orderId: order.id, type: 'DISPUTED', actorSide: 'CUSTOMER', actorId: user.id, actorName: user.name, note: `Dispute ${d.refCode} opened (${body.reason}).` },
+        })
+        return d
+      })
+      await notifySupplierMembers(order.supplierOrgId, {
+        type: 'CUSTOMER_ORDER_DISPUTED',
+        title: `Dispute ${dispute.refCode} opened on order ${order.refCode}`,
+        body: `${user.name} reported: ${body.reason.toLowerCase().replace('_', ' ')}. Respond honestly and promptly — our disputes team reviews every case.`,
+        link: '/supplier?tab=consumer-orders',
+      })
+      const staff = await db.user.findMany({
+        where: { AND: [{ status: 'ACTIVE' }, { OR: [{ roles: { contains: 'MODERATOR' } }, { roles: { contains: 'ADMIN' } }, { roles: { contains: 'FOUNDER' } }] }] },
+        select: { id: true },
+      })
+      await notifyMany(staff.map((s) => s.id), {
+        type: 'DISPUTE_OPENED',
+        title: `Consumer dispute ${dispute.refCode} — ${order.refCode}`,
+        body: `${body.reason} on order ${order.refCode} from ${order.supplier.name}. Review in the supply console.`,
+        link: '/admin?tab=supply',
+      })
+      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTOMER_ORDER_DISPUTED', targetType: 'DISPUTE', targetId: dispute.id, metadata: { ref: dispute.refCode, order: order.refCode, reason: body.reason } })
+
+      return ok({ order: { id: order.id, refCode: order.refCode, status: 'DISPUTED' }, dispute: { refCode: dispute.refCode }, message: 'Dispute opened. Our disputes team has been notified — you will see the outcome here.' })
     }
   }
 })

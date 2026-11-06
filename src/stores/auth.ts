@@ -15,10 +15,25 @@ export type CurrentUser = {
   department?: string | null
   roles: string[]
   status: string
+  createdAt?: string
+}
+
+export type ApplicationProgress = {
+  id: string
+  refCode: string
+  type: 'DEALER' | 'GARAGE' | 'SELLER' | 'LOGISTICS' | 'SUPPLIER'
+  status: 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'MORE_INFO_REQUIRED' | 'RESUBMITTED' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'REVOKED'
+  orgName: string
+  submittedAt: string | null
+  decisionNote: string | null
+  infoRequestedAt: string | null
+  correctionsDueAt: string | null
+  createdAt: string
 }
 
 type AuthState = {
   user: CurrentUser | null
+  applications: ApplicationProgress[]
   loading: boolean
   unreadNotifications: number
   refresh: () => Promise<void>
@@ -28,12 +43,13 @@ type AuthState = {
 
 export const useAuth = create<AuthState>((set) => ({
   user: null,
+  applications: [],
   loading: true,
   unreadNotifications: 0,
   refresh: async () => {
     try {
-      const data = await apiGet<{ user: CurrentUser | null }>('/api/auth/me')
-      set({ user: data.user, loading: false })
+      const data = await apiGet<{ user: CurrentUser | null; applications?: ApplicationProgress[] }>('/api/auth/me')
+      set({ user: data.user, applications: data.user ? (data.applications ?? []) : [], loading: false })
       if (data.user) {
         apiGet<{ unread: number }>('/api/notifications?unread=1&count=1')
           .then((d) => set({ unreadNotifications: d.unread ?? 0 }))
@@ -49,7 +65,7 @@ export const useAuth = create<AuthState>((set) => ({
     try {
       await apiSend('/api/auth/logout', 'POST')
     } finally {
-      set({ user: null, unreadNotifications: 0 })
+      set({ user: null, applications: [], unreadNotifications: 0 })
       window.location.hash = '#/'
       window.location.reload()
     }

@@ -53,6 +53,7 @@ export const GET = route(async (req: NextRequest) => {
       where: { status: { in: ['OPEN', 'UNDER_REVIEW'] } },
       include: {
         order: { select: { refCode: true, totalMinor: true, paymentStatus: true, garage: { select: { name: true } }, supplier: { select: { name: true } } } },
+        customerOrder: { select: { refCode: true, totalMinor: true, paymentStatus: true, status: true, buyer: { select: { name: true } }, supplier: { select: { name: true } }, invoice: { select: { refCode: true, status: true } } } },
         events: { orderBy: { createdAt: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
@@ -246,9 +247,50 @@ export const POST = route(async (req: NextRequest) => {
       return ok({ message: 'Dispute status updated.' })
     }
     case 'resolve-dispute': {
-      const dispute = await db.dispute.findUnique({ where: { id: body.disputeId }, include: { order: true } })
+      const dispute = await db.dispute.findUnique({ where: { id: body.disputeId }, include: { order: true, customerOrder: { include: { supplier: { select: { id: true, name: true } } } } } })
       if (!dispute) return fail(404, 'NOT_FOUND', 'Dispute not found.')
       if (dispute.status === 'RESOLVED' || dispute.status === 'CLOSED') return fail(409, 'ALREADY_RESOLVED', 'Dispute already resolved.')
+
+      // ── Consumer (B2C) parts-order dispute ──
+      if (dispute.customerOrderId) {
+        const order = dispute.customerOrder
+        await db.dispute.update({
+          where: { id: dispute.id },
+          data: { status: 'RESOLVED', resolution: body.resolution, resolutionNote: body.note, resolvedBy: user.name, resolvedAt: new Date() },
+        })
+        await db.disputeEvent.create({ data: { disputeId: dispute.id, type: 'RESOLUTION', actorId: user.id, actorName: user.name, note: `${body.resolution}: ${body.note}` } })
+        if (body.resolution === 'REJECTED') {
+          // Complaint not upheld — the delivered order stands as completed.
+          await db.customerOrder.update({ where: { id: order.id }, data: { status: 'COMPLETED', completedAt: order.completedAt ?? new Date() } })
+          await db.customerOrderEvent.create({ data: { orderId: order.id, type: 'NOTE', actorSide: 'SYSTEM', actorName: user.name, note: `Dispute ${dispute.refCode} not upheld: ${body.note}` } })
+        } else if (body.resolution === 'REPLACEMENT') {
+          // Re-enters fulfilment: the supplier re-dispatches, the buyer confirms receipt again.
+          await db.customerOrder.update({ where: { id: order.id }, data: { status: 'CONFIRMED' } })
+          await db.customerOrderEvent.create({ data: { orderId: order.id, type: 'NOTE', actorSide: 'SYSTEM', actorName: user.name, note: `Dispute ${dispute.refCode} resolved by replacement. The supplier re-dispatches; confirm receipt when it arrives.` } })
+        }
+        // REFUND_FULL / REFUND_PARTIAL: the decision is recorded; the money
+        // movement itself happens when FINANCE refunds the linked invoice via
+        // the invoice refund endpoint (which completes the order). We never
+        // mark a refund as done here.
+        await notify({
+          userId: order.buyerUserId,
+          type: 'DISPUTE_RESOLVED',
+          title: `Dispute ${dispute.refCode} resolved — ${body.resolution.replaceAll('_', ' ').toLowerCase()}`,
+          body: body.note,
+          link: '/account?tab=orders',
+        })
+        await notifyMany((await db.orgMember.findMany({ where: { orgId: order.supplierOrgId }, select: { userId: true } })).map((m) => m.userId), {
+          type: 'DISPUTE_RESOLVED',
+          title: `Dispute ${dispute.refCode} resolved`,
+          body: `${body.resolution}: ${body.note}`,
+          link: '/supplier?tab=consumer-orders',
+        })
+        await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_RESOLVED', targetType: 'DISPUTE', targetId: dispute.id, metadata: { resolution: body.resolution, note: body.note, customerOrder: order.refCode } })
+        return ok({ message: `Dispute resolved (${body.resolution}).${body.resolution.includes('REFUND') ? ' Finance will process the refund on the order invoice.' : ''}` })
+      }
+
+      // ── Garage↔Supplier purchase-order dispute ──
+      if (!dispute.order) return fail(404, 'NOT_FOUND', 'Dispute has no linked order.')
       await db.dispute.update({
         where: { id: dispute.id },
         data: { status: 'RESOLVED', resolution: body.resolution, resolutionNote: body.note, resolvedBy: user.name, resolvedAt: new Date() },
@@ -258,14 +300,14 @@ export const POST = route(async (req: NextRequest) => {
         const amount = body.resolution === 'REFUND_FULL' ? dispute.order.totalMinor : (body.refundAmountMinor ?? 0)
         if (amount > 0) {
           await db.refund.create({
-            data: { refCode: refCode('RFD', 6), orderId: dispute.orderId, paymentAuthId: (await db.paymentAuthorization.findUnique({ where: { orderId: dispute.orderId } }))?.id, amountMinor: amount, kind: body.resolution === 'REFUND_FULL' ? 'FULL' : 'PARTIAL', reason: `Dispute ${dispute.refCode}: ${body.note.slice(0, 200)}`, status: 'REQUESTED', requestedById: user.id },
+            data: { refCode: refCode('RFD', 6), orderId: dispute.orderId!, paymentAuthId: (await db.paymentAuthorization.findUnique({ where: { orderId: dispute.orderId! } }))?.id, amountMinor: amount, kind: body.resolution === 'REFUND_FULL' ? 'FULL' : 'PARTIAL', reason: `Dispute ${dispute.refCode}: ${body.note.slice(0, 200)}`, status: 'REQUESTED', requestedById: user.id },
           })
         }
         if (dispute.order.paymentStatus === 'PROTECTED') {
-          await db.purchaseOrder.update({ where: { id: dispute.orderId }, data: { paymentStatus: body.resolution === 'REFUND_FULL' ? 'REFUNDED' : 'PARTIALLY_RELEASED' } })
+          await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { paymentStatus: body.resolution === 'REFUND_FULL' ? 'REFUNDED' : 'PARTIALLY_RELEASED' } })
         }
       }
-      await db.purchaseOrder.update({ where: { id: dispute.orderId }, data: { status: body.resolution === 'REJECTED' ? 'COMPLETED' : 'INSPECTED' } })
+      await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { status: body.resolution === 'REJECTED' ? 'COMPLETED' : 'INSPECTED' } })
       await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_RESOLVED', targetType: 'DISPUTE', targetId: dispute.id, metadata: { resolution: body.resolution, note: body.note } })
       await notifyMany(await staffUserIds('ADMIN', 'SUPPORT'), { type: 'DISPUTE_RESOLVED', title: `Dispute ${dispute.refCode} resolved`, body: body.resolution, link: '/admin?tab=disputes' })
       return ok({ message: `Dispute resolved (${body.resolution}).${body.resolution.includes('REFUND') ? ' Refund queued for finance processing.' : ''}` })

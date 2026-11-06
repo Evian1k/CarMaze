@@ -1551,10 +1551,13 @@ model Refund {
 model Dispute {
   id             String   @id @default(cuid())
   refCode        String   @unique
-  orderId        String
-  order          PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId        String?
+  order          PurchaseOrder? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Disputes can also be opened by consumers on their B2C parts orders.
+  customerOrderId String?
+  customerOrder  CustomerOrder? @relation("CustomerOrderDisputes", fields: [customerOrderId], references: [id], onDelete: Cascade)
   openedById     String
-  openedBySide   String   // GARAGE | SUPPLIER
+  openedBySide   String   // GARAGE | SUPPLIER | CUSTOMER
   reason         String   // MISSING_ITEMS|DAMAGED|WRONG_ITEM|COUNTERFEIT|NOT_RECEIVED|OTHER
   details        String
   evidence       String?  // JSON [{url,name,uploadedAt}]
@@ -1958,6 +1961,7 @@ model CustomerOrder {
 
   items  CustomerOrderItem[]
   events CustomerOrderEvent[]
+  disputes Dispute[] @relation("CustomerOrderDisputes")
 
   @@index([buyerUserId, status])
   @@index([supplierOrgId, status])

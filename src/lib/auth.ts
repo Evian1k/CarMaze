@@ -74,6 +74,7 @@ export type SessionUser = {
   department: string | null
   roles: string[]
   status: string
+  createdAt: Date
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
@@ -97,6 +98,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       department: user.department,
       roles: user.roles.split(',').filter(Boolean),
       status: user.status,
+      createdAt: user.createdAt,
     }
   } catch {
     return null

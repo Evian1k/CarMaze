@@ -71,7 +71,23 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       campaignsEnded = ended.count
     }
 
-    return { invoice: updated, subscriptionCancelled, campaignsEnded }
+    // 3. Parts-order invoice → the linked consumer order settles as refunded.
+    let customerOrderSettled = false
+    if (invoice.type === 'PARTS_ORDER') {
+      const order = await tx.customerOrder.findFirst({ where: { invoiceId: invoice.id } })
+      if (order) {
+        await tx.customerOrder.update({
+          where: { id: order.id },
+          data: { paymentStatus: 'REFUNDED', status: 'COMPLETED', completedAt: order.completedAt ?? new Date() },
+        })
+        await tx.customerOrderEvent.create({
+          data: { orderId: order.id, type: 'NOTE', actorSide: 'SYSTEM', actorName: user.name, note: `Invoice ${invoice.refCode} refunded. Order settled as refunded.` },
+        })
+        customerOrderSettled = true
+      }
+    }
+
+    return { invoice: updated, subscriptionCancelled, campaignsEnded, customerOrderSettled }
   })
 
   await audit({
@@ -88,6 +104,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       reason: body.reason,
       subscriptionCancelled: result.subscriptionCancelled,
       campaignsEnded: result.campaignsEnded,
+      customerOrderSettled: result.customerOrderSettled,
     },
   })
 
@@ -108,9 +125,24 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     })
   }
 
+  // Notify the buyer when a consumer parts-order settles as refunded.
+  if (result.customerOrderSettled) {
+    const { notify } = await import('@/lib/notify')
+    if (invoice.userId) {
+      await notify({
+        userId: invoice.userId,
+        type: 'INVOICE_REFUNDED',
+        title: `Refund processed — invoice ${invoice.refCode}`,
+        body: `Your parts-order refund has been processed (${(invoice.amountMinor / 100).toLocaleString()} ${invoice.currency}). The order is now settled. Reason: ${body.reason}`,
+        link: '/account?tab=orders',
+      })
+    }
+  }
+
   return ok({
     invoice: result.invoice,
     subscriptionCancelled: result.subscriptionCancelled,
     campaignsEnded: result.campaignsEnded,
+    customerOrderSettled: result.customerOrderSettled,
   })
 })

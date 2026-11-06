@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
-  Bell, ClipboardList, CreditCard, Loader2, MapPin, Package, Phone, Truck,
+  Bell, ClipboardList, CreditCard, Flag, Loader2, MapPin, Package, Phone, Truck,
 } from 'lucide-react'
 import { apiGet, apiSend, navigate } from '@/lib/client'
 import { money, timeAgo } from '@/lib/format'
@@ -25,6 +25,8 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 type OrderItem = {
@@ -95,6 +97,15 @@ const PAYMENT_LABELS: Record<string, string> = {
   REFUNDED: 'Refunded',
 }
 
+const DISPUTE_REASONS = [
+  { value: 'MISSING_ITEMS', label: 'Missing items' },
+  { value: 'DAMAGED', label: 'Items arrived damaged' },
+  { value: 'WRONG_ITEM', label: 'Wrong item delivered' },
+  { value: 'COUNTERFEIT', label: 'Suspected counterfeit parts' },
+  { value: 'NOT_RECEIVED', label: 'Never received the order' },
+  { value: 'OTHER', label: 'Other problem' },
+] as const
+
 export function CustomerOrders() {
   const { user } = useAuth()
   const userPhone = user?.phone ?? ''
@@ -102,6 +113,9 @@ export function CustomerOrders() {
   const [busy, setBusy] = useState<string | null>(null)
   const [payOrder, setPayOrder] = useState<CustomerOrder | null>(null)
   const [payPhone, setPayPhone] = useState('')
+  const [disputeOrder, setDisputeOrder] = useState<CustomerOrder | null>(null)
+  const [disputeReason, setDisputeReason] = useState<string>('')
+  const [disputeDetails, setDisputeDetails] = useState('')
 
   const load = useCallback(() => {
     apiGet<{ orders: CustomerOrder[] }>('/api/orders')
@@ -145,6 +159,29 @@ export function CustomerOrders() {
   function submitPay() {
     if (!payOrder) return
     void act('pay', () => apiSend<{ status?: string; message?: string }>('/api/billing/mpesa/stkpush', 'POST', { invoiceId: payOrder.invoice!.id, phone: payPhone.trim() }), () => setPayOrder(null))
+  }
+
+  function openDispute(o: CustomerOrder) {
+    setDisputeReason('')
+    setDisputeDetails('')
+    setDisputeOrder(o)
+  }
+
+  function submitDispute() {
+    if (!disputeOrder) return
+    if (!disputeReason) {
+      toast.error('Choose what went wrong.')
+      return
+    }
+    if (disputeDetails.trim().length < 20) {
+      toast.error('Describe the problem in at least 20 characters so it can be acted on.')
+      return
+    }
+    void act(
+      'dispute',
+      () => apiSend<{ message?: string }>(`/api/orders/${disputeOrder.id}`, 'POST', { action: 'dispute', reason: disputeReason, details: disputeDetails.trim() }),
+      () => setDisputeOrder(null)
+    )
   }
 
   if (orders === null) {
@@ -260,12 +297,62 @@ export function CustomerOrders() {
                       {busy === `confirm-${o.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Confirm receipt
                     </Button>
                   )}
+                  {(o.status === 'DELIVERED' || o.status === 'COMPLETED') && (
+                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={busy !== null} onClick={() => openDispute(o)}>
+                      <Flag className="h-4 w-4" /> Report a problem
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>
           </Card>
         )
       })}
+
+      {/* Dispute dialog — opens a real dispute reviewed by the platform team */}
+      <Dialog open={disputeOrder !== null} onOpenChange={(open) => { if (!open) setDisputeOrder(null) }}>
+        <DialogContent className="sm:max-w-md">
+          {disputeOrder && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Report a problem with {disputeOrder.refCode}</DialogTitle>
+                <DialogDescription>
+                  Your report goes to the supplier and the CARMAZE disputes team with the order record. Payments are never moved by this form — any refund is decided and processed by the disputes and finance teams.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>What went wrong?</Label>
+                  <Select value={disputeReason || undefined} onValueChange={setDisputeReason}>
+                    <SelectTrigger aria-label="Dispute reason"><SelectValue placeholder="Select the problem" /></SelectTrigger>
+                    <SelectContent>
+                      {DISPUTE_REASONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="dispute-details">Describe what happened</Label>
+                  <Textarea
+                    id="dispute-details"
+                    rows={4}
+                    value={disputeDetails}
+                    onChange={(e) => setDisputeDetails(e.target.value)}
+                    placeholder="Include what was ordered vs delivered, the condition on arrival, and anything the courier noted…"
+                    maxLength={2000}
+                  />
+                  <p className="text-xs text-muted-foreground">Minimum 20 characters. Both parties see this text.</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setDisputeOrder(null)} disabled={busy !== null}>Cancel</Button>
+                <Button onClick={submitDispute} disabled={busy !== null || disputeDetails.trim().length < 20 || !disputeReason}>
+                  {busy === 'dispute' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Flag className="h-4 w-4" />} Open dispute
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* M-Pesa payment dialog — honest states only */}
       <Dialog open={payOrder !== null} onOpenChange={(open) => { if (!open) setPayOrder(null) }}>

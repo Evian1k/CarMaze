@@ -4,6 +4,7 @@ import { ok, fail } from '@/lib/api'
 import { parseCallback } from '@/lib/mpesa'
 import { audit } from '@/lib/audit'
 import { poEvent } from '@/lib/supply'
+import { verifyWebhookSignature, webhookRejected } from '@/lib/webhook-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,8 +14,19 @@ export const dynamic = 'force-dynamic'
  * CheckoutRequestID are recorded but processed once. The order only becomes
  * PROTECTED on ResultCode 0 — a supplier's dispatch confirmation can never
  * create this state.
+ *
+ * Source validation: when MPESA_WEBHOOK_SECRET is configured, requests must
+ * present it in the x-carmaze-signature header (timing-safe compare); see
+ * src/lib/webhook-auth.ts.
  */
 export async function POST(req: NextRequest): Promise<Response> {
+  const sig = verifyWebhookSignature(req)
+  if (!sig.ok) {
+    await audit({ actorName: 'M-Pesa callback', action: 'WEBHOOK_SIGNATURE_REJECTED', targetType: 'PAYMENT' })
+    const rej = webhookRejected()
+    return Response.json(rej.body, { status: rej.status })
+  }
+
   let payload: unknown
   try {
     payload = await req.json()

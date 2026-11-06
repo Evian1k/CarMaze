@@ -44,7 +44,12 @@ type ProductRow = {
 type DisputeRow = {
   id: string; refCode: string; reason: string; details: string; status: string
   amountFrozenMinor: number | null; openedBySide: string; createdAt: string
-  order: { refCode: string; totalMinor: number; paymentStatus: string; garage: { name: string }; supplier: { name: string } }
+  order: { refCode: string; totalMinor: number; paymentStatus: string; garage: { name: string }; supplier: { name: string } } | null
+  customerOrder: {
+    refCode: string; totalMinor: number; paymentStatus: string; status: string
+    buyer: { name: string }; supplier: { name: string }
+    invoice: { refCode: string; status: string } | null
+  } | null
   events: { id: string; type: string; actorName: string; note: string | null; createdAt: string }[]
 }
 type OrderRow = {
@@ -349,11 +354,21 @@ export function AdminSupplyConsole() {
             <Card key={d.id} className="p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="font-medium">{d.refCode} · {REASONS[d.reason] ?? d.reason} <Badge variant="outline" className="ml-1">{d.status}</Badge></p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Order {d.order.refCode} — {d.order.garage.name} vs {d.order.supplier.name} · {money(d.order.totalMinor)} ({d.order.paymentStatus})
-                    {d.amountFrozenMinor ? ` · ${money(d.amountFrozenMinor)} frozen` : ''}
+                  <p className="font-medium">{d.refCode} · {REASONS[d.reason] ?? d.reason} <Badge variant="outline" className="ml-1">{d.status}</Badge>
+                    {d.customerOrder && <Badge variant="outline" className="ml-1 border-amber-300 text-amber-700">Consumer order</Badge>}
                   </p>
+                  {d.customerOrder ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Order {d.customerOrder.refCode} — {d.customerOrder.buyer.name} vs {d.customerOrder.supplier.name} · {money(d.customerOrder.totalMinor)} ({d.customerOrder.paymentStatus})
+                      {d.customerOrder.invoice ? ` · invoice ${d.customerOrder.invoice.refCode} ${d.customerOrder.invoice.status}` : ''}
+                      {d.amountFrozenMinor ? ` · ${money(d.amountFrozenMinor)} frozen` : ''}
+                    </p>
+                  ) : d.order ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Order {d.order.refCode} — {d.order.garage.name} vs {d.order.supplier.name} · {money(d.order.totalMinor)} ({d.order.paymentStatus})
+                      {d.amountFrozenMinor ? ` · ${money(d.amountFrozenMinor)} frozen` : ''}
+                    </p>
+                  ) : null}
                   <p className="mt-1 max-w-2xl text-sm">{d.details}</p>
                   {d.events.length > 0 && (
                     <div className="mt-2 max-h-32 space-y-1 overflow-y-auto scrollbar-thin text-xs text-muted-foreground">

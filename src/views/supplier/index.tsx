@@ -19,7 +19,6 @@ import { CircleAlert, RefreshCw, ShieldCheck, ShoppingCart, Warehouse } from 'lu
 import { apiGet, navigate } from '@/lib/client'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useAuth } from '@/stores/auth'
-import { sessionGet, sessionSet } from '@/lib/safe-storage'
 import { dateLabel } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -46,28 +45,27 @@ import { BillingTab } from '@/components/supplier/billing'
 const TABS = ['overview', 'products', 'orders', 'consumer-orders', 'quotes', 'warehouses', 'inventory', 'billing'] as const
 type TabKey = (typeof TABS)[number]
 
-/** Session-scoped memory of this browser's own successful submission — the
- * /api/orgs/me payload exposes DEALER applications only, so supplier
- * application status is not readable client-side. We remember only what this
- * session itself did, and the API re-validates every duplicate attempt. */
-const APPLIED_KEY = 'carmaze_supplier_applied'
-
-type AppliedState = { mode: 'new' | 'exists'; name?: string }
-
 export default function View() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, applications, loading: authLoading } = useAuth()
   const [me, setMe] = useState<MePayload | null>(null)
   const [meError, setMeError] = useState<string | null>(null)
   const [meLoading, setMeLoading] = useState(true)
   const [activeOrgId, setActiveOrgId] = useState<string | null>(null)
-  const [applied, setApplied] = useState<AppliedState | null>(() => {
-    const raw = sessionGet(APPLIED_KEY)
-    return raw ? { mode: 'new', name: raw || undefined } : null
-  })
   const [existsShown, setExistsShown] = useState(false)
   const [reloadToken, setReloadToken] = useState(0)
 
-  const refresh = useCallback(() => setReloadToken((t) => t + 1), [])
+  // Real server state: the signed-in user's own SUPPLIER application, if any.
+  // Gates show genuine review progress from /api/auth/me — no client-side guessing.
+  const supplierApp = useMemo(
+    () => applications.find((a) => a.type === 'SUPPLIER') ?? null,
+    [applications]
+  )
+  const appInReview = Boolean(supplierApp && ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'RESUBMITTED'].includes(supplierApp.status))
+
+  const refresh = useCallback(() => {
+    setReloadToken((t) => t + 1)
+    void useAuth.getState().refresh()
+  }, [])
 
   useEffect(() => {
     if (!user) return
@@ -155,14 +153,15 @@ export default function View() {
   }
 
   // State A/B — application flow (no active supplier membership)
-  if (applied) {
+  if (appInReview && supplierApp) {
     return (
       <UnderReview
-        orgName={applied.name}
-        onReset={() => {
-          sessionSet(APPLIED_KEY, '')
-          setApplied(null)
-        }}
+        orgName={supplierApp.orgName}
+        status={supplierApp.status}
+        refCode={supplierApp.refCode}
+        decisionNote={supplierApp.decisionNote ?? undefined}
+        correctionsDueAt={supplierApp.correctionsDueAt ?? undefined}
+        onReset={refresh}
       />
     )
   }
@@ -171,10 +170,7 @@ export default function View() {
   }
   return (
     <ApplyForm
-      onDone={(orgName) => {
-        sessionSet(APPLIED_KEY, orgName)
-        setApplied({ mode: 'new', name: orgName })
-      }}
+      onDone={() => refresh()}
       onExists={() => setExistsShown(true)}
     />
   )
