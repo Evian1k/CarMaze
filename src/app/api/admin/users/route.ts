@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, ApiError, parseBody, requireRole } from '@/lib/api'
-import { demoStaffMutationGuard } from '@/lib/demo'
+import { demoStaffMutationGuard, assertNotDemoStaffRead } from '@/lib/demo'
 import { notify } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 
@@ -12,7 +12,9 @@ import { audit } from '@/lib/audit'
  * SQLite connector does not support case-insensitive `contains`).
  */
 export const GET = route(async (req: NextRequest) => {
-  await requireRole('SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER')
+  const staff = await requireRole('SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER')
+  // The directory holds every user's PII: closed to demo sessions.
+  assertNotDemoStaffRead(staff, 'the user directory')
   const url = new URL(req.url)
   const q = (url.searchParams.get('q') || '').trim().toLowerCase()
 

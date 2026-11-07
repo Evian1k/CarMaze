@@ -55,6 +55,8 @@ const STATUS_LABELS: Record<string, string> = {
 export default function RoadsideView() {
   const { user, loading } = useAuth()
   const [providers, setProviders] = useState<Provider[] | null>(null)
+  // Honest failure state: a failed load must not look like "no providers yet".
+  const [loadError, setLoadError] = useState(false)
   const [feed, setFeed] = useState<{ userId: string; requests: RoadsideRequest[]; tick: number } | null>(null)
   const [tick, setTick] = useState(0)
   const [created, setCreated] = useState<{ refCode: string; status: string } | null>(null)
@@ -63,10 +65,10 @@ export default function RoadsideView() {
   useEffect(() => {
     let cancelled = false
     apiGet<{ providers: Provider[] }>('/api/roadside?providers=1')
-      .then((d) => { if (!cancelled) setProviders(d.providers) })
-      .catch(() => { if (!cancelled) setProviders([]) })
+      .then((d) => { if (!cancelled) { setProviders(d.providers); setLoadError(false) } })
+      .catch(() => { if (!cancelled) { setProviders([]); setLoadError(true) } })
     return () => { cancelled = true }
-  }, [])
+  }, [tick])
 
   useEffect(() => {
     if (!user) return
@@ -224,6 +226,11 @@ export default function RoadsideView() {
               <Separator className="my-4" />
               {providers === null ? (
                 <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+              ) : loadError ? (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">
+                  <p>Providers could not be loaded. Check your connection and try again.</p>
+                  <Button size="sm" variant="outline" className="mt-2" onClick={() => setTick((t) => t + 1)}>Retry</Button>
+                </div>
               ) : providers.length === 0 ? (
                 <div className="rounded-xl border border-dashed py-8 text-center text-sm text-muted-foreground">
                   <Wrench className="mx-auto h-6 w-6" />

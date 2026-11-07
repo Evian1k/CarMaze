@@ -101,7 +101,7 @@ const DEFINITIONS: Record<DemoRoleKey, { email: string; label: string; descripti
     description: 'Restricted admin tour of the Operations OS; verification queues, moderation and analytics. Financial and security actions are disabled in demo mode.',
     icon: 'shield',
     dashboard: 'admin',
-    restrictedNote: 'Restricted to authorised internal testing. Financial actions, staff management and platform-wide configuration are disabled for this demo account.',
+    restrictedNote: 'Restricted to authorised internal testing. Financial actions, staff management, platform-wide configuration and personal-data views (user records, documents, audit trail, revenue) are hidden for this demo account.',
   },
 }
 
@@ -222,5 +222,23 @@ export async function demoStaffMutationGuard(user: SessionUser, opts: { subjectU
 export function assertNotDemoActor(user: SessionUser | null, action: string): void {
   if (user?.isDemo) {
     throw new ApiError(403, 'DEMO_SANDBOXED', `Demo mode: ${action} is disabled. Real M-Pesa payments are never triggered by demo accounts.`)
+  }
+}
+
+/**
+ * Sensitive staff READ guard. Demo staff accounts may explore operational
+ * queues, but views that surface real people's personal data or platform
+ * security/financial records are closed to demo sessions entirely:
+ * KYC identity documents, the audit trail, the user and staff directories
+ * and platform revenue. Demo mutations are separately guarded by
+ * demoStaffMutationGuard above.
+ */
+export function assertNotDemoStaffRead(user: SessionUser, what: string): void {
+  if (user.isDemo) {
+    throw new ApiError(
+      403,
+      'DEMO_SANDBOXED',
+      `Demo mode: ${what} is hidden in demo sessions because it contains real personal, financial or security data. Use an authorised staff account to work with it.`
+    )
   }
 }

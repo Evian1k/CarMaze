@@ -270,9 +270,11 @@ export default function HomeView() {
           <Stagger key={data ? 'recent-loaded' : 'recent-loading'} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {!data
               ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="cmz-shimmer aspect-[16/10] rounded-xl" />)
-              : data.recent.slice(0, 8).map((v) => (
-                  <StaggerItem key={v.id}><VehicleCard v={v} /></StaggerItem>
-                ))}
+              : data.recent.length === 0
+                ? <p className="col-span-full rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">No new listings yet. Check back soon or browse the full marketplace.</p>
+                : data.recent.slice(0, 8).map((v) => (
+                    <StaggerItem key={v.id}><VehicleCard v={v} /></StaggerItem>
+                  ))}
           </Stagger>
         </div>
       </section>

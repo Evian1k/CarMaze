@@ -189,10 +189,16 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
   const isBuyer = order.buyerUserId === user.id
   const supplierMembership = await db.orgMember.findFirst({ where: { orgId: order.supplierOrgId, userId: user.id } })
 
-  // Authorisation: supplier actions need membership of order.supplierOrgId,
-  // buyer actions need order.buyerUserId === user.id.
-  if (['accept', 'reject', 'dispatch', 'delivered'].includes(body.action) && !supplierMembership) {
-    return fail(403, 'FORBIDDEN', 'Only the supplier can perform this action.')
+  // Authorisation: supplier actions need membership of order.supplierOrgId
+  // AND a fulfilment-capable role (mirrors the supply role matrix
+  // `order.respond`: OWNER, OPERATIONS, WAREHOUSE). Finance/accounting or
+  // read-only members cannot accept, dispatch or hand over orders.
+  const FULFILMENT_ROLES = ['OWNER', 'OPERATIONS', 'WAREHOUSE']
+  if (['accept', 'reject', 'dispatch', 'delivered'].includes(body.action)) {
+    if (!supplierMembership) return fail(403, 'FORBIDDEN', 'Only the supplier can perform this action.')
+    if (!FULFILMENT_ROLES.includes(supplierMembership.role)) {
+      return fail(403, 'FORBIDDEN', 'Your role does not permit order fulfilment actions.')
+    }
   }
   if (['confirm', 'cancel'].includes(body.action) && !isBuyer) {
     return fail(403, 'FORBIDDEN', 'Only the buyer can perform this action.')

@@ -52,6 +52,10 @@ export default function AccountView() {
   })
 
   const [saved, setSaved] = useState<SavedVehicle[] | null>(null)
+  // Honest failure state: if a dashboard list fails to load we say so instead
+  // of rendering an empty tab that looks like "nothing here yet".
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const [enquiries, setEnquiries] = useState<EnquiryItem[] | null>(null)
   const [requests, setRequests] = useState<RequestItem[] | null>(null)
   const [searches, setSearches] = useState<SavedSearchItem[] | null>(null)
@@ -77,17 +81,18 @@ export default function AccountView() {
   const loadNotifications = useCallback(() => {
     apiGet<{ notifications: NotificationItem[] }>('/api/notifications?take=30')
       .then((d) => setNotifications(d.notifications))
-      .catch(() => setNotifications([]))
+      .catch(() => { setNotifications([]); setLoadError(true) })
   }, [])
 
   useEffect(() => {
     if (!user) return
-    apiGet<{ saved: SavedVehicle[] }>('/api/saved-vehicles').then((d) => setSaved(d.saved)).catch(() => setSaved([]))
-    apiGet<{ enquiries: EnquiryItem[] }>('/api/enquiries?mine=1').then((d) => setEnquiries(d.enquiries)).catch(() => setEnquiries([]))
-    apiGet<{ requests: RequestItem[] }>('/api/service-requests?mine=1').then((d) => setRequests(d.requests)).catch(() => setRequests([]))
-    apiGet<{ searches: SavedSearchItem[] }>('/api/saved-searches').then((d) => setSearches(d.searches)).catch(() => setSearches([]))
+    setLoadError(false)
+    apiGet<{ saved: SavedVehicle[] }>('/api/saved-vehicles').then((d) => setSaved(d.saved)).catch(() => { setSaved([]); setLoadError(true) })
+    apiGet<{ enquiries: EnquiryItem[] }>('/api/enquiries?mine=1').then((d) => setEnquiries(d.enquiries)).catch(() => { setEnquiries([]); setLoadError(true) })
+    apiGet<{ requests: RequestItem[] }>('/api/service-requests?mine=1').then((d) => setRequests(d.requests)).catch(() => { setRequests([]); setLoadError(true) })
+    apiGet<{ searches: SavedSearchItem[] }>('/api/saved-searches').then((d) => setSearches(d.searches)).catch(() => { setSearches([]); setLoadError(true) })
     loadNotifications()
-  }, [user?.id, loadNotifications])
+  }, [user?.id, loadNotifications, reloadKey])
 
   // Sync phone input when the profile loads/changes (derived, not effect-driven).
   useEffect(() => {
@@ -265,6 +270,12 @@ export default function AccountView() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="mt-6">
+        {loadError && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">
+            <span>Some of your dashboard data could not be loaded. Check your connection and try again.</span>
+            <Button size="sm" variant="outline" onClick={() => setReloadKey((k) => k + 1)}>Retry</Button>
+          </div>
+        )}
         <TabsList className="scrollbar-thin h-auto w-full justify-start overflow-x-auto py-0.5">
           <TabsTrigger value="profile" className="gap-1.5"><MailCheck className="h-4 w-4" /> Profile</TabsTrigger>
           <TabsTrigger value="saved" className="gap-1.5"><Heart className="h-4 w-4" /> Saved</TabsTrigger>

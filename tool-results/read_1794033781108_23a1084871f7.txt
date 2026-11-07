@@ -1,0 +1,642 @@
+     1→'use client'
+     2→
+     3→/* CARMAZE: Seller dashboard (#/my-listings)
+     4→ * Listings management (all statuses), offers received with accept/reject,
+     5→ * and enquiry threads with replies. Dealer org members see their org's
+     6→ * listings, offers and enquiries too (server-scoped by membership).
+     7→ */
+     8→
+     9→import { useEffect, useMemo, useState } from 'react'
+    10→import {
+    11→  Car, Inbox, Tag, Eye, Send, X, CircleCheck, Ban, DollarSign, LockKeyhole,
+    12→  ChevronDown, Loader2, RefreshCw, Plus, MessageSquareText, ShieldCheck,
+    13→} from 'lucide-react'
+    14→import { Button } from '@/components/ui/button'
+    15→import { Card, CardContent } from '@/components/ui/card'
+    16→import { Badge } from '@/components/ui/badge'
+    17→import { Textarea } from '@/components/ui/textarea'
+    18→import { Skeleton } from '@/components/ui/skeleton'
+    19→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    20→import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+    21→import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
+    22→import { SELLER_ACTIVE_STATUSES, useSellerApplication } from '@/components/seller/verification-panel'
+    23→import { hasAnyRole, useAuth } from '@/stores/auth'
+    24→import { apiGet, apiSend, navigate } from '@/lib/client'
+    25→import { money, timeAgo, dateLabel, VEHICLE_STATUS_LABELS } from '@/lib/format'
+    26→import { toast } from 'sonner'
+    27→
+    28→type MyVehicle = VehicleCardData & {
+    29→  views: number
+    30→  enquiryCount: number
+    31→  offerCount: number
+    32→  description: string
+    33→  reviewNote: string | null
+    34→  matchWithDealers: boolean
+    35→  createdAt: string
+    36→}
+    37→
+    38→type OfferRow = {
+    39→  id: string
+    40→  vehicleId: string
+    41→  amountMinor: number
+    42→  message: string | null
+    43→  status: string
+    44→  expiresAt: string | null
+    45→  createdAt: string
+    46→  org: { id: string; name: string }
+    47→  vehicle: { id: string; make: string; model: string; year: number; refCode: string }
+    48→}
+    49→
+    50→type EnquiryMessage = {
+    51→  id: string
+    52→  senderName: string
+    53→  senderSide: string
+    54→  body: string
+    55→  createdAt: string
+    56→}
+    57→
+    58→type EnquiryRow = {
+    59→  id: string
+    60→  refCode: string
+    61→  message: string
+    62→  phoneShare: boolean
+    63→  phone: string | null
+    64→  status: string
+    65→  createdAt: string
+    66→  vehicle: { id: string; make: string; model: string; year: number; priceMinor: number; currency: string; refCode: string }
+    67→  messages: EnquiryMessage[]
+    68→}
+    69→
+    70→function statusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+    71→  switch (status) {
+    72→    case 'PUBLISHED': return 'default'
+    73→    case 'SOLD': return 'destructive'
+    74→    case 'REJECTED': case 'SUSPENDED': case 'EXPIRED': return 'destructive'
+    75→    case 'DRAFT': return 'outline'
+    76→    default: return 'secondary'
+    77→  }
+    78→}
+    79→
+    80→export default function View() {
+    81→  const { user, loading: authLoading } = useAuth()
+    82→
+    83→  // Seller verification status: drives the banner under the page header.
+    84→  const sellerVerified = hasAnyRole(user, 'SELLER_VERIFIED')
+    85→  const { app: sellerApp, loading: sellerAppLoading } = useSellerApplication(!!user && !sellerVerified)
+    86→  const sellerAppActive = sellerApp !== null && SELLER_ACTIVE_STATUSES.includes(sellerApp.status)
+    87→
+    88→  const [vehicles, setVehicles] = useState<MyVehicle[] | null>(null)
+    89→  const [offers, setOffers] = useState<OfferRow[] | null>(null)
+    90→  const [enquiries, setEnquiries] = useState<EnquiryRow[] | null>(null)
+    91→  const [busyOffer, setBusyOffer] = useState<string | null>(null)
+    92→  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({})
+    93→  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+    94→  const [replying, setReplying] = useState<string | null>(null)
+    95→
+    96→  function loadListings() {
+    97→    return apiGet<{ vehicles: MyVehicle[] }>('/api/vehicles?mine=1')
+    98→      .then((d) => setVehicles(d.vehicles))
+    99→      .catch((e: Error) => { setVehicles([]); toast.error(e.message) })
+   100→  }
+   101→  function loadOffers() {
+   102→    return apiGet<{ offers: OfferRow[] }>('/api/offers?incoming=1')
+   103→      .then((d) => setOffers(d.offers))
+   104→      .catch(() => setOffers([]))
+   105→  }
+   106→  function loadEnquiries() {
+   107→    return apiGet<{ enquiries: EnquiryRow[] }>('/api/enquiries?selling=1')
+   108→      .then((d) => setEnquiries(d.enquiries))
+   109→      .catch(() => setEnquiries([]))
+   110→  }
+   111→
+   112→  useEffect(() => {
+   113→    let active = true
+   114→    if (!user) {
+   115→      const t = setTimeout(() => {
+   116→        if (active) { setVehicles([]); setOffers([]); setEnquiries([]) }
+   117→      }, 0)
+   118→      return () => { active = false; clearTimeout(t) }
+   119→    }
+   120→    Promise.resolve().then(() => {
+   121→      if (!active) return
+   122→      loadListings()
+   123→      loadOffers()
+   124→      loadEnquiries()
+   125→    })
+   126→    return () => { active = false }
+   127→  }, [user])
+   128→
+   129→  const pendingOffers = useMemo(() => (offers ?? []).filter((o) => o.status === 'PENDING'), [offers])
+   130→
+   131→  const offersByVehicle = useMemo(() => {
+   132→    const map = new Map<string, { vehicle: OfferRow['vehicle']; offers: OfferRow[] }>()
+   133→    for (const o of offers ?? []) {
+   134→      const entry = map.get(o.vehicleId) ?? { vehicle: o.vehicle, offers: [] }
+   135→      entry.offers.push(o)
+   136→      map.set(o.vehicleId, entry)
+   137→    }
+   138→    return [...map.values()]
+   139→  }, [offers])
+   140→
+   141→  function vehicleAction(id: string, action: 'submit' | 'mark_sold', doneMsg: string) {
+   142→    setBusyOffer(id)
+   143→    apiSend(`/api/vehicles/${id}`, 'PATCH', { action })
+   144→      .then(() => {
+   145→        toast.success(doneMsg)
+   146→        return loadListings()
+   147→      })
+   148→      .catch((e: Error) => toast.error(e.message))
+   149→      .finally(() => setBusyOffer(null))
+   150→  }
+   151→
+   152→  function deleteVehicle(id: string) {
+   153→    setBusyOffer(id)
+   154→    apiSend(`/api/vehicles/${id}`, 'DELETE')
+   155→      .then(() => {
+   156→        toast.success('Draft deleted')
+   157→        return loadListings()
+   158→      })
+   159→      .catch((e: Error) => toast.error(e.message))
+   160→      .finally(() => setBusyOffer(null))
+   161→  }
+   162→
+   163→  function offerAction(offer: OfferRow, action: 'accept' | 'reject') {
+   164→    setBusyOffer(offer.id)
+   165→    apiSend<{ vehicle?: { status: string } }>(`/api/offers/${offer.id}`, 'PATCH', { action })
+   166→      .then((res) => {
+   167→        toast.success(
+   168→          action === 'accept'
+   169→            ? 'Offer accepted: your listing is now Reserved'
+   170→            : 'Offer rejected',
+   171→          { description: action === 'accept' ? `The dealer (${offer.org.name}) has been notified.` : undefined }
+   172→        )
+   173→        if (res.vehicle?.status) {
+   174→          void loadListings()
+   175→          void loadOffers()
+   176→        } else {
+   177→          void loadOffers()
+   178→        }
+   179→      })
+   180→      .catch((e: Error) => toast.error(e.message))
+   181→      .finally(() => setBusyOffer(null))
+   182→  }
+   183→
+   184→  function toggleExpanded(id: string) {
+   185→    setExpanded((prev) => {
+   186→      const next = new Set(prev)
+   187→      if (next.has(id)) next.delete(id)
+   188→      else next.add(id)
+   189→      return next
+   190→    })
+   191→  }
+   192→
+   193→  function replyTo(enquiry: EnquiryRow) {
+   194→    const body = (replyTexts[enquiry.id] ?? '').trim()
+   195→    if (body.length < 2) { toast.error('Write a reply first'); return }
+   196→    setReplying(enquiry.id)
+   197→    apiSend(`/api/enquiries/${enquiry.id}`, 'POST', { body })
+   198→      .then(() => {
+   199→        setReplyTexts((t) => ({ ...t, [enquiry.id]: '' }))
+   200→        toast.success('Reply sent')
+   201→        return loadEnquiries()
+   202→      })
+   203→      .catch((e: Error) => toast.error(e.message))
+   204→      .finally(() => setReplying(null))
+   205→  }
+   206→
+   207→  function closeEnquiry(enquiry: EnquiryRow) {
+   208→    apiSend(`/api/enquiries/${enquiry.id}`, 'PATCH', { status: 'CLOSED' })
+   209→      .then(() => {
+   210→        toast.success('Enquiry closed')
+   211→        return loadEnquiries()
+   212→      })
+   213→      .catch((e: Error) => toast.error(e.message))
+   214→  }
+   215→
+   216→  // ── Auth gate ──
+   217→  if (!authLoading && !user) {
+   218→    return (
+   219→      <div className="mx-auto w-full max-w-lg px-4 py-16 sm:py-24">
+   220→        <Card>
+   221→          <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+   222→            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+   223→              <LockKeyhole className="h-7 w-7 text-primary" />
+   224→            </div>
+   225→            <h1 className="text-xl font-bold">Sign in to manage your listings</h1>
+   226→            <p className="text-sm text-muted-foreground">
+   227→              Track views, reply to enquiries, and manage dealer offers on your cars.
+   228→            </p>
+   229→            <Button className="h-11 px-6" onClick={() => navigate('signin')}>Sign in</Button>
+   230→          </CardContent>
+   231→        </Card>
+   232→      </div>
+   233→    )
+   234→  }
+   235→
+   236→  return (
+   237→    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
+   238→      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+   239→        <div>
+   240→          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">My listings</h1>
+   241→          <p className="mt-1 text-sm text-muted-foreground">Manage your cars, offers and enquiries.</p>
+   242→        </div>
+   243→        <Button className="h-11 px-5" onClick={() => navigate('sell')}>
+   244→          <Plus className="h-4 w-4" /> New listing
+   245→        </Button>
+   246→      </header>
+   247→
+   248→      {/* Seller verification banner: the full workflow lives on #/sell */}
+   249→      {!user || sellerVerified || sellerAppLoading ? null : sellerAppActive && sellerApp ? (
+   250→        sellerApp.status === 'MORE_INFO_REQUIRED' ? (
+   251→          <div className="mb-6 flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">
+   252→            <div className="flex items-start gap-3">
+   253→              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+   254→              <p className="text-sm leading-relaxed">
+   255→                Seller verification needs your attention: ref{' '}
+   256→                <span className="font-mono font-semibold">{sellerApp.refCode}</span>. The review team requested more
+   257→                information before your account can be verified.
+   258→              </p>
+   259→            </div>
+   260→            <Button className="h-11 shrink-0 self-start px-5 sm:h-9 sm:self-auto" onClick={() => navigate('sell')}>
+   261→              Open verification
+   262→            </Button>
+   263→          </div>
+   264→        ) : (
+   265→          <div className="mb-6 flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4 text-sm sm:items-center">
+   266→            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground sm:mt-0" aria-hidden="true" />
+   267→            <p className="leading-relaxed">
+   268→              Seller verification in review: ref <span className="font-mono font-semibold">{sellerApp.refCode}</span>
+   269→            </p>
+   270→          </div>
+   271→        )
+   272→      ) : (
+   273→        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">
+   274→          <div className="flex items-start gap-3">
+   275→            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+   276→            <p className="text-sm leading-relaxed">
+   277→              Your listings are reviewed before going live. Complete seller verification to add a verified trust marker
+   278→              to your listings.
+   279→            </p>
+   280→          </div>
+   281→          <Button className="h-11 shrink-0 self-start px-5 sm:h-9 sm:self-auto" onClick={() => navigate('sell')}>
+   282→            Get verified
+   283→          </Button>
+   284→        </div>
+   285→      )}
+   286→
+   287→      <Tabs defaultValue="listings">
+   288→        <TabsList className="h-auto w-full flex-wrap justify-start sm:w-auto">
+   289→          <TabsTrigger value="listings" className="gap-1.5 px-4 py-2.5">
+   290→            <Car className="h-4 w-4" /> Listings
+   291→            {vehicles && <Badge variant="secondary" className="ml-1">{vehicles.length}</Badge>}
+   292→          </TabsTrigger>
+   293→          <TabsTrigger value="offers" className="gap-1.5 px-4 py-2.5">
+   294→            <Tag className="h-4 w-4" /> Offers received
+   295→            {pendingOffers.length > 0 && <Badge className="ml-1 border-none bg-accent text-accent-foreground">{pendingOffers.length}</Badge>}
+   296→          </TabsTrigger>
+   297→          <TabsTrigger value="enquiries" className="gap-1.5 px-4 py-2.5">
+   298→            <Inbox className="h-4 w-4" /> Enquiries
+   299→            {enquiries && <Badge variant="secondary" className="ml-1">{enquiries.length}</Badge>}
+   300→          </TabsTrigger>
+   301→        </TabsList>
+   302→
+   303→        {/* ── Listings ── */}
+   304→        <TabsContent value="listings" className="mt-4">
+   305→          {!vehicles ? (
+   306→            <div className="space-y-3" aria-busy="true">
+   307→              {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
+   308→            </div>
+   309→          ) : vehicles.length === 0 ? (
+   310→            <Card>
+   311→              <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+   312→                <Car className="h-10 w-10 text-muted-foreground" />
+   313→                <p className="font-medium">No listings yet</p>
+   314→                <p className="max-w-sm text-sm text-muted-foreground">
+   315→                  List your first car: it&apos;s free, and your contact details stay private until you decide to share them.
+   316→                </p>
+   317→                <Button className="h-11 px-5" onClick={() => navigate('sell')}>Sell your car</Button>
+   318→              </CardContent>
+   319→            </Card>
+   320→          ) : (
+   321→            <div className="space-y-3">
+   322→              {vehicles.map((v) => (
+   323→                <Card key={v.id}>
+   324→                  <CardContent className="p-4 sm:p-6">
+   325→                    <div className="flex flex-col gap-4 sm:flex-row">
+   326→                      <div className="flex h-24 w-36 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted text-xs text-muted-foreground">
+   327→                        {v.photos && v.photos.length > 0
+   328→                          ? <img src={v.photos[0].url} alt={`${v.make} ${v.model}`} className="h-full w-full object-cover" />
+   329→                          : 'No photo'}
+   330→                      </div>
+   331→                      <div className="min-w-0 flex-1">
+   332→                        <div className="flex flex-wrap items-center gap-2">
+   333→                          <Badge variant={statusBadgeVariant(v.status ?? '')}>{VEHICLE_STATUS_LABELS[v.status ?? ''] ?? v.status}</Badge>
+   334→                          <span className="font-mono text-xs text-muted-foreground">{v.refCode}</span>
+   335→                          {v.featured && <Badge className="border-none bg-accent text-accent-foreground">Featured</Badge>}
+   336→                        </div>
+   337→                        <h3 className="mt-1 truncate font-semibold">{v.make} {v.model} {v.year}</h3>
+   338→                        <p className="font-bold text-primary">{money(v.priceMinor, v.currency)}</p>
+   339→                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+   340→                          <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> {v.views.toLocaleString()} views</span>
+   341→                          <span className="flex items-center gap-1"><MessageSquareText className="h-3.5 w-3.5" /> {v.enquiryCount} {v.enquiryCount === 1 ? 'enquiry' : 'enquiries'}</span>
+   342→                          {v.offerCount > 0 && (
+   343→                            <span className="flex items-center gap-1 font-medium text-accent-foreground">
+   344→                              <Tag className="h-3.5 w-3.5" /> {v.offerCount} {v.offerCount === 1 ? 'offer' : 'offers'}
+   345→                            </span>
+   346→                          )}
+   347→                          <span>listed {timeAgo(v.createdAt)}</span>
+   348→                        </div>
+   349→                        {v.status === 'PENDING_REVIEW' && (
+   350→                          <p className="mt-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+   351→                            Under review: our team checks listings before they go public (target: 24 business hours).
+   352→                          </p>
+   353→                        )}
+   354→                        {v.status === 'REJECTED' && (
+   355→                          <p className="mt-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+   356→                            <span className="font-semibold">Rejected{v.reviewNote ? ':' : ': edit and resubmit.'}</span>
+   357→                            {v.reviewNote ? ` ${v.reviewNote}` : ''}
+   358→                          </p>
+   359→                        )}
+   360→
+   361→                        <div className="mt-3 flex flex-wrap gap-2">
+   362→                          <Button variant="outline" size="sm" className="h-11 px-4 sm:h-9" onClick={() => navigate(`vehicle-detail/${v.id}`)}>
+   363→                            View
+   364→                          </Button>
+   365→                          {(v.status === 'DRAFT' || v.status === 'PENDING_REVIEW' || v.status === 'REJECTED') && (
+   366→                            <Button variant="outline" size="sm" className="h-11 px-4 sm:h-9" onClick={() => navigate(`sell?id=${v.id}`)}>
+   367→                              Edit
+   368→                            </Button>
+   369→                          )}
+   370→                          {v.status === 'DRAFT' && (
+   371→                            <Button
+   372→                              size="sm" className="h-11 px-4 sm:h-9"
+   373→                              disabled={busyOffer === v.id}
+   374→                              onClick={() => vehicleAction(v.id, 'submit', 'Submitted for review')}
+   375→                            >
+   376→                              {busyOffer === v.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit for review
+   377→                            </Button>
+   378→                          )}
+   379→                          {v.status === 'REJECTED' && (
+   380→                            <Button
+   381→                              size="sm" className="h-11 px-4 sm:h-9"
+   382→                              disabled={busyOffer === v.id}
+   383→                              onClick={() => vehicleAction(v.id, 'submit', 'Resubmitted for review')}
+   384→                            >
+   385→                              {busyOffer === v.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Resubmit
+   386→                            </Button>
+   387→                          )}
+   388→                          {(v.status === 'PUBLISHED' || v.status === 'RESERVED') && (
+   389→                            <AlertDialog>
+   390→                              <AlertDialogTrigger asChild>
+   391→                                <Button variant="outline" size="sm" className="h-11 px-4 text-destructive sm:h-9">
+   392→                                  <CircleCheck className="h-4 w-4" /> Mark sold
+   393→                                </Button>
+   394→                              </AlertDialogTrigger>
+   395→                              <AlertDialogContent>
+   396→                                <AlertDialogHeader>
+   397→                                  <AlertDialogTitle>Mark as sold?</AlertDialogTitle>
+   398→                                  <AlertDialogDescription>
+   399→                                    Your listing will show as sold and buyers can no longer enquire. Only mark it sold when payment
+   400→                                    has been completed: this can&apos;t be undone by you.
+   401→                                  </AlertDialogDescription>
+   402→                                </AlertDialogHeader>
+   403→                                <AlertDialogFooter>
+   404→                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+   405→                                  <AlertDialogAction onClick={() => vehicleAction(v.id, 'mark_sold', 'Marked as sold')}>
+   406→                                    Yes, it&apos;s sold
+   407→                                  </AlertDialogAction>
+   408→                                </AlertDialogFooter>
+   409→                              </AlertDialogContent>
+   410→                            </AlertDialog>
+   411→                          )}
+   412→                          {(v.status === 'DRAFT' || v.status === 'REJECTED') && (
+   413→                            <AlertDialog>
+   414→                              <AlertDialogTrigger asChild>
+   415→                                <Button variant="ghost" size="sm" className="h-11 px-4 text-destructive sm:h-9" disabled={busyOffer === v.id}>
+   416→                                  <X className="h-4 w-4" /> Delete
+   417→                                </Button>
+   418→                              </AlertDialogTrigger>
+   419→                              <AlertDialogContent>
+   420→                                <AlertDialogHeader>
+   421→                                  <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+   422→                                  <AlertDialogDescription>
+   423→                                    This permanently removes the listing and its photos. Published listings can&apos;t be deleted this way.
+   424→                                  </AlertDialogDescription>
+   425→                                </AlertDialogHeader>
+   426→                                <AlertDialogFooter>
+   427→                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+   428→                                  <AlertDialogAction onClick={() => deleteVehicle(v.id)} className="bg-destructive text-white hover:bg-destructive/90">
+   429→                                    Delete permanently
+   430→                                  </AlertDialogAction>
+   431→                                </AlertDialogFooter>
+   432→                              </AlertDialogContent>
+   433→                            </AlertDialog>
+   434→                          )}
+   435→                        </div>
+   436→                      </div>
+   437→                    </div>
+   438→                  </CardContent>
+   439→                </Card>
+   440→              ))}
+   441→            </div>
+   442→          )}
+   443→        </TabsContent>
+   444→
+   445→        {/* ── Offers received ── */}
+   446→        <TabsContent value="offers" className="mt-4">
+   447→          {!offers ? (
+   448→            <div className="space-y-3" aria-busy="true">
+   449→              {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+   450→            </div>
+   451→          ) : offersByVehicle.length === 0 ? (
+   452→            <Card>
+   453→              <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+   454→                <Tag className="h-10 w-10 text-muted-foreground" />
+   455→                <p className="font-medium">No offers yet</p>
+   456→                <p className="max-w-sm text-sm text-muted-foreground">
+   457→                  Verified dealers send offers on listings where you opted in to &ldquo;match with dealers&rdquo;.
+   458→                  Your contact stays private until you accept.
+   459→                </p>
+   460→                <Button className="h-11 px-5" onClick={() => navigate('sell')}>List a car</Button>
+   461→              </CardContent>
+   462→            </Card>
+   463→          ) : (
+   464→            <div className="space-y-4">
+   465→              {offersByVehicle.map(({ vehicle, offers: vos }) => (
+   466→                <Card key={vehicle.id}>
+   467→                  <CardContent className="p-4 sm:p-6">
+   468→                    <div className="mb-3 flex items-center justify-between gap-2">
+   469→                      <button onClick={() => navigate(`vehicle-detail/${vehicle.id}`)} className="text-left font-semibold hover:underline">
+   470→                        {vehicle.make} {vehicle.model} {vehicle.year}
+   471→                        <span className="ml-2 font-mono text-xs text-muted-foreground">{vehicle.refCode}</span>
+   472→                      </button>
+   473→                      <Badge variant={statusBadgeVariant('PUBLISHED')} className="hidden sm:inline-flex">Your listing</Badge>
+   474→                    </div>
+   475→                    <div className="space-y-3">
+   476→                      {vos.map((o) => (
+   477→                        <div key={o.id} className="rounded-xl border border-border p-4">
+   478→                          <div className="flex flex-wrap items-center justify-between gap-2">
+   479→                            <div className="flex items-center gap-2">
+   480→                              <DollarSign className="h-4 w-4 text-primary" />
+   481→                              <span className="text-lg font-bold text-primary">{money(o.amountMinor)}</span>
+   482→                              <span className="text-sm text-muted-foreground">from {o.org.name}</span>
+   483→                            </div>
+   484→                            <Badge variant={o.status === 'PENDING' ? 'secondary' : o.status === 'ACCEPTED' ? 'default' : 'outline'}>
+   485→                              {o.status.charAt(0) + o.status.slice(1).toLowerCase()}
+   486→                            </Badge>
+   487→                          </div>
+   488→                          {o.message && <p className="mt-2 text-sm text-foreground/90">&ldquo;{o.message}&rdquo;</p>}
+   489→                          <p className="mt-1 text-xs text-muted-foreground">
+   490→                            Sent {timeAgo(o.createdAt)}
+   491→                            {o.expiresAt ? ` · expires ${dateLabel(o.expiresAt)}` : ''}
+   492→                          </p>
+   493→                          {o.status === 'PENDING' && (
+   494→                            <div className="mt-3 flex flex-wrap gap-2">
+   495→                              <AlertDialog>
+   496→                                <AlertDialogTrigger asChild>
+   497→                                  <Button size="sm" className="h-11 px-5 sm:h-9" disabled={busyOffer === o.id}>
+   498→                                    {busyOffer === o.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleCheck className="h-4 w-4" />} Accept
+   499→                                  </Button>
+   500→                                </AlertDialogTrigger>
+   501→                                <AlertDialogContent>
+   502→                                  <AlertDialogHeader>
+   503→                                    <AlertDialogTitle>Accept {money(o.amountMinor)} from {o.org.name}?</AlertDialogTitle>
+   504→                                    <AlertDialogDescription>
+   505→                                      Your listing will be marked <strong>Reserved</strong> while you complete the sale with this dealer.
+   506→                                      All other pending offers on this car will be automatically closed. You can still mark the car
+   507→                                      as sold afterwards.
+   508→                                    </AlertDialogDescription>
+   509→                                  </AlertDialogHeader>
+   510→                                  <AlertDialogFooter>
+   511→                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+   512→                                    <AlertDialogAction onClick={() => offerAction(o, 'accept')}>
+   513→                                      Accept offer &amp; reserve
+   514→                                    </AlertDialogAction>
+   515→                                  </AlertDialogFooter>
+   516→                                </AlertDialogContent>
+   517→                              </AlertDialog>
+   518→                              <Button
+   519→                                variant="outline" size="sm" className="h-11 px-5 sm:h-9"
+   520→                                disabled={busyOffer === o.id}
+   521→                                onClick={() => offerAction(o, 'reject')}
+   522→                              >
+   523→                                <Ban className="h-4 w-4" /> Reject
+   524→                              </Button>
+   525→                            </div>
+   526→                          )}
+   527→                        </div>
+   528→                      ))}
+   529→                    </div>
+   530→                  </CardContent>
+   531→                </Card>
+   532→              ))}
+   533→            </div>
+   534→          )}
+   535→        </TabsContent>
+   536→
+   537→        {/* ── Enquiries ── */}
+   538→        <TabsContent value="enquiries" className="mt-4">
+   539→          {!enquiries ? (
+   540→            <div className="space-y-3" aria-busy="true">
+   541→              {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+   542→            </div>
+   543→          ) : enquiries.length === 0 ? (
+   544→            <Card>
+   545→              <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+   546→                <Inbox className="h-10 w-10 text-muted-foreground" />
+   547→                <p className="font-medium">No enquiries yet</p>
+   548→                <p className="max-w-sm text-sm text-muted-foreground">
+   549→                  When buyers ask about your cars, the conversation appears here.
+   550→                </p>
+   551→                <Button className="h-11 px-5" onClick={() => navigate('cars')}>See what buyers see</Button>
+   552→              </CardContent>
+   553→            </Card>
+   554→          ) : (
+   555→            <div className="space-y-3">
+   556→              {enquiries.map((e) => {
+   557→                const isOpen = expanded.has(e.id)
+   558→                return (
+   559→                  <Card key={e.id}>
+   560→                    <CardContent className="p-0">
+   561→                      <button
+   562→                        className="flex w-full items-center justify-between gap-3 p-4 text-left sm:p-6"
+   563→                        onClick={() => toggleExpanded(e.id)}
+   564→                        aria-expanded={isOpen}
+   565→                      >
+   566→                        <div className="min-w-0">
+   567→                          <div className="flex flex-wrap items-center gap-2">
+   568→                            <Badge variant={e.status === 'OPEN' ? 'secondary' : e.status === 'ANSWERED' ? 'default' : 'outline'}>
+   569→                              {e.status.charAt(0) + e.status.slice(1).toLowerCase()}
+   570→                            </Badge>
+   571→                            <span className="truncate text-sm font-semibold">
+   572→                              {e.vehicle.make} {e.vehicle.model} {e.vehicle.year}
+   573→                            </span>
+   574→                            <span className="font-mono text-xs text-muted-foreground">{e.refCode}</span>
+   575→                          </div>
+   576→                          <p className="mt-1 truncate text-sm text-muted-foreground">{e.message}</p>
+   577→                          <p className="mt-0.5 text-xs text-muted-foreground">
+   578→                            {timeAgo(e.createdAt)} · {e.messages.length} {e.messages.length === 1 ? 'message' : 'messages'}
+   579→                            {e.phoneShare && e.phone ? ` · Phone: ${e.phone}` : ' · Phone not shared'}
+   580→                          </p>
+   581→                        </div>
+   582→                        <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+   583→                      </button>
+   584→
+   585→                      {isOpen && (
+   586→                        <div className="border-t border-border p-4 sm:p-6">
+   587→                          <div className="max-h-80 space-y-3 overflow-y-auto pr-1 scrollbar-thin">
+   588→                            {e.messages.map((m) => {
+   589→                              const mine = m.senderSide === 'SELLER'
+   590→                              return (
+   591→                                <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+   592→                                  <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
+   593→                                    mine ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
+   594→                                  }`}>
+   595→                                    <p className={`mb-0.5 text-xs ${mine ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+   596→                                      {m.senderName} · {timeAgo(m.createdAt)}
+   597→                                    </p>
+   598→                                    <p className="whitespace-pre-line">{m.body}</p>
+   599→                                  </div>
+   600→                                </div>
+   601→                              )
+   602→                            })}
+   603→                          </div>
+   604→
+   605→                          {e.status !== 'CLOSED' ? (
+   606→                            <div className="mt-4 space-y-2">
+   607→                              <Textarea
+   608→                                rows={2}
+   609→                                placeholder={`Reply to ${e.refCode.replace('ENQ-', 'enquiry ')}…`}
+   610→                                value={replyTexts[e.id] ?? ''}
+   611→                                onChange={(ev) => setReplyTexts((t) => ({ ...t, [e.id]: ev.target.value }))}
+   612→                              />
+   613→                              <div className="flex flex-wrap gap-2">
+   614→                                <Button
+   615→                                  className="h-11 px-5"
+   616→                                  disabled={replying === e.id}
+   617→                                  onClick={() => replyTo(e)}
+   618→                                >
+   619→                                  {replying === e.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send reply
+   620→                                </Button>
+   621→                                <Button variant="ghost" className="h-11 px-4" onClick={() => closeEnquiry(e)}>
+   622→                                  <X className="h-4 w-4" /> Close enquiry
+   623→                                </Button>
+   624→                              </div>
+   625→                            </div>
+   626→                          ) : (
+   627→                            <p className="mt-3 text-sm text-muted-foreground">This enquiry is closed.</p>
+   628→                          )}
+   629→                        </div>
+   630→                      )}
+   631→                    </CardContent>
+   632→                  </Card>
+   633→                )
+   634→              })}
+   635→            </div>
+   636→          )}
+   637→        </TabsContent>
+   638→      </Tabs>
+   639→    </div>
+   640→  )
+   641→}
+   642→

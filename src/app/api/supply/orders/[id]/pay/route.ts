@@ -7,6 +7,7 @@ import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notify, notifyMany } from '@/lib/notify'
 import { getMembership } from '@/lib/orgs'
+import { assertNotDemoActor } from '@/lib/demo'
 import { stkPush, MpesaNotConfiguredError, mpesaConfigured } from '@/lib/mpesa'
 import { getFees, computeCommission, poEvent } from '@/lib/supply'
 
@@ -37,6 +38,8 @@ const schema = z.object({
 export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
   const user = await requireUser()
+  // Demo sessions never trigger real M-Pesa pushes (mirrors billing stkpush).
+  assertNotDemoActor(user, 'order payment')
   const rl = rateLimit(`po-pay:${user.id}`, 10, 60 * 60 * 1000)
   if (!rl.allowed) return fail(429, 'RATE_LIMITED', 'Too many payment attempts. Please try later.')
   const body = await parseBody(req, schema)

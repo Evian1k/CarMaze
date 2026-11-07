@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, parseBody, requireRole, getIp } from '@/lib/api'
-import { demoStaffMutationGuard } from '@/lib/demo'
+import { demoStaffMutationGuard, assertNotDemoStaffRead } from '@/lib/demo'
 import { STAFF_ROLES, hashPassword } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
 import { notify } from '@/lib/notify'
@@ -50,7 +50,9 @@ const postSchema = z.object({
  * JS (the SQLite connector cannot match inside CSV columns reliably).
  */
 export const GET = route(async () => {
-  await requireRole('ADMIN', 'FOUNDER')
+  const admin = await requireRole('ADMIN', 'FOUNDER')
+  // Staff accounts and departments: closed to demo sessions.
+  assertNotDemoStaffRead(admin, 'the staff directory')
 
   const rows = await db.user.findMany({
     orderBy: { createdAt: 'desc' },

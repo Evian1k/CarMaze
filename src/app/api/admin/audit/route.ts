@@ -1,12 +1,15 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { route, ok, requireRole } from '@/lib/api'
+import { assertNotDemoStaffRead } from '@/lib/demo'
 
 const PAGE_SIZE = 50
 
-/** GET /api/admin/audit?action=&targetType=&page=: read-only audit trail, 50/page. */
+/** GET /api/admin/audit?action=&targetType=&page=: read-only audit trail, 50/page.
+ * The trail contains security events and IP data: hidden from demo sessions. */
 export const GET = route(async (req: NextRequest) => {
-  await requireRole('SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER')
+  const user = await requireRole('SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER')
+  assertNotDemoStaffRead(user, 'the audit trail')
   const url = new URL(req.url)
   const action = (url.searchParams.get('action') || '').trim()
   const targetType = (url.searchParams.get('targetType') || '').trim()

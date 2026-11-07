@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises'
 import path from 'path'
 import { route, fail, requireUser, ApiError } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
+import { assertNotDemoStaffRead } from '@/lib/demo'
 import { db } from '@/lib/db'
 
 type Ctx = { params: Promise<{ name: string }> }
@@ -21,8 +22,13 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
     return fail(400, 'INVALID_NAME', 'Invalid document reference.')
   }
   const ownerId = name.split('.')[0]
-  if (ownerId !== user.id && !hasRole(user, ...STAFF_ROLES)) {
-    throw new ApiError(403, 'FORBIDDEN', 'You are not authorised to view this document.')
+  if (ownerId !== user.id) {
+    // Reviewer access to someone else's verification document: never for demo
+    // sessions (identity documents are closed to demo, see demo.ts).
+    assertNotDemoStaffRead(user, 'verification documents')
+    if (!hasRole(user, ...STAFF_ROLES)) {
+      throw new ApiError(403, 'FORBIDDEN', 'You are not authorised to view this document.')
+    }
   }
 
   const filePath = path.join(process.cwd(), 'data', 'uploads', name)

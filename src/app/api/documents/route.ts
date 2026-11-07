@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, requireUser, ApiError, parseBody } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
+import { assertNotDemoStaffRead } from '@/lib/demo'
 import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 
@@ -56,6 +57,8 @@ export const GET = route(async (req: NextRequest) => {
   // EXPIRED (and persisted): we never present an expired document as verified.
   if (user && scope === 'queue') {
     if (!hasRole(user, ...STAFF_ROLES)) throw new ApiError(403, 'FORBIDDEN', 'Staff only.')
+    // Identity documents are closed to demo sessions (see assertNotDemoStaffRead).
+    assertNotDemoStaffRead(user, 'the verification document queue')
     await db.verificationDocument.updateMany({
       where: { status: 'VERIFIED', expiresAt: { lt: new Date() } },
       data: { status: 'EXPIRED', reviewNote: 'Validity lapsed: document expired automatically.' },
@@ -65,6 +68,7 @@ export const GET = route(async (req: NextRequest) => {
   const where: Record<string, unknown> = {}
   if (scope === 'queue') {
     if (!hasRole(user, ...STAFF_ROLES)) throw new ApiError(403, 'FORBIDDEN', 'Staff only.')
+    assertNotDemoStaffRead(user, 'the verification document queue')
   } else {
     where.ownerUserId = user.id
   }

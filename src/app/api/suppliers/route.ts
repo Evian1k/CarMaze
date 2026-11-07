@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { route, ok, fail, parseBody, requireUser } from '@/lib/api'
+import { route, ok, fail, parseBody, requireUser, requireUserOptional } from '@/lib/api'
+import { hasRole, STAFF_ROLES } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
 import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
@@ -26,8 +27,16 @@ export const GET = route(async (req: NextRequest) => {
   const pageSize = Math.min(36, Number(sp.get('pageSize') || 18))
 
   const AND: Record<string, unknown>[] = [{ type: 'SUPPLIER', status: 'ACTIVE' }]
-  // Only show verified suppliers publicly; platform staff can see pending ones via admin
-  if (sp.get('includePending') !== '1') AND.push({ verified: true })
+  // Only show verified suppliers publicly. Pending/unverified suppliers are
+  // visible exclusively to platform staff (never to anonymous callers).
+  if (sp.get('includePending') === '1') {
+    const user = await requireUserOptional()
+    if (!user || !hasRole(user, ...STAFF_ROLES)) {
+      return fail(403, 'FORBIDDEN', 'Pending suppliers are only visible to platform staff.')
+    }
+  } else {
+    AND.push({ verified: true })
+  }
   if (q) AND.push({ OR: [{ name: { contains: q } }, { description: { contains: q } }] })
   if (county) AND.push({ county: { equals: county } })
   if (category) {

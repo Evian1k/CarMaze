@@ -25,9 +25,22 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const garage = await db.org.findUnique({ where: { id: request.garageOrgId }, select: { id: true, name: true, county: true, verified: true } })
   const membership = await getMembership(request.garageOrgId, user.id)
   if (!membership) {
-    // suppliers may view requests routed to them
-    const isSupplier = await db.orgMember.findFirst({ where: { userId: user.id, org: { type: 'SUPPLIER' } } })
-    if (!isSupplier) return fail(403, 'FORBIDDEN', 'Not authorised.')
+    // Suppliers may view a request only when it is inside their commercial
+    // scope (mirrors GET /api/supply/quotes): the request is broadcast to
+    // their delivery areas, or they already quoted on it. Any other supplier
+    // org member must not read another garage's request details.
+    const supplierOrg = await db.orgMember.findFirst({
+      where: { userId: user.id, org: { type: 'SUPPLIER' } },
+      select: { orgId: true },
+    })
+    if (!supplierOrg) return fail(403, 'FORBIDDEN', 'Not authorised.')
+    const hasOffer = await db.quoteOffer.findFirst({ where: { requestId: id, supplierOrgId: supplierOrg.orgId }, select: { id: true } })
+    if (!hasOffer) {
+      const branchAreas = await db.orgBranch.findMany({ where: { orgId: supplierOrg.orgId, status: 'ACTIVE' }, select: { deliveryAreas: true } })
+      const areas = [...new Set(branchAreas.flatMap((b) => (b.deliveryAreas ? (JSON.parse(b.deliveryAreas) as string[]) : [])))]
+      const inScope = request.deliveryCounty == null || (areas.length > 0 && areas.includes(request.deliveryCounty))
+      if (!inScope) return fail(403, 'FORBIDDEN', 'Not authorised.')
+    }
   }
   return ok({
     request: {

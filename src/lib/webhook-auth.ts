@@ -9,13 +9,20 @@ import { timingSafeEqual } from 'crypto'
  * MPESA_WEBHOOK_SECRET and every webhook request must present the same value
  * in the `x-carmaze-signature` header. Comparison is timing-safe.
  *
- * When the secret is NOT configured the webhook is accepted without source
- * validation: this is a documented limitation, and it is recorded per-request
- * in the audit log so ops can see unsigned acceptances.
+ * When the secret is NOT configured:
+ *  - in development/sandbox the webhook is accepted without source validation
+ *    (documented limitation, recorded per-request in the audit log);
+ *  - in production the webhook is REJECTED (fail-closed): a payment endpoint
+ *    must never accept forged callbacks just because configuration is missing.
+ *    Set MPESA_WEBHOOK_SECRET (and allow-list Safaricom IPs at the edge) before
+ *    going live.
  */
 export function verifyWebhookSignature(req: Request): { ok: boolean; mode: 'SIGNED' | 'UNSIGNED' } {
   const secret = process.env.MPESA_WEBHOOK_SECRET
-  if (!secret) return { ok: true, mode: 'UNSIGNED' }
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') return { ok: false, mode: 'UNSIGNED' }
+    return { ok: true, mode: 'UNSIGNED' }
+  }
   const provided = req.headers.get('x-carmaze-signature') ?? ''
   const a = Buffer.from(provided)
   const b = Buffer.from(secret)

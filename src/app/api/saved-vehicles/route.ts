@@ -8,7 +8,13 @@ import { route, ok, fail, ApiError, parseBody, requireUser } from '@/lib/api'
 export const GET = route(async () => {
   const user = await requireUser()
   const rows = await db.savedVehicle.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      // Draft/rejected listings keep their details private: a saved reference
+      // only reveals vehicle data the caller may already see publicly (their
+      // own listings are always included).
+      vehicle: { OR: [{ status: 'PUBLISHED' }, { ownerId: user.id }] },
+    },
     include: {
       vehicle: {
         include: {
@@ -51,8 +57,13 @@ export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const { vehicleId } = await parseBody(req, z.object({ vehicleId: z.string().min(1) }))
 
-  const vehicle = await db.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true } })
+  const vehicle = await db.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true, status: true, ownerId: true } })
   if (!vehicle) throw new ApiError(404, 'NOT_FOUND', 'Vehicle not found.')
+  // Only published marketplace vehicles (or the owner's own records) can be saved:
+  // saving must never become a side channel into unpublished listing data.
+  if (vehicle.status !== 'PUBLISHED' && vehicle.ownerId !== user.id) {
+    throw new ApiError(404, 'NOT_FOUND', 'Vehicle not found.')
+  }
 
   try {
     const saved = await db.savedVehicle.create({ data: { userId: user.id, vehicleId } })

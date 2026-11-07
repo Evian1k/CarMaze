@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { route, ok, requireRole, fail } from '@/lib/api'
 import { ROLE } from '@/lib/auth'
+import { assertNotDemoStaffRead } from '@/lib/demo'
 import { getFees } from '@/lib/supply'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,9 @@ export const dynamic = 'force-dynamic'
  * "marketplace GMV" context only.
  */
 export const GET = route(async (req: NextRequest) => {
-  await requireRole(ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
+  const user = await requireRole(ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
+  // Platform financials are never exposed to demo sessions.
+  assertNotDemoStaffRead(user, 'platform revenue')
   const sp = req.nextUrl.searchParams
   const country = sp.get('country') // reserved for future multi-country
   if (country && country !== 'KE') return fail(400, 'UNSUPPORTED', 'Only Kenya (KE) is live.')

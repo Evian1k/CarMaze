@@ -127,6 +127,8 @@ const DEPARTMENT_LABELS: Record<string, string> = {
 const TAB_ROLES: Partial<Record<TabKey, readonly string[]>> = {
   staff: ['ADMIN', 'FOUNDER'],
   demo: ['ADMIN', 'FOUNDER'],
+  // GET /api/admin/revenue requires the FINANCE tier: keep the nav in step.
+  revenue: ['FINANCE', 'ADMIN', 'FOUNDER'],
 }
 
 function tabVisibleFor(user: CurrentUser | null, t: TabKey): boolean {

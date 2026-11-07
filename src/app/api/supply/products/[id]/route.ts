@@ -58,9 +58,18 @@ export const GET = route(async (req: NextRequest, ctx: Ctx) => {
     .filter((s) => s.branch.status === 'ACTIVE')
     .reduce((sum, s) => sum + (s.qtyOnHand - s.qtyReserved), 0)
 
+  // Contact details are only published for verified suppliers (and always for
+  // the owning supplier): mirrors GET /api/suppliers/[id].
+  const showContacts = product.supplier.verified || isOwner
+
   return ok({
     product: {
       ...product,
+      supplier: {
+        ...product.supplier,
+        phone: showContacts ? product.supplier.phone : null,
+        email: showContacts ? product.supplier.email : null,
+      },
       images: jsonParse<string[]>(product.images, []),
       tags: jsonParse<string[]>(product.tags, []),
       vehicleMakes: jsonParse<string[]>(product.vehicleMakes, []),
