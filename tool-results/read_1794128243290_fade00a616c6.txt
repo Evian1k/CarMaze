@@ -1,0 +1,606 @@
+     1→'use client'
+     2→
+     3→/* Order lifecycle action panels (garage side): cancel (step 2 hook-in),
+     4→ * inspection (7), payment release (8), dispute / return / warranty (9),
+     5→ * the claims record and the merged order+delivery timeline.
+     6→ * Payment + handover live in order-payment.tsx. */
+     7→
+     8→import { useMemo, useState } from 'react'
+     9→import { toast } from 'sonner'
+    10→import {
+    11→  Ban, ClipboardCheck, Unlock, MessageSquareWarning, Undo2, Wrench, Upload, Trash2,
+    12→} from 'lucide-react'
+    13→import { Badge } from '@/components/ui/badge'
+    14→import { Button } from '@/components/ui/button'
+    15→import { Input } from '@/components/ui/input'
+    16→import { Label } from '@/components/ui/label'
+    17→import { Textarea } from '@/components/ui/textarea'
+    18→import {
+    19→  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+    20→} from '@/components/ui/dialog'
+    21→import {
+    22→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    23→} from '@/components/ui/select'
+    24→import { apiSend, ClientApiError } from '@/lib/client'
+    25→import { money } from '@/lib/format'
+    26→import { cn } from '@/lib/utils'
+    27→import {
+    28→  Img, SideChip, QtyStepper, BtnSpinner, When, uploadOne,
+    29→  canApprove, canOrder, canPay, canDispute, stepIndex, CANCELABLE,
+    30→  type OrderDetailData,
+    31→} from './shared'
+    32→
+    33→// ─────────────────────────── Cancel (step 2) ───────────────────────────
+    34→
+    35→export function CancelSection({ order, busy, setBusy, reload, role }: {
+    36→  order: OrderDetailData
+    37→  busy: string
+    38→  setBusy: (v: string) => void
+    39→  reload: () => void
+    40→  role: string
+    41→}) {
+    42→  const [open, setOpen] = useState(false)
+    43→  const [reason, setReason] = useState('')
+    44→  const mayCancel = canOrder(role)
+    45→  const cancelable = CANCELABLE.includes(order.status) && order.paymentStatus !== 'PROTECTED'
+    46→  if (!cancelable) return null
+    47→
+    48→  async function submit() {
+    49→    if (reason.trim().length < 3) {
+    50→      toast.error('Give a short cancellation reason (min 3 characters).')
+    51→      return
+    52→    }
+    53→    setBusy('cancel')
+    54→    try {
+    55→      const res = await apiSend<{ message: string }>(`/api/supply/orders/${order.id}/action`, 'POST', { action: 'cancel', reason: reason.trim() })
+    56→      toast.success(res.message || 'Order cancelled.')
+    57→      setOpen(false)
+    58→      reload()
+    59→    } catch (e) {
+    60→      toast.error(e instanceof ClientApiError ? e.message : 'Could not cancel the order.')
+    61→    } finally {
+    62→      setBusy('')
+    63→    }
+    64→  }
+    65→
+    66→  return (
+    67→    <section className="rounded-xl border border-border bg-card/50 p-4">
+    68→      <div className="flex flex-wrap items-center justify-between gap-2">
+    69→        <div>
+    70→          <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Ban className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Cancel order</h3>
+    71→          <p className="text-xs text-muted-foreground">Possible until dispatch{order.paymentStatus === 'PROTECTED' ? '' : ': stock reservations are released and the supplier is notified'}.</p>
+    72→        </div>
+    73→        {!open && (
+    74→          <Button variant="outline" size="sm" disabled={!mayCancel || busy !== ''} onClick={() => setOpen(true)}>
+    75→            Cancel this order
+    76→          </Button>
+    77→        )}
+    78→      </div>
+    79→      {!mayCancel && <p className="mt-1 text-xs text-muted-foreground">Cancellation needs the owner, GM or procurement role.</p>}
+    80→      {open && (
+    81→        <div className="mt-3 space-y-2 rounded-lg border border-border bg-background/40 p-3">
+    82→          <Label htmlFor="cancel-reason">Reason *</Label>
+    83→          <Textarea id="cancel-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} className="min-h-16" placeholder="e.g. Customer job rescheduled: needed next week instead" />
+    84→          <div className="flex gap-2">
+    85→            <Button variant="destructive" size="sm" onClick={submit} disabled={busy === 'cancel'}>
+    86→              {busy === 'cancel' ? <BtnSpinner className="mr-1.5" /> : null} Confirm cancellation
+    87→            </Button>
+    88→            <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Keep order</Button>
+    89→          </div>
+    90→        </div>
+    91→      )}
+    92→    </section>
+    93→  )
+    94→}
+    95→
+    96→// ─────────────────────────── Step 7: inspection ───────────────────────────
+    97→
+    98→export function InspectionPanel({ order, busy, setBusy, reload, role }: {
+    99→  order: OrderDetailData
+   100→  busy: string
+   101→  setBusy: (v: string) => void
+   102→  reload: () => void
+   103→  role: string
+   104→}) {
+   105→  const d = order.delivery
+   106→  const active = order.status === 'DELIVERED' && d?.status === 'DELIVERED'
+   107→  const mayInspect = canApprove(role) // inspect requires order.approve server-side
+   108→  const [result, setResult] = useState<'ACCEPT' | 'PARTIAL' | 'ISSUES'>('ACCEPT')
+   109→  const [qtys, setQtys] = useState<Record<string, number>>(() =>
+   110→    Object.fromEntries(order.items.map((it) => [it.id, it.qtyAccepted ?? it.qty])))
+   111→  const [notes, setNotes] = useState<Record<string, string>>({})
+   112→  const [note, setNote] = useState('')
+   113→  const [photos, setPhotos] = useState<string[]>([])
+   114→
+   115→  if (!active) return null
+   116→
+   117→  async function submit() {
+   118→    setBusy('inspect')
+   119→    try {
+   120→      const res = await apiSend<{ message: string; acceptedTotalMinor: number }>(`/api/supply/orders/${order.id}/action`, 'POST', {
+   121→        action: 'inspect',
+   122→        result,
+   123→        items: order.items.map((it) => ({ itemId: it.id, qtyAccepted: result === 'ACCEPT' ? it.qty : Math.min(qtys[it.id] ?? 0, it.qty), ...(notes[it.id]?.trim() ? { note: notes[it.id].trim() } : {}) })),
+   124→        ...(note.trim() ? { note: note.trim() } : {}),
+   125→        photos,
+   126→      })
+   127→      toast.success(res.message || 'Inspection recorded.', { description: `Accepted value: ${money(res.acceptedTotalMinor, order.currency)}` })
+   128→      reload()
+   129→    } catch (e) {
+   130→      toast.error(e instanceof ClientApiError ? e.message : 'Could not record the inspection.')
+   131→    } finally {
+   132→      setBusy('')
+   133→    }
+   134→  }
+   135→
+   136→  return (
+   137→    <section className="space-y-3 rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-4">
+   138→      <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+   139→        <ClipboardCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" /> Delivery inspection
+   140→      </h3>
+   141→      <p className="text-sm text-muted-foreground">
+   142→        Check every line against the job sheet. What you accept here is what the supplier gets paid; shortfalls raise an automatic partial refund request.
+   143→      </p>
+   144→      <ul className="space-y-2">
+   145→        {order.items.map((it) => (
+   146→          <li key={it.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background/40 p-3">
+   147→            <Img src={it.image} alt={it.name} className="h-10 w-10 shrink-0 rounded border border-border" />
+   148→            <div className="min-w-0 flex-1">
+   149→              <p className="truncate text-sm font-medium">{it.name}</p>
+   150→              <p className="text-xs text-muted-foreground">Ordered {it.qty} · {money(it.unitPriceMinor, order.currency)}/unit</p>
+   151→            </div>
+   152→            <div className="flex items-center gap-2">
+   153→              <Label className="text-xs text-muted-foreground">Accepted</Label>
+   154→              <QtyStepper value={qtys[it.id] ?? 0} min={0} max={it.qty} onChange={(v) => setQtys((s) => ({ ...s, [it.id]: v }))} />
+   155→            </div>
+   156→            <Input
+   157→              value={notes[it.id] ?? ''} onChange={(e) => setNotes((s) => ({ ...s, [it.id]: e.target.value }))}
+   158→              placeholder="Line note (optional)" className="h-8 w-full sm:w-48" maxLength={300} aria-label={`Note for ${it.name}`}
+   159→            />
+   160→          </li>
+   161→        ))}
+   162→      </ul>
+   163→      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+   164→        {(['ACCEPT', 'PARTIAL', 'ISSUES'] as const).map((r) => (
+   165→          <button
+   166→            key={r} type="button" onClick={() => setResult(r)} aria-pressed={result === r}
+   167→            className={cn(
+   168→              'rounded-lg border p-2.5 text-left text-xs transition-colors',
+   169→              result === r ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-card text-muted-foreground hover:border-primary/40'
+   170→            )}
+   171→          >
+   172→            <span className="block text-sm font-semibold">{r === 'ACCEPT' ? 'Accept all' : r === 'PARTIAL' ? 'Partial acceptance' : 'Issues reported'}</span>
+   173→            <span className="mt-0.5 block leading-snug">
+   174→              {r === 'ACCEPT' ? 'Everything matches the order.' : r === 'PARTIAL' ? 'Accept the quantities set above.' : 'Record problems: release is blocked until resolved.'}
+   175→            </span>
+   176→          </button>
+   177→        ))}
+   178→      </div>
+   179→      <Textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} className="min-h-16" placeholder="Overall inspection note (optional)" aria-label="Inspection note" />
+   180→      <PhotoUploader photos={photos} onChange={setPhotos} label="Inspection photos (damages, shortfall, packaging)" />
+   181→      {mayInspect ? (
+   182→        <Button onClick={submit} disabled={busy === 'inspect'}>
+   183→          {busy === 'inspect' ? <BtnSpinner className="mr-1.5" /> : null} Record inspection
+   184→        </Button>
+   185→      ) : (
+   186→        <p className="text-xs text-muted-foreground">Inspection is recorded by the owner or GM.</p>
+   187→      )}
+   188→    </section>
+   189→  )
+   190→}
+   191→
+   192→// ─────────────────────────── Step 8 + 9: release / dispute / return / warranty ───────────────────────────
+   193→
+   194→export function PostDeliveryActions({ order, busy, setBusy, reload, role }: {
+   195→  order: OrderDetailData
+   196→  busy: string
+   197→  setBusy: (v: string) => void
+   198→  reload: () => void
+   199→  role: string
+   200→}) {
+   201→  const postDelivery = stepIndex(order.status) >= 4 || order.status === 'DISPUTED'
+   202→  if (!postDelivery) return null
+   203→  const mayRelease = canPay(role)
+   204→  const mayReturn = canOrder(role)
+   205→  const mayDispute = canDispute(role)
+   206→  const releasable = order.status === 'INSPECTED' && order.paymentStatus === 'PROTECTED'
+   207→  const accepted = order.acceptedTotalMinor ?? order.totalMinor
+   208→
+   209→  return (
+   210→    <section className="space-y-3 rounded-xl border border-border bg-card/50 p-4">
+   211→      <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+   212→        <Unlock className="h-4 w-4 text-primary" aria-hidden="true" /> Next steps
+   213→      </h3>
+   214→
+   215→      {order.status === 'INSPECTED' && (
+   216→        <div className="space-y-2 rounded-lg border border-teal-500/40 bg-teal-500/5 p-3">
+   217→          <p className="text-sm">
+   218→            Release <span className="font-bold tabular-nums">{money(accepted, order.currency)}</span> of the protected funds to the supplier.
+   219→          </p>
+   220→          <p className="text-xs text-muted-foreground">
+   221→            Platform commission is deducted from the supplier&apos;s proceeds at this point: you are never charged extra.
+   222→          </p>
+   223→          <Button disabled={!releasable || !mayRelease || busy === 'release'} onClick={async () => {
+   224→            setBusy('release')
+   225→            try {
+   226→              const res = await apiSend<{ message: string; releasedMinor: number; commissionMinor: number }>(`/api/supply/orders/${order.id}/action`, 'POST', { action: 'release' })
+   227→              toast.success(res.message || 'Payment released.', { description: `Released ${money(res.releasedMinor, order.currency)} · commission ${money(res.commissionMinor, order.currency)} recorded separately.` })
+   228→              reload()
+   229→            } catch (e) {
+   230→              toast.error(e instanceof ClientApiError ? e.message : 'Release failed.')
+   231→            } finally {
+   232→              setBusy('')
+   233→            }
+   234→          }}>
+   235→            {busy === 'release' ? <BtnSpinner className="mr-1.5" /> : <Unlock className="mr-1.5 h-4 w-4" aria-hidden="true" />}
+   236→            Request release
+   237→          </Button>
+   238→          {!mayRelease && <p className="text-xs text-muted-foreground">Release needs the owner, GM, procurement or accountant role.</p>}
+   239→          {!releasable && order.paymentStatus !== 'PROTECTED' && (
+   240→            <p className="text-xs text-muted-foreground">Funds are not in a protected state; release follows the provider&apos;s confirmation only.</p>
+   241→          )}
+   242→        </div>
+   243→      )}
+   244→
+   245→      <div className="flex flex-wrap gap-2">
+   246→        <DisputeDialog order={order} mayDispute={mayDispute} busy={busy} setBusy={setBusy} reload={reload} />
+   247→        <ReturnDialog order={order} mayReturn={mayReturn} busy={busy} setBusy={setBusy} reload={reload} />
+   248→        {order.items.some((it) => it.warrantyMonths > 0) && (
+   249→          <WarrantyDialog order={order} mayClaim={mayReturn} busy={busy} setBusy={setBusy} reload={reload} />
+   250→        )}
+   251→      </div>
+   252→    </section>
+   253→  )
+   254→}
+   255→
+   256→function PhotoUploader({ photos, onChange, label, max = 6 }: {
+   257→  photos: string[]
+   258→  onChange: (urls: string[]) => void
+   259→  label: string
+   260→  max?: number
+   261→}) {
+   262→  const [uploading, setUploading] = useState(false)
+   263→  async function handleFiles(files: FileList | null) {
+   264→    if (!files || files.length === 0) return
+   265→    setUploading(true)
+   266→    const next = [...photos]
+   267→    try {
+   268→      for (const f of Array.from(files).slice(0, max - photos.length)) {
+   269→        const url = await uploadOne(f)
+   270→        next.push(url)
+   271→      }
+   272→      onChange(next)
+   273→      toast.success('Photo attached.')
+   274→    } catch (e) {
+   275→      toast.error(e instanceof ClientApiError ? e.message : 'Upload failed. JPG, PNG, WebP or PDF up to 8 MB.')
+   276→    } finally {
+   277→      setUploading(false)
+   278→    }
+   279→  }
+   280→  return (
+   281→    <div className="space-y-1.5">
+   282→      <Label>{label}</Label>
+   283→      {photos.length > 0 && (
+   284→        <div className="flex flex-wrap gap-2">
+   285→          {photos.map((url, i) => (
+   286→            <div key={url} className="group relative">
+   287→              <Img src={url} alt={`Attached evidence ${i + 1}`} className="h-14 w-14 rounded-md border border-border" />
+   288→              <button
+   289→                type="button" aria-label="Remove photo"
+   290→                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm hover:text-destructive"
+   291→                onClick={() => onChange(photos.filter((u) => u !== url))}
+   292→              >
+   293→                <Trash2 className="h-3 w-3" aria-hidden="true" />
+   294→              </button>
+   295→            </div>
+   296→          ))}
+   297→        </div>
+   298→      )}
+   299→      {photos.length < max && (
+   300→        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background/40 px-4 py-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground">
+   301→          {uploading ? <BtnSpinner /> : <Upload className="h-4 w-4" aria-hidden="true" />}
+   302→          {uploading ? 'Uploading…' : 'Attach photos'}
+   303→          <input
+   304→            type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" disabled={uploading}
+   305→            onChange={(e) => { handleFiles(e.target.files); e.currentTarget.value = '' }} aria-label="Attach photos"
+   306→          />
+   307→        </label>
+   308→      )}
+   309→    </div>
+   310→  )
+   311→}
+   312→
+   313→const DISPUTE_REASONS = [
+   314→  { value: 'MISSING_ITEMS', label: 'Items missing' },
+   315→  { value: 'DAMAGED', label: 'Damaged goods' },
+   316→  { value: 'WRONG_ITEM', label: 'Wrong item delivered' },
+   317→  { value: 'COUNTERFEIT', label: 'Suspected counterfeit' },
+   318→  { value: 'NOT_RECEIVED', label: 'Nothing received' },
+   319→  { value: 'OTHER', label: 'Other' },
+   320→]
+   321→
+   322→function DisputeDialog({ order, mayDispute, busy, setBusy, reload }: {
+   323→  order: OrderDetailData
+   324→  mayDispute: boolean
+   325→  busy: string
+   326→  setBusy: (v: string) => void
+   327→  reload: () => void
+   328→}) {
+   329→  const [open, setOpen] = useState(false)
+   330→  const [reason, setReason] = useState('MISSING_ITEMS')
+   331→  const [details, setDetails] = useState('')
+   332→  const [photos, setPhotos] = useState<string[]>([])
+   333→  const valid = details.trim().length >= 10
+   334→
+   335→  async function submit() {
+   336→    setBusy('dispute')
+   337→    try {
+   338→      const res = await apiSend<{ message: string }>(`/api/supply/orders/${order.id}/action`, 'POST', {
+   339→        action: 'dispute',
+   340→        reason,
+   341→        details: details.trim(),
+   342→        evidence: photos.map((url) => ({ url, name: url.split('/').pop() ?? 'evidence' })),
+   343→      })
+   344→      toast.success(res.message || 'Dispute filed.')
+   345→      setOpen(false)
+   346→      reload()
+   347→    } catch (e) {
+   348→      toast.error(e instanceof ClientApiError ? e.message : 'Could not open the dispute.')
+   349→    } finally {
+   350→      setBusy('')
+   351→    }
+   352→  }
+   353→
+   354→  return (
+   355→    <>
+   356→      <Button variant="outline" disabled={!mayDispute} onClick={() => setOpen(true)}>
+   357→        <MessageSquareWarning className="mr-1.5 h-4 w-4" aria-hidden="true" /> Open dispute
+   358→      </Button>
+   359→      <Dialog open={open} onOpenChange={(v) => { if (busy !== 'dispute') setOpen(v) }}>
+   360→        <DialogContent className="sm:max-w-md">
+   361→          <DialogHeader>
+   362→            <DialogTitle>Open a dispute: {order.refCode}</DialogTitle>
+   363→            <DialogDescription>
+   364→              Platform admins investigate with the full order, payment and delivery record. Funds may be frozen where the provider supports it.
+   365→            </DialogDescription>
+   366→          </DialogHeader>
+   367→          <div className="space-y-3">
+   368→            <div className="space-y-1.5">
+   369→              <Label>Reason *</Label>
+   370→              <Select value={reason} onValueChange={setReason}>
+   371→                <SelectTrigger aria-label="Dispute reason"><SelectValue /></SelectTrigger>
+   372→                <SelectContent>
+   373→                  {DISPUTE_REASONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+   374→                </SelectContent>
+   375→              </Select>
+   376→            </div>
+   377→            <div className="space-y-1.5">
+   378→              <Label htmlFor="dispute-details">What happened? * (min 10 characters)</Label>
+   379→              <Textarea id="dispute-details" value={details} onChange={(e) => setDetails(e.target.value)} maxLength={2000} className="min-h-24" />
+   380→            </div>
+   381→            <PhotoUploader photos={photos} onChange={setPhotos} label="Evidence photos" />
+   382→          </div>
+   383→          <div className="flex justify-end gap-2">
+   384→            <Button variant="outline" onClick={() => setOpen(false)} disabled={busy === 'dispute'}>Cancel</Button>
+   385→            <Button variant="destructive" disabled={!valid || busy === 'dispute'} onClick={submit}>
+   386→              {busy === 'dispute' ? <BtnSpinner className="mr-1.5" /> : null} File dispute
+   387→            </Button>
+   388→          </div>
+   389→        </DialogContent>
+   390→      </Dialog>
+   391→    </>
+   392→  )
+   393→}
+   394→
+   395→function ReturnDialog({ order, mayReturn, busy, setBusy, reload }: {
+   396→  order: OrderDetailData
+   397→  mayReturn: boolean
+   398→  busy: string
+   399→  setBusy: (v: string) => void
+   400→  reload: () => void
+   401→}) {
+   402→  const [open, setOpen] = useState(false)
+   403→  const [reason, setReason] = useState('')
+   404→  const [qtys, setQtys] = useState<Record<string, number>>({})
+   405→  const returnables = order.items.filter((it) => it.returnable)
+   406→  const items = returnables.map((it) => ({ productId: it.productId, qty: qtys[it.id] ?? 0 })).filter((i) => i.qty > 0)
+   407→  const valid = reason.trim().length >= 5 && items.length > 0
+   408→
+   409→  return (
+   410→    <>
+   411→      <Button variant="outline" disabled={!mayReturn || returnables.length === 0} onClick={() => setOpen(true)}>
+   412→        <Undo2 className="mr-1.5 h-4 w-4" aria-hidden="true" /> Request return
+   413→      </Button>
+   414→      <Dialog open={open} onOpenChange={(v) => { if (busy !== 'return') setOpen(v) }}>
+   415→        <DialogContent className="sm:max-w-md">
+   416→          <DialogHeader>
+   417→            <DialogTitle>Request a return: {order.refCode}</DialogTitle>
+   418→            <DialogDescription>The supplier is notified with the quantities you select.</DialogDescription>
+   419→          </DialogHeader>
+   420→          <div className="space-y-3">
+   421→            {returnables.length === 0 ? (
+   422→              <p className="text-sm text-muted-foreground">No items on this order are marked returnable by the supplier.</p>
+   423→            ) : (
+   424→              <ul className="space-y-2">
+   425→                {returnables.map((it) => (
+   426→                  <li key={it.id} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5">
+   427→                    <div className="min-w-0">
+   428→                      <p className="truncate text-sm font-medium">{it.name}</p>
+   429→                      <p className="text-xs text-muted-foreground">Ordered {it.qty}</p>
+   430→                    </div>
+   431→                    <QtyStepper value={qtys[it.id] ?? 0} min={0} max={it.qty} onChange={(v) => setQtys((s) => ({ ...s, [it.id]: v }))} />
+   432→                  </li>
+   433→                ))}
+   434→              </ul>
+   435→            )}
+   436→            <div className="space-y-1.5">
+   437→              <Label htmlFor="return-reason">Reason * (min 5 characters)</Label>
+   438→              <Textarea id="return-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} className="min-h-16" />
+   439→            </div>
+   440→          </div>
+   441→          <div className="flex justify-end gap-2">
+   442→            <Button variant="outline" onClick={() => setOpen(false)} disabled={busy === 'return'}>Cancel</Button>
+   443→            <Button disabled={!valid || busy === 'return'} onClick={async () => {
+   444→              setBusy('return')
+   445→              try {
+   446→                await apiSend(`/api/supply/orders/${order.id}/action`, 'POST', { action: 'request-return', reason: reason.trim(), items })
+   447→                toast.success('Return request sent to the supplier.')
+   448→                setOpen(false)
+   449→                reload()
+   450→              } catch (e) {
+   451→                toast.error(e instanceof ClientApiError ? e.message : 'Could not request the return.')
+   452→              } finally {
+   453→                setBusy('')
+   454→              }
+   455→            }}>
+   456→              {busy === 'return' ? <BtnSpinner className="mr-1.5" /> : null} Send request
+   457→            </Button>
+   458→          </div>
+   459→        </DialogContent>
+   460→      </Dialog>
+   461→    </>
+   462→  )
+   463→}
+   464→
+   465→function WarrantyDialog({ order, mayClaim, busy, setBusy, reload }: {
+   466→  order: OrderDetailData
+   467→  mayClaim: boolean
+   468→  busy: string
+   469→  setBusy: (v: string) => void
+   470→  reload: () => void
+   471→}) {
+   472→  const [open, setOpen] = useState(false)
+   473→  const [productId, setProductId] = useState('')
+   474→  const [issue, setIssue] = useState('')
+   475→  const warrantied = order.items.filter((it) => it.warrantyMonths > 0)
+   476→  const valid = productId !== '' && issue.trim().length >= 10
+   477→
+   478→  return (
+   479→    <>
+   480→      <Button variant="outline" disabled={!mayClaim} onClick={() => setOpen(true)}>
+   481→        <Wrench className="mr-1.5 h-4 w-4" aria-hidden="true" /> Warranty claim
+   482→      </Button>
+   483→      <Dialog open={open} onOpenChange={(v) => { if (busy !== 'warranty') setOpen(v) }}>
+   484→        <DialogContent className="sm:max-w-md">
+   485→          <DialogHeader>
+   486→            <DialogTitle>Warranty claim: {order.refCode}</DialogTitle>
+   487→            <DialogDescription>Claim against the supplier&apos;s warranty window on a specific item.</DialogDescription>
+   488→          </DialogHeader>
+   489→          <div className="space-y-3">
+   490→            <div className="space-y-1.5">
+   491→              <Label>Item *</Label>
+   492→              <Select value={productId} onValueChange={setProductId}>
+   493→                <SelectTrigger aria-label="Warranty item"><SelectValue placeholder="Choose item" /></SelectTrigger>
+   494→                <SelectContent>
+   495→                  {warrantied.map((it) => (
+   496→                    <SelectItem key={it.id} value={it.productId}>{it.name}: {it.warrantyMonths}-month warranty</SelectItem>
+   497→                  ))}
+   498→                </SelectContent>
+   499→              </Select>
+   500→            </div>
+   501→            <div className="space-y-1.5">
+   502→              <Label htmlFor="warranty-issue">Describe the fault * (min 10 characters)</Label>
+   503→              <Textarea id="warranty-issue" value={issue} onChange={(e) => setIssue(e.target.value)} maxLength={1000} className="min-h-24" />
+   504→            </div>
+   505→          </div>
+   506→          <div className="flex justify-end gap-2">
+   507→            <Button variant="outline" onClick={() => setOpen(false)} disabled={busy === 'warranty'}>Cancel</Button>
+   508→            <Button disabled={!valid || busy === 'warranty'} onClick={async () => {
+   509→              setBusy('warranty')
+   510→              try {
+   511→                await apiSend(`/api/supply/orders/${order.id}/action`, 'POST', { action: 'warranty', productId, issue: issue.trim() })
+   512→                toast.success('Warranty claim filed with the supplier.')
+   513→                setOpen(false)
+   514→                reload()
+   515→              } catch (e) {
+   516→                toast.error(e instanceof ClientApiError ? e.message : 'Could not file the claim.')
+   517→              } finally {
+   518→                setBusy('')
+   519→              }
+   520→            }}>
+   521→              {busy === 'warranty' ? <BtnSpinner className="mr-1.5" /> : null} File claim
+   522→            </Button>
+   523→          </div>
+   524→        </DialogContent>
+   525→      </Dialog>
+   526→    </>
+   527→  )
+   528→}
+   529→
+   530→// ─────────────────────────── Claims record (read-only) ───────────────────────────
+   531→
+   532→export function ClaimsPanel({ order }: { order: OrderDetailData }) {
+   533→  if (order.disputes.length === 0 && order.refunds.length === 0) return null
+   534→  return (
+   535→    <section className="space-y-2 rounded-xl border border-border bg-card/50 p-4">
+   536→      <h3 className="text-sm font-semibold">Disputes & refunds</h3>
+   537→      {order.disputes.map((d) => (
+   538→        <div key={d.id} className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-sm">
+   539→          <div className="flex flex-wrap items-center gap-2">
+   540→            <span className="font-mono text-xs">{d.refCode}</span>
+   541→            <Badge variant="outline" className="border-rose-500/40 text-rose-600 dark:text-rose-400">{d.status}</Badge>
+   542→            <span className="text-xs text-muted-foreground">{DISPUTE_REASONS.find((r) => r.value === d.reason)?.label ?? d.reason}</span>
+   543→            {d.amountFrozenMinor != null && <span className="text-xs text-muted-foreground">· frozen {money(d.amountFrozenMinor, order.currency)}</span>}
+   544→            <span className="text-xs text-muted-foreground">· <When at={d.createdAt} /></span>
+   545→          </div>
+   546→          <p className="mt-1 text-muted-foreground">{d.details}</p>
+   547→          {d.resolution && <p className="mt-1 text-xs">Resolution: <span className="font-semibold">{d.resolution}</span>{d.resolutionNote ? `: ${d.resolutionNote}` : ''}</p>}
+   548→        </div>
+   549→      ))}
+   550→      {order.refunds.map((r) => (
+   551→        <div key={r.id} className="rounded-lg border border-border bg-background/40 p-3 text-sm">
+   552→          <div className="flex flex-wrap items-center gap-2">
+   553→            <span className="font-mono text-xs">{r.refCode}</span>
+   554→            <Badge variant="outline" className="border-border text-muted-foreground">{r.status}</Badge>
+   555→            <span className="tabular-nums font-semibold">{money(r.amountMinor, order.currency)}</span>
+   556→            <span className="text-xs text-muted-foreground">{r.kind.toLowerCase()} · {r.reason} · <When at={r.createdAt} /></span>
+   557→          </div>
+   558→        </div>
+   559→      ))}
+   560→    </section>
+   561→  )
+   562→}
+   563→
+   564→// ─────────────────────────── Timeline ───────────────────────────
+   565→
+   566→type TimelineEntry = {
+   567→  id: string
+   568→  when: string
+   569→  type: string
+   570→  actorName: string
+   571→  actorSide: string
+   572→  note: string | null
+   573→  source: 'ORDER' | 'DELIVERY'
+   574→}
+   575→
+   576→export function Timeline({ order }: { order: OrderDetailData }) {
+   577→  const entries = useMemo<TimelineEntry[]>(() => {
+   578→    const list: TimelineEntry[] = [
+   579→      ...order.events.map((e) => ({ id: e.id, when: e.createdAt, type: e.type, actorName: e.actorName, actorSide: e.actorSide, note: e.note, source: 'ORDER' as const })),
+   580→      ...(order.delivery?.events ?? []).map((e) => ({ id: `dlv-${e.id}`, when: e.createdAt, type: e.type, actorName: e.actorName, actorSide: e.actorSide, note: e.note, source: 'DELIVERY' as const })),
+   581→    ]
+   582→    return list.sort((a, b) => new Date(a.when).getTime() - new Date(b.when).getTime())
+   583→  }, [order])
+   584→
+   585→  return (
+   586→    <section className="space-y-2 rounded-xl border border-border bg-card/50 p-4">
+   587→      <h3 className="text-sm font-semibold">Timeline ({entries.length})</h3>
+   588→      <ol className="space-y-3">
+   589→        {entries.map((e) => (
+   590→          <li key={e.id} className="flex gap-3">
+   591→            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary/60" aria-hidden="true" />
+   592→            <div className="min-w-0 flex-1">
+   593→              <div className="flex flex-wrap items-center gap-1.5">
+   594→                <SideChip side={e.actorSide} />
+   595→                <span className="text-xs font-semibold">{e.type.replaceAll('_', ' ')}</span>
+   596→                <span className="text-xs text-muted-foreground">· {e.actorName} · {e.source === 'DELIVERY' ? 'delivery log' : 'order log'} · <When at={e.when} /></span>
+   597→              </div>
+   598→              {e.note && <p className="mt-0.5 text-sm text-muted-foreground">{e.note}</p>}
+   599→            </div>
+   600→          </li>
+   601→        ))}
+   602→      </ol>
+   603→    </section>
+   604→  )
+   605→}
+   606→

@@ -1,0 +1,735 @@
+     1→'use client'
+     2→
+     3→/* CARMAZE: storefront dialogs: Message (conversations), Quote (service
+     4→ * requests), Booking (fixed-price service slot requests), Test drive and
+     5→ * Review. All are auth-aware (401 → sign-in), mobile-friendly and animated.
+     6→ * Each dialog = outer shell (Dialog) + inner form that mounts fresh every
+     7→ * time the dialog opens, so no reset effects are needed. */
+     8→
+     9→import { useMemo, useState } from 'react'
+    10→import { motion } from 'framer-motion'
+    11→import {
+    12→  Loader2, MessageCircle, PartyPopper, ShieldCheck, Sparkles, Star,
+    13→  CalendarCheck, CarFront, ClipboardList,
+    14→} from 'lucide-react'
+    15→import { toast } from 'sonner'
+    16→import { Button } from '@/components/ui/button'
+    17→import { Input } from '@/components/ui/input'
+    18→import { Label } from '@/components/ui/label'
+    19→import { Textarea } from '@/components/ui/textarea'
+    20→import { Checkbox } from '@/components/ui/checkbox'
+    21→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    22→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    23→import { useAuth } from '@/stores/auth'
+    24→import { apiSend, navigate } from '@/lib/client'
+    25→import { KENYA_COUNTIES, SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS } from '@/lib/format'
+    26→import type { StorefrontReview, StorefrontService } from './types'
+    27→
+    28→// ─────────────────────────── Shared bits ───────────────────────────
+    29→
+    30→function Sending({ label }: { label: string }) {
+    31→  return (
+    32→    <span className="inline-flex items-center gap-2">
+    33→      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {label}
+    34→    </span>
+    35→  )
+    36→}
+    37→
+    38→export function SuccessPanel({ refCode, title, body, children }: { refCode?: string | null; title: string; body: string; children?: React.ReactNode }) {
+    39→  return (
+    40→    <motion.div
+    41→      initial={{ opacity: 0, scale: 0.96 }}
+    42→      animate={{ opacity: 1, scale: 1 }}
+    43→      transition={{ duration: 0.35, ease: [0.22, 0.61, 0.36, 1] }}
+    44→      className="space-y-4 py-2 text-center"
+    45→    >
+    46→      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+    47→        <PartyPopper className="h-6 w-6" aria-hidden="true" />
+    48→      </div>
+    49→      <div>
+    50→        <p className="font-semibold">{title}</p>
+    51→        {refCode && (
+    52→          <p className="mt-1 text-sm text-muted-foreground">
+    53→            Reference <span className="font-mono font-semibold text-foreground">{refCode}</span>
+    54→          </p>
+    55→        )}
+    56→        <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{body}</p>
+    57→      </div>
+    58→      {children && <div className="flex flex-wrap justify-center gap-2">{children}</div>}
+    59→    </motion.div>
+    60→  )
+    61→}
+    62→
+    63→/** Next 14 days (local YYYY-MM-DD) + hourly 09:00–17:00 slots. */
+    64→export function slotOptions() {
+    65→  const days: { value: string; label: string }[] = []
+    66→  const fmt = new Intl.DateTimeFormat('en-KE', { weekday: 'short', day: 'numeric', month: 'short' })
+    67→  for (let i = 0; i < 14; i++) {
+    68→    const d = new Date()
+    69→    d.setDate(d.getDate() + i)
+    70→    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    71→    days.push({ value: iso, label: i === 0 ? `Today · ${fmt.format(d)}` : i === 1 ? `Tomorrow · ${fmt.format(d)}` : fmt.format(d) })
+    72→  }
+    73→  const times: string[] = []
+    74→  for (let h = 9; h <= 17; h++) times.push(`${String(h).padStart(2, '0')}:00`)
+    75→  return { days, times }
+    76→}
+    77→
+    78→function localIsoDate(d: Date): string {
+    79→  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    80→}
+    81→
+    82→/** Handles the auth-gate uniformly for all storefront dialogs. */
+    83→function useSubmitGuard() {
+    84→  const user = useAuth((s) => s.user)
+    85→  return function guard(): boolean {
+    86→    if (!user) {
+    87→      toast.info('Sign in to continue', { description: 'Create a free CARMAZE account first: it takes a minute.' })
+    88→      navigate('signin')
+    89→      return false
+    90→    }
+    91→    return true
+    92→  }
+    93→}
+    94→
+    95→function isAuthError(e: unknown): boolean {
+    96→  return typeof e === 'object' && e !== null && 'status' in e && (e as { status?: number }).status === 401
+    97→}
+    98→
+    99→function errMessage(e: unknown, fallback: string): string {
+   100→  return e instanceof Error && e.message ? e.message : fallback
+   101→}
+   102→
+   103→/** Time input slots that are still bookable for the chosen date. */
+   104→function useValidTimes(date: string, bufferMinutes: number) {
+   105→  const { times } = useMemo(() => slotOptions(), [])
+   106→  const todayIso = localIsoDate(new Date())
+   107→  return times.filter((t) => {
+   108→    if (date !== todayIso) return true
+   109→    const [h, m] = t.split(':').map(Number)
+   110→    const slot = new Date()
+   111→    slot.setHours(h, m, 0, 0)
+   112→    return slot.getTime() >= Date.now() + bufferMinutes * 60 * 1000
+   113→  })
+   114→}
+   115→
+   116→// ─────────────────────────── MessageDialog ───────────────────────────
+   117→
+   118→export function MessageDialog({
+   119→  open, onOpenChange, org, vehicleId, kind = 'GENERAL', subject = '',
+   120→}: {
+   121→  open: boolean
+   122→  onOpenChange: (open: boolean) => void
+   123→  org: { id: string; name: string }
+   124→  vehicleId?: string
+   125→  kind?: 'GENERAL' | 'VEHICLE_ENQUIRY'
+   126→  subject?: string
+   127→}) {
+   128→  return (
+   129→    <Dialog open={open} onOpenChange={onOpenChange}>
+   130→      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+   131→        <DialogHeader>
+   132→          <DialogTitle className="flex items-center gap-2">
+   133→            <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" /> Message {org.name}
+   134→          </DialogTitle>
+   135→          <DialogDescription>
+   136→            Your message lands in their CARMAZE inbox. Your phone number stays private unless you choose to share it.
+   137→          </DialogDescription>
+   138→        </DialogHeader>
+   139→        <MessageForm onOpenChange={onOpenChange} org={org} vehicleId={vehicleId} kind={kind} subject={subject} />
+   140→      </DialogContent>
+   141→    </Dialog>
+   142→  )
+   143→}
+   144→
+   145→function MessageForm({
+   146→  onOpenChange, org, vehicleId, kind, subject,
+   147→}: {
+   148→  onOpenChange: (open: boolean) => void
+   149→  org: { id: string; name: string }
+   150→  vehicleId?: string
+   151→  kind: 'GENERAL' | 'VEHICLE_ENQUIRY'
+   152→  subject: string
+   153→}) {
+   154→  const guard = useSubmitGuard()
+   155→  const [sub, setSub] = useState(subject)
+   156→  const [message, setMessage] = useState('')
+   157→  const [sending, setSending] = useState(false)
+   158→  const [doneRef, setDoneRef] = useState<string | null>(null)
+   159→
+   160→  function submit() {
+   161→    if (message.trim().length < 5) { toast.error('Write a short message first (at least 5 characters)'); return }
+   162→    if (!guard()) return
+   163→    setSending(true)
+   164→    apiSend<{ conversation: { id: string; refCode?: string } }>('/api/conversations', 'POST', {
+   165→      orgId: org.id,
+   166→      subject: sub.trim() || undefined,
+   167→      vehicleId,
+   168→      kind,
+   169→      message: message.trim(),
+   170→    })
+   171→      .then((d) => {
+   172→        setDoneRef(d.conversation?.refCode ?? d.conversation?.id ?? null)
+   173→        toast.success('Message sent')
+   174→      })
+   175→      .catch((e) => {
+   176→        if (isAuthError(e)) {
+   177→          toast.info('Sign in to message businesses')
+   178→          navigate('signin')
+   179→          return
+   180→        }
+   181→        toast.error(errMessage(e, 'Could not send your message'))
+   182→      })
+   183→      .finally(() => setSending(false))
+   184→  }
+   185→
+   186→  if (doneRef) {
+   187→    return (
+   188→      <SuccessPanel refCode={doneRef} title="Message sent" body={`${org.name} has been notified: replies appear in your messages.`}>
+   189→        <Button onClick={() => navigate('account?tab=messages')}>Open my messages</Button>
+   190→        <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
+   191→      </SuccessPanel>
+   192→    )
+   193→  }
+   194→
+   195→  return (
+   196→    <>
+   197→      <div className="space-y-4">
+   198→        <div className="space-y-1.5">
+   199→          <Label htmlFor="msg-subject">Subject (optional)</Label>
+   200→          <Input id="msg-subject" value={sub} onChange={(e) => setSub(e.target.value)} placeholder="e.g. Service enquiry" />
+   201→        </div>
+   202→        <div className="space-y-1.5">
+   203→          <Label htmlFor="msg-body">Message</Label>
+   204→          <Textarea
+   205→            id="msg-body"
+   206→            rows={5}
+   207→            value={message}
+   208→            onChange={(e) => setMessage(e.target.value)}
+   209→            placeholder="Hi, I found you on CARMAZE and would like to ask about…"
+   210→          />
+   211→        </div>
+   212→      </div>
+   213→      <DialogFooter>
+   214→        <Button variant="ghost" className="h-11" onClick={() => onOpenChange(false)}>Cancel</Button>
+   215→        <Button className="h-11 px-5" onClick={submit} disabled={sending || message.trim().length < 5}>
+   216→          {sending ? <Sending label="Sending…" /> : 'Send message'}
+   217→        </Button>
+   218→      </DialogFooter>
+   219→    </>
+   220→  )
+   221→}
+   222→
+   223→// ─────────────────────────── QuoteDialog ───────────────────────────
+   224→
+   225→export function QuoteDialog({
+   226→  open, onOpenChange, org, presetCategory = 'GENERAL_SERVICE', presetTitle,
+   227→}: {
+   228→  open: boolean
+   229→  onOpenChange: (open: boolean) => void
+   230→  org: { id: string; name: string; county: string; town?: string | null }
+   231→  presetCategory?: string
+   232→  presetTitle?: string
+   233→}) {
+   234→  return (
+   235→    <Dialog open={open} onOpenChange={onOpenChange}>
+   236→      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+   237→        <DialogHeader>
+   238→          <DialogTitle>Request a quote{presetTitle ? `: ${presetTitle}` : ''}</DialogTitle>
+   239→          <DialogDescription>
+   240→            Your request is sent to garages matching the category; {org.name} is notified instantly and replies with a quote in your account. No obligation.
+   241→          </DialogDescription>
+   242→        </DialogHeader>
+   243→        <QuoteForm onOpenChange={onOpenChange} org={org} presetCategory={presetCategory} presetTitle={presetTitle} />
+   244→      </DialogContent>
+   245→    </Dialog>
+   246→  )
+   247→}
+   248→
+   249→function QuoteForm({
+   250→  onOpenChange, org, presetCategory, presetTitle,
+   251→}: {
+   252→  onOpenChange: (open: boolean) => void
+   253→  org: { id: string; name: string; county: string; town?: string | null }
+   254→  presetCategory: string
+   255→  presetTitle?: string
+   256→}) {
+   257→  const guard = useSubmitGuard()
+   258→  const [category, setCategory] = useState(presetCategory)
+   259→  const [vehicle, setVehicle] = useState('')
+   260→  const [description, setDescription] = useState(presetTitle ? `Request for "${presetTitle}": ` : '')
+   261→  const [county, setCounty] = useState(org.county || 'Nairobi')
+   262→  const [town, setTown] = useState('')
+   263→  const [sending, setSending] = useState(false)
+   264→  const [doneRef, setDoneRef] = useState<string | null>(null)
+   265→
+   266→  function submit() {
+   267→    if (description.trim().length < 15) { toast.error('Describe the work in at least 15 characters'); return }
+   268→    if (!guard()) return
+   269→    setSending(true)
+   270→    apiSend<{ request: { refCode: string } }>('/api/service-requests', 'POST', {
+   271→      category,
+   272→      vehicleDesc: vehicle.trim() || undefined,
+   273→      description: description.trim(),
+   274→      county,
+   275→      town: town.trim() || undefined,
+   276→    })
+   277→      .then((d) => {
+   278→        setDoneRef(d.request.refCode)
+   279→        toast.success(`Request ${d.request.refCode} sent`)
+   280→      })
+   281→      .catch((e) => {
+   282→        if (isAuthError(e)) {
+   283→          toast.info('Sign in to request a quote')
+   284→          navigate('signin')
+   285→          return
+   286→        }
+   287→        toast.error(errMessage(e, 'Could not send your request'))
+   288→      })
+   289→      .finally(() => setSending(false))
+   290→  }
+   291→
+   292→  if (doneRef) {
+   293→    return (
+   294→      <SuccessPanel refCode={doneRef} title="Request sent" body="Quotes will appear in your account; accept one and the booking is confirmed.">
+   295→        <Button onClick={() => navigate('account?tab=requests')}>View my requests</Button>
+   296→        <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
+   297→      </SuccessPanel>
+   298→    )
+   299→  }
+   300→
+   301→  return (
+   302→    <>
+   303→      <div className="space-y-4">
+   304→        <div className="grid gap-4 sm:grid-cols-2">
+   305→          <div className="space-y-1.5">
+   306→            <Label htmlFor="sfq-category">Service category</Label>
+   307→            <Select value={category} onValueChange={setCategory}>
+   308→              <SelectTrigger id="sfq-category"><SelectValue /></SelectTrigger>
+   309→              <SelectContent>
+   310→                {SERVICE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{SERVICE_CATEGORY_LABELS[c]}</SelectItem>)}
+   311→              </SelectContent>
+   312→            </Select>
+   313→          </div>
+   314→          <div className="space-y-1.5">
+   315→            <Label htmlFor="sfq-vehicle">Vehicle</Label>
+   316→            <Input id="sfq-vehicle" value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="e.g. Toyota Prado 2018" />
+   317→          </div>
+   318→        </div>
+   319→        <div className="space-y-1.5">
+   320→          <Label htmlFor="sfq-desc">What do you need?</Label>
+   321→          <Textarea
+   322→            id="sfq-desc"
+   323→            rows={4}
+   324→            value={description}
+   325→            onChange={(e) => setDescription(e.target.value)}
+   326→            placeholder="Describe the work: symptoms, parts, preferences. Minimum 15 characters."
+   327→          />
+   328→          <p className={`text-xs ${description.trim().length < 15 ? 'text-muted-foreground' : 'text-primary'}`}>
+   329→            {description.trim().length}/15 characters minimum
+   330→          </p>
+   331→        </div>
+   332→        <div className="grid gap-4 sm:grid-cols-2">
+   333→          <div className="space-y-1.5">
+   334→            <Label htmlFor="sfq-county">County</Label>
+   335→            <Select value={county} onValueChange={setCounty}>
+   336→              <SelectTrigger id="sfq-county"><SelectValue /></SelectTrigger>
+   337→              <SelectContent>
+   338→                {KENYA_COUNTIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+   339→              </SelectContent>
+   340→            </Select>
+   341→          </div>
+   342→          <div className="space-y-1.5">
+   343→            <Label htmlFor="sfq-town">Town / area (optional)</Label>
+   344→            <Input id="sfq-town" value={town} onChange={(e) => setTown(e.target.value)} placeholder="e.g. Westlands" />
+   345→          </div>
+   346→        </div>
+   347→      </div>
+   348→      <DialogFooter>
+   349→        <Button variant="ghost" className="h-11" onClick={() => onOpenChange(false)}>Cancel</Button>
+   350→        <Button className="h-11 px-5" onClick={submit} disabled={sending || description.trim().length < 15}>
+   351→          {sending ? <Sending label="Sending…" /> : <><Sparkles className="h-4 w-4" /> Send request</>}
+   352→        </Button>
+   353→      </DialogFooter>
+   354→    </>
+   355→  )
+   356→}
+   357→
+   358→// ─────────────────────────── BookingDialog ───────────────────────────
+   359→// NOTE: /api/bookings has no POST: bookings are created when a quote is
+   360→// accepted. So "Book this service" submits a service request carrying the
+   361→// preferred slot; the garage confirms and quotes, and the booking is locked.
+   362→
+   363→export function BookingDialog({
+   364→  open, onOpenChange, org, service,
+   365→}: {
+   366→  open: boolean
+   367→  onOpenChange: (open: boolean) => void
+   368→  org: { id: string; name: string; county: string; town?: string | null }
+   369→  service: StorefrontService
+   370→}) {
+   371→  return (
+   372→    <Dialog open={open} onOpenChange={onOpenChange}>
+   373→      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+   374→        <DialogHeader>
+   375→          <DialogTitle className="flex items-center gap-2">
+   376→            <CalendarCheck className="h-5 w-5 text-primary" aria-hidden="true" /> Book: {service.title}
+   377→          </DialogTitle>
+   378→          <DialogDescription>
+   379→            Pick a preferred slot in the next 14 days. {org.name} confirms the appointment and sends a fixed quote; accepting it locks the booking.
+   380→          </DialogDescription>
+   381→        </DialogHeader>
+   382→        <BookingForm onOpenChange={onOpenChange} org={org} service={service} />
+   383→      </DialogContent>
+   384→    </Dialog>
+   385→  )
+   386→}
+   387→
+   388→function BookingForm({
+   389→  onOpenChange, org, service,
+   390→}: {
+   391→  onOpenChange: (open: boolean) => void
+   392→  org: { id: string; name: string; county: string; town?: string | null }
+   393→  service: StorefrontService
+   394→}) {
+   395→  const guard = useSubmitGuard()
+   396→  const { days } = useMemo(() => slotOptions(), [])
+   397→  const todayIso = localIsoDate(new Date())
+   398→  const [date, setDate] = useState(todayIso)
+   399→  const [time, setTime] = useState('09:00')
+   400→  const [vehicle, setVehicle] = useState('')
+   401→  const [notes, setNotes] = useState('')
+   402→  const [sending, setSending] = useState(false)
+   403→  const [doneRef, setDoneRef] = useState<string | null>(null)
+   404→
+   405→  const validTimes = useValidTimes(date, 30)
+   406→  const slotLabel = date ? `${days.find((d) => d.value === date)?.label ?? date} at ${time}` : ''
+   407→
+   408→  function submit() {
+   409→    if (!date || !time) { toast.error('Pick a preferred date and time'); return }
+   410→    const description = `Booking request: ${service.title}, preferred slot ${date} ${time}.${notes.trim() ? ` Notes: ${notes.trim()}` : ''}`
+   411→    if (description.trim().length < 15) { toast.error('Add a few more details (15 characters minimum)'); return }
+   412→    if (!guard()) return
+   413→    setSending(true)
+   414→    apiSend<{ request: { refCode: string } }>('/api/service-requests', 'POST', {
+   415→      category: service.category,
+   416→      vehicleDesc: vehicle.trim() || undefined,
+   417→      description: description.trim(),
+   418→      county: org.county,
+   419→      town: org.town || undefined,
+   420→    })
+   421→      .then((d) => {
+   422→        setDoneRef(d.request.refCode)
+   423→        toast.success(`Booking request ${d.request.refCode} sent`)
+   424→      })
+   425→      .catch((e) => {
+   426→        if (isAuthError(e)) {
+   427→          toast.info('Sign in to book this service')
+   428→          navigate('signin')
+   429→          return
+   430→        }
+   431→        toast.error(errMessage(e, 'Could not send your booking request'))
+   432→      })
+   433→      .finally(() => setSending(false))
+   434→  }
+   435→
+   436→  if (doneRef) {
+   437→    return (
+   438→      <SuccessPanel
+   439→        refCode={doneRef}
+   440→        title="Booking request sent"
+   441→        body={`${org.name} will confirm your slot (${slotLabel}): you'll get the fixed quote to accept in your account.`}
+   442→      >
+   443→        <Button onClick={() => navigate('account?tab=requests')}>View my requests</Button>
+   444→        <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
+   445→      </SuccessPanel>
+   446→    )
+   447→  }
+   448→
+   449→  return (
+   450→    <>
+   451→      <div className="space-y-4">
+   452→        <div className="rounded-lg bg-muted/60 p-3 text-sm">
+   453→          <p className="font-medium">{service.title}</p>
+   454→          {service.priceFromMinor != null && <p className="text-xs text-muted-foreground">Fixed price from KES {(service.priceFromMinor / 100).toLocaleString()}</p>}
+   455→        </div>
+   456→        <div className="grid gap-4 sm:grid-cols-2">
+   457→          <div className="space-y-1.5">
+   458→            <Label htmlFor="bk-date">Preferred date</Label>
+   459→            <input
+   460→              id="bk-date"
+   461→              type="date"
+   462→              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+   463→              value={date}
+   464→              min={todayIso}
+   465→              max={days[days.length - 1].value}
+   466→              onChange={(e) => setDate(e.target.value)}
+   467→            />
+   468→          </div>
+   469→          <div className="space-y-1.5">
+   470→            <Label htmlFor="bk-time">Preferred time</Label>
+   471→            <Select value={validTimes.includes(time) ? time : validTimes[0] ?? ''} onValueChange={setTime}>
+   472→              <SelectTrigger id="bk-time"><SelectValue placeholder="Choose a time" /></SelectTrigger>
+   473→              <SelectContent>
+   474→                {validTimes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+   475→              </SelectContent>
+   476→            </Select>
+   477→          </div>
+   478→        </div>
+   479→        <div className="space-y-1.5">
+   480→          <Label htmlFor="bk-vehicle">Your vehicle</Label>
+   481→          <Input id="bk-vehicle" value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="e.g. Subaru Forester 2016, KDA…123A" />
+   482→        </div>
+   483→        <div className="space-y-1.5">
+   484→          <Label htmlFor="bk-notes">Notes (optional)</Label>
+   485→          <Textarea id="bk-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the garage should know before confirming the slot…" />
+   486→        </div>
+   487→      </div>
+   488→      <DialogFooter>
+   489→        <Button variant="ghost" className="h-11" onClick={() => onOpenChange(false)}>Cancel</Button>
+   490→        <Button className="h-11 px-5" onClick={submit} disabled={sending || validTimes.length === 0}>
+   491→          {sending ? <Sending label="Sending…" /> : 'Request this slot'}
+   492→        </Button>
+   493→      </DialogFooter>
+   494→    </>
+   495→  )
+   496→}
+   497→
+   498→// ─────────────────────────── TestDriveDialog ───────────────────────────
+   499→
+   500→export function TestDriveDialog({
+   501→  open, onOpenChange, org, vehicleId, vehicleLabel,
+   502→}: {
+   503→  open: boolean
+   504→  onOpenChange: (open: boolean) => void
+   505→  org?: { id: string; name: string }
+   506→  vehicleId: string
+   507→  vehicleLabel: string
+   508→}) {
+   509→  return (
+   510→    <Dialog open={open} onOpenChange={onOpenChange}>
+   511→      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+   512→        <DialogHeader>
+   513→          <DialogTitle className="flex items-center gap-2">
+   514→            <CarFront className="h-5 w-5 text-primary" aria-hidden="true" /> Book a test drive
+   515→          </DialogTitle>
+   516→          <DialogDescription>
+   517→            {vehicleLabel}{org ? `: ${org.name}` : ''}. Choose a slot in the next 14 days; the showroom will confirm your appointment.
+   518→          </DialogDescription>
+   519→        </DialogHeader>
+   520→        <TestDriveForm onOpenChange={onOpenChange} org={org} vehicleId={vehicleId} vehicleLabel={vehicleLabel} />
+   521→      </DialogContent>
+   522→    </Dialog>
+   523→  )
+   524→}
+   525→
+   526→function TestDriveForm({
+   527→  onOpenChange, org, vehicleId, vehicleLabel,
+   528→}: {
+   529→  onOpenChange: (open: boolean) => void
+   530→  org?: { id: string; name: string }
+   531→  vehicleId: string
+   532→  vehicleLabel: string
+   533→}) {
+   534→  const guard = useSubmitGuard()
+   535→  const { days } = useMemo(() => slotOptions(), [])
+   536→  const todayIso = localIsoDate(new Date())
+   537→  const [date, setDate] = useState(todayIso)
+   538→  const [time, setTime] = useState('09:00')
+   539→  const [licence, setLicence] = useState(false)
+   540→  const [notes, setNotes] = useState('')
+   541→  const [sending, setSending] = useState(false)
+   542→  const [doneRef, setDoneRef] = useState<string | null>(null)
+   543→
+   544→  const validTimes = useValidTimes(date, 60)
+   545→
+   546→  function submit() {
+   547→    if (!date || !time) { toast.error('Pick a date and time for the test drive'); return }
+   548→    if (!licence) { toast.error('Please confirm you hold a valid driving licence'); return }
+   549→    if (!guard()) return
+   550→    setSending(true)
+   551→    const scheduledAt = new Date(`${date}T${time}:00`).toISOString()
+   552→    apiSend<{ testDrive: { id: string; refCode?: string } }>('/api/test-drives', 'POST', {
+   553→      vehicleId,
+   554→      scheduledAt,
+   555→      licenceConfirmed: true,
+   556→    })
+   557→      .then((d) => {
+   558→        setDoneRef(d.testDrive?.refCode ?? d.testDrive?.id ?? null)
+   559→        toast.success('Test drive requested')
+   560→      })
+   561→      .catch((e) => {
+   562→        if (isAuthError(e)) {
+   563→          toast.info('Sign in to book a test drive')
+   564→          navigate('signin')
+   565→          return
+   566→        }
+   567→        toast.error(errMessage(e, 'Could not request the test drive'))
+   568→      })
+   569→      .finally(() => setSending(false))
+   570→  }
+   571→
+   572→  if (doneRef) {
+   573→    return (
+   574→      <SuccessPanel refCode={doneRef} title="Test drive requested" body="The showroom will confirm your appointment. Track it under Account → Test drives.">
+   575→        <Button onClick={() => navigate('account?tab=testdrives')}>Track my test drives</Button>
+   576→        <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
+   577→      </SuccessPanel>
+   578→    )
+   579→  }
+   580→
+   581→  return (
+   582→    <>
+   583→      <div className="space-y-4">
+   584→        <div className="grid gap-4 sm:grid-cols-2">
+   585→          <div className="space-y-1.5">
+   586→            <Label htmlFor="td-date">Date</Label>
+   587→            <input
+   588→              id="td-date"
+   589→              type="date"
+   590→              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+   591→              value={date}
+   592→              min={todayIso}
+   593→              max={days[days.length - 1].value}
+   594→              onChange={(e) => setDate(e.target.value)}
+   595→            />
+   596→          </div>
+   597→          <div className="space-y-1.5">
+   598→            <Label htmlFor="td-time">Time (EAT)</Label>
+   599→            <Select value={validTimes.includes(time) ? time : validTimes[0] ?? ''} onValueChange={setTime}>
+   600→              <SelectTrigger id="td-time"><SelectValue placeholder="Choose a time" /></SelectTrigger>
+   601→              <SelectContent>
+   602→                {validTimes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+   603→              </SelectContent>
+   604→            </Select>
+   605→          </div>
+   606→        </div>
+   607→        <div className="space-y-1.5">
+   608→          <Label htmlFor="td-notes">Notes for the showroom (optional)</Label>
+   609→          <Textarea id="td-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Would like to inspect service history too." />
+   610→        </div>
+   611→        <label className="flex cursor-pointer items-start gap-2 text-sm">
+   612→          <Checkbox className="mt-0.5" checked={licence} onCheckedChange={(c) => setLicence(c === true)} />
+   613→          <span>I hold a valid driving licence for this vehicle class</span>
+   614→        </label>
+   615→      </div>
+   616→      <DialogFooter>
+   617→        <Button variant="ghost" className="h-11" onClick={() => onOpenChange(false)}>Cancel</Button>
+   618→        <Button className="h-11 px-5" onClick={submit} disabled={sending || !licence || validTimes.length === 0}>
+   619→          {sending ? <Sending label="Requesting…" /> : <><ClipboardList className="h-4 w-4" /> Request test drive</>}
+   620→        </Button>
+   621→      </DialogFooter>
+   622→    </>
+   623→  )
+   624→}
+   625→
+   626→// ─────────────────────────── ReviewDialog ───────────────────────────
+   627→
+   628→export function ReviewDialog({
+   629→  open, onOpenChange, org, onSubmitted,
+   630→}: {
+   631→  open: boolean
+   632→  onOpenChange: (open: boolean) => void
+   633→  org: { id: string; name: string }
+   634→  onSubmitted: (review: StorefrontReview) => void
+   635→}) {
+   636→  return (
+   637→    <Dialog open={open} onOpenChange={onOpenChange}>
+   638→      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+   639→        <DialogHeader>
+   640→          <DialogTitle className="flex items-center gap-2">
+   641→            <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" /> Review {org.name}
+   642→          </DialogTitle>
+   643→          <DialogDescription>
+   644→            Reviews are earned: post after a completed engagement with this business; a booked service for garages, a completed test drive for showrooms. Be honest and specific.
+   645→          </DialogDescription>
+   646→        </DialogHeader>
+   647→        <ReviewForm onOpenChange={onOpenChange} org={org} onSubmitted={onSubmitted} />
+   648→      </DialogContent>
+   649→    </Dialog>
+   650→  )
+   651→}
+   652→
+   653→function ReviewForm({
+   654→  onOpenChange, org, onSubmitted,
+   655→}: {
+   656→  onOpenChange: (open: boolean) => void
+   657→  org: { id: string; name: string }
+   658→  onSubmitted: (review: StorefrontReview) => void
+   659→}) {
+   660→  const guard = useSubmitGuard()
+   661→  const [rating, setRating] = useState(0)
+   662→  const [hover, setHover] = useState(0)
+   663→  const [comment, setComment] = useState('')
+   664→  const [sending, setSending] = useState(false)
+   665→
+   666→  function submit() {
+   667→    if (rating < 1) { toast.error('Tap to choose a star rating'); return }
+   668→    if (!guard()) return
+   669→    setSending(true)
+   670→    apiSend<{ review: { id: string; rating: number; comment: string | null; createdAt: string; author: { name: string } } }>('/api/reviews', 'POST', {
+   671→      orgId: org.id,
+   672→      rating,
+   673→      comment: comment.trim() || undefined,
+   674→    })
+   675→      .then((d) => {
+   676→        const r = d.review
+   677→        onSubmitted({ id: r.id, rating: r.rating, comment: r.comment, authorName: r.author?.name ?? 'You', createdAt: r.createdAt })
+   678→        toast.success('Thanks: your review is live')
+   679→        onOpenChange(false)
+   680→      })
+   681→      .catch((e) => {
+   682→        if (isAuthError(e)) {
+   683→          toast.info('Sign in to write a review')
+   684→          navigate('signin')
+   685→          return
+   686→        }
+   687→        toast.error(errMessage(e, 'Could not submit your review'))
+   688→      })
+   689→      .finally(() => setSending(false))
+   690→  }
+   691→
+   692→  return (
+   693→    <>
+   694→      <div className="space-y-4">
+   695→        <div className="flex items-center justify-center gap-1.5" role="radiogroup" aria-label="Star rating">
+   696→          {[1, 2, 3, 4, 5].map((i) => (
+   697→            <motion.button
+   698→              key={i}
+   699→              type="button"
+   700→              role="radio"
+   701→              aria-checked={rating === i}
+   702→              aria-label={`${i} star${i > 1 ? 's' : ''}`}
+   703→              whileTap={{ scale: 0.85 }}
+   704→              onMouseEnter={() => setHover(i)}
+   705→              onMouseLeave={() => setHover(0)}
+   706→              onClick={() => setRating(i)}
+   707→              className="rounded-md p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+   708→            >
+   709→              <Star className={`h-8 w-8 transition-colors ${i <= (hover || rating) ? 'fill-[#c9a45c] text-[#c9a45c]' : 'text-muted-foreground/40'}`} />
+   710→            </motion.button>
+   711→          ))}
+   712→        </div>
+   713→        <div className="space-y-1.5">
+   714→          <Label htmlFor="rv-comment">Your experience (optional)</Label>
+   715→          <Textarea
+   716→            id="rv-comment"
+   717→            rows={4}
+   718→            maxLength={1000}
+   719→            value={comment}
+   720→            onChange={(e) => setComment(e.target.value)}
+   721→            placeholder="How was the work, communication and pricing?"
+   722→          />
+   723→          <p className="text-right text-xs text-muted-foreground">{comment.length}/1000</p>
+   724→        </div>
+   725→      </div>
+   726→      <DialogFooter>
+   727→        <Button variant="ghost" className="h-11" onClick={() => onOpenChange(false)}>Cancel</Button>
+   728→        <Button className="h-11 px-5" onClick={submit} disabled={sending || rating < 1}>
+   729→          {sending ? <Sending label="Posting…" /> : 'Post review'}
+   730→        </Button>
+   731→      </DialogFooter>
+   732→    </>
+   733→  )
+   734→}
+   735→

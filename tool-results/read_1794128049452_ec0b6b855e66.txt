@@ -1,0 +1,1178 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→/* Vehicle Protection: customer-side custody tracking, road-test approvals,
+     4→     4→ * collection authorisation and security reporting.
+     5→     5→ *
+     6→     6→ * Shared by My Garage and the Account dashboard (DRY: one implementation).
+     7→     7→ * Talks to /api/custody and /api/incidents only.
+     8→     8→ */
+     9→     9→
+    10→    10→import { useCallback, useEffect, useState } from 'react'
+    11→    11→import { motion, useReducedMotion } from 'framer-motion'
+    12→    12→import {
+    13→    13→  CarFront, Check, CircleAlert, Copy, FileText, Gauge, KeyRound, Loader2,
+    14→    14→  MessageSquarePlus, Phone, ShieldAlert, ShieldCheck, Siren, UserRound, Wrench, X,
+    15→    15→} from 'lucide-react'
+    16→    16→import { toast } from 'sonner'
+    17→    17→import { cn } from '@/lib/utils'
+    18→    18→import { apiGet, apiSend, apiUpload } from '@/lib/client'
+    19→    19→import { money, timeAgo, dateLabel } from '@/lib/format'
+    20→    20→import { Button } from '@/components/ui/button'
+    21→    21→import { Input } from '@/components/ui/input'
+    22→    22→import { Label } from '@/components/ui/label'
+    23→    23→import { Badge } from '@/components/ui/badge'
+    24→    24→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    25→    25→import { Skeleton } from '@/components/ui/skeleton'
+    26→    26→import { Textarea } from '@/components/ui/textarea'
+    27→    27→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    28→    28→import { Checkbox } from '@/components/ui/checkbox'
+    29→    29→import {
+    30→    30→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    31→    31→} from '@/components/ui/dialog'
+    32→    32→import {
+    33→    33→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+    34→    34→  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    35→    35→} from '@/components/ui/alert-dialog'
+    36→    36→import { Stagger, StaggerItem } from '@/components/motion/reveal'
+    37→    37→
+    38→    38→// ───────────────────────────── Types (API contract) ─────────────────────────────
+    39→    39→
+    40→    40→type CustodyRow = {
+    41→    41→  id: string
+    42→    42→  refCode: string
+    43→    43→  status: string
+    44→    44→  vehicleDesc: string
+    45→    45→  plate: string | null
+    46→    46→  customerName?: string
+    47→    47→  orgName?: string
+    48→    48→  requestedWork: string | null
+    49→    49→  createdAt: string
+    50→    50→  updatedAt: string
+    51→    51→}
+    52→    52→
+    53→    53→type CustodyEvent = {
+    54→    54→  id: string
+    55→    55→  type: string
+    56→    56→  fromStatus: string | null
+    57→    57→  toStatus: string | null
+    58→    58→  actorName: string | null
+    59→    59→  actorSide: string
+    60→    60→  note: string | null
+    61→    61→  createdAt: string
+    62→    62→}
+    63→    63→
+    64→    64→type RoadTest = {
+    65→    65→  id: string
+    66→    66→  purpose: string
+    67→    67→  driverName: string
+    68→    68→  status: string
+    69→    69→  startOdometerKm: number | null
+    70→    70→  endOdometerKm: number | null
+    71→    71→  requestedAt: string
+    72→    72→  authorisedAt: string | null
+    73→    73→  startedAt: string | null
+    74→    74→  endedAt: string | null
+    75→    75→  notes: string | null
+    76→    76→  incident: boolean
+    77→    77→}
+    78→    78→
+    79→    79→type CollectionAuth = {
+    80→    80→  collectorName: string
+    81→    81→  collectorPhone: string
+    82→    82→  codeHint: string
+    83→    83→  expiresAt: string
+    84→    84→  usedAt: string | null
+    85→    85→  revokedAt: string | null
+    86→    86→} | null
+    87→    87→
+    88→    88→type CustodyDetail = CustodyRow & {
+    89→    89→  photos: string[]
+    90→    90→  completionPhotos: string[]
+    91→    91→  orgName: string
+    92→    92→  customerName: string
+    93→    93→  authorisedSpendMinor: number | null
+    94→    94→  roadTestAllowed: boolean
+    95→    95→  declaredCondition?: string | null
+    96→    96→  declaredMileageKm?: number | null
+    97→    97→  valuables?: string | null
+    98→    98→  completedWork?: string | null
+    99→    99→  finalOdometerKm?: number | null
+   100→   100→  finalNotes?: string | null
+   101→   101→  costMinor?: number | null
+   102→   102→  events: CustodyEvent[]
+   103→   103→  roadTests: RoadTest[]
+   104→   104→  collectionAuth: CollectionAuth
+   105→   105→}
+   106→   106→
+   107→   107→type IncidentItem = {
+   108→   108→  id: string
+   109→   109→  refCode?: string
+   110→   110→  category: string
+   111→   111→  title: string
+   112→   112→  details?: string
+   113→   113→  status?: string
+   114→   114→  createdAt: string
+   115→   115→  orgName?: string | null
+   116→   116→}
+   117→   117→
+   118→   118→// ───────────────────────────── Status metadata ─────────────────────────────
+   119→   119→
+   120→   120→const CUSTODY_STATUS_META: Record<string, { label: string; badge: string }> = {
+   121→   121→  HANDOVER_REQUESTED: { label: 'Handover requested', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+   122→   122→  RECEIVED: { label: 'Received', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+   123→   123→  INSPECTION: { label: 'Inspection', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+   124→   124→  AWAITING_APPROVAL: { label: 'Awaiting your approval', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+   125→   125→  WORK_IN_PROGRESS: { label: 'Work in progress', badge: 'border-indigo-300 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' },
+   126→   126→  ROAD_TEST_REQUESTED: { label: 'Road test requested', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+   127→   127→  READY_FOR_COLLECTION: { label: 'Ready for collection', badge: 'border-primary/50 bg-primary/10 text-primary dark:text-[#9dc3ae]' },
+   128→   128→  COLLECTION_PENDING: { label: 'Collection pending', badge: 'border-primary/50 bg-primary/10 text-primary dark:text-[#9dc3ae]' },
+   129→   129→  RETURNED: { label: 'Returned to you', badge: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
+   130→   130→  DISPUTED: { label: 'Disputed', badge: 'border-destructive/50 bg-destructive/10 text-destructive' },
+   131→   131→  INCIDENT: { label: 'Incident opened', badge: 'border-destructive/50 bg-destructive/10 text-destructive' },
+   132→   132→}
+   133→   133→
+   134→   134→const STEPS = ['Requested', 'Received', 'Inspection', 'Approval', 'Work', 'Ready', 'Release', 'Returned'] as const
+   135→   135→const STEP_INDEX: Record<string, number> = {
+   136→   136→  HANDOVER_REQUESTED: 0,
+   137→   137→  RECEIVED: 1,
+   138→   138→  INSPECTION: 2,
+   139→   139→  AWAITING_APPROVAL: 3,
+   140→   140→  WORK_IN_PROGRESS: 4,
+   141→   141→  ROAD_TEST_REQUESTED: 4,
+   142→   142→  READY_FOR_COLLECTION: 5,
+   143→   143→  COLLECTION_PENDING: 6,
+   144→   144→  RETURNED: 7,
+   145→   145→}
+   146→   146→
+   147→   147→const ACTIVE_CUSTODY = new Set(['HANDOVER_REQUESTED', 'RECEIVED', 'INSPECTION', 'AWAITING_APPROVAL', 'WORK_IN_PROGRESS', 'ROAD_TEST_REQUESTED', 'READY_FOR_COLLECTION', 'COLLECTION_PENDING'])
+   148→   148→
+   149→   149→const ROAD_TEST_STATUS_META: Record<string, { label: string; badge: string }> = {
+   150→   150→  REQUESTED: { label: 'Awaiting your authorisation', badge: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+   151→   151→  AUTHORISED: { label: 'Authorised', badge: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300' },
+   152→   152→  IN_PROGRESS: { label: 'On the road', badge: 'border-indigo-300 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' },
+   153→   153→  COMPLETED: { label: 'Completed', badge: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
+   154→   154→  DECLINED: { label: 'Declined', badge: 'bg-muted text-muted-foreground' },
+   155→   155→  CANCELLED: { label: 'Cancelled', badge: 'bg-muted text-muted-foreground' },
+   156→   156→}
+   157→   157→
+   158→   158→const INCIDENT_CATEGORIES = [
+   159→   159→  { value: 'STOLEN_VEHICLE', label: 'Stolen vehicle' },
+   160→   160→  { value: 'MISSING_FROM_GARAGE', label: 'Missing from garage' },
+   161→   161→  { value: 'TEST_DRIVE_NOT_RETURNED', label: 'Test drive not returned' },
+   162→   162→  { value: 'UNAUTHORISED_USE', label: 'Unauthorised use' },
+   163→   163→  { value: 'OWNERSHIP_FRAUD', label: 'Ownership fraud' },
+   164→   164→  { value: 'FAKE_DOCS', label: 'Fake documents' },
+   165→   165→  { value: 'MISCONDUCT', label: 'Staff misconduct' },
+   166→   166→  { value: 'OTHER', label: 'Other' },
+   167→   167→] as const
+   168→   168→
+   169→   169→const INCIDENT_STATUS_BADGE: Record<string, string> = {
+   170→   170→  OPEN: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:text-amber-300',
+   171→   171→  UNDER_REVIEW: 'border-sky-300 bg-sky-500/15 text-sky-800 dark:text-sky-300',
+   172→   172→  RESOLVED: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+   173→   173→  CLOSED: 'bg-muted text-muted-foreground',
+   174→   174→}
+   175→   175→
+   176→   176→const SAFETY_NOTE_FALLBACK = 'If you believe a vehicle has been stolen, contact the police immediately. CARMAZE is not an emergency service.'
+   177→   177→
+   178→   178→// ───────────────────────────── Main component ─────────────────────────────
+   179→   179→
+   180→   180→export function VehicleProtection() {
+   181→   181→  const [custodies, setCustodies] = useState<CustodyRow[] | null>(null)
+   182→   182→  const [incidents, setIncidents] = useState<IncidentItem[] | null>(null)
+   183→   183→  const [custodyTick, setCustodyTick] = useState(0)
+   184→   184→  const [incidentTick, setIncidentTick] = useState(0)
+   185→   185→
+   186→   186→  const [detailId, setDetailId] = useState<string | null>(null)
+   187→   187→  const [detail, setDetail] = useState<CustodyDetail | null>(null)
+   188→   188→  const [detailLoading, setDetailLoading] = useState(false)
+   189→   189→
+   190→   190→  const [collectSelfId, setCollectSelfId] = useState<string | null>(null)
+   191→   191→  const [authDialogId, setAuthDialogId] = useState<string | null>(null)
+   192→   192→  const [disputeId, setDisputeId] = useState<string | null>(null)
+   193→   193→  const [reportOpen, setReportOpen] = useState(false)
+   194→   194→  const [safetyNote, setSafetyNote] = useState<string | null>(null)
+   195→   195→
+   196→   196→  const loadCustodies = useCallback(() => setCustodyTick((t) => t + 1), [])
+   197→   197→
+   198→   198→  useEffect(() => {
+   199→   199→    let cancelled = false
+   200→   200→    apiGet<{ custodies: CustodyRow[] }>('/api/custody?mine=1')
+   201→   201→      .then((d) => { if (!cancelled) setCustodies(d.custodies) })
+   202→   202→      .catch(() => { if (!cancelled) setCustodies([]) })
+   203→   203→    return () => { cancelled = true }
+   204→   204→  }, [custodyTick])
+   205→   205→
+   206→   206→  useEffect(() => {
+   207→   207→    let cancelled = false
+   208→   208→    apiGet<{ incidents: IncidentItem[] }>('/api/incidents?mine=1')
+   209→   209→      .then((d) => { if (!cancelled) setIncidents(d.incidents) })
+   210→   210→      .catch(() => { if (!cancelled) setIncidents([]) })
+   211→   211→    return () => { cancelled = true }
+   212→   212→  }, [incidentTick])
+   213→   213→
+   214→   214→  // Poll active garage jobs every 15s.
+   215→   215→  useEffect(() => {
+   216→   216→    const t = setInterval(loadCustodies, 15_000)
+   217→   217→    return () => clearInterval(t)
+   218→   218→  }, [loadCustodies])
+   219→   219→
+   220→   220→  async function openDetail(id: string) {
+   221→   221→    setDetailId(id)
+   222→   222→    setDetailLoading(true)
+   223→   223→    try {
+   224→   224→      const d = await apiGet<{ custody: CustodyDetail }>(`/api/custody/${id}`)
+   225→   225→      setDetail(d.custody)
+   226→   226→    } catch (e) {
+   227→   227→      toast.error(e instanceof Error ? e.message : 'Could not load the job details.')
+   228→   228→      setDetailId(null)
+   229→   229→    } finally {
+   230→   230→      setDetailLoading(false)
+   231→   231→    }
+   232→   232→  }
+   233→   233→
+   234→   234→  async function refreshDetail(id: string) {
+   235→   235→    try {
+   236→   236→      const d = await apiGet<{ custody: CustodyDetail }>(`/api/custody/${id}`)
+   237→   237→      setDetail(d.custody)
+   238→   238→    } catch { /* keep current view */ }
+   239→   239→  }
+   240→   240→
+   241→   241→  const activeJobs = (custodies ?? []).filter((c) => ACTIVE_CUSTODY.has(c.status))
+   242→   242→  const pastJobs = (custodies ?? []).filter((c) => !ACTIVE_CUSTODY.has(c.status))
+   243→   243→
+   244→   244→  return (
+   245→   245→    <div className="space-y-6">
+   246→   246→      {/* Success / safety callout after reporting */}
+   247→   247→      {safetyNote && (
+   248→   248→        <motion.div
+   249→   249→          initial={false}
+   250→   250→          animate={{ opacity: 1 }}
+   251→   251→          className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+   252→   252→          role="status"
+   253→   253→        >
+   254→   254→          <Siren className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+   255→   255→          <div className="min-w-0 flex-1">
+   256→   256→            <p className="text-sm font-semibold">Report received: CARMAZE security will review it.</p>
+   257→   257→            <p className="mt-1 text-sm leading-relaxed">{safetyNote}</p>
+   258→   258→          </div>
+   259→   259→          <button
+   260→   260→            className="rounded-full p-1 hover:bg-amber-100 dark:hover:bg-amber-500/20"
+   261→   261→            aria-label="Dismiss notice"
+   262→   262→            onClick={() => setSafetyNote(null)}
+   263→   263→          >
+   264→   264→            <X className="h-4 w-4" />
+   265→   265→          </button>
+   266→   266→        </motion.div>
+   267→   267→      )}
+   268→   268→
+   269→   269→      {/* ── Active garage jobs ── */}
+   270→   270→      <section aria-labelledby="vp-active">
+   271→   271→        <div className="flex flex-wrap items-center justify-between gap-2">
+   272→   272→          <div>
+   273→   273→            <h2 id="vp-active" className="flex items-center gap-2 text-lg font-bold">
+   274→   274→              <Wrench className="h-5 w-5 text-primary" aria-hidden="true" /> Vehicles with the garage
+   275→   275→            </h2>
+   276→   276→            <p className="mt-0.5 text-sm text-muted-foreground">
+   277→   277→              Live custody tracking: approve road tests, authorise collection and dispute anything that looks wrong.
+   278→   278→            </p>
+   279→   279→          </div>
+   280→   280→          <Button variant="outline" className="min-h-11 gap-2" onClick={() => setReportOpen(true)}>
+   281→   281→            <ShieldAlert className="h-4 w-4" /> Report a security concern
+   282→   282→          </Button>
+   283→   283→        </div>
+   284→   284→
+   285→   285→        {custodies === null ? (
+   286→   286→          <div className="mt-4 space-y-3">
+   287→   287→            <Skeleton className="h-28 rounded-xl" />
+   288→   288→            <Skeleton className="h-28 rounded-xl" />
+   289→   289→          </div>
+   290→   290→        ) : custodies.length === 0 ? (
+   291→   291→          <Card className="mt-4 border-dashed">
+   292→   292→            <CardContent className="flex flex-col items-center py-12 text-center">
+   293→   293→              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+   294→   294→                <ShieldCheck className="h-7 w-7" aria-hidden="true" />
+   295→   295→              </div>
+   296→   296→              <h3 className="mt-4 font-semibold">Nothing in the workshop right now</h3>
+   297→   297→              <p className="mt-1 max-w-md text-sm text-muted-foreground">
+   298→   298→                When you accept a garage&apos;s quote and hand over your car, its custody status, road tests and
+   299→   299→                collection authorisation appear here: protected end to end.
+   300→   300→              </p>
+   301→   301→            </CardContent>
+   302→   302→          </Card>
+   303→   303→        ) : (
+   304→   304→          <>
+   305→   305→            <div className="mt-4 space-y-3">
+   306→   306→              {activeJobs.map((c) => <JobCard key={c.id} row={c} onOpen={() => openDetail(c.id)} />)}
+   307→   307→            </div>
+   308→   308→            {pastJobs.length > 0 && (
+   309→   309→              <details className="mt-3 rounded-xl border bg-card">
+   310→   310→                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground">
+   311→   311→                  Past jobs ({pastJobs.length})
+   312→   312→                </summary>
+   313→   313→                <div className="space-y-3 px-3 pb-3">
+   314→   314→                  {pastJobs.map((c) => <JobCard key={c.id} row={c} onOpen={() => openDetail(c.id)} />)}
+   315→   315→                </div>
+   316→   316→              </details>
+   317→   317→            )}
+   318→   318→          </>
+   319→   319→        )}
+   320→   320→      </section>
+   321→   321→
+   322→   322→      {/* ── Security alerts ── */}
+   323→   323→      <section aria-labelledby="vp-alerts">
+   324→   324→        <h2 id="vp-alerts" className="flex items-center gap-2 text-lg font-bold">
+   325→   325→          <Siren className="h-5 w-5 text-destructive" aria-hidden="true" /> Security alerts
+   326→   326→        </h2>
+   327→   327→        <p className="mt-0.5 text-sm text-muted-foreground">Incidents you have reported. CARMAZE security reviews every one.</p>
+   328→   328→
+   329→   329→        {incidents === null ? (
+   330→   330→          <Skeleton className="mt-4 h-24 rounded-xl" />
+   331→   331→        ) : incidents.length === 0 ? (
+   332→   332→          <div className="mt-4 rounded-xl border border-dashed px-6 py-8 text-center">
+   333→   333→            <ShieldCheck className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
+   334→   334→            <p className="mt-2 text-sm font-medium">No incidents reported</p>
+   335→   335→            <p className="mt-0.5 text-sm text-muted-foreground">If something ever feels off; a missing vehicle, a fake document: report it here.</p>
+   336→   336→          </div>
+   337→   337→        ) : (
+   338→   338→          <IncidentsList incidents={incidents} onAdded={() => setIncidentTick((t) => t + 1)} />
+   339→   339→        )}
+   340→   340→      </section>
+   341→   341→
+   342→   342→      {/* ── Detail dialog ── */}
+   343→   343→      <Dialog open={detailId !== null} onOpenChange={(open) => { if (!open) { setDetailId(null); setDetail(null) } }}>
+   344→   344→        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+   345→   345→          <DialogTitle className="sr-only">Vehicle custody details</DialogTitle>
+   346→   346→          {detailLoading || !detail ? (
+   347→   347→            <div className="space-y-3 py-4">
+   348→   348→              <Skeleton className="h-8 w-2/3" />
+   349→   349→              <Skeleton className="h-16 w-full" />
+   350→   350→              <Skeleton className="h-40 w-full" />
+   351→   351→            </div>
+   352→   352→          ) : (
+   353→   353→            <CustodyDetailBody
+   354→   354→              detail={detail}
+   355→   355→              onChanged={() => { refreshDetail(detail.id); loadCustodies() }}
+   356→   356→              onCollectSelf={() => setCollectSelfId(detail.id)}
+   357→   357→              onAuthoriseOther={() => setAuthDialogId(detail.id)}
+   358→   358→              onDispute={() => setDisputeId(detail.id)}
+   359→   359→            />
+   360→   360→          )}
+   361→   361→        </DialogContent>
+   362→   362→      </Dialog>
+   363→   363→
+   364→   364→      {/* ── Collect self confirm ── */}
+   365→   365→      <AlertDialog open={collectSelfId !== null} onOpenChange={(o) => { if (!o) setCollectSelfId(null) }}>
+   366→   366→        <AlertDialogContent>
+   367→   367→          <AlertDialogHeader>
+   368→   368→            <AlertDialogTitle>Confirm you are collecting the vehicle now</AlertDialogTitle>
+   369→   369→            <AlertDialogDescription>
+   370→   370→              {(() => {
+   371→   371→                const row = (custodies ?? []).find((c) => c.id === collectSelfId)
+   372→   372→                return row
+   373→   373→                  ? `Confirm you are collecting ${row.vehicleDesc}${row.plate ? ` (${row.plate})` : ''} in person now. The garage will verify your identity at release.`
+   374→   374→                  : 'The garage will verify your identity at release.'
+   375→   375→              })()}
+   376→   376→            </AlertDialogDescription>
+   377→   377→          </AlertDialogHeader>
+   378→   378→          <AlertDialogFooter>
+   379→   379→            <AlertDialogCancel>Not yet</AlertDialogCancel>
+   380→   380→            <AlertDialogAction
+   381→   381→              className="bg-primary text-primary-foreground hover:bg-primary/90"
+   382→   382→              onClick={(e) => { e.preventDefault(); doCollectSelf(collectSelfId) }}
+   383→   383→            >
+   384→   384→              Yes, I&apos;m collecting it
+   385→   385→            </AlertDialogAction>
+   386→   386→          </AlertDialogFooter>
+   387→   387→        </AlertDialogContent>
+   388→   388→      </AlertDialog>
+   389→   389→
+   390→   390→      {/* ── Authorise someone else ── */}
+   391→   391→      <CollectionAuthDialog
+   392→   392→        custodyId={authDialogId}
+   393→   393→        onClose={() => setAuthDialogId(null)}
+   394→   394→        onDone={() => { if (authDialogId) refreshDetail(authDialogId) }}
+   395→   395→      />
+   396→   396→
+   397→   397→      {/* ── Dispute ── */}
+   398→   398→      <DisputeDialog
+   399→   399→        custodyId={disputeId}
+   400→   400→        vehicleLabel={(() => {
+   401→   401→          const row = (custodies ?? []).find((c) => c.id === disputeId)
+   402→   402→          return row ? `${row.vehicleDesc}${row.plate ? ` (${row.plate})` : ''}` : ''
+   403→   403→        })()}
+   404→   404→        onClose={() => setDisputeId(null)}
+   405→   405→        onDone={() => {
+   406→   406→          if (disputeId) { refreshDetail(disputeId); loadCustodies() }
+   407→   407→          setIncidentTick((t) => t + 1)
+   408→   408→        }}
+   409→   409→      />
+   410→   410→
+   411→   411→      {/* ── Report a security concern ── */}
+   412→   412→      <ReportIncidentDialog
+   413→   413→        open={reportOpen}
+   414→   414→        onClose={() => setReportOpen(false)}
+   415→   415→        onReported={(note) => {
+   416→   416→          setSafetyNote(note ?? SAFETY_NOTE_FALLBACK)
+   417→   417→          setIncidentTick((t) => t + 1)
+   418→   418→        }}
+   419→   419→      />
+   420→   420→    </div>
+   421→   421→  )
+   422→   422→
+   423→   423→  async function doCollectSelf(id: string | null) {
+   424→   424→    if (!id) return
+   425→   425→    try {
+   426→   426→      await apiSend(`/api/custody/${id}`, 'PATCH', { action: 'collect-self' })
+   427→   427→      toast.success('Confirmed: the garage has been notified to release your vehicle to you.')
+   428→   428→      setCollectSelfId(null)
+   429→   429→      refreshDetail(id)
+   430→   430→      loadCustodies()
+   431→   431→    } catch (e) {
+   432→   432→      toast.error(e instanceof Error ? e.message : 'Could not confirm collection.')
+   433→   433→    }
+   434→   434→  }
+   435→   435→}
+   436→   436→
+   437→   437→// ───────────────────────────── Job card + stepper ─────────────────────────────
+   438→   438→
+   439→   439→function JobCard({ row, onOpen }: { row: CustodyRow; onOpen: () => void }) {
+   440→   440→  const meta = CUSTODY_STATUS_META[row.status] ?? { label: row.status, badge: 'bg-muted text-muted-foreground' }
+   441→   441→  return (
+   442→   442→    <button
+   443→   443→      onClick={onOpen}
+   444→   444→      className="block w-full rounded-xl border bg-card p-4 text-left shadow-sm transition-all hover:shadow-md"
+   445→   445→      aria-label={`Open custody job ${row.refCode} for ${row.vehicleDesc}`}
+   446→   446→    >
+   447→   447→      <div className="flex flex-wrap items-start justify-between gap-2">
+   448→   448→        <div className="min-w-0">
+   449→   449→          <h3 className="flex items-center gap-2 font-semibold leading-tight">
+   450→   450→            <CarFront className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+   451→   451→            <span className="truncate">{row.vehicleDesc}</span>
+   452→   452→            {row.plate && <Badge variant="secondary" className="shrink-0 font-mono text-[11px]">{row.plate}</Badge>}
+   453→   453→          </h3>
+   454→   454→          <p className="mt-1 text-xs text-muted-foreground">
+   455→   455→            {row.orgName ?? 'Garage'} · <span className="font-mono">{row.refCode}</span> · updated {timeAgo(row.updatedAt)}
+   456→   456→          </p>
+   457→   457→        </div>
+   458→   458→        <Badge variant="outline" className={cn('shrink-0', meta.badge)}>{meta.label}</Badge>
+   459→   459→      </div>
+   460→   460→      {row.requestedWork && <p className="mt-2 line-clamp-1 text-sm text-muted-foreground">{row.requestedWork}</p>}
+   461→   461→      <div className="mt-3">
+   462→   462→        <StatusStepper status={row.status} compact />
+   463→   463→      </div>
+   464→   464→    </button>
+   465→   465→  )
+   466→   466→}
+   467→   467→
+   468→   468→function StatusStepper({ status, compact = false }: { status: string; compact?: boolean }) {
+   469→   469→  const reduce = useReducedMotion()
+   470→   470→  const idx = STEP_INDEX[status]
+   471→   471→
+   472→   472→  if (idx === undefined) {
+   473→   473→    return (
+   474→   474→      <div className={cn('flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-2 text-xs font-medium text-destructive', compact && 'text-[11px]')}>
+   475→   475→        <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+   476→   476→        {status === 'DISPUTED' ? 'Under dispute: CARMAZE security is reviewing.' : 'Security incident: CARMAZE is reviewing.'}
+   477→   477→      </div>
+   478→   478→    )
+   479→   479→  }
+   480→   480→
+   481→   481→  return (
+   482→   482→    <ol className="flex w-full items-start" aria-label={`Job progress: ${CUSTODY_STATUS_META[status]?.label ?? status}`}>
+   483→   483→      {STEPS.map((label, i) => (
+   484→   484→        <li key={label} className={cn('flex items-start', i < STEPS.length - 1 && 'flex-1')}>
+   485→   485→          <div className="flex flex-col items-center gap-1">
+   486→   486→            {i < idx ? (
+   487→   487→              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground" aria-hidden="true">
+   488→   488→                <Check className="h-3 w-3" />
+   489→   489→              </span>
+   490→   490→            ) : i === idx ? (
+   491→   491→              <motion.span
+   492→   492→                className="flex h-5 w-5 items-center justify-center rounded-full bg-primary ring-4 ring-primary/20"
+   493→   493→                aria-current="step"
+   494→   494→                animate={reduce ? undefined : { scale: [1, 1.18, 1] }}
+   495→   495→                transition={reduce ? undefined : { repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
+   496→   496→              />
+   497→   497→            ) : (
+   498→   498→              <span className="h-5 w-5 rounded-full border-2 border-muted bg-background" aria-hidden="true" />
+   499→   499→            )}
+   500→   500→            <span className={cn(
+   501→   501→              'whitespace-nowrap text-center text-[8.5px] leading-tight sm:text-[9px]',
+   502→   502→              i <= idx ? 'font-semibold text-foreground' : 'text-muted-foreground',
+   503→   503→            )}>
+   504→   504→              {label}
+   505→   505→            </span>
+   506→   506→          </div>
+   507→   507→          {i < STEPS.length - 1 && (
+   508→   508→            <div className="mx-1 mt-2.5 h-1 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+   509→   509→              <motion.div
+   510→   510→                className="h-full rounded-full bg-primary"
+   511→   511→                initial={{ width: i < idx ? '100%' : '0%' }}
+   512→   512→                animate={{ width: i < idx ? '100%' : '0%' }}
+   513→   513→                transition={{ duration: reduce ? 0 : 0.6, delay: reduce ? 0 : 0.08 * i, ease: 'easeOut' }}
+   514→   514→              />
+   515→   515→            </div>
+   516→   516→          )}
+   517→   517→        </li>
+   518→   518→      ))}
+   519→   519→    </ol>
+   520→   520→  )
+   521→   521→}
+   522→   522→
+   523→   523→// ───────────────────────────── Detail body (customer side) ─────────────────────────────
+   524→   524→
+   525→   525→function CustodyDetailBody({ detail, onChanged, onCollectSelf, onAuthoriseOther, onDispute }: {
+   526→   526→  detail: CustodyDetail
+   527→   527→  onChanged: () => void
+   528→   528→  onCollectSelf: () => void
+   529→   529→  onAuthoriseOther: () => void
+   530→   530→  onDispute: () => void
+   531→   531→}) {
+   532→   532→  const meta = CUSTODY_STATUS_META[detail.status] ?? { label: detail.status, badge: 'bg-muted text-muted-foreground' }
+   533→   533→  const [authorisingId, setAuthorisingId] = useState<string | null>(null)
+   534→   534→  const [busyRoadTest, setBusyRoadTest] = useState(false)
+   535→   535→  const disputed = detail.status === 'DISPUTED' || detail.status === 'INCIDENT'
+   536→   536→  const readyForCollection = detail.status === 'READY_FOR_COLLECTION' || detail.status === 'COLLECTION_PENDING'
+   537→   537→  const authActive = detail.collectionAuth && !detail.collectionAuth.usedAt && !detail.collectionAuth.revokedAt
+   538→   538→
+   539→   539→  async function respondRoadTest(roadTestId: string, action: 'authorize-roadtest' | 'decline-roadtest') {
+   540→   540→    setBusyRoadTest(true)
+   541→   541→    try {
+   542→   542→      await apiSend(`/api/custody/${detail.id}`, 'PATCH', { action, roadTestId })
+   543→   543→      toast.success(action === 'authorize-roadtest'
+   544→   544→        ? 'Road test authorised: the garage has been notified.'
+   545→   545→        : 'Road test declined.')
+   546→   546→      setAuthorisingId(null)
+   547→   547→      onChanged()
+   548→   548→    } catch (e) {
+   549→   549→      toast.error(e instanceof Error ? e.message : 'Action failed.')
+   550→   550→    } finally {
+   551→   551→      setBusyRoadTest(false)
+   552→   552→    }
+   553→   553→  }
+   554→   554→
+   555→   555→  return (
+   556→   556→    <div className="space-y-5">
+   557→   557→      <DialogHeader>
+   558→   558→        <DialogTitle className="flex flex-wrap items-center gap-2 text-left">
+   559→   559→          {detail.vehicleDesc}
+   560→   560→          {detail.plate && <Badge variant="secondary" className="font-mono text-[11px]">{detail.plate}</Badge>}
+   561→   561→          <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>
+   562→   562→        </DialogTitle>
+   563→   563→        <DialogDescription className="text-left">
+   564→   564→          {detail.orgName} · <span className="font-mono">{detail.refCode}</span> · in custody since {dateLabel(detail.createdAt)}
+   565→   565→        </DialogDescription>
+   566→   566→      </DialogHeader>
+   567→   567→
+   568→   568→      {disputed && (
+   569→   569→        <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive" role="alert">
+   570→   570→          <p className="flex items-center gap-2 font-semibold"><CircleAlert className="h-4 w-4" /> Custody disputed</p>
+   571→   571→          <p className="mt-1 leading-relaxed text-destructive/90">
+   572→   572→            A security incident is open on this job. CARMAZE security will review it and both sides will be contacted.
+   573→   573→          </p>
+   574→   574→        </div>
+   575→   575→      )}
+   576→   576→
+   577→   577→      <div className="rounded-xl border bg-muted/30 p-3">
+   578→   578→        <StatusStepper status={detail.status} />
+   579→   579→      </div>
+   580→   580→
+   581→   581→      {/* Job facts */}
+   582→   582→      <div className="grid gap-3 text-sm sm:grid-cols-2">
+   583→   583→        {detail.requestedWork && (
+   584→   584→          <div className="rounded-lg border p-3 sm:col-span-2">
+   585→   585→            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Requested work</p>
+   586→   586→            <p className="mt-1">{detail.requestedWork}</p>
+   587→   587→          </div>
+   588→   588→        )}
+   589→   589→        {detail.authorisedSpendMinor != null && (
+   590→   590→          <div className="rounded-lg border p-3">
+   591→   591→            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Approved spend cap</p>
+   592→   592→            <p className="mt-1 font-semibold">{money(detail.authorisedSpendMinor)}</p>
+   593→   593→          </div>
+   594→   594→        )}
+   595→   595→        {detail.declaredMileageKm != null && (
+   596→   596→          <div className="rounded-lg border p-3">
+   597→   597→            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Odometer at handover</p>
+   598→   598→            <p className="mt-1 font-semibold">{detail.declaredMileageKm.toLocaleString()} km</p>
+   599→   599→          </div>
+   600→   600→        )}
+   601→   601→        <div className="rounded-lg border p-3">
+   602→   602→          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Road tests</p>
+   603→   603→          <p className="mt-1 font-semibold">{detail.roadTestAllowed ? 'Allowed by you' : 'Not allowed'}</p>
+   604→   604→        </div>
+   605→   605→        {detail.valuables && (
+   606→   606→          <div className="rounded-lg border p-3 sm:col-span-2">
+   607→   607→            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valuables declared at handover</p>
+   608→   608→            <p className="mt-1">{detail.valuables}</p>
+   609→   609→          </div>
+   610→   610→        )}
+   611→   611→      </div>
+   612→   612→
+   613→   613→      {/* Declared condition photos */}
+   614→   614→      {detail.photos.length > 0 && (
+   615→   615→        <div>
+   616→   616→          <h4 className="text-sm font-semibold">Condition at handover</h4>
+   617→   617→          <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+   618→   618→            {detail.photos.map((p) => (
+   619→   619→              <a key={p} href={p} target="_blank" rel="noreferrer">
+   620→   620→                { }
+   621→   621→                <img src={p} alt="Vehicle condition at handover" className="aspect-square w-full rounded-lg border object-cover transition-transform hover:scale-[1.03]" />
+   622→   622→              </a>
+   623→   623→            ))}
+   624→   624→          </div>
+   625→   625→          {detail.declaredCondition && <p className="mt-2 text-sm text-muted-foreground">{detail.declaredCondition}</p>}
+   626→   626→        </div>
+   627→   627→      )}
+   628→   628→
+   629→   629→      {/* Road tests */}
+   630→   630→      {detail.roadTests.length > 0 && (
+   631→   631→        <div>
+   632→   632→          <h4 className="text-sm font-semibold">Road tests</h4>
+   633→   633→          <div className="mt-2 space-y-2">
+   634→   634→            {detail.roadTests.map((rt) => {
+   635→   635→              const rm = ROAD_TEST_STATUS_META[rt.status] ?? { label: rt.status, badge: 'bg-muted text-muted-foreground' }
+   636→   636→              return (
+   637→   637→                <div key={rt.id} className={cn('rounded-lg border p-3', rt.incident && 'border-destructive/50 bg-destructive/5')}>
+   638→   638→                  <div className="flex flex-wrap items-center justify-between gap-2">
+   639→   639→                    <p className="text-sm font-medium">{rt.purpose}</p>
+   640→   640→                    <Badge variant="outline" className={rm.badge}>{rm.label}</Badge>
+   641→   641→                  </div>
+   642→   642→                  <p className="mt-1 text-xs text-muted-foreground">
+   643→   643→                    Driver: {rt.driverName} · requested {timeAgo(rt.requestedAt)}
+   644→   644→                    {rt.startOdometerKm != null && ` · out at ${rt.startOdometerKm.toLocaleString()} km`}
+   645→   645→                    {rt.endOdometerKm != null && ` · back at ${rt.endOdometerKm.toLocaleString()} km`}
+   646→   646→                  </p>
+   647→   647→                  {rt.notes && <p className="mt-1 text-xs text-muted-foreground">Notes: {rt.notes}</p>}
+   648→   648→                  {rt.incident && (
+   649→   649→                    <p className="mt-1 flex items-center gap-1 text-xs font-medium text-destructive">
+   650→   650→                      <CircleAlert className="h-3 w-3" /> An incident was reported on this road test
+   651→   651→                    </p>
+   652→   652→                  )}
+   653→   653→                  {rt.status === 'REQUESTED' && !disputed && (
+   654→   654→                    <div className="mt-2 flex gap-2">
+   655→   655→                      <Button size="sm" className="min-h-9 gap-1.5" disabled={busyRoadTest} onClick={() => respondRoadTest(rt.id, 'authorize-roadtest')}>
+   656→   656→                        {busyRoadTest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+   657→   657→                        Authorise
+   658→   658→                      </Button>
+   659→   659→                      <Button size="sm" variant="ghost" className="min-h-9 text-destructive hover:text-destructive" disabled={busyRoadTest} onClick={() => respondRoadTest(rt.id, 'decline-roadtest')}>
+   660→   660→                        <X className="h-3.5 w-3.5" /> Decline
+   661→   661→                      </Button>
+   662→   662→                    </div>
+   663→   663→                  )}
+   664→   664→                </div>
+   665→   665→              )
+   666→   666→            })}
+   667→   667→          </div>
+   668→   668→        </div>
+   669→   669→      )}
+   670→   670→
+   671→   671→      {/* Completed work */}
+   672→   672→      {detail.status === 'READY_FOR_COLLECTION' && detail.completedWork && (
+   673→   673→        <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
+   674→   674→          <h4 className="flex items-center gap-2 text-sm font-semibold text-primary dark:text-[#9dc3ae]">
+   675→   675→            <Wrench className="h-4 w-4" /> Work completed
+   676→   676→          </h4>
+   677→   677→          <p className="mt-1 text-sm">{detail.completedWork}</p>
+   678→   678→          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+   679→   679→            {detail.costMinor != null && <span className="flex items-center gap-1 font-semibold text-foreground">Final cost: {money(detail.costMinor)}</span>}
+   680→   680→            {detail.finalOdometerKm != null && <span className="flex items-center gap-1"><Gauge className="h-3 w-3" /> {detail.finalOdometerKm.toLocaleString()} km</span>}
+   681→   681→          </div>
+   682→   682→          {detail.finalNotes && <p className="mt-1 text-xs text-muted-foreground">{detail.finalNotes}</p>}
+   683→   683→          {detail.completionPhotos.length > 0 && (
+   684→   684→            <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+   685→   685→              {detail.completionPhotos.map((p) => (
+   686→   686→                <a key={p} href={p} target="_blank" rel="noreferrer">
+   687→   687→                  { }
+   688→   688→                  <img src={p} alt="Completed work" className="aspect-square w-full rounded-lg border object-cover" />
+   689→   689→                </a>
+   690→   690→              ))}
+   691→   691→            </div>
+   692→   692→          )}
+   693→   693→        </div>
+   694→   694→      )}
+   695→   695→
+   696→   696→      {/* Collection actions */}
+   697→   697→      {readyForCollection && !disputed && (
+   698→   698→        <div className="rounded-xl border p-4">
+   699→   699→          <h4 className="flex items-center gap-2 text-sm font-semibold">
+   700→   700→            <KeyRound className="h-4 w-4 text-primary" /> Collection
+   701→   701→          </h4>
+   702→   702→          {authActive && detail.collectionAuth && (
+   703→   703→            <div className="mt-2 rounded-lg border border-amber-300 bg-amber-500/10 p-3 text-sm">
+   704→   704→              <p className="font-medium">Authorised collector: {detail.collectionAuth.collectorName}</p>
+   705→   705→              <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+   706→   706→                <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {detail.collectionAuth.collectorPhone}</span>
+   707→   707→                <span>Code hint: <strong className="font-mono">{detail.collectionAuth.codeHint}</strong></span>
+   708→   708→                <span>Valid until {dateLabel(detail.collectionAuth.expiresAt)}</span>
+   709→   709→              </p>
+   710→   710→              <Button
+   711→   711→                size="sm"
+   712→   712→                variant="ghost"
+   713→   713→                className="mt-2 h-8 text-destructive hover:text-destructive"
+   714→   714→                onClick={async () => {
+   715→   715→                  try {
+   716→   716→                    await apiSend(`/api/custody/${detail.id}/collection-auth`, 'DELETE')
+   717→   717→                    toast.success('Collection authorisation revoked.')
+   718→   718→                    onChanged()
+   719→   719→                  } catch (e) {
+   720→   720→                    toast.error(e instanceof Error ? e.message : 'Could not revoke.')
+   721→   721→                  }
+   722→   722→                }}
+   723→   723→              >
+   724→   724→                <X className="h-3.5 w-3.5" /> Revoke authorisation
+   725→   725→              </Button>
+   726→   726→            </div>
+   727→   727→          )}
+   728→   728→          <div className="mt-3 flex flex-wrap gap-2">
+   729→   729→            <Button className="min-h-11 gap-2" onClick={onCollectSelf}>
+   730→   730→              <UserRound className="h-4 w-4" /> I&apos;ll collect personally
+   731→   731→            </Button>
+   732→   732→            {!authActive && (
+   733→   733→              <Button variant="outline" className="min-h-11 gap-2" onClick={onAuthoriseOther}>
+   734→   734→                <KeyRound className="h-4 w-4" /> Authorise someone else
+   735→   735→              </Button>
+   736→   736→            )}
+   737→   737→          </div>
+   738→   738→        </div>
+   739→   739→      )}
+   740→   740→
+   741→   741→      {/* Timeline */}
+   742→   742→      <div>
+   743→   743→        <h4 className="text-sm font-semibold">Full history</h4>
+   744→   744→        <Stagger className="mt-2 space-y-3">
+   745→   745→          {detail.events.map((ev) => (
+   746→   746→            <StaggerItem key={ev.id}>
+   747→   747→              <div className="flex gap-3 text-sm">
+   748→   748→                <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-primary/70 ring-4 ring-primary/10" aria-hidden="true" />
+   749→   749→                <div className="min-w-0">
+   750→   750→                  <p className="font-medium">{eventLabel(ev)}</p>
+   751→   751→                  {ev.note && <p className="text-muted-foreground">{ev.note}</p>}
+   752→   752→                  <p className="text-xs text-muted-foreground">
+   753→   753→                    {timeAgo(ev.createdAt)}{ev.actorName ? ` · ${ev.actorName}` : ''}
+   754→   754→                  </p>
+   755→   755→                </div>
+   756→   756→              </div>
+   757→   757→            </StaggerItem>
+   758→   758→          ))}
+   759→   759→        </Stagger>
+   760→   760→      </div>
+   761→   761→
+   762→   762→      {/* Dispute */}
+   763→   763→      {!disputed && detail.status !== 'RETURNED' && (
+   764→   764→        <div className="border-t pt-3">
+   765→   765→          <Button variant="outline" className="min-h-11 gap-2 border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" onClick={onDispute}>
+   766→   766→            <ShieldAlert className="h-4 w-4" /> Dispute this job
+   767→   767→          </Button>
+   768→   768→          <p className="mt-1.5 text-xs text-muted-foreground">
+   769→   769→            Opens a security incident and freezes the job until CARMAZE reviews it.
+   770→   770→          </p>
+   771→   771→        </div>
+   772→   772→      )}
+   773→   773→    </div>
+   774→   774→  )
+   775→   775→}
+   776→   776→
+   777→   777→function eventLabel(ev: CustodyEvent): string {
+   778→   778→  const labels: Record<string, string> = {
+   779→   779→    CREATED: 'Custody requested',
+   780→   780→    RECEIVE: 'Vehicle received',
+   781→   781→    STATUS_CHANGED: 'Status updated',
+   782→   782→    NOTE: 'Note added',
+   783→   783→    ROAD_TEST_REQUESTED: 'Road test requested',
+   784→   784→    ROAD_TEST_AUTHORISED: 'Road test authorised',
+   785→   785→    ROAD_TEST_DECLINED: 'Road test declined',
+   786→   786→    ROAD_TEST_STARTED: 'Road test started',
+   787→   787→    ROAD_TEST_ENDED: 'Road test ended',
+   788→   788→    COMPLETION_RECORDED: 'Work completed',
+   789→   789→    COLLECTION_AUTH_CREATED: 'Collection authorised for a third party',
+   790→   790→    COLLECTION_AUTH_REVOKED: 'Collection authorisation revoked',
+   791→   791→    COLLECT_SELF: 'Owner confirmed personal collection',
+   792→   792→    COLLECTED: 'Vehicle collected',
+   793→   793→    DISPUTE: 'Dispute opened',
+   794→   794→    INCIDENT: 'Incident reported',
+   795→   795→  }
+   796→   796→  if (labels[ev.type]) return labels[ev.type]
+   797→   797→  if (ev.toStatus) {
+   798→   798→    const meta = CUSTODY_STATUS_META[ev.toStatus]
+   799→   799→    return `Moved to ${meta?.label.toLowerCase() ?? ev.toStatus.toLowerCase()}`
+   800→   800→  }
+   801→   801→  return ev.type.replaceAll('_', ' ').toLowerCase()
+   802→   802→}
+   803→   803→
+   804→   804→// ───────────────────────────── Collection auth dialog ─────────────────────────────
+   805→   805→
+   806→   806→function CollectionAuthDialog({ custodyId, onClose, onDone }: {
+   807→   807→  custodyId: string | null
+   808→   808→  onClose: () => void
+   809→   809→  onDone: () => void
+   810→   810→}) {
+   811→   811→  const [collectorName, setCollectorName] = useState('')
+   812→   812→  const [collectorPhone, setCollectorPhone] = useState('')
+   813→   813→  const [busy, setBusy] = useState(false)
+   814→   814→  const [code, setCode] = useState<string | null>(null)
+   815→   815→
+   816→   816→  useEffect(() => {
+   817→   817→    if (custodyId) { setCode(null); setCollectorName(''); setCollectorPhone('') }
+   818→   818→  }, [custodyId])
+   819→   819→
+   820→   820→  async function create() {
+   821→   821→    if (!custodyId) return
+   822→   822→    if (collectorName.trim().length < 3) { toast.error('Enter the full name of the person collecting.'); return }
+   823→   823→    if (!/^(?:\+?254|0)(?:7|1)\d{8}$/.test(collectorPhone.replace(/\s+/g, ''))) {
+   824→   824→      toast.error('Enter a valid Safaricom phone number for the collector, e.g. 0712 345 678.')
+   825→   825→      return
+   826→   826→    }
+   827→   827→    setBusy(true)
+   828→   828→    try {
+   829→   829→      const d = await apiSend<{ code: string }>(`/api/custody/${custodyId}/collection-auth`, 'POST', {
+   830→   830→        collectorName: collectorName.trim(),
+   831→   831→        collectorPhone: collectorPhone.replace(/\s+/g, ''),
+   832→   832→      })
+   833→   833→      setCode(d.code)
+   834→   834→      onDone()
+   835→   835→    } catch (e) {
+   836→   836→      toast.error(e instanceof Error ? e.message : 'Could not create the authorisation.')
+   837→   837→    } finally {
+   838→   838→      setBusy(false)
+   839→   839→    }
+   840→   840→  }
+   841→   841→
+   842→   842→  return (
+   843→   843→    <Dialog open={custodyId !== null} onOpenChange={(open) => { if (!open) onClose() }}>
+   844→   844→      <DialogContent className="sm:max-w-md">
+   845→   845→        {code ? (
+   846→   846→          <>
+   847→   847→            <DialogHeader>
+   848→   848→              <DialogTitle>Authorisation created</DialogTitle>
+   849→   849→              <DialogDescription>
+   850→   850→                Share this 6-digit code with {collectorName.trim()}: it is shown <strong>only this once</strong>.
+   851→   851→              </DialogDescription>
+   852→   852→            </DialogHeader>
+   853→   853→            <div className="rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 p-4 text-center dark:bg-amber-500/10">
+   854→   854→              <p className="font-mono text-4xl font-bold tracking-[0.35em] text-amber-900 dark:text-amber-300">{code}</p>
+   855→   855→              <Button
+   856→   856→                variant="outline"
+   857→   857→                size="sm"
+   858→   858→                className="mt-3 min-h-9 gap-1.5"
+   859→   859→                onClick={async () => {
+   860→   860→                  try {
+   861→   861→                    await navigator.clipboard.writeText(code)
+   862→   862→                    toast.success('Code copied')
+   863→   863→                  } catch {
+   864→   864→                    toast.error('Copy failed: write it down now.')
+   865→   865→                  }
+   866→   866→                }}
+   867→   867→              >
+   868→   868→                <Copy className="h-3.5 w-3.5" /> Copy code
+   869→   869→              </Button>
+   870→   870→              <p className="mt-3 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+   871→   871→                Share only with the person collecting. Valid 48 hours, single use. The garage verifies it at release:
+   872→   872→                the vehicle will not be handed over without it.
+   873→   873→              </p>
+   874→   874→            </div>
+   875→   875→            <DialogFooter>
+   876→   876→              <Button className="min-h-11" onClick={onClose}>Done</Button>
+   877→   877→            </DialogFooter>
+   878→   878→          </>
+   879→   879→        ) : (
+   880→   880→          <>
+   881→   881→            <DialogHeader>
+   882→   882→              <DialogTitle>Authorise someone else to collect</DialogTitle>
+   883→   883→              <DialogDescription>
+   884→   884→                The person you nominate presents the 6-digit code we generate plus their ID at the garage. Single use,
+   885→   885→                valid 48 hours.
+   886→   886→              </DialogDescription>
+   887→   887→            </DialogHeader>
+   888→   888→            <div className="space-y-3">
+   889→   889→              <div className="space-y-1.5">
+   890→   890→                <Label htmlFor="ca-name">Collector&apos;s full name *</Label>
+   891→   891→                <Input id="ca-name" value={collectorName} onChange={(e) => setCollectorName(e.target.value)} placeholder="e.g. Jane Wanjiku" />
+   892→   892→              </div>
+   893→   893→              <div className="space-y-1.5">
+   894→   894→                <Label htmlFor="ca-phone">Collector&apos;s phone *</Label>
+   895→   895→                <Input id="ca-phone" type="tel" inputMode="tel" value={collectorPhone} onChange={(e) => setCollectorPhone(e.target.value)} placeholder="07xx xxx xxx" />
+   896→   896→              </div>
+   897→   897→            </div>
+   898→   898→            <DialogFooter>
+   899→   899→              <Button variant="ghost" onClick={onClose}>Cancel</Button>
+   900→   900→              <Button onClick={create} disabled={busy} className="min-h-11 gap-2">
+   901→   901→                {busy && <Loader2 className="h-4 w-4 animate-spin" />} Generate code
+   902→   902→              </Button>
+   903→   903→            </DialogFooter>
+   904→   904→          </>
+   905→   905→        )}
+   906→   906→      </DialogContent>
+   907→   907→    </Dialog>
+   908→   908→  )
+   909→   909→}
+   910→   910→
+   911→   911→// ───────────────────────────── Dispute dialog ─────────────────────────────
+   912→   912→
+   913→   913→function DisputeDialog({ custodyId, vehicleLabel, onClose, onDone }: {
+   914→   914→  custodyId: string | null
+   915→   915→  vehicleLabel: string
+   916→   916→  onClose: () => void
+   917→   917→  onDone: () => void
+   918→   918→}) {
+   919→   919→  const [title, setTitle] = useState('')
+   920→   920→  const [details, setDetails] = useState('')
+   921→   921→  const [busy, setBusy] = useState(false)
+   922→   922→  const valid = title.trim().length >= 4 && details.trim().length >= 20
+   923→   923→
+   924→   924→  useEffect(() => {
+   925→   925→    if (custodyId) { setTitle(''); setDetails('') }
+   926→   926→  }, [custodyId])
+   927→   927→
+   928→   928→  async function submit() {
+   929→   929→    if (!custodyId || !valid) return
+   930→   930→    setBusy(true)
+   931→   931→    try {
+   932→   932→      await apiPostDispute(custodyId, title.trim(), details.trim())
+   933→   933→      toast.success('Dispute opened: the job is frozen while CARMAZE security reviews it.')
+   934→   934→      onDone()
+   935→   935→      onClose()
+   936→   936→    } catch (e) {
+   937→   937→      toast.error(e instanceof Error ? e.message : 'Could not open the dispute.')
+   938→   938→    } finally {
+   939→   939→      setBusy(false)
+   940→   940→    }
+   941→   941→  }
+   942→   942→
+   943→   943→  return (
+   944→   944→    <Dialog open={custodyId !== null} onOpenChange={(open) => { if (!open) onClose() }}>
+   945→   945→      <DialogContent className="sm:max-w-md">
+   946→   946→        <DialogHeader>
+   947→   947→          <DialogTitle>Dispute this custody job</DialogTitle>
+   948→   948→          <DialogDescription>
+   949→   949→            {vehicleLabel ? `${vehicleLabel}: ` : ''}this opens a security incident, freezes the job and notifies CARMAZE
+   950→   950→            security. Use it for damage you did not authorise, missing parts or anything suspicious.
+   951→   951→          </DialogDescription>
+   952→   952→        </DialogHeader>
+   953→   953→        <div className="space-y-3">
+   954→   954→          <div className="space-y-1.5">
+   955→   955→            <Label htmlFor="dp-title">What happened (short title) *</Label>
+   956→   956→            <Input id="dp-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Scratched bumper not agreed" maxLength={120} />
+   957→   957→          </div>
+   958→   958→          <div className="space-y-1.5">
+   959→   959→            <Label htmlFor="dp-details">Full details * <span className="font-normal text-muted-foreground">(min 20 characters)</span></Label>
+   960→   960→            <Textarea id="dp-details" rows={4} value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Describe exactly what is wrong, when you noticed it and what you expected…" />
+   961→   961→            <p className={cn('text-xs', details.trim().length >= 20 ? 'text-muted-foreground' : 'text-destructive')}>
+   962→   962→              {details.trim().length}/20 characters minimum
+   963→   963→            </p>
+   964→   964→          </div>
+   965→   965→        </div>
+   966→   966→        <DialogFooter>
+   967→   967→          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+   968→   968→          <Button variant="destructive" onClick={submit} disabled={busy || !valid} className="min-h-11 gap-2">
+   969→   969→            {busy && <Loader2 className="h-4 w-4 animate-spin" />} Open dispute
+   970→   970→          </Button>
+   971→   971→        </DialogFooter>
+   972→   972→      </DialogContent>
+   973→   973→    </Dialog>
+   974→   974→  )
+   975→   975→}
+   976→   976→
+   977→   977→async function apiPostDispute(custodyId: string, title: string, details: string) {
+   978→   978→  await apiSend('/api/incidents', 'POST', {
+   979→   979→    category: 'DAMAGE_IN_CUSTODY',
+   980→   980→    title,
+   981→   981→    details,
+   982→   982→    custodyId,
+   983→   983→  })
+   984→   984→  await apiSend(`/api/custody/${custodyId}`, 'PATCH', { action: 'dispute', note: title })
+   985→   985→}
+   986→   986→
+   987→   987→// ───────────────────────────── Report incident dialog ─────────────────────────────
+   988→   988→
+   989→   989→function ReportIncidentDialog({ open, onClose, onReported }: {
+   990→   990→  open: boolean
+   991→   991→  onClose: () => void
+   992→   992→  onReported: (safetyNote: string) => void
+   993→   993→}) {
+   994→   994→  const [category, setCategory] = useState<string>('OTHER')
+   995→   995→  const [title, setTitle] = useState('')
+   996→   996→  const [details, setDetails] = useState('')
+   997→   997→  const [vehicleDesc, setVehicleDesc] = useState('')
+   998→   998→  const [evidence, setEvidence] = useState<{ url: string; name: string }[]>([])
+   999→   999→  const [uploading, setUploading] = useState(false)
+  1000→  1000→  const [busy, setBusy] = useState(false)
+  1001→  1001→  const valid = title.trim().length >= 4 && details.trim().length >= 20
+  1002→  1002→
+  1003→  1003→  useEffect(() => {
+  1004→  1004→    if (open) { setCategory('OTHER'); setTitle(''); setDetails(''); setVehicleDesc(''); setEvidence([]) }
+  1005→  1005→  }, [open])
+  1006→  1006→
+  1007→  1007→  async function uploadEvidence(file: File) {
+  1008→  1008→    if (evidence.length >= 3) { toast.error('Up to 3 evidence files.'); return }
+  1009→  1009→    setUploading(true)
+  1010→  1010→    try {
+  1011→  1011→      const fd = new FormData()
+  1012→  1012→      fd.append('file', file)
+  1013→  1013→      const d = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
+  1014→  1014→      setEvidence((prev) => [...prev, { url: d.url, name: d.name || file.name }])
+  1015→  1015→    } catch (e) {
+  1016→  1016→      toast.error(e instanceof Error ? e.message : 'Upload failed.')
+  1017→  1017→    } finally {
+  1018→  1018→      setUploading(false)
+  1019→  1019→    }
+  1020→  1020→  }
+  1021→  1021→
+  1022→  1022→  async function submit() {
+  1023→  1023→    if (!valid) return
+  1024→  1024→    setBusy(true)
+  1025→  1025→    try {
+  1026→  1026→      const d = await apiSend<{ incident: { refCode: string }; safetyNote: string }>('/api/incidents', 'POST', {
+  1027→  1027→        category,
+  1028→  1028→        title: title.trim(),
+  1029→  1029→        details: details.trim(),
+  1030→  1030→        vehicleDesc: vehicleDesc.trim() || undefined,
+  1031→  1031→        evidence: evidence.length > 0 ? evidence.map((f) => f.url) : undefined,
+  1032→  1032→      })
+  1033→  1033→      toast.success(`Incident ${d.incident.refCode} reported.`)
+  1034→  1034→      onReported(d.safetyNote ?? SAFETY_NOTE_FALLBACK)
+  1035→  1035→      onClose()
+  1036→  1036→    } catch (e) {
+  1037→  1037→      toast.error(e instanceof Error ? e.message : 'Could not report the incident.')
+  1038→  1038→    } finally {
+  1039→  1039→      setBusy(false)
+  1040→  1040→    }
+  1041→  1041→  }
+  1042→  1042→
+  1043→  1043→  return (
+  1044→  1044→    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+  1045→  1045→      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-md">
+  1046→  1046→        <DialogHeader>
+  1047→  1047→          <DialogTitle>Report a security concern</DialogTitle>
+  1048→  1048→          <DialogDescription>
+  1049→  1049→            Every report is reviewed by CARMAZE security. False reports waste everyone&apos;s time: be precise and honest.
+  1050→  1050→          </DialogDescription>
+  1051→  1051→        </DialogHeader>
+  1052→  1052→        <div className="space-y-3">
+  1053→  1053→          <div className="space-y-1.5">
+  1054→  1054→            <Label>Category *</Label>
+  1055→  1055→            <Select value={category} onValueChange={setCategory}>
+  1056→  1056→              <SelectTrigger aria-label="Incident category"><SelectValue /></SelectTrigger>
+  1057→  1057→              <SelectContent>
+  1058→  1058→                {INCIDENT_CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+  1059→  1059→              </SelectContent>
+  1060→  1060→            </Select>
+  1061→  1061→          </div>
+  1062→  1062→          <div className="space-y-1.5">
+  1063→  1063→            <Label htmlFor="ri-title">Short title *</Label>
+  1064→  1064→            <Input id="ri-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Car missing from yard after service" maxLength={120} />
+  1065→  1065→          </div>
+  1066→  1066→          <div className="space-y-1.5">
+  1067→  1067→            <Label htmlFor="ri-details">Full details * <span className="font-normal text-muted-foreground">(min 20 characters)</span></Label>
+  1068→  1068→            <Textarea id="ri-details" rows={4} value={details} onChange={(e) => setDetails(e.target.value)} placeholder="What happened, when, who was involved, what you have already tried…" />
+  1069→  1069→            <p className={cn('text-xs', details.trim().length >= 20 ? 'text-muted-foreground' : 'text-destructive')}>
+  1070→  1070→              {details.trim().length}/20 characters minimum
+  1071→  1071→            </p>
+  1072→  1072→          </div>
+  1073→  1073→          <div className="space-y-1.5">
+  1074→  1074→            <Label htmlFor="ri-vehicle">Vehicle involved (optional)</Label>
+  1075→  1075→            <Input id="ri-vehicle" value={vehicleDesc} onChange={(e) => setVehicleDesc(e.target.value)} placeholder="e.g. Toyota Premio, white, KDJ…" />
+  1076→  1076→          </div>
+  1077→  1077→          <div className="space-y-1.5">
+  1078→  1078→            <Label>Evidence (optional, up to 3)</Label>
+  1079→  1079→            <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:bg-muted/60">
+  1080→  1080→              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+  1081→  1081→              {uploading ? 'Uploading…' : 'Attach photos or documents'}
+  1082→  1082→              <input
+  1083→  1083→                type="file"
+  1084→  1084→                className="sr-only"
+  1085→  1085→                accept="image/jpeg,image/png,image/webp,application/pdf"
+  1086→  1086→                disabled={uploading}
+  1087→  1087→                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadEvidence(f); e.currentTarget.value = '' }}
+  1088→  1088→              />
+  1089→  1089→            </label>
+  1090→  1090→            {evidence.length > 0 && (
+  1091→  1091→              <ul className="space-y-1">
+  1092→  1092→                {evidence.map((f, i) => (
+  1093→  1093→                  <li key={f.url} className="flex items-center justify-between rounded-md bg-muted/60 px-3 py-1.5 text-sm">
+  1094→  1094→                    <span className="flex min-w-0 items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{f.name}</span></span>
+  1095→  1095→                    <button className="text-xs text-muted-foreground hover:text-destructive" aria-label={`Remove ${f.name}`} onClick={() => setEvidence((prev) => prev.filter((_, j) => j !== i))}>
+  1096→  1096→                      <X className="h-3.5 w-3.5" />
+  1097→  1097→                    </button>
+  1098→  1098→                  </li>
+  1099→  1099→                ))}
+  1100→  1100→              </ul>
+  1101→  1101→            )}
+  1102→  1102→          </div>
+  1103→  1103→        </div>
+  1104→  1104→        <DialogFooter>
+  1105→  1105→          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+  1106→  1106→          <Button onClick={submit} disabled={busy || !valid} className="min-h-11 gap-2">
+  1107→  1107→            {busy && <Loader2 className="h-4 w-4 animate-spin" />} Submit report
+  1108→  1108→          </Button>
+  1109→  1109→        </DialogFooter>
+  1110→  1110→      </DialogContent>
+  1111→  1111→    </Dialog>
+  1112→  1112→  )
+  1113→  1113→}
+  1114→  1114→
+  1115→  1115→// ───────────────────────────── Incidents list ─────────────────────────────
+  1116→  1116→
+  1117→  1117→function IncidentsList({ incidents, onAdded }: { incidents: IncidentItem[]; onAdded: () => void }) {
+  1118→  1118→  const [noteFor, setNoteFor] = useState<string | null>(null)
+  1119→  1119→  const [note, setNote] = useState('')
+  1120→  1120→  const [busy, setBusy] = useState(false)
+  1121→  1121→
+  1122→  1122→  async function addNote(id: string) {
+  1123→  1123→    if (note.trim().length < 3) { toast.error('Write a short note first.'); return }
+  1124→  1124→    setBusy(true)
+  1125→  1125→    try {
+  1126→  1126→      await apiSend(`/api/incidents/${id}`, 'PATCH', { action: 'note', note: note.trim() })
+  1127→  1127→      toast.success('Note added to the incident.')
+  1128→  1128→      setNote(''); setNoteFor(null)
+  1129→  1129→      onAdded()
+  1130→  1130→    } catch (e) {
+  1131→  1131→      toast.error(e instanceof Error ? e.message : 'Could not add the note.')
+  1132→  1132→    } finally {
+  1133→  1133→      setBusy(false)
+  1134→  1134→    }
+  1135→  1135→  }
+  1136→  1136→
+  1137→  1137→  return (
+  1138→  1138→    <div className="mt-4 space-y-2">
+  1139→  1139→      {incidents.map((inc) => {
+  1140→  1140→        const badge = INCIDENT_STATUS_BADGE[inc.status ?? 'OPEN'] ?? 'bg-muted text-muted-foreground'
+  1141→  1141→        const catLabel = INCIDENT_CATEGORIES.find((c) => c.value === inc.category)?.label ?? inc.category.replaceAll('_', ' ').toLowerCase()
+  1142→  1142→        return (
+  1143→  1143→          <div key={inc.id} className="rounded-xl border bg-card p-3.5">
+  1144→  1144→            <div className="flex flex-wrap items-center justify-between gap-2">
+  1145→  1145→              <div className="flex min-w-0 flex-wrap items-center gap-2">
+  1146→  1146→                <Badge variant="outline" className="border-destructive/40 text-destructive">{catLabel}</Badge>
+  1147→  1147→                <p className="truncate text-sm font-semibold">{inc.title}</p>
+  1148→  1148→                {inc.refCode && <span className="font-mono text-[11px] text-muted-foreground">{inc.refCode}</span>}
+  1149→  1149→              </div>
+  1150→  1150→              <div className="flex shrink-0 items-center gap-2">
+  1151→  1151→                <Badge variant="outline" className={badge}>{(inc.status ?? 'OPEN').replaceAll('_', ' ').toLowerCase()}</Badge>
+  1152→  1152→                <span className="text-xs text-muted-foreground">{timeAgo(inc.createdAt)}</span>
+  1153→  1153→              </div>
+  1154→  1154→            </div>
+  1155→  1155→            {inc.details && <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{inc.details}</p>}
+  1156→  1156→            {inc.orgName && <p className="mt-1 text-xs text-muted-foreground">Business: {inc.orgName}</p>}
+  1157→  1157→            {noteFor === inc.id ? (
+  1158→  1158→              <div className="mt-2 space-y-2">
+  1159→  1159→                <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add context for the security team…" aria-label="Additional note" />
+  1160→  1160→                <div className="flex gap-2">
+  1161→  1161→                  <Button size="sm" className="min-h-9 gap-1.5" disabled={busy} onClick={() => addNote(inc.id)}>
+  1162→  1162→                    {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageSquarePlus className="h-3.5 w-3.5" />} Save note
+  1163→  1163→                  </Button>
+  1164→  1164→                  <Button size="sm" variant="ghost" className="min-h-9" onClick={() => { setNoteFor(null); setNote('') }}>Cancel</Button>
+  1165→  1165→                </div>
+  1166→  1166→              </div>
+  1167→  1167→            ) : (
+  1168→  1168→              <Button size="sm" variant="ghost" className="mt-1.5 h-8 gap-1 text-xs text-muted-foreground" onClick={() => { setNoteFor(inc.id); setNote('') }}>
+  1169→  1169→                <MessageSquarePlus className="h-3.5 w-3.5" /> Add note
+  1170→  1170→              </Button>
+  1171→  1171→            )}
+  1172→  1172→          </div>
+  1173→  1173→        )
+  1174→  1174→      })}
+  1175→  1175→    </div>
+  1176→  1176→  )
+  1177→  1177→}
+  1178→  1178→

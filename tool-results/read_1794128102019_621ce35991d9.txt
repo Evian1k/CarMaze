@@ -1,0 +1,757 @@
+     1→'use client'
+     2→
+     3→/* SubscriptionsPanel: the customer's centralised subscription dashboard
+     4→ * section (Account ▸ Subscriptions). Shows business memberships with live
+     5→ * per-benefit redemption state, Trusted Customer Programme labels (with the
+     6→ * honest privacy story), credit facilities with a real ledger, and every
+     7→ * membership invoice/receipt. All numbers come from
+     8→ * GET /api/account/subscriptions: nothing is invented client-side. */
+     9→
+    10→import { useCallback, useEffect, useState } from 'react'
+    11→import {
+    12→  BadgeCheck, CalendarClock, ChevronDown, CircleAlert, FileText,
+    13→  HandCoins, Landmark, Lock, RefreshCw, ShieldCheck, Smartphone, Wallet,
+    14→} from 'lucide-react'
+    15→import { toast } from 'sonner'
+    16→import { Button } from '@/components/ui/button'
+    17→import { Input } from '@/components/ui/input'
+    18→import { Label } from '@/components/ui/label'
+    19→import { Badge } from '@/components/ui/badge'
+    20→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    21→import { Skeleton } from '@/components/ui/skeleton'
+    22→import { Separator } from '@/components/ui/separator'
+    23→import {
+    24→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    25→} from '@/components/ui/dialog'
+    26→import {
+    27→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+    28→  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    29→} from '@/components/ui/alert-dialog'
+    30→import {
+    31→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    32→} from '@/components/ui/table'
+    33→import {
+    34→  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+    35→} from '@/components/ui/tooltip'
+    36→import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+    37→import { useAuth } from '@/stores/auth'
+    38→import { apiGet, apiSend, navigate } from '@/lib/client'
+    39→import { dateLabel, money, timeAgo } from '@/lib/format'
+    40→import { cn } from '@/lib/utils'
+    41→
+    42→// ───────────────────────────── types ─────────────────────────────
+    43→
+    44→type BizRef = { id: string; name: string; type: string; county: string | null; town: string | null; logoUrl: string | null }
+    45→type Redemption = { id: string; benefit: string; periodKey: string; refType: string | null; createdAt: string }
+    46→type MembershipItem = {
+    47→  id: string; refCode: string; status: string
+    48→  tierName: string; description: string | null; benefits: string[]; terms: string | null
+    49→  discountCapPct: number | null; branchScope: string
+    50→  business: BizRef
+    51→  billingPeriod: string; startedAt: string | null; currentPeriodEnd: string | null
+    52→  redemptions: Redemption[]
+    53→  invoice: { id: string; refCode: string; amountMinor: number; status: string } | null
+    54→}
+    55→type TrustProgrammeItem = {
+    56→  id: string; label: string
+    57→  programme: { name: string; description: string | null; terms: string | null }
+    58→  business: BizRef
+    59→  termsAcceptedAt: string | null
+    60→  createdAt: string
+    61→}
+    62→type CreditEntry = {
+    63→  id: string; kind: string; amountMinor: number; balanceAfterMinor: number
+    64→  refType: string | null; dueDate: string | null; paidAt: string | null; note: string | null; createdAt: string
+    65→}
+    66→type CreditFacilityItem = {
+    67→  id: string; refCode: string; status: string
+    68→  business: BizRef
+    69→  limitMinor: number; depositMinor: number
+    70→  outstandingMinor: number; availableMinor: number
+    71→  terms: string | null; termsAcceptedAt: string | null
+    72→  entries: CreditEntry[]
+    73→}
+    74→type InvoiceItem = {
+    75→  id: string; refCode: string; description: string; amountMinor: number; currency: string
+    76→  status: string; issuedAt: string; dueDate: string | null; paidAt: string | null; paidVia: string | null
+    77→}
+    78→type SubscriptionsData = {
+    79→  memberships: MembershipItem[]
+    80→  trustProgrammes: TrustProgrammeItem[]
+    81→  creditFacilities: CreditFacilityItem[]
+    82→  invoices: InvoiceItem[]
+    83→  summary: { activeMemberships: number; pendingPayments: number; totalOutstandingCredit: number }
+    84→}
+    85→
+    86→// ───────────────────────── status badge colours ─────────────────────────
+    87→
+    88→const MEMBERSHIP_BADGE: Record<string, string> = {
+    89→  ACTIVE: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-300',
+    90→  PENDING_PAYMENT: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:border-amber-500/40 dark:text-amber-300',
+    91→  EXPIRED: 'border-border bg-muted text-muted-foreground',
+    92→  CANCELLED: 'border-border bg-muted text-muted-foreground',
+    93→}
+    94→const INVOICE_BADGE: Record<string, string> = {
+    95→  PENDING: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:border-amber-500/40 dark:text-amber-300',
+    96→  OVERDUE: 'border-rose-300 bg-rose-500/15 text-rose-800 dark:border-rose-500/40 dark:text-rose-300',
+    97→  PAID: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-300',
+    98→  CANCELLED: 'border-border bg-muted text-muted-foreground',
+    99→  REFUNDED: 'border-border bg-muted text-muted-foreground',
+   100→}
+   101→const FACILITY_BADGE: Record<string, string> = {
+   102→  PENDING_APPLICATION: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:border-amber-500/40 dark:text-amber-300',
+   103→  OFFERED: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:border-amber-500/40 dark:text-amber-300',
+   104→  ACTIVE: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-300',
+   105→  SUSPENDED: 'border-rose-300 bg-rose-500/15 text-rose-800 dark:border-rose-500/40 dark:text-rose-300',
+   106→  CLOSED: 'border-border bg-muted text-muted-foreground',
+   107→  REJECTED: 'border-border bg-muted text-muted-foreground',
+   108→}
+   109→const LABEL_BADGE: Record<string, string> = {
+   110→  NEW: 'border-border bg-muted text-muted-foreground',
+   111→  REGULAR: 'border-border bg-secondary text-secondary-foreground',
+   112→  LOYAL: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:border-amber-500/40 dark:text-amber-300',
+   113→  PREFERRED: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:border-amber-500/40 dark:text-amber-300',
+   114→  TRUSTED: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-300',
+   115→  SUSPENDED: 'border-rose-300 bg-rose-500/15 text-rose-800 dark:border-rose-500/40 dark:text-rose-300',
+   116→}
+   117→
+   118→/** Current period key as the server writes it, e.g. "2025-11". */
+   119→function currentPeriodKey(): string {
+   120→  const now = new Date()
+   121→  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+   122→}
+   123→
+   124→// ───────────────────────────── panel ─────────────────────────────
+   125→
+   126→export function SubscriptionsPanel() {
+   127→  const [data, setData] = useState<SubscriptionsData | null>(null)
+   128→  const [error, setError] = useState<string | null>(null)
+   129→
+   130→  const load = useCallback(() => {
+   131→    apiGet<SubscriptionsData>('/api/account/subscriptions')
+   132→      .then((d) => { setData(d); setError(null) })
+   133→      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load your subscriptions'))
+   134→  }, [])
+   135→
+   136→  useEffect(() => { load() }, [load])
+   137→
+   138→  async function cancelMembership(membershipId: string) {
+   139→    try {
+   140→      const d = await apiSend<{ message: string }>('/api/memberships/manage', 'PATCH', { membershipId })
+   141→      toast.info(d.message)
+   142→      load()
+   143→    } catch (e) {
+   144→      toast.error(e instanceof Error ? e.message : 'Could not cancel the membership')
+   145→    }
+   146→  }
+   147→
+   148→  async function acceptCreditTerms(facilityId: string) {
+   149→    try {
+   150→      const d = await apiSend<{ message?: string }>(`/api/org/credit/${facilityId}`, 'PATCH', { action: 'accept-terms' })
+   151→      toast.success(d.message ?? 'Facility activated')
+   152→      load()
+   153→    } catch (e) {
+   154→      toast.error(e instanceof Error ? e.message : 'Could not accept the terms')
+   155→    }
+   156→  }
+   157→
+   158→  async function repay(facilityId: string, amountMinor: number) {
+   159→    try {
+   160→      const d = await apiSend<{ outstandingMinor: number }>(`/api/org/credit/${facilityId}`, 'POST', { kind: 'REPAYMENT', amountMinor })
+   161→      toast.success(`Repayment recorded: outstanding balance ${money(d.outstandingMinor)}`)
+   162→      load()
+   163→    } catch (e) {
+   164→      toast.error(e instanceof Error ? e.message : 'Could not record the repayment')
+   165→    }
+   166→  }
+   167→
+   168→  if (error) {
+   169→    return (
+   170→      <Card>
+   171→        <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+   172→          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground"><Wallet className="h-6 w-6" /></span>
+   173→          <p className="font-semibold">Subscriptions are unavailable right now</p>
+   174→          <p className="text-sm text-muted-foreground">{error}</p>
+   175→          <Button variant="outline" className="mt-1 min-h-11" onClick={() => { setData(null); load() }}><RefreshCw className="h-4 w-4" /> Try again</Button>
+   176→        </CardContent>
+   177→      </Card>
+   178→    )
+   179→  }
+   180→
+   181→  if (!data) {
+   182→    return (
+   183→      <div className="space-y-4" aria-busy="true">
+   184→        <div className="grid gap-4 sm:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
+   185→        <Skeleton className="h-40 rounded-xl" />
+   186→        <Skeleton className="h-40 rounded-xl" />
+   187→      </div>
+   188→    )
+   189→  }
+   190→
+   191→  const pendingInvoiceCount = data.invoices.filter((i) => i.status === 'PENDING').length
+   192→
+   193→  return (
+   194→    <div className="space-y-6">
+   195→      {/* Summary */}
+   196→      <div className="grid gap-4 sm:grid-cols-3">
+   197→        <StatCard icon={<BadgeCheck className="h-5 w-5" />} label="Active memberships" value={String(data.summary.activeMemberships)} hint="Paid & valid right now" />
+   198→        <StatCard
+   199→          icon={<CircleAlert className="h-5 w-5" />}
+   200→          label="Pending payments"
+   201→          value={money(data.summary.pendingPayments)}
+   202→          hint={pendingInvoiceCount > 0 ? `${pendingInvoiceCount} unpaid invoice${pendingInvoiceCount === 1 ? '' : 's'}: pay via M-Pesa` : 'Nothing due'}
+   203→        />
+   204→        <StatCard icon={<Landmark className="h-5 w-5" />} label="Outstanding credit" value={money(data.summary.totalOutstandingCredit)} hint="Across all facilities" />
+   205→      </div>
+   206→
+   207→      <MembershipsSection items={data.memberships} onCancel={cancelMembership} />
+   208→
+   209→      {data.trustProgrammes.length > 0 && <TrustSection items={data.trustProgrammes} />}
+   210→
+   211→      {data.creditFacilities.length > 0 && (
+   212→        <CreditSection items={data.creditFacilities} onAccept={acceptCreditTerms} onRepay={repay} />
+   213→      )}
+   214→
+   215→      <InvoicesSection invoices={data.invoices} onPaid={load} />
+   216→    </div>
+   217→  )
+   218→}
+   219→
+   220→// ───────────────────────────── summary ─────────────────────────────
+   221→
+   222→function StatCard({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint: string }) {
+   223→  return (
+   224→    <Card>
+   225→      <CardContent className="flex items-start gap-3 p-4">
+   226→        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">{icon}</span>
+   227→        <div className="min-w-0">
+   228→          <p className="text-sm text-muted-foreground">{label}</p>
+   229→          <p className="truncate text-xl font-bold tabular-nums">{value}</p>
+   230→          <p className="text-xs text-muted-foreground">{hint}</p>
+   231→        </div>
+   232→      </CardContent>
+   233→    </Card>
+   234→  )
+   235→}
+   236→
+   237→// ─────────────────────────── memberships ───────────────────────────
+   238→
+   239→function MembershipsSection({ items, onCancel }: { items: MembershipItem[]; onCancel: (id: string) => Promise<void> }) {
+   240→  const [pendingCancel, setPendingCancel] = useState<MembershipItem | null>(null)
+   241→  const periodKey = currentPeriodKey()
+   242→
+   243→  return (
+   244→    <section aria-label="Business memberships" className="space-y-3">
+   245→      <h3 className="flex items-center gap-2 text-lg font-semibold"><HandCoins className="h-5 w-5 text-primary" /> Business memberships</h3>
+   246→      {items.length === 0 ? (
+   247→        <EmptyBlock
+   248→          icon={<HandCoins className="h-6 w-6" />}
+   249→          title="No business memberships yet"
+   250→          desc="Join a garage or showroom programme for service perks and member discounts."
+   251→          action="Browse memberships"
+   252→          onAction={() => navigate('memberships')}
+   253→        />
+   254→      ) : (
+   255→        items.map((m) => {
+   256→          const redeemedBenefits = new Set(m.redemptions.filter((r) => r.periodKey === periodKey).map((r) => r.benefit))
+   257→          const invoicePending = m.status === 'PENDING_PAYMENT' || (m.invoice && m.invoice.status === 'PENDING' && m.status !== 'CANCELLED')
+   258→          return (
+   259→            <Card key={m.id}>
+   260→              <CardHeader className="pb-3">
+   261→                <div className="flex flex-wrap items-start justify-between gap-2">
+   262→                  <div className="min-w-0">
+   263→                    <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+   264→                      {m.tierName}
+   265→                      <Badge variant="outline" className={cn(MEMBERSHIP_BADGE[m.status] ?? MEMBERSHIP_BADGE.CANCELLED)}>
+   266→                        {m.status === 'PENDING_PAYMENT' ? 'Pending payment' : m.status.charAt(0) + m.status.slice(1).toLowerCase()}
+   267→                      </Badge>
+   268→                    </CardTitle>
+   269→                    <CardDescription className="mt-1">
+   270→                      {m.business.name} · {m.business.type === 'GARAGE' ? 'Garage' : 'Showroom'}
+   271→                      {[m.business.town, m.business.county].filter(Boolean).length > 0 && ` · ${[m.business.town, m.business.county].filter(Boolean).join(', ')}`}
+   272→                      {' '}· {m.refCode} · {m.billingPeriod.toLowerCase()} billing
+   273→                    </CardDescription>
+   274→                  </div>
+   275→                  <div className="text-right text-xs text-muted-foreground">
+   276→                    <p>Started {dateLabel(m.startedAt)}</p>
+   277→                    <p>Renews {dateLabel(m.currentPeriodEnd)}</p>
+   278→                  </div>
+   279→                </div>
+   280→              </CardHeader>
+   281→              <CardContent className="space-y-3">
+   282→                {m.description && <p className="text-sm text-muted-foreground">{m.description}</p>}
+   283→
+   284→                {invoicePending && m.invoice && (
+   285→                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-500/10 p-3 text-sm text-amber-800 dark:border-amber-500/40 dark:text-amber-200">
+   286→                    <Smartphone className="h-4 w-4 shrink-0" />
+   287→                    <span>
+   288→                      Invoice <strong>{m.invoice.refCode}</strong> for {money(m.invoice.amountMinor)} is awaiting payment: pay via M-Pesa to
+   289→                      activate this membership. Benefits unlock only after payment is confirmed.
+   290→                    </span>
+   291→                  </div>
+   292→                )}
+   293→
+   294→                {m.benefits.length > 0 && (
+   295→                  <div>
+   296→                    <p className="mb-1.5 text-sm font-medium">Benefits this period</p>
+   297→                    <ul className="grid gap-1.5 sm:grid-cols-2">
+   298→                      {m.benefits.map((b) => {
+   299→                        const used = redeemedBenefits.has(b)
+   300→                        const lastUsed = m.redemptions.find((r) => r.benefit === b)
+   301→                        return (
+   302→                          <li key={b} className="flex items-start justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm">
+   303→                            <span className="flex items-start gap-1.5">
+   304→                              <BadgeCheck className={cn('mt-0.5 h-4 w-4 shrink-0', used ? 'text-primary' : 'text-muted-foreground/50')} aria-hidden />
+   305→                              {b}
+   306→                            </span>
+   307→                            <span className="shrink-0 text-right text-[11px] leading-4 text-muted-foreground">
+   308→                              {used ? 'used this period' : lastUsed ? `last used ${timeAgo(lastUsed.createdAt)}` : 'available'}
+   309→                            </span>
+   310→                          </li>
+   311→                        )
+   312→                      })}
+   313→                    </ul>
+   314→                  </div>
+   315→                )}
+   316→
+   317→                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+   318→                  {m.discountCapPct !== null && <span>Member discount capped at {m.discountCapPct}%</span>}
+   319→                  <span>{m.branchScope === 'ALL' ? 'Valid at all branches' : 'Valid at selected branches'}</span>
+   320→                </div>
+   321→
+   322→                {m.terms && (
+   323→                  <Collapsible>
+   324→                    <CollapsibleTrigger className="group inline-flex items-center gap-1 text-sm text-primary hover:underline">
+   325→                      Membership terms <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+   326→                    </CollapsibleTrigger>
+   327→                    <CollapsibleContent>
+   328→                      <p className="mt-2 whitespace-pre-wrap rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">{m.terms}</p>
+   329→                    </CollapsibleContent>
+   330→                  </Collapsible>
+   331→                )}
+   332→
+   333→                {(m.status === 'ACTIVE' || m.status === 'PENDING_PAYMENT') && (
+   334→                  <>
+   335→                    <Separator />
+   336→                    <div className="flex justify-end">
+   337→                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => setPendingCancel(m)}>
+   338→                        Cancel membership
+   339→                      </Button>
+   340→                    </div>
+   341→                  </>
+   342→                )}
+   343→              </CardContent>
+   344→            </Card>
+   345→          )
+   346→        })
+   347→      )}
+   348→
+   349→      <AlertDialog open={pendingCancel !== null} onOpenChange={(o) => { if (!o) setPendingCancel(null) }}>
+   350→        <AlertDialogContent>
+   351→          <AlertDialogHeader>
+   352→            <AlertDialogTitle>Cancel {pendingCancel?.tierName} at {pendingCancel?.business.name}?</AlertDialogTitle>
+   353→            <AlertDialogDescription>
+   354→              Benefits end immediately. Any period you have already paid for is not refunded
+   355→              automatically: the business&apos;s cancellation terms apply. This cannot be undone.
+   356→            </AlertDialogDescription>
+   357→          </AlertDialogHeader>
+   358→          <AlertDialogFooter>
+   359→            <AlertDialogCancel>Keep membership</AlertDialogCancel>
+   360→            <AlertDialogAction
+   361→              className="bg-destructive text-white hover:bg-destructive/90"
+   362→              onClick={async (e) => {
+   363→                e.preventDefault()
+   364→                if (pendingCancel) await onCancel(pendingCancel.id)
+   365→                setPendingCancel(null)
+   366→              }}
+   367→            >
+   368→              Cancel membership
+   369→            </AlertDialogAction>
+   370→          </AlertDialogFooter>
+   371→        </AlertDialogContent>
+   372→      </AlertDialog>
+   373→    </section>
+   374→  )
+   375→}
+   376→
+   377→// ───────────────────── trusted customer programmes ─────────────────────
+   378→
+   379→function TrustSection({ items }: { items: TrustProgrammeItem[] }) {
+   380→  return (
+   381→    <section aria-label="Trusted customer programmes" className="space-y-3">
+   382→      <h3 className="flex items-center gap-2 text-lg font-semibold"><ShieldCheck className="h-5 w-5 text-primary" /> Trusted Customer Programmes</h3>
+   383→      {items.map((t) => (
+   384→        <Card key={t.id}>
+   385→          <CardHeader className="pb-3">
+   386→            <div className="flex flex-wrap items-center justify-between gap-2">
+   387→              <CardTitle className="text-base">{t.programme.name}</CardTitle>
+   388→              <TooltipProvider delayDuration={100}>
+   389→                <Tooltip>
+   390→                  <TooltipTrigger asChild>
+   391→                    <Badge variant="outline" className={cn('cursor-help', LABEL_BADGE[t.label] ?? LABEL_BADGE.NEW)}>
+   392→                      <Lock className="h-3 w-3" /> {t.label}
+   393→                    </Badge>
+   394→                  </TooltipTrigger>
+   395→                  <TooltipContent side="left" className="max-w-64">
+   396→                    Internal relationship label set by this business; not a credit rating, never shared with other businesses.
+   397→                  </TooltipContent>
+   398→                </Tooltip>
+   399→              </TooltipProvider>
+   400→            </div>
+   401→            <CardDescription>With {t.business.name} · added {timeAgo(t.createdAt)}</CardDescription>
+   402→          </CardHeader>
+   403→          <CardContent className="space-y-2">
+   404→            {t.programme.description && <p className="text-sm text-muted-foreground">{t.programme.description}</p>}
+   405→            {t.programme.terms && (
+   406→              <Collapsible>
+   407→                <CollapsibleTrigger className="group inline-flex items-center gap-1 text-sm text-primary hover:underline">
+   408→                  Programme terms <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+   409→                </CollapsibleTrigger>
+   410→                <CollapsibleContent>
+   411→                  <p className="mt-2 whitespace-pre-wrap rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">{t.programme.terms}</p>
+   412→                </CollapsibleContent>
+   413→              </Collapsible>
+   414→            )}
+   415→          </CardContent>
+   416→        </Card>
+   417→      ))}
+   418→    </section>
+   419→  )
+   420→}
+   421→
+   422→// ───────────────────────── credit facilities ─────────────────────────
+   423→
+   424→function CreditSection({ items, onAccept, onRepay }: {
+   425→  items: CreditFacilityItem[]
+   426→  onAccept: (facilityId: string) => Promise<void>
+   427→  onRepay: (facilityId: string, amountMinor: number) => Promise<void>
+   428→}) {
+   429→  const [repayTarget, setRepayTarget] = useState<CreditFacilityItem | null>(null)
+   430→
+   431→  return (
+   432→    <section aria-label="Credit facilities" className="space-y-3">
+   433→      <h3 className="flex items-center gap-2 text-lg font-semibold"><Landmark className="h-5 w-5 text-primary" /> Payment facilities</h3>
+   434→
+   435→      <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+   436→        Credit facilities are offered by businesses you work with. Ask your garage or showroom to send
+   437→        an offer; it appears here to accept. Applying never grants credit, and a membership never
+   438→        guarantees credit.
+   439→      </div>
+   440→
+   441→      {items.map((f) => {
+   442→        const overdue = f.entries.some((e) => e.amountMinor > 0 && !e.paidAt && e.dueDate && new Date(e.dueDate) < new Date())
+   443→        const canRepay = (f.status === 'ACTIVE' || f.status === 'SUSPENDED') && f.outstandingMinor > 0
+   444→        return (
+   445→          <Card key={f.id}>
+   446→            <CardHeader className="pb-3">
+   447→              <div className="flex flex-wrap items-center justify-between gap-2">
+   448→                <div>
+   449→                  <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+   450→                    {f.business.name}
+   451→                    <Badge variant="outline" className={cn(FACILITY_BADGE[f.status] ?? FACILITY_BADGE.CLOSED)}>
+   452→                      {f.status === 'PENDING_APPLICATION' ? 'Application pending' : f.status === 'OFFERED' ? 'Offer: awaiting your acceptance' : f.status.charAt(0) + f.status.slice(1).toLowerCase()}
+   453→                    </Badge>
+   454→                    {overdue && (
+   455→                      <Badge variant="outline" className="border-rose-300 bg-rose-500/15 text-rose-800 dark:border-rose-500/40 dark:text-rose-300">
+   456→                        <CircleAlert className="h-3 w-3" /> Overdue payment
+   457→                      </Badge>
+   458→                    )}
+   459→                  </CardTitle>
+   460→                  <CardDescription className="mt-1">{f.refCode} · {f.business.type === 'GARAGE' ? 'Garage' : 'Showroom'} facility</CardDescription>
+   461→                </div>
+   462→              </div>
+   463→            </CardHeader>
+   464→            <CardContent className="space-y-3">
+   465→              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+   466→                <MoneyStat label="Limit" value={f.limitMinor} />
+   467→                <MoneyStat label="Outstanding" value={f.outstandingMinor} strong />
+   468→                <MoneyStat label="Available" value={f.availableMinor} />
+   469→                <div className="rounded-lg border p-2.5">
+   470→                  <p className="text-xs text-muted-foreground">Deposit held</p>
+   471→                  <p className="truncate font-semibold tabular-nums">{money(f.depositMinor)}</p>
+   472→                </div>
+   473→              </div>
+   474→
+   475→              {f.status === 'OFFERED' && (
+   476→                <div className="rounded-lg border border-amber-300 bg-amber-500/10 p-3 dark:border-amber-500/40">
+   477→                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">This business approved a facility for you</p>
+   478→                  {f.terms && <p className="mt-1 whitespace-pre-wrap text-sm text-amber-900 dark:text-amber-200">{f.terms}</p>}
+   479→                  <p className="mt-2 text-xs text-amber-800/80 dark:text-amber-200/80">
+   480→                    Accept the repayment terms to activate it. Nothing is charged until the business records a charge, and you always see it in the ledger below.
+   481→                  </p>
+   482→                  <Button size="sm" className="mt-2 min-h-11" onClick={() => onAccept(f.id)}>Accept terms</Button>
+   483→                </div>
+   484→              )}
+   485→
+   486→              {f.terms && f.status !== 'OFFERED' && (
+   487→                <Collapsible>
+   488→                  <CollapsibleTrigger className="group inline-flex items-center gap-1 text-sm text-primary hover:underline">
+   489→                    Agreed terms <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+   490→                  </CollapsibleTrigger>
+   491→                  <CollapsibleContent>
+   492→                    <p className="mt-2 whitespace-pre-wrap rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">{f.terms}</p>
+   493→                  </CollapsibleContent>
+   494→                </Collapsible>
+   495→              )}
+   496→
+   497→              <LedgerTable entries={f.entries.slice(0, 10)} />
+   498→
+   499→              {canRepay && (
+   500→                <div className="flex justify-end">
+   501→                  <Button size="sm" className="min-h-11" onClick={() => setRepayTarget(f)}>
+   502→                    <Wallet className="h-4 w-4" /> Record a repayment
+   503→                  </Button>
+   504→                </div>
+   505→              )}
+   506→            </CardContent>
+   507→          </Card>
+   508→        )
+   509→      })}
+   510→
+   511→      {/* Repay dialog: honest, ledger-backed */}
+   512→      {repayTarget && (
+   513→        <RepayDialog
+   514→          facility={repayTarget}
+   515→          onClose={() => setRepayTarget(null)}
+   516→          onSubmit={async (amountMinor) => {
+   517→            await onRepay(repayTarget.id, amountMinor)
+   518→            setRepayTarget(null)
+   519→          }}
+   520→        />
+   521→      )}
+   522→    </section>
+   523→  )
+   524→}
+   525→
+   526→function MoneyStat({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
+   527→  return (
+   528→    <div className="rounded-lg border p-2.5">
+   529→      <p className="text-xs text-muted-foreground">{label}</p>
+   530→      <p className={cn('truncate font-semibold tabular-nums', strong && 'text-primary')}>{money(value)}</p>
+   531→    </div>
+   532→  )
+   533→}
+   534→
+   535→function LedgerTable({ entries }: { entries: CreditEntry[] }) {
+   536→  if (entries.length === 0) {
+   537→    return <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">No ledger entries yet.</p>
+   538→  }
+   539→  return (
+   540→    <div className="overflow-hidden rounded-lg border">
+   541→      <Table>
+   542→        <TableHeader>
+   543→          <TableRow>
+   544→            <TableHead>Type</TableHead>
+   545→            <TableHead className="text-right">Amount</TableHead>
+   546→            <TableHead className="text-right">Balance</TableHead>
+   547→            <TableHead>Due</TableHead>
+   548→            <TableHead>Paid</TableHead>
+   549→          </TableRow>
+   550→        </TableHeader>
+   551→        <TableBody>
+   552→          {entries.map((e) => {
+   553→            const charge = e.kind === 'CHARGE' || e.kind === 'FEE' || e.amountMinor > 0
+   554→            return (
+   555→              <TableRow key={e.id}>
+   556→                <TableCell>
+   557→                  <span className={cn('font-medium', charge ? 'text-foreground' : 'text-emerald-700 dark:text-emerald-400')}>
+   558→                    {e.kind === 'CHARGE' ? 'Charge' : e.kind === 'REPAYMENT' ? 'Repayment' : e.kind}
+   559→                  </span>
+   560→                  {e.note && <p className="max-w-52 truncate text-xs text-muted-foreground">{e.note}</p>}
+   561→                </TableCell>
+   562→                <TableCell className={cn('text-right tabular-nums', charge ? '' : 'text-emerald-700 dark:text-emerald-400')}>
+   563→                  {charge ? '' : '−'}{money(Math.abs(e.amountMinor))}
+   564→                </TableCell>
+   565→                <TableCell className="text-right tabular-nums">{money(e.balanceAfterMinor)}</TableCell>
+   566→                <TableCell className="text-sm">{e.dueDate ? dateLabel(e.dueDate) : 'Not provided'}</TableCell>
+   567→                <TableCell className="text-sm">{e.paidAt ? dateLabel(e.paidAt) : charge ? <span className="text-amber-700 dark:text-amber-400">unpaid</span> : 'Not provided'}</TableCell>
+   568→              </TableRow>
+   569→            )
+   570→          })}
+   571→        </TableBody>
+   572→      </Table>
+   573→    </div>
+   574→  )
+   575→}
+   576→
+   577→function RepayDialog({ facility, onClose, onSubmit }: {
+   578→  facility: CreditFacilityItem
+   579→  onClose: () => void
+   580→  onSubmit: (amountMinor: number) => Promise<void>
+   581→}) {
+   582→  const [kes, setKes] = useState('')
+   583→  const [busy, setBusy] = useState(false)
+   584→  const parsed = Math.round(Number(kes) * 100)
+   585→  const valid = Number.isFinite(parsed) && parsed >= 100 && parsed <= facility.outstandingMinor
+   586→
+   587→  return (
+   588→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   589→      <DialogContent className="sm:max-w-md">
+   590→        <DialogHeader>
+   591→          <DialogTitle>Record a repayment: {facility.business.name}</DialogTitle>
+   592→          <DialogDescription>
+   593→            Outstanding balance {money(facility.outstandingMinor)}. Entries are appended to the ledger
+   594→            and never edited, so your statement stays verifiable.
+   595→          </DialogDescription>
+   596→        </DialogHeader>
+   597→        <div className="space-y-2">
+   598→          <Label htmlFor="repay-amount">Amount (KES)</Label>
+   599→          <Input
+   600→            id="repay-amount"
+   601→            inputMode="decimal"
+   602→            value={kes}
+   603→            onChange={(e) => setKes(e.target.value)}
+   604→            placeholder={`Max ${(facility.outstandingMinor / 100).toLocaleString()}`}
+   605→          />
+   606→          {!valid && kes !== '' && (
+   607→            <p className="text-xs text-rose-600 dark:text-rose-400">Enter an amount between 1 and {(facility.outstandingMinor / 100).toLocaleString()} KES.</p>
+   608→          )}
+   609→        </div>
+   610→        <DialogFooter>
+   611→          <Button variant="outline" onClick={onClose}>Cancel</Button>
+   612→          <Button
+   613→            disabled={!valid || busy}
+   614→            className="min-h-11"
+   615→            onClick={async () => {
+   616→              setBusy(true)
+   617→              try { await onSubmit(parsed) } finally { setBusy(false) }
+   618→            }}
+   619→          >
+   620→            {busy ? 'Recording…' : `Record ${valid ? money(parsed) : 'repayment'}`}
+   621→          </Button>
+   622→        </DialogFooter>
+   623→      </DialogContent>
+   624→    </Dialog>
+   625→  )
+   626→}
+   627→
+   628→// ───────────────────────────── invoices ─────────────────────────────
+   629→
+   630→function InvoicesSection({ invoices, onPaid }: { invoices: InvoiceItem[]; onPaid: () => void }) {
+   631→  const { user } = useAuth()
+   632→  const [payTarget, setPayTarget] = useState<InvoiceItem | null>(null)
+   633→
+   634→  return (
+   635→    <section aria-label="Invoices and receipts" className="space-y-3">
+   636→      <h3 className="flex items-center gap-2 text-lg font-semibold"><FileText className="h-5 w-5 text-primary" /> Invoices &amp; receipts</h3>
+   637→      {invoices.length === 0 ? (
+   638→        <EmptyBlock icon={<FileText className="h-6 w-6" />} title="No invoices yet" desc="Membership invoices and receipts appear here." />
+   639→      ) : (
+   640→        <Card>
+   641→          <CardContent className="p-0">
+   642→            <ul className="divide-y">
+   643→              {invoices.map((inv) => (
+   644→                <li key={inv.id} className="flex flex-wrap items-center justify-between gap-2 p-4">
+   645→                  <div className="min-w-0">
+   646→                    <p className="flex items-center gap-2 text-sm font-medium">
+   647→                      {inv.refCode}
+   648→                      <Badge variant="outline" className={cn(INVOICE_BADGE[inv.status] ?? INVOICE_BADGE.CANCELLED)}>{inv.status.charAt(0) + inv.status.slice(1).toLowerCase()}</Badge>
+   649→                    </p>
+   650→                    <p className="max-w-md truncate text-xs text-muted-foreground">{inv.description}</p>
+   651→                    <p className="text-xs text-muted-foreground">
+   652→                      Issued {dateLabel(inv.issuedAt)}{inv.dueDate ? ` · due ${dateLabel(inv.dueDate)}` : ''}{inv.paidAt ? ` · paid ${dateLabel(inv.paidAt)}${inv.paidVia ? ` via ${inv.paidVia}` : ''}` : ''}
+   653→                    </p>
+   654→                  </div>
+   655→                  <div className="text-right">
+   656→                    <p className="font-semibold tabular-nums">{money(inv.amountMinor, inv.currency)}</p>
+   657→                    {inv.status === 'PENDING' && (
+   658→                      <Button variant="outline" size="sm" className="mt-1 min-h-11" onClick={() => setPayTarget(inv)}>
+   659→                        <Smartphone className="h-4 w-4" /> Pay via M-Pesa
+   660→                      </Button>
+   661→                    )}
+   662→                  </div>
+   663→                </li>
+   664→              ))}
+   665→            </ul>
+   666→          </CardContent>
+   667→        </Card>
+   668→      )}
+   669→      <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+   670→        <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+   671→        Memberships activate only when their invoice is actually paid; pending invoices never grant benefits.
+   672→      </p>
+   673→
+   674→      {payTarget && (
+   675→        <PayInvoiceDialog
+   676→          invoice={payTarget}
+   677→          defaultPhone={user?.phone ?? ''}
+   678→          onClose={() => setPayTarget(null)}
+   679→          onInitiated={() => { setPayTarget(null); onPaid() }}
+   680→        />
+   681→      )}
+   682→    </section>
+   683→  )
+   684→}
+   685→
+   686→/** Real M-Pesa STK push for a pending invoice; POST /api/billing/mpesa/stkpush.
+   687→ * The callback (not this UI) marks the invoice paid; we simply tell the user
+   688→ * honestly what happened and reload. */
+   689→function PayInvoiceDialog({ invoice, defaultPhone, onClose, onInitiated }: {
+   690→  invoice: InvoiceItem
+   691→  defaultPhone: string
+   692→  onClose: () => void
+   693→  onInitiated: () => void
+   694→}) {
+   695→  const [phone, setPhone] = useState(defaultPhone)
+   696→  const [busy, setBusy] = useState(false)
+   697→  const valid = /^(\+?254|0)(1|7)\d{8}$/.test(phone.trim())
+   698→
+   699→  async function pay() {
+   700→    setBusy(true)
+   701→    try {
+   702→      const d = await apiSend<{ message: string }>('/api/billing/mpesa/stkpush', 'POST', { invoiceId: invoice.id, phone: phone.trim() })
+   703→      toast.success(d.message || 'STK push sent: enter your M-Pesa PIN to complete the payment.')
+   704→      onInitiated()
+   705→    } catch (e) {
+   706→      toast.error(e instanceof Error ? e.message : 'Could not start the M-Pesa payment')
+   707→    } finally {
+   708→      setBusy(false)
+   709→    }
+   710→  }
+   711→
+   712→  return (
+   713→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   714→      <DialogContent className="sm:max-w-md">
+   715→        <DialogHeader>
+   716→          <DialogTitle>Pay {invoice.refCode}: {money(invoice.amountMinor, invoice.currency)}</DialogTitle>
+   717→          <DialogDescription>
+   718→            We send an M-Pesa STK push to your phone. The payment is only confirmed by the Safaricom
+   719→            callback: the invoice stays pending until then.
+   720→          </DialogDescription>
+   721→        </DialogHeader>
+   722→        <div className="space-y-2">
+   723→          <Label htmlFor="pay-phone">M-Pesa phone number</Label>
+   724→          <Input
+   725→            id="pay-phone"
+   726→            inputMode="tel"
+   727→            value={phone}
+   728→            onChange={(e) => setPhone(e.target.value)}
+   729→            placeholder="0712 345 678"
+   730→          />
+   731→        </div>
+   732→        <DialogFooter>
+   733→          <Button variant="outline" onClick={onClose}>Cancel</Button>
+   734→          <Button className="min-h-11" disabled={!valid || busy} onClick={pay}>
+   735→            {busy ? 'Sending push…' : 'Send STK push'}
+   736→          </Button>
+   737→        </DialogFooter>
+   738→      </DialogContent>
+   739→    </Dialog>
+   740→  )
+   741→}
+   742→
+   743→// ───────────────────────────── shared bits ─────────────────────────────
+   744→
+   745→function EmptyBlock({ icon, title, desc, action, onAction }: {
+   746→  icon: React.ReactNode; title: string; desc: string; action?: string; onAction?: () => void
+   747→}) {
+   748→  return (
+   749→    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-10 text-center">
+   750→      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">{icon}</span>
+   751→      <h4 className="mt-3 font-semibold">{title}</h4>
+   752→      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{desc}</p>
+   753→      {action && onAction && <Button className="mt-4" variant="outline" onClick={onAction}>{action}</Button>}
+   754→    </div>
+   755→  )
+   756→}
+   757→

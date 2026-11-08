@@ -1,0 +1,644 @@
+     1→'use client'
+     2→
+     3→/* Account: profile, phone & email verification, two-factor authentication (TOTP),
+     4→ * saved vehicles, enquiries, service requests, saved searches and notifications. */
+     5→
+     6→import { useEffect, useCallback, useState } from 'react'
+     7→import { motion, useReducedMotion } from 'framer-motion'
+     8→import { Heart, MailCheck, Bell, MessageSquareText, Wrench, Search, PhoneCall, Copy, ShieldCheck, KeyRound, MessagesSquare, Gift, CreditCard, Smartphone, ShoppingCart } from 'lucide-react'
+     9→import { toast } from 'sonner'
+    10→import { Button } from '@/components/ui/button'
+    11→import { Input } from '@/components/ui/input'
+    12→import { Label } from '@/components/ui/label'
+    13→import { Badge } from '@/components/ui/badge'
+    14→import { Skeleton } from '@/components/ui/skeleton'
+    15→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+    16→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    17→import { Textarea } from '@/components/ui/textarea'
+    18→import { VehicleCard, type VehicleCardData } from '@/components/marketplace/vehicle-card'
+    19→import { MessagesTab } from '@/components/messaging/conversation-panel'
+    20→import { VehicleProtection } from '@/components/protection/vehicle-protection'
+    21→import { RewardsPanel } from '@/components/loyalty/rewards-panel'
+    22→import { CustomerTestDrives } from '@/components/protection/customer-test-drives'
+    23→import { SubscriptionsPanel } from '@/components/account/subscriptions-panel'
+    24→import { CustomerOrders } from '@/components/account/customer-orders'
+    25→import { useAuth } from '@/stores/auth'
+    26→import { navigate, apiGet, apiSend } from '@/lib/client'
+    27→import { useHashRoute } from '@/hooks/use-hash-route'
+    28→import { timeAgo, dateLabel, money } from '@/lib/format'
+    29→
+    30→type SavedVehicle = { id: string; vehicle: VehicleCardData }
+    31→type EnquiryItem = {
+    32→  id: string; refCode: string; status: string; createdAt: string
+    33→  vehicle: { id: string; make: string; model: string; year: number; priceMinor: number; currency: string }
+    34→  messages: { id: string; body: string; senderSide: string; createdAt: string }[]
+    35→}
+    36→type RequestItem = {
+    37→  id: string; refCode: string; category: string; status: string; description: string; county: string; createdAt: string
+    38→  quotes: { id: string; amountMinor: number; leadDays: number | null; message: string | null; status: string; org: { name: string } }[]
+    39→  booking: { status: string; scheduledAt: string | null } | null
+    40→}
+    41→type SavedSearchItem = { id: string; name: string; query: string; createdAt: string }
+    42→type NotificationItem = { id: string; title: string; body: string | null; link: string | null; readAt: string | null; createdAt: string }
+    43→
+    44→const TABS = ['profile', 'saved', 'enquiries', 'messages', 'requests', 'orders', 'searches', 'rewards', 'protection', 'testdrives', 'subscriptions', 'notifications'] as const
+    45→
+    46→export default function AccountView() {
+    47→  const route = useHashRoute()
+    48→  const { user, loading, refresh, refreshNotifications } = useAuth()
+    49→  const [tab, setTab] = useState<string>(() => {
+    50→    const t = route.query.get('tab')
+    51→    return TABS.includes(t as (typeof TABS)[number]) ? t! : 'profile'
+    52→  })
+    53→
+    54→  const [saved, setSaved] = useState<SavedVehicle[] | null>(null)
+    55→  // Honest failure state: if a dashboard list fails to load we say so instead
+    56→  // of rendering an empty tab that looks like "nothing here yet".
+    57→  const [loadError, setLoadError] = useState(false)
+    58→  const [reloadKey, setReloadKey] = useState(0)
+    59→  const [enquiries, setEnquiries] = useState<EnquiryItem[] | null>(null)
+    60→  const [requests, setRequests] = useState<RequestItem[] | null>(null)
+    61→  const [searches, setSearches] = useState<SavedSearchItem[] | null>(null)
+    62→  const [notifications, setNotifications] = useState<NotificationItem[] | null>(null)
+    63→  const [phone, setPhone] = useState('')
+    64→  const [devCode, setDevCode] = useState<string | null>(null)
+    65→  const [code, setCode] = useState('')
+    66→  const [newSearch, setNewSearch] = useState('')
+    67→  // Email verification
+    68→  const [emailDevCode, setEmailDevCode] = useState<string | null>(null)
+    69→  const [emailCode, setEmailCode] = useState('')
+    70→  const [emailBusy, setEmailBusy] = useState(false)
+    71→  // Two-factor authentication (TOTP)
+    72→  const [mfaSetup, setMfaSetup] = useState<{ secret: string; uri: string } | null>(null)
+    73→  const [mfaCode, setMfaCode] = useState('')
+    74→  const [mfaPassword, setMfaPassword] = useState('')
+    75→  const [mfaBusy, setMfaBusy] = useState(false)
+    76→
+    77→  useEffect(() => {
+    78→    if (!loading && !user) navigate('signin', { replace: true })
+    79→  }, [loading, user])
+    80→
+    81→  const loadNotifications = useCallback(() => {
+    82→    apiGet<{ notifications: NotificationItem[] }>('/api/notifications?take=30')
+    83→      .then((d) => setNotifications(d.notifications))
+    84→      .catch(() => { setNotifications([]); setLoadError(true) })
+    85→  }, [])
+    86→
+    87→  useEffect(() => {
+    88→    if (!user) return
+    89→    setLoadError(false)
+    90→    apiGet<{ saved: SavedVehicle[] }>('/api/saved-vehicles').then((d) => setSaved(d.saved)).catch(() => { setSaved([]); setLoadError(true) })
+    91→    apiGet<{ enquiries: EnquiryItem[] }>('/api/enquiries?mine=1').then((d) => setEnquiries(d.enquiries)).catch(() => { setEnquiries([]); setLoadError(true) })
+    92→    apiGet<{ requests: RequestItem[] }>('/api/service-requests?mine=1').then((d) => setRequests(d.requests)).catch(() => { setRequests([]); setLoadError(true) })
+    93→    apiGet<{ searches: SavedSearchItem[] }>('/api/saved-searches').then((d) => setSearches(d.searches)).catch(() => { setSearches([]); setLoadError(true) })
+    94→    loadNotifications()
+    95→  }, [user?.id, loadNotifications, reloadKey])
+    96→
+    97→  // Sync phone input when the profile loads/changes (derived, not effect-driven).
+    98→  useEffect(() => {
+    99→    let cancelled = false
+   100→    apiGet<{ user: { phone: string | null } }>('/api/auth/profile')
+   101→      .then((d) => { if (!cancelled) setPhone(d.user.phone ?? '') })
+   102→      .catch(() => {})
+   103→    return () => { cancelled = true }
+   104→  }, [])
+   105→
+   106→  if (loading || !user) {
+   107→    return <div className="mx-auto max-w-4xl space-y-4 p-6"><Skeleton className="h-8 w-64" /><Skeleton className="h-64 rounded-xl" /></div>
+   108→  }
+   109→
+   110→  async function requestCode() {
+   111→    try {
+   112→      const d = await apiSend<{ devCode?: string; message: string }>('/api/auth/verify-phone', 'POST', { action: 'request' })
+   113→      setDevCode(d.devCode ?? null)
+   114→      toast.info(d.message)
+   115→    } catch (e) {
+   116→      toast.error(e instanceof Error ? e.message : 'Could not send code')
+   117→    }
+   118→  }
+   119→
+   120→  async function confirmCode() {
+   121→    try {
+   122→      await apiSend('/api/auth/verify-phone', 'POST', { action: 'confirm', code })
+   123→      await refresh()
+   124→      toast.success('Phone verified')
+   125→      setDevCode(null)
+   126→      setCode('')
+   127→    } catch (e) {
+   128→      toast.error(e instanceof Error ? e.message : 'Verification failed')
+   129→    }
+   130→  }
+   131→
+   132→  async function requestEmailCode() {
+   133→    setEmailBusy(true)
+   134→    try {
+   135→      const d = await apiSend<{ devCode?: string; message: string }>('/api/auth/verify-email', 'POST', { action: 'request' })
+   136→      setEmailDevCode(d.devCode ?? null)
+   137→      toast.info(d.message)
+   138→    } catch (e) {
+   139→      toast.error(e instanceof Error ? e.message : 'Could not send code')
+   140→    } finally {
+   141→      setEmailBusy(false)
+   142→    }
+   143→  }
+   144→
+   145→  async function confirmEmailCode() {
+   146→    setEmailBusy(true)
+   147→    try {
+   148→      await apiSend('/api/auth/verify-email', 'POST', { action: 'confirm', code: emailCode })
+   149→      await refresh()
+   150→      toast.success('Email verified')
+   151→      setEmailDevCode(null)
+   152→      setEmailCode('')
+   153→    } catch (e) {
+   154→      toast.error(e instanceof Error ? e.message : 'Verification failed')
+   155→    } finally {
+   156→      setEmailBusy(false)
+   157→    }
+   158→  }
+   159→
+   160→  async function startMfaSetup() {
+   161→    setMfaBusy(true)
+   162→    try {
+   163→      const d = await apiSend<{ secret: string; uri: string }>('/api/auth/mfa/setup', 'POST')
+   164→      setMfaSetup(d)
+   165→      setMfaCode('')
+   166→    } catch (e) {
+   167→      toast.error(e instanceof Error ? e.message : 'Setup failed')
+   168→    } finally {
+   169→      setMfaBusy(false)
+   170→    }
+   171→  }
+   172→
+   173→  async function confirmMfaEnable() {
+   174→    setMfaBusy(true)
+   175→    try {
+   176→      await apiSend('/api/auth/mfa/enable', 'POST', { code: mfaCode })
+   177→      await refresh()
+   178→      toast.success('Two-factor authentication enabled')
+   179→      setMfaSetup(null)
+   180→      setMfaCode('')
+   181→    } catch (e) {
+   182→      toast.error(e instanceof Error ? e.message : 'Could not enable two-factor authentication')
+   183→    } finally {
+   184→      setMfaBusy(false)
+   185→    }
+   186→  }
+   187→
+   188→  async function disableMfa() {
+   189→    setMfaBusy(true)
+   190→    try {
+   191→      await apiSend('/api/auth/mfa/disable', 'POST', { password: mfaPassword })
+   192→      await refresh()
+   193→      toast.success('Two-factor authentication disabled')
+   194→      setMfaPassword('')
+   195→    } catch (e) {
+   196→      toast.error(e instanceof Error ? e.message : 'Could not disable two-factor authentication')
+   197→    } finally {
+   198→      setMfaBusy(false)
+   199→    }
+   200→  }
+   201→
+   202→  async function saveProfile() {
+   203→    try {
+   204→      await apiSend('/api/auth/profile', 'PATCH', { name: user!.name, phone })
+   205→      await refresh()
+   206→      toast.success('Profile updated')
+   207→    } catch (e) {
+   208→      toast.error(e instanceof Error ? e.message : 'Update failed')
+   209→    }
+   210→  }
+   211→
+   212→  async function unsave(vehicleId: string) {
+   213→    await apiSend(`/api/saved-vehicles?vehicleId=${vehicleId}`, 'DELETE').catch(() => {})
+   214→    setSaved((s) => s?.filter((x) => x.vehicle.id !== vehicleId) ?? null)
+   215→  }
+   216→
+   217→  async function closeEnquiry(id: string) {
+   218→    try {
+   219→      await apiSend(`/api/enquiries/${id}`, 'PATCH', { status: 'CLOSED' })
+   220→      const d = await apiGet<{ enquiries: EnquiryItem[] }>('/api/enquiries?mine=1')
+   221→      setEnquiries(d.enquiries)
+   222→      toast.success('Enquiry closed')
+   223→    } catch (e) {
+   224→      toast.error(e instanceof Error ? e.message : 'Failed')
+   225→    }
+   226→  }
+   227→
+   228→  async function acceptQuote(requestId: string, quoteId: string) {
+   229→    try {
+   230→      await apiSend(`/api/quotes/${quoteId}`, 'PATCH', { action: 'accept' })
+   231→      const d = await apiGet<{ requests: RequestItem[] }>('/api/service-requests?mine=1')
+   232→      setRequests(d.requests)
+   233→      toast.success('Quote accepted: the garage will confirm your booking')
+   234→    } catch (e) {
+   235→      toast.error(e instanceof Error ? e.message : 'Failed')
+   236→    }
+   237→  }
+   238→
+   239→  async function declineQuote(quoteId: string) {
+   240→    try {
+   241→      await apiSend(`/api/quotes/${quoteId}`, 'PATCH', { action: 'decline' })
+   242→      const d = await apiGet<{ requests: RequestItem[] }>('/api/service-requests?mine=1')
+   243→      setRequests(d.requests)
+   244→    } catch (e) {
+   245→      toast.error(e instanceof Error ? e.message : 'Failed')
+   246→    }
+   247→  }
+   248→
+   249→  async function addSearch() {
+   250→    if (!newSearch.trim()) return
+   251→    try {
+   252→      await apiSend('/api/saved-searches', 'POST', { name: newSearch.trim(), query: route.query.get('seed') ?? '' })
+   253→      setNewSearch('')
+   254→      const d = await apiGet<{ searches: SavedSearchItem[] }>('/api/saved-searches')
+   255→      setSearches(d.searches)
+   256→      toast.success('Search saved: you will get alerts for new matches')
+   257→    } catch (e) {
+   258→      toast.error(e instanceof Error ? e.message : 'Failed')
+   259→    }
+   260→  }
+   261→
+   262→  return (
+   263→    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+   264→      <div className="flex flex-wrap items-center justify-between gap-3">
+   265→        <div>
+   266→          <h1 className="text-2xl font-bold">My Account</h1>
+   267→          <p className="text-sm text-muted-foreground">{user.email}{user.createdAt ? ` · member since ${dateLabel(user.createdAt)}` : ''}</p>
+   268→        </div>
+   269→        {!user.phoneVerified && user.phone && <Badge variant="outline" className="gap-1 text-amber-700 border-amber-300"><PhoneCall className="h-3.5 w-3.5" /> Phone not verified</Badge>}
+   270→      </div>
+   271→
+   272→      <Tabs value={tab} onValueChange={setTab} className="mt-6">
+   273→        {loadError && (
+   274→          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">
+   275→            <span>Some of your dashboard data could not be loaded. Check your connection and try again.</span>
+   276→            <Button size="sm" variant="outline" onClick={() => setReloadKey((k) => k + 1)}>Retry</Button>
+   277→          </div>
+   278→        )}
+   279→        <TabsList className="scrollbar-thin h-auto w-full justify-start overflow-x-auto py-0.5">
+   280→          <TabsTrigger value="profile" className="gap-1.5"><MailCheck className="h-4 w-4" /> Profile</TabsTrigger>
+   281→          <TabsTrigger value="saved" className="gap-1.5"><Heart className="h-4 w-4" /> Saved</TabsTrigger>
+   282→          <TabsTrigger value="enquiries" className="gap-1.5"><MessageSquareText className="h-4 w-4" /> Enquiries</TabsTrigger>
+   283→          <TabsTrigger value="messages" className="gap-1.5"><MessagesSquare className="h-4 w-4" /> Messages</TabsTrigger>
+   284→          <TabsTrigger value="requests" className="gap-1.5"><Wrench className="h-4 w-4" /> Requests</TabsTrigger>
+   285→          <TabsTrigger value="orders" className="gap-1.5"><ShoppingCart className="h-4 w-4" /> Orders</TabsTrigger>
+   286→          <TabsTrigger value="searches" className="gap-1.5"><Search className="h-4 w-4" /> Searches</TabsTrigger>
+   287→          <TabsTrigger value="rewards" className="gap-1.5"><Gift className="h-4 w-4" /> Rewards</TabsTrigger>
+   288→          <TabsTrigger value="protection" className="gap-1.5"><ShieldCheck className="h-4 w-4" /> Vehicle protection</TabsTrigger>
+   289→          <TabsTrigger value="subscriptions" className="gap-1.5"><CreditCard className="h-4 w-4" /> Memberships & credit</TabsTrigger>
+   290→          <TabsTrigger value="testdrives" className="gap-1.5"><KeyRound className="h-4 w-4" /> Test drives</TabsTrigger>
+   291→          <TabsTrigger value="notifications" className="gap-1.5"><Bell className="h-4 w-4" /> Alerts</TabsTrigger>
+   292→        </TabsList>
+   293→
+   294→        {/* Profile */}
+   295→        <TabsContent value="profile" className="mt-4 space-y-4">
+   296→          <Card>
+   297→            <CardHeader><CardTitle>Contact details</CardTitle>
+   298→              <CardDescription>Sellers only see your phone number when you tick &quot;share my number&quot; on an enquiry.</CardDescription>
+   299→            </CardHeader>
+   300→            <CardContent className="grid gap-4 sm:grid-cols-2">
+   301→              <div className="space-y-1.5">
+   302→                <Label htmlFor="acc-name">Full name</Label>
+   303→                <Input id="acc-name" value={user.name} disabled />
+   304→              </div>
+   305→              <div className="space-y-1.5">
+   306→                <Label htmlFor="acc-email">Email</Label>
+   307→                <Input id="acc-email" value={user.email} disabled />
+   308→              </div>
+   309→              <div className="space-y-1.5">
+   310→                <Label htmlFor="acc-phone">Phone</Label>
+   311→                <div className="flex gap-2">
+   312→                  <Input id="acc-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07xx xxx xxx" />
+   313→                  <Button variant="outline" onClick={saveProfile}>Save</Button>
+   314→                </div>
+   315→              </div>
+   316→              <div className="space-y-1.5">
+   317→                <Label>Phone verification</Label>
+   318→                {user.phoneVerified ? (
+   319→                  <Badge className="w-fit gap-1 bg-primary text-primary-foreground"><PhoneCall className="h-3.5 w-3.5" /> Verified</Badge>
+   320→                ) : (
+   321→                  <div className="space-y-2">
+   322→                    <Button variant="outline" size="sm" onClick={requestCode} disabled={!phone}>Send code</Button>
+   323→                    {devCode && (
+   324→                      <div className="rounded-md border border-dashed p-2 text-xs">
+   325→                        <p className="flex items-center justify-between">
+   326→                          <span>Dev code: <strong className="font-mono">{devCode}</strong></span>
+   327→                          <button className="inline-flex items-center gap-1 text-primary hover:underline" onClick={() => { navigator.clipboard?.writeText(devCode); toast.success('Copied') }}>
+   328→                            <Copy className="h-3 w-3" /> copy
+   329→                          </button>
+   330→                        </p>
+   331→                        <p className="mt-1 text-muted-foreground">SMS gateway not configured on this deployment; code shown here instead of a real SMS.</p>
+   332→                      </div>
+   333→                    )}
+   334→                    <div className="flex gap-2">
+   335→                      <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+   336→                      <Button size="sm" variant="outline" onClick={confirmCode} disabled={code.length !== 6}>Verify</Button>
+   337→                    </div>
+   338→                  </div>
+   339→                )}
+   340→              </div>
+   341→            </CardContent>
+   342→          </Card>
+   343→          <Card>
+   344→            <CardHeader>
+   345→              <CardTitle>Email verification</CardTitle>
+   346→              <CardDescription>Confirming your email helps with account recovery and keeps seller and staff accounts secure.</CardDescription>
+   347→            </CardHeader>
+   348→            <CardContent>
+   349→              {user.emailVerified ? (
+   350→                <Badge className="w-fit gap-1 bg-emerald-600 text-white"><ShieldCheck className="h-3.5 w-3.5" /> Verified</Badge>
+   351→              ) : (
+   352→                <div className="space-y-2">
+   353→                  <div className="flex flex-wrap items-center gap-2">
+   354→                    <Badge variant="outline" className="gap-1 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"><ShieldCheck className="h-3.5 w-3.5" /> Not verified</Badge>
+   355→                    <Button variant="outline" size="sm" onClick={requestEmailCode} disabled={emailBusy}>{emailBusy ? 'Please wait…' : 'Send code'}</Button>
+   356→                  </div>
+   357→                  {emailDevCode && (
+   358→                    <div className="rounded-md border border-dashed p-2 text-xs">
+   359→                      <p className="flex items-center justify-between">
+   360→                        <span>Dev code: <strong className="font-mono">{emailDevCode}</strong></span>
+   361→                        <button className="inline-flex items-center gap-1 text-primary hover:underline" onClick={() => { navigator.clipboard?.writeText(emailDevCode); toast.success('Copied') }}>
+   362→                          <Copy className="h-3 w-3" /> copy
+   363→                        </button>
+   364→                      </p>
+   365→                      <p className="mt-1 text-muted-foreground">Email delivery not configured on this deployment; code shown here instead of a real email.</p>
+   366→                    </div>
+   367→                  )}
+   368→                  <div className="flex gap-2">
+   369→                    <Input value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+   370→                    <Button size="sm" variant="outline" onClick={confirmEmailCode} disabled={emailBusy || emailCode.length !== 6}>Verify</Button>
+   371→                  </div>
+   372→                </div>
+   373→              )}
+   374→            </CardContent>
+   375→          </Card>
+   376→          <Card>
+   377→            <CardHeader>
+   378→              <CardTitle>Two-factor authentication (TOTP)</CardTitle>
+   379→              <CardDescription>
+   380→                Add a second sign-in step with an authenticator app (Google Authenticator, Authy, 1Password…). Codes rotate every 30 seconds and are required at every sign-in. Staff accounts should enable this.
+   381→              </CardDescription>
+   382→            </CardHeader>
+   383→            <CardContent>
+   384→              {user.mfaEnabled ? (
+   385→                <div className="space-y-3">
+   386→                  <Badge className="w-fit gap-1 bg-emerald-600 text-white"><Smartphone className="h-3.5 w-3.5" /> Enabled</Badge>
+   387→                  <p className="text-sm text-muted-foreground">To turn this off, confirm your password. We recommend keeping two-factor authentication on.</p>
+   388→                  <div className="flex max-w-sm gap-2">
+   389→                    <Input type="password" value={mfaPassword} onChange={(e) => setMfaPassword(e.target.value)} placeholder="Current password" autoComplete="current-password" />
+   390→                    <Button variant="destructive" onClick={disableMfa} disabled={mfaBusy || !mfaPassword}>{mfaBusy ? 'Please wait…' : 'Disable'}</Button>
+   391→                  </div>
+   392→                </div>
+   393→              ) : mfaSetup ? (
+   394→                <div className="space-y-4">
+   395→                  <div className="space-y-1.5">
+   396→                    <p className="text-sm font-medium">1. Add the secret to your authenticator app</p>
+   397→                    <p className="text-xs text-muted-foreground">Paste the key below, or scan/use the otpauth link with an app that supports manual setup.</p>
+   398→                    <div className="flex items-center justify-between gap-2 rounded-md border border-dashed p-2">
+   399→                      <code className="select-all break-all font-mono text-sm">{mfaSetup.secret}</code>
+   400→                      <button className="inline-flex shrink-0 items-center gap-1 text-primary hover:underline" onClick={() => { navigator.clipboard?.writeText(mfaSetup.secret); toast.success('Copied') }}>
+   401→                        <Copy className="h-3 w-3" /> copy
+   402→                      </button>
+   403→                    </div>
+   404→                    <p className="select-all break-all font-mono text-[11px] text-muted-foreground">{mfaSetup.uri}</p>
+   405→                  </div>
+   406→                  <div className="space-y-1.5">
+   407→                    <p className="text-sm font-medium">2. Enter the current 6-digit code</p>
+   408→                    <div className="flex flex-wrap gap-2">
+   409→                      <Input value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} className="max-w-32" />
+   410→                      <Button size="sm" onClick={confirmMfaEnable} disabled={mfaBusy || mfaCode.length !== 6}>Confirm & enable</Button>
+   411→                      <Button size="sm" variant="ghost" onClick={() => { setMfaSetup(null); setMfaCode('') }}>Cancel</Button>
+   412→                    </div>
+   413→                  </div>
+   414→                </div>
+   415→              ) : (
+   416→                <div className="space-y-2">
+   417→                  <Badge variant="outline" className="w-fit gap-1 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"><Smartphone className="h-3.5 w-3.5" /> Not enabled</Badge>
+   418→                  <div>
+   419→                    <Button variant="outline" size="sm" onClick={startMfaSetup} disabled={mfaBusy}>{mfaBusy ? 'Please wait…' : 'Set up authenticator app'}</Button>
+   420→                  </div>
+   421→                </div>
+   422→              )}
+   423→            </CardContent>
+   424→          </Card>
+   425→          <Card>
+   426→            <CardHeader><CardTitle>Privacy</CardTitle></CardHeader>
+   427→            <CardContent className="text-sm text-muted-foreground">
+   428→              <p>Your saved vehicles, garage records and searches are private by default. Dealer documents uploaded during verification are stored privately and only visible to you and authorised reviewers.</p>
+   429→            </CardContent>
+   430→          </Card>
+   431→        </TabsContent>
+   432→
+   433→        {/* Saved */}
+   434→        <TabsContent value="saved" className="mt-4">
+   435→          {saved === null ? (
+   436→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="aspect-[16/10] rounded-xl" />)}</div>
+   437→          ) : saved.length === 0 ? (
+   438→            <EmptyState icon={<Heart className="h-6 w-6" />} title="No saved vehicles yet" desc="Tap the heart on any listing to keep an eye on it." action="Browse cars" onAction={() => navigate('cars')} />
+   439→          ) : (
+   440→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+   441→              {saved.map((s) => <VehicleCard key={s.id} v={s.vehicle} saved onToggleSave={() => unsave(s.vehicle.id)} />)}
+   442→            </div>
+   443→          )}
+   444→        </TabsContent>
+   445→
+   446→        {/* Enquiries */}
+   447→        <TabsContent value="enquiries" className="mt-4 space-y-3">
+   448→          {enquiries === null ? <Skeleton className="h-40 rounded-xl" /> : enquiries.length === 0 ? (
+   449→            <EmptyState icon={<MessageSquareText className="h-6 w-6" />} title="No enquiries yet" desc="When you ask about a vehicle, the conversation appears here." action="Find a car" onAction={() => navigate('cars')} />
+   450→          ) : (
+   451→            enquiries.map((en) => (
+   452→              <Card key={en.id}>
+   453→                <CardHeader className="pb-2">
+   454→                  <div className="flex flex-wrap items-center justify-between gap-2">
+   455→                    <button className="text-left font-semibold hover:underline" onClick={() => navigate(`vehicle-detail/${en.vehicle.id}`)}>
+   456→                      {en.vehicle.make} {en.vehicle.model} {en.vehicle.year} · {money(en.vehicle.priceMinor, en.vehicle.currency)}
+   457→                    </button>
+   458→                    <div className="flex items-center gap-2">
+   459→                      <Badge variant={en.status === 'OPEN' ? 'secondary' : en.status === 'ANSWERED' ? 'outline' : 'secondary'} className={en.status === 'OPEN' ? 'bg-accent/30' : ''}>{en.status}</Badge>
+   460→                      <span className="text-xs text-muted-foreground">{en.refCode}</span>
+   461→                    </div>
+   462→                  </div>
+   463→                </CardHeader>
+   464→                <CardContent className="space-y-2">
+   465→                  <div className="scrollbar-thin max-h-40 space-y-2 overflow-y-auto rounded-lg bg-muted/60 p-3">
+   466→                    {en.messages.map((m) => (
+   467→                      <div key={m.id} className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${m.senderSide === 'CUSTOMER' ? 'ml-auto bg-primary text-primary-foreground' : 'bg-card border'}`}>
+   468→                        <p>{m.body}</p>
+   469→                        <p className="mt-1 text-[10px] opacity-70">{timeAgo(m.createdAt)}</p>
+   470→                      </div>
+   471→                    ))}
+   472→                  </div>
+   473→                  {en.status !== 'CLOSED' && (
+   474→                    <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => closeEnquiry(en.id)}>Close enquiry</Button>
+   475→                  )}
+   476→                </CardContent>
+   477→              </Card>
+   478→            ))
+   479→          )}
+   480→        </TabsContent>
+   481→
+   482→        {/* Messages (unified conversations) */}
+   483→        <TabsContent value="messages" className="mt-4">
+   484→          <FadeIn><MessagesTab scope="mine" /></FadeIn>
+   485→        </TabsContent>
+   486→
+   487→        {/* Service requests */}
+   488→        <TabsContent value="requests" className="mt-4 space-y-3">
+   489→          {requests === null ? <Skeleton className="h-40 rounded-xl" /> : requests.length === 0 ? (
+   490→            <EmptyState icon={<Wrench className="h-6 w-6" />} title="No service requests yet" desc="Request quotes from verified garages; including directly from the 3D customizer." action="Find a garage" onAction={() => navigate('garages')} />
+   491→          ) : (
+   492→            requests.map((r) => (
+   493→              <Card key={r.id}>
+   494→                <CardHeader className="pb-2">
+   495→                  <div className="flex flex-wrap items-center justify-between gap-2">
+   496→                    <span className="font-semibold">{r.category.replaceAll('_', ' ').toLowerCase()} · {r.county}</span>
+   497→                    <div className="flex items-center gap-2">
+   498→                      <Badge variant="outline">{r.status}</Badge>
+   499→                      <span className="text-xs text-muted-foreground">{r.refCode} · {timeAgo(r.createdAt)}</span>
+   500→                    </div>
+   501→                  </div>
+   502→                </CardHeader>
+   503→                <CardContent className="space-y-3">
+   504→                  <p className="text-sm text-muted-foreground">{r.description}</p>
+   505→                  {r.quotes.length > 0 && (
+   506→                    <div className="space-y-2">
+   507→                      <h4 className="text-sm font-medium">Quotes received</h4>
+   508→                      {r.quotes.map((q) => (
+   509→                        <div key={q.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+   510→                          <div>
+   511→                            <p className="font-medium">{q.org.name}</p>
+   512→                            <p className="text-xs text-muted-foreground">{q.message}</p>
+   513→                          </div>
+   514→                          <div className="flex items-center gap-2">
+   515→                            <span className="font-bold text-primary">{money(q.amountMinor)}</span>
+   516→                            {q.status === 'PENDING' ? (
+   517→                              <>
+   518→                                <Button size="sm" onClick={() => acceptQuote(r.id, q.id)}>Accept</Button>
+   519→                                <Button size="sm" variant="ghost" onClick={() => declineQuote(q.id)}>Decline</Button>
+   520→                              </>
+   521→                            ) : (
+   522→                              <Badge variant="outline">{q.status}</Badge>
+   523→                            )}
+   524→                          </div>
+   525→                        </div>
+   526→                      ))}
+   527→                    </div>
+   528→                  )}
+   529→                  {r.booking && (
+   530→                    <p className="text-sm">
+   531→                      Booking: <Badge variant="outline">{r.booking.status}</Badge>
+   532→                      {r.booking.scheduledAt && <span className="ml-2 text-muted-foreground">{dateLabel(r.booking.scheduledAt)}</span>}
+   533→                    </p>
+   534→                  )}
+   535→                </CardContent>
+   536→              </Card>
+   537→            ))
+   538→          )}
+   539→        </TabsContent>
+   540→
+   541→        {/* Parts orders */}
+   542→        <TabsContent value="orders" className="mt-4">
+   543→          <FadeIn><CustomerOrders /></FadeIn>
+   544→        </TabsContent>
+   545→
+   546→        {/* Saved searches */}
+   547→        <TabsContent value="searches" className="mt-4 space-y-3">
+   548→          <Card>
+   549→            <CardHeader className="pb-2"><CardTitle className="text-base">Save a search</CardTitle>
+   550→              <CardDescription>We alert you when new published listings match a saved search.</CardDescription></CardHeader>
+   551→            <CardContent className="flex gap-2">
+   552→              <Input value={newSearch} onChange={(e) => setNewSearch(e.target.value)} placeholder="e.g. Family SUV under 4M" />
+   553→              <Button onClick={addSearch}>Save</Button>
+   554→            </CardContent>
+   555→          </Card>
+   556→          {searches && searches.length > 0 && (
+   557→            <div className="space-y-2">
+   558→              {searches.map((s) => (
+   559→                <div key={s.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
+   560→                  <div>
+   561→                    <p className="font-medium">{s.name}</p>
+   562→                    <p className="text-xs text-muted-foreground">{s.query || 'no filters'} · saved {timeAgo(s.createdAt)}</p>
+   563→                  </div>
+   564→                  <Button variant="ghost" size="sm" onClick={async () => { await apiSend(`/api/saved-searches?id=${s.id}`, 'DELETE'); setSearches((x) => x!.filter((y) => y.id !== s.id)) }}>Remove</Button>
+   565→                </div>
+   566→              ))}
+   567→            </div>
+   568→          )}
+   569→        </TabsContent>
+   570→
+   571→        {/* Rewards (loyalty points & referrals) */}
+   572→        <TabsContent value="rewards" className="mt-4">
+   573→          <FadeIn><RewardsPanel /></FadeIn>
+   574→        </TabsContent>
+   575→
+   576→        {/* Vehicle protection */}
+   577→        <TabsContent value="protection" className="mt-4">
+   578→          <FadeIn><VehicleProtection /></FadeIn>
+   579→        </TabsContent>
+   580→
+   581→        {/* Test drives */}
+   582→        <TabsContent value="testdrives" className="mt-4">
+   583→          <FadeIn><CustomerTestDrives /></FadeIn>
+   584→        </TabsContent>
+   585→
+   586→        {/* Memberships & credit */}
+   587→        <TabsContent value="subscriptions" className="mt-4">
+   588→          <FadeIn><SubscriptionsPanel /></FadeIn>
+   589→        </TabsContent>
+   590→
+   591→        {/* Notifications */}
+   592→        <TabsContent value="notifications" className="mt-4 space-y-2">
+   593→          <div className="flex justify-end">
+   594→            <Button variant="ghost" size="sm" onClick={async () => { await apiSend('/api/notifications', 'PATCH', { all: true }); loadNotifications(); refreshNotifications() }}>
+   595→              Mark all read
+   596→            </Button>
+   597→          </div>
+   598→          {notifications === null ? <Skeleton className="h-40 rounded-xl" /> : notifications.length === 0 ? (
+   599→            <EmptyState icon={<Bell className="h-6 w-6" />} title="No notifications" desc="Enquiries, offers, quotes and reminders will show up here." />
+   600→          ) : (
+   601→            notifications.map((n) => (
+   602→              <button
+   603→                key={n.id}
+   604→                onClick={() => n.link && navigate(n.link)}
+   605→                className={`block w-full rounded-lg border p-3 text-left transition-colors hover:bg-muted/60 ${!n.readAt ? 'border-accent/40 bg-accent/5' : ''}`}
+   606→              >
+   607→                <div className="flex items-center justify-between gap-2">
+   608→                  <p className="text-sm font-medium">{n.title}</p>
+   609→                  <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(n.createdAt)}</span>
+   610→                </div>
+   611→                {n.body && <p className="mt-0.5 text-sm text-muted-foreground">{n.body}</p>}
+   612→              </button>
+   613→            ))
+   614→          )}
+   615→        </TabsContent>
+   616→      </Tabs>
+   617→    </div>
+   618→  )
+   619→}
+   620→
+   621→function FadeIn({ children }: { children: React.ReactNode }) {
+   622→  const reduce = useReducedMotion()
+   623→  return (
+   624→    <motion.div
+   625→      initial={reduce ? false : { opacity: 0, y: 10 }}
+   626→      animate={{ opacity: 1, y: 0 }}
+   627→      transition={{ duration: 0.3, ease: 'easeOut' }}
+   628→    >
+   629→      {children}
+   630→    </motion.div>
+   631→  )
+   632→}
+   633→
+   634→function EmptyState({ icon, title, desc, action, onAction }: { icon: React.ReactNode; title: string; desc: string; action?: string; onAction?: () => void }) {
+   635→  return (
+   636→    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center">
+   637→      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">{icon}</span>
+   638→      <h3 className="mt-3 font-semibold">{title}</h3>
+   639→      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{desc}</p>
+   640→      {action && onAction && <Button className="mt-4" variant="outline" onClick={onAction}>{action}</Button>}
+   641→    </div>
+   642→  )
+   643→}
+   644→

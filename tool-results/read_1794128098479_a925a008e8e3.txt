@@ -1,0 +1,1158 @@
+     1→'use client'
+     2→
+     3→/* SupplierOS: Orders tab: protected purchase-order workflow (supplier side).
+     4→ * Respond (accept / reject / propose revision), dispatch after funds are
+     5→ * protected, confirm handover, and open disputes. Full order detail with the
+     6→ * merged event timeline comes from GET /api/supply/orders/[id].
+     7→ *
+     8→ * HONESTY RULES:
+     9→ *  - Dispatch is only offered when the API state allows it (CONFIRMED +
+    10→ *    payment PROTECTED + delivery AGREED). When funds are not protected the
+    11→ *    exact reason is shown: we never pretend money is held.
+    12→ *  - The handover OTP is never displayed here (the garage owns it). Only the
+    13→ *    server-provided hint (last two digits) and the QR-token presence are shown.
+    14→ */
+    15→
+    16→import { useMemo, useState } from 'react'
+    17→import { toast } from 'sonner'
+    18→import {
+    19→  AlertTriangle, BadgeCheck, CalendarClock, CheckCircle2, ClipboardList, FileUp, Handshake, Inbox,
+    20→  Loader2, MapPin, Package, PackageCheck, Search, ShieldCheck, Truck, XCircle,
+    21→} from 'lucide-react'
+    22→import { apiSend } from '@/lib/client'
+    23→import { money, timeAgo, dateLabel } from '@/lib/format'
+    24→import { Button } from '@/components/ui/button'
+    25→import { Card, CardContent } from '@/components/ui/card'
+    26→import { Input } from '@/components/ui/input'
+    27→import { Label } from '@/components/ui/label'
+    28→import { Textarea } from '@/components/ui/textarea'
+    29→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    30→import { Badge } from '@/components/ui/badge'
+    31→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    32→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    33→import { Separator } from '@/components/ui/separator'
+    34→import { Skeleton } from '@/components/ui/skeleton'
+    35→import { cn } from '@/lib/utils'
+    36→import {
+    37→  type FetchState, type OrderListItem, type OrderDetail, type ProductItem, type PoEvent,
+    38→  useFetch, supplierRoleCan, StatusBadge, LoadingBlock, ModuleNotice, EmptyState,
+    39→  PO_STATUS_LABELS, PO_BADGE_CLASS, PAYMENT_STATUS_LABELS, DELIVERY_STATUS_LABELS,
+    40→  DISPUTE_REASONS, DISPUTE_REASON_LABELS,
+    41→  kesToMinor, uploadOne, errMessage,
+    42→} from './shared'
+    43→
+    44→type Props = {
+    45→  orgId: string
+    46→  role: string
+    47→  orders: FetchState<{ orders: OrderListItem[] }>
+    48→  products: FetchState<{ products: ProductItem[] }>
+    49→}
+    50→
+    51→type OrderFilter = 'ALL' | 'SUBMITTED' | 'OPEN' | 'CLOSED'
+    52→
+    53→const EVENT_SIDE_LABELS: Record<string, string> = {
+    54→  GARAGE: 'Garage',
+    55→  SUPPLIER: 'You',
+    56→  SYSTEM: 'System',
+    57→  ADMIN: 'Platform',
+    58→}
+    59→
+    60→export function OrdersTab({ role, orders, products }: Props) {
+    61→  const [filter, setFilter] = useState<OrderFilter>('ALL')
+    62→  const [openId, setOpenId] = useState<string | null>(null)
+    63→  const [query, setQuery] = useState('')
+    64→
+    65→  const canRespond = supplierRoleCan(role, 'order.respond')
+    66→  const canDispute = supplierRoleCan(role, 'dispute.open')
+    67→
+    68→  const list = orders.data?.orders ?? []
+    69→  const awaiting = list.filter((o) => o.status === 'SUBMITTED').length
+    70→
+    71→  const filtered = list.filter((o) => {
+    72→    if (filter === 'SUBMITTED' && o.status !== 'SUBMITTED') return false
+    73→    if (filter === 'OPEN' && ['REJECTED', 'CANCELLED', 'COMPLETED'].includes(o.status)) return false
+    74→    if (filter === 'CLOSED' && !['REJECTED', 'CANCELLED', 'COMPLETED'].includes(o.status)) return false
+    75→    if (query.trim()) {
+    76→      const q = query.trim().toLowerCase()
+    77→      if (!o.refCode.toLowerCase().includes(q) && !o.garage.name.toLowerCase().includes(q)) return false
+    78→    }
+    79→    return true
+    80→  })
+    81→
+    82→  return (
+    83→    <div className="space-y-4">
+    84→      <div className="flex flex-wrap items-center justify-between gap-3">
+    85→        <div>
+    86→          <h2 className="text-lg font-semibold tracking-tight">Purchase orders</h2>
+    87→          <p className="text-sm text-muted-foreground">
+    88→            {awaiting > 0 ? `${awaiting} order${awaiting === 1 ? '' : 's'} awaiting your response.` : 'Protected orders from verified garages.'}
+    89→          </p>
+    90→        </div>
+    91→        <div className="relative w-full sm:w-64">
+    92→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    93→          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search ref or garage…" className="pl-8" aria-label="Search orders" />
+    94→        </div>
+    95→      </div>
+    96→
+    97→      <div className="flex flex-wrap gap-1.5">
+    98→        {(['ALL', 'SUBMITTED', 'OPEN', 'CLOSED'] as OrderFilter[]).map((f) => (
+    99→          <button
+   100→            key={f}
+   101→            type="button"
+   102→            onClick={() => setFilter(f)}
+   103→            className={cn(
+   104→              'rounded-full border px-3 py-1 text-xs transition-colors',
+   105→              filter === f ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'
+   106→            )}
+   107→          >
+   108→            {f === 'ALL' ? 'All' : f === 'SUBMITTED' ? `Awaiting response${awaiting ? ` (${awaiting})` : ''}` : f === 'OPEN' ? 'Open' : 'Closed'}
+   109→          </button>
+   110→        ))}
+   111→      </div>
+   112→
+   113→      {orders.loading ? (
+   114→        <LoadingBlock label="Loading orders…" />
+   115→      ) : orders.error ? (
+   116→        <ModuleNotice title="Orders could not load" detail={orders.error.message} retry={orders.reload} />
+   117→      ) : filtered.length === 0 ? (
+   118→        <EmptyState
+   119→          icon={<ClipboardList className="h-8 w-8" />}
+   120→          title={list.length === 0 ? 'No purchase orders yet' : 'No orders match the filters'}
+   121→          detail={list.length === 0
+   122→            ? 'When a verified garage places an order from your catalogue it lands here for you to accept, revise or reject.'
+   123→            : 'Try a different search or filter.'}
+   124→        />
+   125→      ) : (
+   126→        <div className="space-y-3">
+   127→          {filtered.map((o) => (
+   128→            <OrderCard key={o.id} order={o} onOpen={() => setOpenId(o.id)} />
+   129→          ))}
+   130→        </div>
+   131→      )}
+   132→
+   133→      {openId && (
+   134→        <OrderDetailDialog
+   135→          orderId={openId}
+   136→          role={role}
+   137→          canRespond={canRespond}
+   138→          canDispute={canDispute}
+   139→          products={products}
+   140→          onClose={() => setOpenId(null)}
+   141→          onChanged={() => {
+   142→            orders.reload()
+   143→          }}
+   144→        />
+   145→      )}
+   146→    </div>
+   147→  )
+   148→}
+   149→
+   150→// ───────────────────────────── Order card ─────────────────────────────
+   151→
+   152→function OrderCard({ order, onOpen }: { order: OrderListItem; onOpen: () => void }) {
+   153→  return (
+   154→    <Card className="cursor-pointer py-4 transition-colors hover:border-primary/40" onClick={onOpen} role="button" aria-label={`Open order ${order.refCode}`}>
+   155→      <CardContent className="flex flex-wrap items-start justify-between gap-3 px-4">
+   156→        <div className="min-w-0">
+   157→          <div className="flex flex-wrap items-center gap-2">
+   158→            <p className="font-mono text-sm font-semibold">{order.refCode}</p>
+   159→            <StatusBadge status={order.status} labels={PO_STATUS_LABELS} classes={PO_BADGE_CLASS} />
+   160→            {order.revisedBySupplier && (
+   161→              <Badge variant="secondary" className="border-transparent bg-accent/40 text-accent-foreground">Revision proposed</Badge>
+   162→            )}
+   163→            {order.disputeCount > 0 && (
+   164→              <Badge variant="secondary" className="border-transparent bg-destructive/15 text-destructive">Dispute</Badge>
+   165→            )}
+   166→          </div>
+   167→          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+   168→            <span className="flex items-center gap-1">
+   169→              {order.garage.name}
+   170→              {order.garage.verified && <BadgeCheck className="h-3 w-3 text-primary" />}
+   171→            </span>
+   172→            <span>{order.garage.county}</span>
+   173→            <span>{order.itemCount} line{order.itemCount === 1 ? '' : 's'}</span>
+   174→            <span>{timeAgo(order.createdAt)}</span>
+   175→          </p>
+   176→          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+   177→            <span>Delivery: {order.delivery ? DELIVERY_STATUS_LABELS[order.delivery.status] ?? order.delivery.status : 'Not arranged'}</span>
+   178→            <span>Payment: {order.payment ? PAYMENT_STATUS_LABELS[order.payment.status] ?? order.payment.status : PAYMENT_STATUS_LABELS.UNPAID}</span>
+   179→          </p>
+   180→        </div>
+   181→        <div className="text-right">
+   182→          <p className="text-base font-semibold">{money(order.totalMinor, order.currency)}</p>
+   183→          <p className="text-xs text-muted-foreground">{order.destinationBranch ? `→ ${order.destinationBranch.name}` : ''}</p>
+   184→        </div>
+   185→      </CardContent>
+   186→    </Card>
+   187→  )
+   188→}
+   189→
+   190→// ───────────────────────────── Detail dialog ─────────────────────────────
+   191→
+   192→function OrderDetailDialog({ orderId, role, canRespond, canDispute, products, onClose, onChanged }: {
+   193→  orderId: string
+   194→  role: string
+   195→  canRespond: boolean
+   196→  canDispute: boolean
+   197→  products: FetchState<{ products: ProductItem[] }>
+   198→  onClose: () => void
+   199→  onChanged: () => void
+   200→}) {
+   201→  const detail = useFetch<OrderDetail>(`/api/supply/orders/${orderId}`)
+   202→  const order = detail.data?.order ?? null
+   203→  const [busy, setBusy] = useState<string | null>(null)
+   204→
+   205→  const isDisputed = Boolean(order && (order.status === 'DISPUTED' || order.disputes.some((d) => ['OPEN', 'UNDER_REVIEW'].includes(d.status))))
+   206→
+   207→  async function act<T>(key: string, fn: () => Promise<T>): Promise<T | null> {
+   208→    setBusy(key)
+   209→    try {
+   210→      const res = await fn()
+   211→      detail.reload()
+   212→      onChanged()
+   213→      return res
+   214→    } catch (e) {
+   215→      toast.error(await errMessage(e, 'Action failed: please try again.'))
+   216→      return null
+   217→    } finally {
+   218→      setBusy(null)
+   219→    }
+   220→  }
+   221→
+   222→  return (
+   223→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   224→      <DialogContent className="max-h-[94vh] overflow-y-auto scrollbar-thin sm:max-w-4xl">
+   225→        {detail.loading || !order ? (
+   226→          <div className="space-y-3 py-4" aria-busy="true">
+   227→            <Skeleton className="h-7 w-52" />
+   228→            <Skeleton className="h-4 w-80" />
+   229→            <Skeleton className="h-40 w-full" />
+   230→            <Skeleton className="h-40 w-full" />
+   231→          </div>
+   232→        ) : (
+   233→          <>
+   234→            <DialogHeader>
+   235→              <DialogTitle className="flex flex-wrap items-center gap-2">
+   236→                <span className="font-mono">{order.refCode}</span>
+   237→                <StatusBadge status={order.status} labels={PO_STATUS_LABELS} classes={PO_BADGE_CLASS} />
+   238→                {order.payment && (
+   239→                  <StatusBadge status={order.payment.status} labels={PAYMENT_STATUS_LABELS} classes={paymentBadgeClass(order.payment.status)} />
+   240→                )}
+   241→              </DialogTitle>
+   242→              <DialogDescription>
+   243→                {order.garage.name}
+   244→                {order.garage.verified ? ' (verified garage)' : ''} · {order.garage.county}
+   245→                {order.destinationBranch ? ` → ${order.destinationBranch.name} (${order.destinationBranch.town})` : ''}
+   246→                {' '}· placed {dateLabel(order.createdAt)}
+   247→              </DialogDescription>
+   248→            </DialogHeader>
+   249→
+   250→            {/* Supplier note from response */}
+   251→            {order.supplierNote && (
+   252→              <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+   253→                Your note on this order: “{order.supplierNote}”
+   254→              </p>
+   255→            )}
+   256→
+   257→            {/* Action cards */}
+   258→            {canRespond && order.status === 'SUBMITTED' && (
+   259→              <RespondSection order={order} busy={busy} act={act} products={products} />
+   260→            )}
+   261→            {order.status === 'REVISED' && (
+   262→              <Alert>
+   263→                <AlertTriangle className="h-4 w-4" />
+   264→                <AlertTitle>Revision proposed: waiting on the garage</AlertTitle>
+   265→                <AlertDescription>
+   266→                  The garage must approve or decline your revision before the order can proceed. You&apos;ll be notified of their decision.
+   267→                </AlertDescription>
+   268→              </Alert>
+   269→            )}
+   270→            {canRespond && order.status === 'CONFIRMED' && (
+   271→              <DispatchSection order={order} busy={busy} act={act} />
+   272→            )}
+   273→            {canRespond && order.delivery && ['DISPATCHED', 'IN_TRANSIT'].includes(order.delivery.status) && !order.delivery.supplierConfirmAt && (
+   274→              <Card>
+   275→                <CardContent className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+   276→                  <div>
+   277→                    <p className="text-sm font-medium">Confirm handover</p>
+   278→                    <p className="text-xs text-muted-foreground">
+   279→                      Confirm you handed the goods to the courier/garage. The garage verifies with their handover code.
+   280→                    </p>
+   281→                  </div>
+   282→                  <Button className="min-h-11" disabled={busy !== null} onClick={() => act('handover', () => apiSend(`/api/supply/orders/${order.id}/action`, 'POST', { action: 'handover-confirm' }))}>
+   283→                    {busy === 'handover' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />} Confirm handover
+   284→                  </Button>
+   285→                </CardContent>
+   286→              </Card>
+   287→            )}
+   288→            {canDispute && !isDisputed && ['CONFIRMED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'INSPECTED'].includes(order.status) && (
+   289→              <DisputeSection orderId={order.id} busy={busy} act={act} />
+   290→            )}
+   291→            {isDisputed && (
+   292→              <Alert variant="destructive">
+   293→                <AlertTriangle className="h-4 w-4" />
+   294→                <AlertTitle>Order under dispute</AlertTitle>
+   295→                <AlertDescription>
+   296→                  {order.disputes.map((d) => `${d.refCode} (${DISPUTE_REASON_LABELS[d.reason] ?? d.reason}): ${d.status}`).join('; ')}
+   297→                  {' '}Platform admins investigate with all order, payment and delivery evidence.
+   298→                </AlertDescription>
+   299→              </Alert>
+   300→            )}
+   301→
+   302→            <ItemsTable order={order} />
+   303→
+   304→            {/* Delivery + payment panels */}
+   305→            <div className="grid gap-3 sm:grid-cols-2">
+   306→              <DeliveryPanel order={order} />
+   307→              <PaymentPanel order={order} />
+   308→            </div>
+   309→
+   310→            <Timeline order={order} />
+   311→
+   312→            <DialogFooter className="justify-start">
+   313→              <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+   314→            </DialogFooter>
+   315→          </>
+   316→        )}
+   317→      </DialogContent>
+   318→    </Dialog>
+   319→  )
+   320→}
+   321→
+   322→function paymentBadgeClass(status: string): string {
+   323→  if (status === 'PROTECTED') return 'bg-primary/15 text-primary'
+   324→  if (status === 'RELEASED' || status === 'PARTIALLY_RELEASED') return 'bg-primary text-primary-foreground'
+   325→  if (status === 'FAILED' || status === 'REFUNDED') return 'bg-destructive/15 text-destructive'
+   326→  return 'bg-accent/30 text-accent-foreground'
+   327→}
+   328→
+   329→// ───────────────────────────── Respond (accept/reject/revise) ─────────────────────────────
+   330→
+   331→function RespondSection({ order, busy, act, products }: {
+   332→  order: NonNullable<OrderDetail['order']>
+   333→  busy: string | null
+   334→  act: (key: string, fn: () => Promise<unknown>) => Promise<unknown>
+   335→  products: FetchState<{ products: ProductItem[] }>
+   336→}) {
+   337→  const [mode, setMode] = useState<'choose' | 'accept' | 'reject' | 'revise'>('choose')
+   338→  const [note, setNote] = useState('')
+   339→
+   340→  if (mode === 'revise') {
+   341→    return (
+   342→      <RevisionEditor
+   343→        order={order}
+   344→        busy={busy}
+   345→        act={act}
+   346→        products={products}
+   347→        onDone={() => setMode('choose')}
+   348→      />
+   349→    )
+   350→  }
+   351→
+   352→  return (
+   353→    <Card className="border-primary/30">
+   354→      <CardContent className="space-y-3 px-4 py-4">
+   355→        <div>
+   356→          <p className="flex items-center gap-2 text-sm font-semibold"><Inbox className="h-4 w-4 text-primary" /> Respond to this order</p>
+   357→          <p className="text-xs text-muted-foreground">
+   358→            Accept to confirm the order as quoted, propose revised quantities/prices, or reject with a reason. The garage is notified of your decision.
+   359→          </p>
+   360→        </div>
+   361→
+   362→        {mode === 'choose' ? (
+   363→          <div className="flex flex-wrap gap-2">
+   364→            <Button className="min-h-11" disabled={busy !== null} onClick={() => setMode('accept')}>
+   365→              <CheckCircle2 className="h-4 w-4" /> Accept
+   366→            </Button>
+   367→            <Button variant="outline" className="min-h-11" disabled={busy !== null} onClick={() => setMode('revise')}>
+   368→              <Package className="h-4 w-4" /> Propose revision
+   369→            </Button>
+   370→            <Button variant="ghost" className="min-h-11 text-destructive hover:text-destructive" disabled={busy !== null} onClick={() => setMode('reject')}>
+   371→              <XCircle className="h-4 w-4" /> Reject
+   372→            </Button>
+   373→          </div>
+   374→        ) : (
+   375→          <div className="space-y-2">
+   376→            <Label htmlFor="respond-note">
+   377→              {mode === 'accept' ? 'Note to the garage (optional)' : 'Reason (required)'}
+   378→            </Label>
+   379→            <Textarea
+   380→              id="respond-note"
+   381→              rows={2}
+   382→              value={note}
+   383→              onChange={(e) => setNote(e.target.value)}
+   384→              maxLength={500}
+   385→              placeholder={mode === 'accept' ? 'e.g. All items in stock: dispatch within 24h of delivery arrangement.' : 'e.g. Brake pads SKU discontinued; we can propose an equivalent.'}
+   386→            />
+   387→            <div className="flex flex-wrap justify-end gap-2">
+   388→              <Button variant="ghost" onClick={() => { setMode('choose'); setNote('') }} disabled={busy !== null}>Back</Button>
+   389→              <Button
+   390→                className="min-h-11"
+   391→                disabled={busy !== null || (mode === 'reject' && note.trim().length < 3)}
+   392→                onClick={() =>
+   393→                  act('respond', () =>
+   394→                    apiSend(`/api/supply/orders/${order.id}/action`, 'POST', {
+   395→                      action: 'respond',
+   396→                      decision: mode === 'accept' ? 'ACCEPT' : 'REJECT',
+   397→                      note: note.trim() || undefined,
+   398→                    })
+   399→                  ).then(() => setMode('choose'))
+   400→                }
+   401→              >
+   402→                {busy === 'respond' ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'accept' ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+   403→                {mode === 'accept' ? 'Accept order' : 'Reject order'}
+   404→              </Button>
+   405→            </div>
+   406→          </div>
+   407→        )}
+   408→      </CardContent>
+   409→    </Card>
+   410→  )
+   411→}
+   412→
+   413→// ───────────────────────────── Revision editor ─────────────────────────────
+   414→
+   415→type LineEdit = { itemId: string; productId: string; name: string; qty: string; unit: string; remove: boolean }
+   416→type AddLine = { productId: string; qty: string; unit: string }
+   417→
+   418→function RevisionEditor({ order, busy, act, products, onDone }: {
+   419→  order: NonNullable<OrderDetail['order']>
+   420→  busy: string | null
+   421→  act: (key: string, fn: () => Promise<unknown>) => Promise<unknown>
+   422→  products: FetchState<{ products: ProductItem[] }>
+   423→  onDone: () => void
+   424→}) {
+   425→  const [lines, setLines] = useState<LineEdit[]>(() =>
+   426→    order.items.map((i) => ({ itemId: i.id, productId: i.productId, name: i.name, qty: String(i.qty), unit: minorToKesInput2(i.unitPriceMinor), remove: false }))
+   427→  )
+   428→  const [adds, setAdds] = useState<AddLine[]>([])
+   429→  const [note, setNote] = useState('')
+   430→
+   431→  function setLine(idx: number, patch: Partial<LineEdit>) {
+   432→    setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
+   433→  }
+   434→
+   435→  const changes = useMemo(() => {
+   436→    const out: { itemId?: string; productId: string; action: 'UPDATE' | 'REMOVE' | 'ADD'; qty?: number; unitPriceMinor?: number }[] = []
+   437→    for (const l of lines) {
+   438→      const qty = Number(l.qty)
+   439→      const unit = kesToMinor(l.unit)
+   440→      if (l.remove) {
+   441→        out.push({ itemId: l.itemId, productId: l.productId, action: 'REMOVE' })
+   442→      } else if (Number.isInteger(qty) && qty >= 1 && unit !== null) {
+   443→        // changed only when qty/price differ from the original
+   444→        const orig = order.items.find((i) => i.id === l.itemId)
+   445→        if (orig && (qty !== orig.qty || unit !== orig.unitPriceMinor)) {
+   446→          out.push({ itemId: l.itemId, productId: l.productId, action: 'UPDATE', qty, unitPriceMinor: unit })
+   447→        }
+   448→      }
+   449→    }
+   450→    for (const a of adds) {
+   451→      const qty = Number(a.qty)
+   452→      const unit = kesToMinor(a.unit)
+   453→      if (Number.isInteger(qty) && qty >= 1 && unit !== null && unit >= 100) {
+   454→        out.push({ productId: a.productId, action: 'ADD', qty, unitPriceMinor: unit })
+   455→      }
+   456→    }
+   457→    return out
+   458→  }, [lines, adds, order.items])
+   459→
+   460→  const newSubtotal = useMemo(() => {
+   461→    let sum = 0
+   462→    for (const l of lines) {
+   463→      if (l.remove) continue
+   464→      const qty = Number(l.qty)
+   465→      const unit = kesToMinor(l.unit)
+   466→      if (Number.isInteger(qty) && qty >= 1 && unit !== null) sum += qty * unit
+   467→    }
+   468→    for (const a of adds) {
+   469→      const qty = Number(a.qty)
+   470→      const unit = kesToMinor(a.unit)
+   471→      if (Number.isInteger(qty) && qty >= 1 && unit !== null) sum += qty * unit
+   472→    }
+   473→    return sum
+   474→  }, [lines, adds])
+   475→
+   476→  const publishable = changes.length > 0 && note.trim().length >= 3
+   477→
+   478→  return (
+   479→    <Card className="border-accent/50">
+   480→      <CardContent className="space-y-3 px-4 py-4">
+   481→        <div>
+   482→          <p className="flex items-center gap-2 text-sm font-semibold"><Package className="h-4 w-4 text-primary" /> Propose a revision</p>
+   483→          <p className="text-xs text-muted-foreground">
+   484→            Adjust quantities or unit prices, remove lines, or add lines from your catalogue. The garage must approve the
+   485→            revision before the order is final.
+   486→          </p>
+   487→        </div>
+   488→
+   489→        <div className="space-y-2">
+   490→          {lines.map((l, idx) => (
+   491→            <div key={l.itemId} className={cn('grid gap-2 rounded-lg border border-border p-2.5 sm:grid-cols-[1fr_auto]', l.remove && 'opacity-50')}>
+   492→              <div className="min-w-0">
+   493→                <p className="truncate text-sm font-medium">{l.name}</p>
+   494→                <p className="font-mono text-[11px] text-muted-foreground">{order.items.find((i) => i.id === l.itemId)?.sku}</p>
+   495→              </div>
+   496→              <div className="flex flex-wrap items-center gap-2">
+   497→                <div className="w-20">
+   498→                  <Label htmlFor={`rv-qty-${l.itemId}`} className="text-[10px] text-muted-foreground">Qty</Label>
+   499→                  <Input id={`rv-qty-${l.itemId}`} inputMode="numeric" className="h-8" value={l.qty} disabled={l.remove}
+   500→                    onChange={(e) => setLine(idx, { qty: e.target.value.replace(/[^\d]/g, '') })} />
+   501→                </div>
+   502→                <div className="w-28">
+   503→                  <Label htmlFor={`rv-unit-${l.itemId}`} className="text-[10px] text-muted-foreground">Unit (KES)</Label>
+   504→                  <Input id={`rv-unit-${l.itemId}`} inputMode="decimal" className="h-8" value={l.unit} disabled={l.remove}
+   505→                    onChange={(e) => setLine(idx, { unit: e.target.value })} />
+   506→                </div>
+   507→                <Button
+   508→                  size="sm"
+   509→                  variant={l.remove ? 'secondary' : 'ghost'}
+   510→                  className="h-8 text-destructive hover:text-destructive"
+   511→                  onClick={() => setLine(idx, { remove: !l.remove })}
+   512→                >
+   513→                  {l.remove ? 'Keep line' : 'Remove'}
+   514→                </Button>
+   515→              </div>
+   516→            </div>
+   517→          ))}
+   518→        </div>
+   519→
+   520→        {adds.length > 0 && (
+   521→          <div className="space-y-2">
+   522→            {adds.map((a, idx) => {
+   523→              const prod = products.data?.products.find((p) => p.id === a.productId)
+   524→              return (
+   525→                <div key={`add-${idx}`} className="grid gap-2 rounded-lg border border-dashed border-border p-2.5 sm:grid-cols-[1fr_auto]">
+   526→                  <div className="min-w-0">
+   527→                    <p className="truncate text-sm font-medium">+ {prod?.name ?? a.productId}</p>
+   528→                    <p className="font-mono text-[11px] text-muted-foreground">{prod?.sku ?? ''}</p>
+   529→                  </div>
+   530→                  <div className="flex flex-wrap items-center gap-2">
+   531→                    <div className="w-20">
+   532→                      <Label className="text-[10px] text-muted-foreground" htmlFor={`ad-qty-${idx}`}>Qty</Label>
+   533→                      <Input id={`ad-qty-${idx}`} inputMode="numeric" className="h-8" value={a.qty}
+   534→                        onChange={(e) => setAdds((xs) => xs.map((x, i) => (i === idx ? { ...x, qty: e.target.value.replace(/[^\d]/g, '') } : x)))} />
+   535→                    </div>
+   536→                    <div className="w-28">
+   537→                      <Label className="text-[10px] text-muted-foreground" htmlFor={`ad-unit-${idx}`}>Unit (KES)</Label>
+   538→                      <Input id={`ad-unit-${idx}`} inputMode="decimal" className="h-8" value={a.unit}
+   539→                        onChange={(e) => setAdds((xs) => xs.map((x, i) => (i === idx ? { ...x, unit: e.target.value } : x)))} />
+   540→                    </div>
+   541→                    <Button size="sm" variant="ghost" className="h-8 text-destructive hover:text-destructive"
+   542→                      onClick={() => setAdds((xs) => xs.filter((_, i) => i !== idx))}>
+   543→                      Remove
+   544→                    </Button>
+   545→                  </div>
+   546→                </div>
+   547→              )
+   548→            })}
+   549→          </div>
+   550→        )}
+   551→
+   552→        <AddLinePicker products={products} onAdd={(a) => setAdds((xs) => [...xs, a])} existing={new Set([...lines.map((l) => l.productId), ...adds.map((a) => a.productId)])} />
+   553→
+   554→        <div className="space-y-1.5">
+   555→          <Label htmlFor="rv-note">Note to the garage (required, min 3 chars)</Label>
+   556→          <Textarea id="rv-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500}
+   557→            placeholder="Explain the changes: e.g. price update for this quarter's freight costs." />
+   558→        </div>
+   559→
+   560→        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+   561→          <span className="text-muted-foreground">Proposed subtotal</span>
+   562→          <span className="font-semibold">{money(newSubtotal)}</span>
+   563→        </div>
+   564→
+   565→        <div className="flex flex-wrap justify-end gap-2">
+   566→          <Button variant="ghost" onClick={onDone} disabled={busy !== null}>Back</Button>
+   567→          <Button
+   568→            className="min-h-11"
+   569→            disabled={busy !== null || !publishable}
+   570→            title={publishable ? 'Send revision to the garage' : 'Adjust at least one line and add a note (min 3 chars).'}
+   571→            onClick={() =>
+   572→              act('respond', () =>
+   573→                apiSend(`/api/supply/orders/${order.id}/action`, 'POST', {
+   574→                  action: 'respond',
+   575→                  decision: 'REVISE',
+   576→                  note: note.trim(),
+   577→                  revision: { changes },
+   578→                })
+   579→              ).then(() => onDone())
+   580→            }
+   581→          >
+   582→            {busy === 'respond' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />} Send revision
+   583→          </Button>
+   584→        </div>
+   585→      </CardContent>
+   586→    </Card>
+   587→  )
+   588→}
+   589→
+   590→function minorToKesInput2(minor: number): string {
+   591→  return String(minor / 100)
+   592→}
+   593→
+   594→function AddLinePicker({ products, onAdd, existing }: {
+   595→  products: FetchState<{ products: ProductItem[] }>
+   596→  onAdd: (a: AddLine) => void
+   597→  existing: Set<string>
+   598→}) {
+   599→  const [productId, setProductId] = useState('')
+   600→  const published = (products.data?.products ?? []).filter((p) => p.status === 'PUBLISHED' && !existing.has(p.id))
+   601→  return (
+   602→    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-border p-2.5">
+   603→      <div className="min-w-48 flex-1">
+   604→        <Label htmlFor="rv-add-product" className="text-xs">Add a line from your catalogue</Label>
+   605→        <Select value={productId || undefined} onValueChange={setProductId}>
+   606→          <SelectTrigger id="rv-add-product" aria-label="Product to add"><SelectValue placeholder="Choose a published product" /></SelectTrigger>
+   607→          <SelectContent className="max-h-64">
+   608→            {published.map((p) => (
+   609→              <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
+   610→            ))}
+   611→            {published.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">No other published products.</div>}
+   612→          </SelectContent>
+   613→        </Select>
+   614→      </div>
+   615→      <Button
+   616→        variant="outline"
+   617→        className="min-h-10"
+   618→        disabled={!productId}
+   619→        onClick={() => {
+   620→          const p = products.data?.products.find((x) => x.id === productId)
+   621→          if (!p) return
+   622→          onAdd({ productId: p.id, qty: '1', unit: String(p.unitPriceMinor / 100) })
+   623→          setProductId('')
+   624→        }}
+   625→      >
+   626→        <PackagePlusIcon /> Add line
+   627→      </Button>
+   628→    </div>
+   629→  )
+   630→}
+   631→
+   632→function PackagePlusIcon() {
+   633→  return <Package className="h-4 w-4" />
+   634→}
+   635→
+   636→// ───────────────────────────── Dispatch ─────────────────────────────
+   637→
+   638→function DispatchSection({ order, busy, act }: {
+   639→  order: NonNullable<OrderDetail['order']>
+   640→  busy: string | null
+   641→  act: (key: string, fn: () => Promise<unknown>) => Promise<unknown>
+   642→}) {
+   643→  const [open, setOpen] = useState(false)
+   644→  const [courierName, setCourierName] = useState('')
+   645→  const [driverName, setDriverName] = useState('')
+   646→  const [driverPhone, setDriverPhone] = useState('')
+   647→  const [vehicleReg, setVehicleReg] = useState('')
+   648→  const [deliveryRef, setDeliveryRef] = useState('')
+   649→  const [expectedHours, setExpectedHours] = useState('24')
+   650→  const [evidence, setEvidence] = useState<string[]>([])
+   651→  const [uploading, setUploading] = useState(false)
+   652→
+   653→  const paymentProtected = order.paymentStatus === 'PROTECTED'
+   654→  const deliveryAgreed = order.delivery?.status === 'AGREED'
+   655→  const canDispatch = paymentProtected && deliveryAgreed
+   656→
+   657→  async function handleFiles(files: FileList | null) {
+   658→    if (!files || files.length === 0) return
+   659→    const room = 6 - evidence.length
+   660→    if (room <= 0) {
+   661→      toast.error('At most 6 dispatch evidence files.')
+   662→      return
+   663→    }
+   664→    setUploading(true)
+   665→    try {
+   666→      for (const file of Array.from(files).slice(0, room)) {
+   667→        const res = await uploadOne(file)
+   668→        setEvidence((prev) => [...prev, res.url])
+   669→      }
+   670→      toast.success('Evidence uploaded')
+   671→    } catch (e) {
+   672→      toast.error(await errMessage(e, 'Upload failed: please try again.'))
+   673→    } finally {
+   674→      setUploading(false)
+   675→    }
+   676→  }
+   677→
+   678→  if (!canDispatch) {
+   679→    return (
+   680→      <Card className="border-dashed">
+   681→        <CardContent className="space-y-1.5 px-4 py-4">
+   682→          <p className="flex items-center gap-2 text-sm font-semibold"><Truck className="h-4 w-4 text-muted-foreground" /> Dispatch (locked)</p>
+   683→          {!paymentProtected && (
+   684→            <Alert variant="destructive">
+   685→              <AlertTriangle className="h-4 w-4" />
+   686→              <AlertTitle>Funds must be protected before dispatch</AlertTitle>
+   687→              <AlertDescription>
+   688→                The garage pays via M-Pesa; platform finance reconciles where M-Pesa is not configured. Funds are only
+   689→                released after the garage accepts the delivery.
+   690→              </AlertDescription>
+   691→            </Alert>
+   692→          )}
+   693→          {!deliveryAgreed && (
+   694→            <p className="text-xs text-muted-foreground">
+   695→              Delivery must be arranged and agreed before dispatch; currently:{' '}
+   696→              <strong>{order.delivery ? DELIVERY_STATUS_LABELS[order.delivery.status] ?? order.delivery.status : 'not arranged'}</strong>.
+   697→            </p>
+   698→          )}
+   699→        </CardContent>
+   700→      </Card>
+   701→    )
+   702→  }
+   703→
+   704→  return (
+   705→    <Card className="border-primary/30">
+   706→      <CardContent className="space-y-3 px-4 py-4">
+   707→        <div className="flex flex-wrap items-center justify-between gap-2">
+   708→          <div>
+   709→            <p className="flex items-center gap-2 text-sm font-semibold"><Truck className="h-4 w-4 text-primary" /> Dispatch order</p>
+   710→            <p className="text-xs text-muted-foreground">
+   711→              Funds are protected. Record the handover details: the garage receives a 6-digit handover code to verify delivery.
+   712→            </p>
+   713→          </div>
+   714→          {!open && (
+   715→            <Button className="min-h-11" disabled={busy !== null} onClick={() => setOpen(true)}>
+   716→              <Truck className="h-4 w-4" /> Record dispatch
+   717→            </Button>
+   718→          )}
+   719→        </div>
+   720→
+   721→        {open && (
+   722→          <div className="space-y-3">
+   723→            <div className="grid gap-3 sm:grid-cols-2">
+   724→              <div className="space-y-1.5">
+   725→                <Label htmlFor="dp-courier">Courier / transport company</Label>
+   726→                <Input id="dp-courier" value={courierName} onChange={(e) => setCourierName(e.target.value)} placeholder="e.g. G4S Courier" maxLength={80} />
+   727→              </div>
+   728→              <div className="space-y-1.5">
+   729→                <Label htmlFor="dp-driver">Driver name</Label>
+   730→                <Input id="dp-driver" value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="e.g. John Otieno" maxLength={80} />
+   731→              </div>
+   732→              <div className="space-y-1.5">
+   733→                <Label htmlFor="dp-phone">Driver phone</Label>
+   734→                <Input id="dp-phone" type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="+254 7xx xxx xxx" maxLength={20} />
+   735→              </div>
+   736→              <div className="space-y-1.5">
+   737→                <Label htmlFor="dp-reg">Vehicle registration</Label>
+   738→                <Input id="dp-reg" value={vehicleReg} onChange={(e) => setVehicleReg(e.target.value)} placeholder="e.g. KDA 123A" maxLength={20} />
+   739→              </div>
+   740→              <div className="space-y-1.5">
+   741→                <Label htmlFor="dp-ref">Delivery reference</Label>
+   742→                <Input id="dp-ref" value={deliveryRef} onChange={(e) => setDeliveryRef(e.target.value)} placeholder="Consignment / waybill number" maxLength={60} />
+   743→              </div>
+   744→              <div className="space-y-1.5">
+   745→                <Label htmlFor="dp-hours">Expected transit (hours)</Label>
+   746→                <Input id="dp-hours" inputMode="numeric" value={expectedHours} onChange={(e) => setExpectedHours(e.target.value.replace(/[^\d]/g, ''))} placeholder="e.g. 24" />
+   747→              </div>
+   748→            </div>
+   749→
+   750→            <div className="space-y-2">
+   751→              <Label>Dispatch evidence ({evidence.length}/6)</Label>
+   752→              <input
+   753→                id="dp-evidence"
+   754→                type="file"
+   755→                multiple
+   756→                accept="image/jpeg,image/png,image/webp,application/pdf"
+   757→                className="hidden"
+   758→                onChange={(e) => {
+   759→                  handleFiles(e.target.files)
+   760→                  e.target.value = ''
+   761→                }}
+   762→              />
+   763→              <div className="flex flex-wrap items-center gap-2">
+   764→                {evidence.map((url) => (
+   765→                  <div key={url} className="relative">
+   766→                    <img src={url} alt="Dispatch evidence" className="h-14 w-14 rounded-md border border-border object-cover" />
+   767→                    <button
+   768→                      type="button"
+   769→                      aria-label="Remove evidence"
+   770→                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+   771→                      onClick={() => setEvidence((prev) => prev.filter((u) => u !== url))}
+   772→                    >
+   773→                      <XCircle className="h-3 w-3" />
+   774→                    </button>
+   775→                  </div>
+   776→                ))}
+   777→                {evidence.length < 6 && (
+   778→                  <button
+   779→                    type="button"
+   780→                    onClick={() => document.getElementById('dp-evidence')?.click()}
+   781→                    disabled={uploading}
+   782→                    className="flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+   783→                  >
+   784→                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+   785→                    <span className="text-[9px]">{uploading ? 'Uploading…' : 'Upload'}</span>
+   786→                  </button>
+   787→                )}
+   788→              </div>
+   789→              <p className="text-xs text-muted-foreground">Packing photos or signed waybills; visible to the garage and platform reviewers.</p>
+   790→            </div>
+   791→
+   792→            <div className="flex flex-wrap justify-end gap-2">
+   793→              <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy !== null}>Cancel</Button>
+   794→              <Button
+   795→                className="min-h-11"
+   796→                disabled={busy !== null || uploading}
+   797→                onClick={() =>
+   798→                  act('dispatch', () =>
+   799→                    apiSend(`/api/supply/orders/${order.id}/action`, 'POST', {
+   800→                      action: 'dispatch',
+   801→                      courierName: courierName.trim() || undefined,
+   802→                      driverName: driverName.trim() || undefined,
+   803→                      driverPhone: driverPhone.trim() || undefined,
+   804→                      vehicleReg: vehicleReg.trim() || undefined,
+   805→                      deliveryRef: deliveryRef.trim() || undefined,
+   806→                      expectedHours: expectedHours.trim() ? Number(expectedHours) : undefined,
+   807→                      evidence,
+   808→                    })
+   809→                  ).then(() => setOpen(false))
+   810→                }
+   811→              >
+   812→                {busy === 'dispatch' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />} Record dispatch
+   813→              </Button>
+   814→            </div>
+   815→          </div>
+   816→        )}
+   817→      </CardContent>
+   818→    </Card>
+   819→  )
+   820→}
+   821→
+   822→// ───────────────────────────── Dispute ─────────────────────────────
+   823→
+   824→function DisputeSection({ orderId, busy, act }: {
+   825→  orderId: string
+   826→  busy: string | null
+   827→  act: (key: string, fn: () => Promise<unknown>) => Promise<unknown>
+   828→}) {
+   829→  const [open, setOpen] = useState(false)
+   830→  const [reason, setReason] = useState<string>('MISSING_ITEMS')
+   831→  const [details, setDetails] = useState('')
+   832→  const [evidence, setEvidence] = useState<{ url: string; name: string }[]>([])
+   833→  const [uploading, setUploading] = useState(false)
+   834→
+   835→  async function handleFiles(files: FileList | null) {
+   836→    if (!files || files.length === 0) return
+   837→    const room = 6 - evidence.length
+   838→    if (room <= 0) {
+   839→      toast.error('At most 6 evidence files.')
+   840→      return
+   841→    }
+   842→    setUploading(true)
+   843→    try {
+   844→      for (const file of Array.from(files).slice(0, room)) {
+   845→        const res = await uploadOne(file)
+   846→        setEvidence((prev) => [...prev, { url: res.url, name: res.name || file.name }])
+   847→      }
+   848→      toast.success('Evidence uploaded')
+   849→    } catch (e) {
+   850→      toast.error(await errMessage(e, 'Upload failed: please try again.'))
+   851→    } finally {
+   852→      setUploading(false)
+   853→    }
+   854→  }
+   855→
+   856→  if (!open) {
+   857→    return (
+   858→      <div className="flex justify-end">
+   859→        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={busy !== null} onClick={() => setOpen(true)}>
+   860→          <AlertTriangle className="h-3.5 w-3.5" /> Open dispute
+   861→        </Button>
+   862→      </div>
+   863→    )
+   864→  }
+   865→
+   866→  return (
+   867→    <Card className="border-destructive/40">
+   868→      <CardContent className="space-y-3 px-4 py-4">
+   869→        <div>
+   870→          <p className="flex items-center gap-2 text-sm font-semibold text-destructive"><AlertTriangle className="h-4 w-4" /> Open a dispute</p>
+   871→          <p className="text-xs text-muted-foreground">
+   872→            Freezes further workflow steps on this order. Platform admins investigate with the full order, payment and
+   873→            delivery evidence. Use honest, specific details.
+   874→          </p>
+   875→        </div>
+   876→        <div className="grid gap-3 sm:grid-cols-2">
+   877→          <div className="space-y-1.5">
+   878→            <Label htmlFor="ds-reason">Reason</Label>
+   879→            <Select value={reason} onValueChange={setReason}>
+   880→              <SelectTrigger id="ds-reason" aria-label="Dispute reason"><SelectValue /></SelectTrigger>
+   881→              <SelectContent>
+   882→                {DISPUTE_REASONS.map((r) => <SelectItem key={r} value={r}>{DISPUTE_REASON_LABELS[r]}</SelectItem>)}
+   883→              </SelectContent>
+   884→            </Select>
+   885→          </div>
+   886→          <div className="space-y-1.5 sm:col-span-2">
+   887→            <Label htmlFor="ds-details">Details (min 10 characters)</Label>
+   888→            <Textarea id="ds-details" rows={3} value={details} onChange={(e) => setDetails(e.target.value)} maxLength={2000}
+   889→              placeholder="What happened, which lines are affected, what resolution you expect." />
+   890→          </div>
+   891→        </div>
+   892→        <div className="space-y-2">
+   893→          <Label>Evidence ({evidence.length}/6)</Label>
+   894→          <input
+   895→            id="ds-evidence"
+   896→            type="file"
+   897→            multiple
+   898→            accept="image/jpeg,image/png,image/webp,application/pdf"
+   899→            className="hidden"
+   900→            onChange={(e) => {
+   901→              handleFiles(e.target.files)
+   902→              e.target.value = ''
+   903→            }}
+   904→          />
+   905→          <div className="flex flex-wrap items-center gap-2">
+   906→            {evidence.map((ev) => (
+   907→              <div key={ev.url} className="relative">
+   908→                <img src={ev.url} alt={ev.name} className="h-14 w-14 rounded-md border border-border object-cover" />
+   909→                <button
+   910→                  type="button"
+   911→                  aria-label={`Remove ${ev.name}`}
+   912→                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+   913→                  onClick={() => setEvidence((prev) => prev.filter((x) => x.url !== ev.url))}
+   914→                >
+   915→                  <XCircle className="h-3 w-3" />
+   916→                </button>
+   917→              </div>
+   918→            ))}
+   919→            {evidence.length < 6 && (
+   920→              <button
+   921→                type="button"
+   922→                onClick={() => document.getElementById('ds-evidence')?.click()}
+   923→                disabled={uploading}
+   924→                className="flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+   925→              >
+   926→                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+   927→                <span className="text-[9px]">{uploading ? 'Uploading…' : 'Upload'}</span>
+   928→              </button>
+   929→            )}
+   930→          </div>
+   931→        </div>
+   932→        <div className="flex flex-wrap justify-end gap-2">
+   933→          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy !== null}>Cancel</Button>
+   934→          <Button
+   935→            variant="destructive"
+   936→            className="min-h-11"
+   937→            disabled={busy !== null || details.trim().length < 10}
+   938→            onClick={() =>
+   939→              act('dispute', () =>
+   940→                apiSend(`/api/supply/orders/${orderId}/action`, 'POST', {
+   941→                  action: 'dispute',
+   942→                  reason,
+   943→                  details: details.trim(),
+   944→                  evidence,
+   945→                })
+   946→              ).then(() => setOpen(false))
+   947→            }
+   948→          >
+   949→            {busy === 'dispute' ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />} File dispute
+   950→          </Button>
+   951→        </div>
+   952→      </CardContent>
+   953→    </Card>
+   954→  )
+   955→}
+   956→
+   957→// ───────────────────────────── Items, panels, timeline ─────────────────────────────
+   958→
+   959→function ItemsTable({ order }: { order: NonNullable<OrderDetail['order']> }) {
+   960→  return (
+   961→    <div className="overflow-hidden rounded-lg border border-border">
+   962→      <div className="overflow-x-auto scrollbar-thin">
+   963→        <table className="w-full text-sm">
+   964→          <thead>
+   965→            <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+   966→              <th className="px-3 py-2 font-medium">Item</th>
+   967→              <th className="px-3 py-2 text-right font-medium">Qty</th>
+   968→              <th className="px-3 py-2 text-right font-medium">Unit</th>
+   969→              <th className="px-3 py-2 text-right font-medium">Line total</th>
+   970→              <th className="px-3 py-2 text-right font-medium">Accepted</th>
+   971→            </tr>
+   972→          </thead>
+   973→          <tbody>
+   974→            {order.items.map((i) => (
+   975→              <tr key={i.id} className="border-b border-border last:border-0">
+   976→                <td className="max-w-64 px-3 py-2">
+   977→                  <div className="flex items-center gap-2">
+   978→                    {i.image ? <img src={i.image} alt="" className="h-9 w-9 rounded border border-border object-cover" /> : <span className="flex h-9 w-9 items-center justify-center rounded border border-border bg-muted/40"><Package className="h-4 w-4 text-muted-foreground" /></span>}
+   979→                    <div className="min-w-0">
+   980→                      <p className="truncate font-medium">{i.name}</p>
+   981→                      <p className="font-mono text-[11px] text-muted-foreground">{i.sku}{i.brand ? ` · ${i.brand}` : ''}{i.note ? ` · note: ${i.note}` : ''}</p>
+   982→                    </div>
+   983→                  </div>
+   984→                </td>
+   985→                <td className="px-3 py-2 text-right">{i.qty}</td>
+   986→                <td className="px-3 py-2 text-right">{money(i.unitPriceMinor, order.currency)}</td>
+   987→                <td className="px-3 py-2 text-right">{money(i.lineTotalMinor, order.currency)}</td>
+   988→                <td className="px-3 py-2 text-right">{i.qtyAccepted ?? 'Not set'}</td>
+   989→              </tr>
+   990→            ))}
+   991→          </tbody>
+   992→        </table>
+   993→      </div>
+   994→      <div className="space-y-1 border-t border-border bg-muted/20 px-3 py-2.5 text-sm">
+   995→        <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{money(order.subtotalMinor, order.currency)}</span></div>
+   996→        <div className="flex justify-between text-muted-foreground"><span>Tax</span><span>{money(order.taxMinor, order.currency)}</span></div>
+   997→        <div className="flex justify-between text-muted-foreground"><span>Delivery fee</span><span>{money(order.deliveryFeeMinor, order.currency)}</span></div>
+   998→        <div className="flex justify-between font-semibold"><span>Total</span><span>{money(order.totalMinor, order.currency)}</span></div>
+   999→        {order.acceptedTotalMinor !== null && (
+  1000→          <div className="flex justify-between text-primary"><span>Accepted value after inspection</span><span className="font-semibold">{money(order.acceptedTotalMinor, order.currency)}</span></div>
+  1001→        )}
+  1002→      </div>
+  1003→    </div>
+  1004→  )
+  1005→}
+  1006→
+  1007→function DeliveryPanel({ order }: { order: NonNullable<OrderDetail['order']> }) {
+  1008→  const d = order.delivery
+  1009→  return (
+  1010→    <Card>
+  1011→      <CardContent className="space-y-2 px-4 py-4 text-sm">
+  1012→        <p className="flex items-center gap-2 font-semibold"><Truck className="h-4 w-4 text-muted-foreground" /> Delivery</p>
+  1013→        {!d ? (
+  1014→          <p className="text-xs text-muted-foreground">
+  1015→            Not arranged yet. After you accept, the delivery method (direct, collection or meetup) is agreed between you and the garage.
+  1016→          </p>
+  1017→        ) : (
+  1018→          <>
+  1019→            <div className="flex flex-wrap gap-1.5">
+  1020→              <StatusBadge status={d.status} labels={DELIVERY_STATUS_LABELS} classes={{ AGREED: 'bg-primary/15 text-primary', ARRANGING: 'bg-accent/30 text-accent-foreground' }} />
+  1021→              <Badge variant="outline" className="text-[10px]">{d.method}</Badge>
+  1022→            </div>
+  1023→            <dl className="space-y-1 text-xs text-muted-foreground">
+  1024→              {d.scheduledFor && <div className="flex gap-1"><CalendarClock className="h-3 w-3 shrink-0" /><span>Scheduled {new Date(d.scheduledFor).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })}{d.windowLabel ? ` · ${d.windowLabel}` : ''}</span></div>}
+  1025→              {d.courierName && <div>Courier: {d.courierName}</div>}
+  1026→              {d.driverName && <div>Driver: {d.driverName}{d.driverPhone ? ` · ${d.driverPhone}` : ''}</div>}
+  1027→              {d.vehicleReg && <div>Vehicle: {d.vehicleReg}</div>}
+  1028→              {d.deliveryRef && <div>Ref: <span className="font-mono">{d.deliveryRef}</span></div>}
+  1029→              {d.dispatchedAt && <div>Dispatched {timeAgo(d.dispatchedAt)}{d.expectedAt ? ` · expected ${dateLabel(d.expectedAt)}` : ''}</div>}
+  1030→              {order.destinationBranch && <div className="flex gap-1"><MapPin className="h-3 w-3 shrink-0" /><span>To: {order.destinationBranch.name}, {order.destinationBranch.address || order.destinationBranch.town}</span></div>}
+  1031→              {d.supplierBranch && <div className="flex gap-1"><MapPin className="h-3 w-3 shrink-0" /><span>Collection: {d.supplierBranch.name}, {d.supplierBranch.town}</span></div>}
+  1032→              {d.meetup?.address && <div className="flex gap-1"><MapPin className="h-3 w-3 shrink-0" /><span>Meetup: {d.meetup.address}</span></div>}
+  1033→            </dl>
+  1034→            {d.dispatchEvidence.length > 0 && (
+  1035→              <div className="flex flex-wrap gap-1.5 pt-1">
+  1036→                {d.dispatchEvidence.map((url) => (
+  1037→                  <img key={url} src={url} alt="Dispatch evidence" className="h-12 w-12 rounded border border-border object-cover" />
+  1038→                ))}
+  1039→              </div>
+  1040→            )}
+  1041→            <HandoverVerification d={d} />
+  1042→          </>
+  1043→        )}
+  1044→      </CardContent>
+  1045→    </Card>
+  1046→  )
+  1047→}
+  1048→
+  1049→function HandoverVerification({ d }: { d: NonNullable<OrderDetail['order']['delivery']> }) {
+  1050→  const active = ['DISPATCHED', 'IN_TRANSIT', 'DELIVERED'].includes(d.status)
+  1051→  if (!active) return null
+  1052→  return (
+  1053→    <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+  1054→      <p className="flex items-center gap-1.5 font-medium text-foreground"><ShieldCheck className="h-3.5 w-3.5 text-primary" /> Handover verification</p>
+  1055→      <p className="mt-1">
+  1056→        {d.otpHint
+  1057→          ? <>The garage holds the 6-digit handover code; it ends <span className="font-mono font-semibold text-foreground">··{d.otpHint}</span>. You never see the full code; they read it out only at handover.</>
+  1058→          : 'The garage receives a 6-digit handover code at dispatch; it is verified at delivery.'}
+  1059→      </p>
+  1060→      <p className="mt-0.5">
+  1061→        {d.qrToken ? 'QR handover verification is enabled for this delivery.' : 'QR handover is not enabled for this delivery.'}
+  1062→      </p>
+  1063→    </div>
+  1064→  )
+  1065→}
+  1066→
+  1067→function PaymentPanel({ order }: { order: NonNullable<OrderDetail['order']> }) {
+  1068→  const p = order.payment
+  1069→  return (
+  1070→    <Card>
+  1071→      <CardContent className="space-y-2 px-4 py-4 text-sm">
+  1072→        <p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-muted-foreground" /> Payment</p>
+  1073→        {!p ? (
+  1074→          <p className="text-xs text-muted-foreground">
+  1075→            No payment yet. After confirmation the garage pays via M-Pesa into protected escrow; funds release to you
+  1076→            after the garage accepts the delivery.
+  1077→          </p>
+  1078→        ) : (
+  1079→          <>
+  1080→            <div className="flex flex-wrap gap-1.5">
+  1081→              <StatusBadge status={p.status} labels={PAYMENT_STATUS_LABELS} classes={paymentBadgeClass(p.status)} />
+  1082→              {p.provider && <Badge variant="outline" className="text-[10px]">{p.provider}</Badge>}
+  1083→            </div>
+  1084→            <dl className="space-y-1 text-xs text-muted-foreground">
+  1085→              <div>Amount: <span className="font-semibold text-foreground">{money(p.amountMinor, order.currency)}</span></div>
+  1086→              <div>Ref: <span className="font-mono">{p.refCode}</span></div>
+  1087→              {p.protectedAt && <div>Funds protected {timeAgo(p.protectedAt)}</div>}
+  1088→            </dl>
+  1089→            <p className="text-xs text-muted-foreground">
+  1090→              {p.status === 'PROTECTED'
+  1091→                ? 'Funds are held in protection and release after the garage inspects and accepts the delivery.'
+  1092→                : p.status === 'RELEASED' || p.status === 'PARTIALLY_RELEASED'
+  1093→                  ? 'Released funds are paid out per the platform finance schedule; the commission is recorded separately.'
+  1094→                  : 'Payment states change only when the payment provider or platform finance confirms them; this panel never assumes.'}
+  1095→            </p>
+  1096→          </>
+  1097→        )}
+  1098→      </CardContent>
+  1099→    </Card>
+  1100→  )
+  1101→}
+  1102→
+  1103→function Timeline({ order }: { order: NonNullable<OrderDetail['order']> }) {
+  1104→  const events: PoEvent[] = useMemo(() => {
+  1105→    const all = [...order.events, ...(order.delivery?.events ?? []).map((e) => ({ ...e, type: `Delivery · ${e.type}` }))]
+  1106→    return all.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  1107→  }, [order])
+  1108→
+  1109→  return (
+  1110→    <div>
+  1111→      <p className="mb-2 text-sm font-semibold">Timeline</p>
+  1112→      <ol className="max-h-64 space-y-0 overflow-y-auto scrollbar-thin pr-1">
+  1113→        {events.map((e) => (
+  1114→          <li key={e.id} className="relative border-l border-border pb-3 pl-4 last:pb-0">
+  1115→            <span className="absolute -left-[4.5px] top-1.5 h-2 w-2 rounded-full bg-primary/60" />
+  1116→            <p className="text-xs">
+  1117→              <span className="font-medium">{e.type.replaceAll('_', ' ')}</span>
+  1118→              {' '}· {EVENT_SIDE_LABELS[e.actorSide ?? ''] ?? 'Party'}
+  1119→              {e.actorName ? ` (${e.actorName})` : ''}
+  1120→              {' '}· {new Date(e.createdAt).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })}
+  1121→            </p>
+  1122→            {e.note && <p className="mt-0.5 text-xs text-muted-foreground">{e.note}</p>}
+  1123→          </li>
+  1124→        ))}
+  1125→        {events.length === 0 && <li className="text-xs text-muted-foreground">No events recorded.</li>}
+  1126→      </ol>
+  1127→      {order.revisions.length > 0 && (
+  1128→        <>
+  1129→          <Separator className="my-3" />
+  1130→          <p className="mb-1.5 text-sm font-semibold">Revisions</p>
+  1131→          <ul className="space-y-1.5">
+  1132→            {order.revisions.map((r) => (
+  1133→              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+  1134→                <span>
+  1135→                  Proposed {timeAgo(r.createdAt)} · {r.changes.length} change{r.changes.length === 1 ? '' : 's'}
+  1136→                  {r.note ? ` · “${r.note}”` : ''}
+  1137→                </span>
+  1138→                <span className="flex items-center gap-2">
+  1139→                  <span className="font-semibold">{money(r.newTotalMinor, order.currency)}</span>
+  1140→                  <Badge variant="secondary" className={cn('border-transparent', r.status === 'APPROVED' ? 'bg-primary text-primary-foreground' : r.status === 'DECLINED' ? 'bg-destructive/15 text-destructive' : 'bg-accent/40 text-accent-foreground')}>
+  1141→                    {r.status === 'APPROVED' ? 'Approved' : r.status === 'DECLINED' ? 'Declined' : 'Pending'}
+  1142→                  </Badge>
+  1143→                </span>
+  1144→              </li>
+  1145→            ))}
+  1146→          </ul>
+  1147→        </>
+  1148→      )}
+  1149→      {order.inspectionStatus && (
+  1150→        <p className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+  1151→          Garage inspection result: <strong className="text-foreground">{order.inspectionStatus}</strong>
+  1152→          {order.acceptedTotalMinor !== null ? `: accepted value ${money(order.acceptedTotalMinor, order.currency)}.` : ''}
+  1153→        </p>
+  1154→      )}
+  1155→    </div>
+  1156→  )
+  1157→}
+  1158→

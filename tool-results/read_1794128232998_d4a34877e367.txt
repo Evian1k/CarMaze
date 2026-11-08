@@ -1,0 +1,637 @@
+     1→'use client'
+     2→
+     3→/* Order detail dialog: the protected order lifecycle for the GARAGE side.
+     4→ * Renders the 9-step lifecycle with exactly the backend's action union
+     5→ * (POST /api/supply/orders/[id]/action). The action panels themselves
+     6→ * (payment, handover, cancel, inspection, release, dispute/return/warranty,
+     7→ * claims record and timeline) live in order-actions.tsx. */
+     8→
+     9→import { useCallback, useEffect, useState } from 'react'
+    10→import { toast } from 'sonner'
+    11→import {
+    12→  Check, Truck, MapPin, ShieldCheck, Building2, Navigation, CalendarClock,
+    13→  ScrollText, RefreshCw,
+    14→} from 'lucide-react'
+    15→import { Badge } from '@/components/ui/badge'
+    16→import { Button } from '@/components/ui/button'
+    17→import { Input } from '@/components/ui/input'
+    18→import { Label } from '@/components/ui/label'
+    19→import { Textarea } from '@/components/ui/textarea'
+    20→import { Skeleton } from '@/components/ui/skeleton'
+    21→import { Separator } from '@/components/ui/separator'
+    22→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    23→import { ScrollArea } from '@/components/ui/scroll-area'
+    24→import {
+    25→  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+    26→} from '@/components/ui/dialog'
+    27→import {
+    28→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    29→} from '@/components/ui/select'
+    30→import { apiGet, apiSend, ClientApiError } from '@/lib/client'
+    31→import { money } from '@/lib/format'
+    32→import { cn } from '@/lib/utils'
+    33→import {
+    34→  Img, StatusChip, PaymentChip, BtnSpinner, When, dateTimeLabel,
+    35→  kesToMinor, canApprove, canOrder, STEPS, stepIndex, ARRANGEABLE, PayStatus, Row,
+    36→  type OrderDetailResponse, type OrderDetailData,
+    37→} from './shared'
+    38→import { HandoverPanel, PaymentPanel } from './order-payment'
+    39→import {
+    40→  CancelSection, InspectionPanel, PostDeliveryActions, ClaimsPanel, Timeline,
+    41→} from './order-actions'
+    42→
+    43→const DELIVERY_METHODS = [
+    44→  { value: 'DIRECT', label: 'Direct to my branch', hint: 'Supplier delivers to your chosen destination branch.' },
+    45→  { value: 'COLLECTION', label: 'Collect from supplier', hint: 'Pick the parts up at one of the supplier\u2019s warehouses.' },
+    46→  { value: 'MEETUP', label: 'Meet at agreed location', hint: 'Propose a handover point: both parties must agree before it is locked.' },
+    47→]
+    48→
+    49→export function OrderDetailDialog({ orderId, open, onOpenChange, roleFallback, onChanged }: {
+    50→  orderId: string
+    51→  open: boolean
+    52→  onOpenChange: (v: boolean) => void
+    53→  roleFallback: string
+    54→  /** Parent list refresh after any successful action. */
+    55→  onChanged: () => void
+    56→}) {
+    57→  const [data, setData] = useState<{ key: string; detail: OrderDetailResponse } | null>(null)
+    58→  const [payStatusRaw, setPayStatus] = useState<{ key: string; data: PayStatus } | null>(null)
+    59→  const [loadError, setLoadError] = useState<{ key: string; message: string } | null>(null)
+    60→  const [busy, setBusy] = useState('')
+    61→
+    62→  const role = data && data.key === orderId ? (data.detail.role || roleFallback) : roleFallback
+    63→  const order = data && data.key === orderId ? data.detail.order : null
+    64→
+    65→  const load = useCallback(() => {
+    66→    let stale = false
+    67→    apiGet<OrderDetailResponse>(`/api/supply/orders/${orderId}`)
+    68→      .then((d) => { if (!stale) { setData({ key: orderId, detail: d }); setLoadError(null) } })
+    69→      .catch((e: unknown) => {
+    70→        if (stale) return
+    71→        setLoadError({ key: orderId, message: e instanceof ClientApiError ? e.message : 'Could not load this order.' })
+    72→      })
+    73→    apiGet<PayStatus>(`/api/supply/orders/${orderId}/pay`)
+    74→      .then((d) => { if (!stale) setPayStatus({ key: orderId, data: d }) })
+    75→      .catch(() => { /* payment panel reads order.payment as fallback */ })
+    76→    return () => { stale = true }
+    77→  }, [orderId])
+    78→
+    79→  useEffect(() => {
+    80→    if (!open || !orderId) return
+    81→    return load()
+    82→  }, [open, orderId, load])
+    83→
+    84→  const reload = useCallback(() => {
+    85→    load()
+    86→    onChanged()
+    87→  }, [load, onChanged])
+    88→
+    89→  const payStatus = payStatusRaw && payStatusRaw.key === orderId ? payStatusRaw.data : null
+    90→
+    91→  if (!open) return null
+    92→
+    93→  return (
+    94→    <Dialog open={open} onOpenChange={onOpenChange}>
+    95→      <DialogContent className="max-h-[92vh] overflow-hidden sm:max-w-3xl lg:max-w-4xl">
+    96→        <DialogHeader className="sr-only">
+    97→          <DialogTitle>Order detail</DialogTitle>
+    98→          <DialogDescription>Purchase order lifecycle, delivery, payment and actions.</DialogDescription>
+    99→        </DialogHeader>
+   100→        {loadError && loadError.key === orderId ? (
+   101→          <div className="py-10 text-center">
+   102→            <p className="text-sm text-destructive">{loadError.message}</p>
+   103→            <Button variant="outline" className="mt-3" onClick={() => { setLoadError(null); load() }}>
+   104→              <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden="true" /> Retry
+   105→            </Button>
+   106→          </div>
+   107→        ) : !order ? (
+   108→          <div className="space-y-3 py-2">
+   109→            <Skeleton className="h-8 w-64" />
+   110→            <Skeleton className="h-24 rounded-xl" />
+   111→            <Skeleton className="h-40 rounded-xl" />
+   112→            <Skeleton className="h-40 rounded-xl" />
+   113→          </div>
+   114→        ) : (
+   115→          <ScrollArea className="-mx-2 max-h-[calc(92vh-4rem)] px-2 scrollbar-thin">
+   116→            <div className="space-y-5 pb-4 pr-1">
+   117→              <Header order={order} />
+   118→              <Stepper order={order} />
+   119→              {order.supplierNote && (
+   120→                <Alert className="border-violet-500/30 bg-violet-500/5 [&>svg]:text-violet-500">
+   121→                  <ScrollText className="h-4 w-4" aria-hidden="true" />
+   122→                  <AlertTitle>Supplier note</AlertTitle>
+   123→                  <AlertDescription>{order.supplierNote}</AlertDescription>
+   124→                </Alert>
+   125→              )}
+   126→              <RevisionPanel order={order} busy={busy} setBusy={setBusy} reload={reload} role={role} />
+   127→              <ItemsPanel order={order} />
+   128→              <MoneyPanel order={order} payStatus={payStatus} />
+   129→              <DeliveryPanel order={order} busy={busy} setBusy={setBusy} reload={reload} role={role} />
+   130→              <HandoverPanel order={order} busy={busy} setBusy={setBusy} reload={reload} />
+   131→              <PaymentPanel order={order} payStatus={payStatus} role={role} busy={busy} setBusy={setBusy} reload={reload} />
+   132→              <CancelSection order={order} busy={busy} setBusy={setBusy} reload={reload} role={role} />
+   133→              <InspectionPanel order={order} busy={busy} setBusy={setBusy} reload={reload} role={role} />
+   134→              <PostDeliveryActions order={order} busy={busy} setBusy={setBusy} reload={reload} role={role} />
+   135→              <ClaimsPanel order={order} />
+   136→              <Timeline order={order} />
+   137→            </div>
+   138→          </ScrollArea>
+   139→        )}
+   140→      </DialogContent>
+   141→    </Dialog>
+   142→  )
+   143→}
+   144→
+   145→// ─────────────────────────── Header + stepper ───────────────────────────
+   146→
+   147→function Header({ order }: { order: OrderDetailData }) {
+   148→  return (
+   149→    <div className="flex flex-wrap items-start justify-between gap-2">
+   150→      <div className="min-w-0">
+   151→        <div className="flex flex-wrap items-center gap-2">
+   152→          <h2 className="font-mono text-lg font-bold">{order.refCode}</h2>
+   153→          <StatusChip status={order.status} />
+   154→          <PaymentChip status={order.paymentStatus} />
+   155→          {order.inspectionStatus && (
+   156→            <Badge variant="outline" className="border-border text-muted-foreground">Inspection: {order.inspectionStatus}</Badge>
+   157→          )}
+   158→        </div>
+   159→        <p className="mt-1 text-sm text-muted-foreground">
+   160→          Supplier <span className="font-medium text-foreground">{order.supplier.name}</span>
+   161→          {order.supplier.verified && <ShieldCheck className="ml-1 inline h-3.5 w-3.5 text-primary" aria-label="Verified supplier" />}
+   162→          {' · '}{[order.supplier.county, order.supplier.town].filter(Boolean).join(', ')}
+   163→          {order.supplier.verified && (order.supplier.phone || order.supplier.email) && (
+   164→            <> · {order.supplier.phone ?? ''}{order.supplier.phone && order.supplier.email ? ' · ' : ''}{order.supplier.email ?? ''}</>
+   165→          )}
+   166→        </p>
+   167→        {order.destinationBranch && (
+   168→          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+   169→            <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+   170→            Destination: {order.destinationBranch.name} ({order.destinationBranch.code})
+   171→          </p>
+   172→        )}
+   173→        <p className="mt-0.5 text-xs text-muted-foreground">Created {dateTimeLabel(order.createdAt)}</p>
+   174→      </div>
+   175→      <div className="text-right">
+   176→        <p className="text-xs text-muted-foreground">Order total</p>
+   177→        <p className="text-xl font-bold tabular-nums">{money(order.totalMinor, order.currency)}</p>
+   178→      </div>
+   179→    </div>
+   180→  )
+   181→}
+   182→
+   183→function Stepper({ order }: { order: OrderDetailData }) {
+   184→  const idx = stepIndex(order.status)
+   185→  const terminalBad = idx === -1
+   186→  return (
+   187→    <div className="rounded-xl border border-border bg-card/50 p-3">
+   188→      {terminalBad ? (
+   189→        <div className="flex items-center justify-center gap-2 py-1">
+   190→          <StatusChip status={order.status} />
+   191→          <span className="text-sm text-muted-foreground">
+   192→            {order.status === 'CANCELLED'
+   193→              ? 'This order was cancelled: no further actions apply.'
+   194→              : order.status === 'REJECTED'
+   195→                ? 'The supplier rejected this order.'
+   196→                : 'Lifecycle paused while the dispute is investigated.'}
+   197→          </span>
+   198→        </div>
+   199→      ) : (
+   200→        <ol className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-0" aria-label="Order lifecycle">
+   201→          {STEPS.map((label, i) => {
+   202→            const done = i < idx
+   203→            const current = i === idx
+   204→            return (
+   205→              <li key={label} className="flex flex-1 items-center gap-1.5 sm:flex-col sm:gap-1">
+   206→                <span
+   207→                  className={cn(
+   208→                    'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold',
+   209→                    done && 'border-emerald-500/50 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+   210→                    current && 'border-primary bg-primary text-primary-foreground',
+   211→                    !done && !current && 'border-border bg-muted text-muted-foreground'
+   212→                  )}
+   213→                  aria-current={current ? 'step' : undefined}
+   214→                >
+   215→                  {done ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : i + 1}
+   216→                </span>
+   217→                <span className={cn('text-[11px] leading-tight', current ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{label}</span>
+   218→                {i < STEPS.length - 1 && <span className="hidden h-px flex-1 bg-border sm:block" aria-hidden="true" />}
+   219→              </li>
+   220→            )
+   221→          })}
+   222→        </ol>
+   223→      )}
+   224→      {order.status === 'AWAITING_APPROVAL' && (
+   225→        <p className="mt-2 text-center text-xs text-amber-600 dark:text-amber-400">
+   226→          Internal approval gate: this order is not visible to the supplier until management approves it.
+   227→        </p>
+   228→      )}
+   229→    </div>
+   230→  )
+   231→}
+   232→
+   233→// ─────────────────────────── Supplier revision decision ───────────────────────────
+   234→
+   235→function RevisionPanel({ order, busy, setBusy, reload, role }: {
+   236→  order: OrderDetailData
+   237→  busy: string
+   238→  setBusy: (v: string) => void
+   239→  reload: () => void
+   240→  role: string
+   241→}) {
+   242→  const pending = order.revisions.filter((r) => r.status === 'PENDING')
+   243→  if (pending.length === 0 && order.status !== 'REVISED') return null
+   244→  const mayDecide = canApprove(role)
+   245→
+   246→  async function decide(revisionId: string, decision: 'APPROVED' | 'DECLINED') {
+   247→    setBusy(`revision-${revisionId}`)
+   248→    try {
+   249→      const res = await apiSend<{ message: string }>(`/api/supply/orders/${order.id}/action`, 'POST', {
+   250→        action: 'revision-decision', revisionId, decision,
+   251→      })
+   252→      toast.success(res.message || 'Revision decision recorded.')
+   253→      reload()
+   254→    } catch (e) {
+   255→      toast.error(e instanceof ClientApiError ? e.message : 'Could not record the decision.')
+   256→    } finally {
+   257→      setBusy('')
+   258→    }
+   259→  }
+   260→
+   261→  return (
+   262→    <section className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
+   263→      <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-400">Supplier proposed changes</h3>
+   264→      {pending.length === 0 ? (
+   265→        <p className="mt-1 text-sm text-muted-foreground">A revision was proposed on this order; see the timeline below.</p>
+   266→      ) : (
+   267→        pending.map((r) => (
+   268→          <div key={r.id} className="mt-2 space-y-2">
+   269→            <p className="text-sm text-muted-foreground">
+   270→              Proposed subtotal <span className="font-semibold text-foreground tabular-nums">{money(r.newTotalMinor, order.currency)}</span>
+   271→              {' · '}{r.note || 'No note provided'} · <When at={r.createdAt} />
+   272→            </p>
+   273→            <ul className="space-y-0.5 text-xs text-muted-foreground">
+   274→              {(r.changes as { action?: string; qty?: number; unitPriceMinor?: number; productId?: string }[]).map((c, i) => (
+   275→                <li key={i}>
+   276→                  {c.action === 'REMOVE' ? 'Remove line' : c.action === 'ADD' ? 'Add line' : 'Update line'}
+   277→                  {c.qty ? `: qty ${c.qty}` : ''}{c.unitPriceMinor ? ` @ ${money(c.unitPriceMinor, order.currency)}` : ''}
+   278→                </li>
+   279→              ))}
+   280→            </ul>
+   281→            <div className="flex gap-2">
+   282→              <Button size="sm" disabled={!mayDecide || busy === `revision-${r.id}`} onClick={() => decide(r.id, 'APPROVED')}>
+   283→                {busy === `revision-${r.id}` ? <BtnSpinner className="mr-1.5" /> : <Check className="mr-1.5 h-4 w-4" aria-hidden="true" />}
+   284→                Approve revision
+   285→              </Button>
+   286→              <Button size="sm" variant="outline" disabled={!mayDecide || busy === `revision-${r.id}`} onClick={() => decide(r.id, 'DECLINED')}>
+   287→                Decline: original terms
+   288→              </Button>
+   289→            </div>
+   290→            {!mayDecide && <p className="text-xs text-muted-foreground">Only the owner or GM can decide on revisions.</p>}
+   291→          </div>
+   292→        ))
+   293→      )}
+   294→    </section>
+   295→  )
+   296→}
+   297→
+   298→// ─────────────────────────── Items + money ───────────────────────────
+   299→
+   300→function ItemsPanel({ order }: { order: OrderDetailData }) {
+   301→  return (
+   302→    <section className="space-y-2">
+   303→      <h3 className="text-sm font-semibold">Items ({order.items.length})</h3>
+   304→      <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+   305→        {order.items.map((it) => (
+   306→          <li key={it.id} className="flex gap-3 p-3">
+   307→            <Img src={it.image} alt={it.name} className="h-12 w-12 shrink-0 rounded-md border border-border" />
+   308→            <div className="min-w-0 flex-1">
+   309→              <p className="truncate text-sm font-medium">{it.name}</p>
+   310→              <p className="text-xs text-muted-foreground">
+   311→                {[it.brand, it.sku].filter(Boolean).join(' · ')} · {money(it.unitPriceMinor, order.currency)} × {it.qty}
+   312→                {' = '}<span className="tabular-nums">{money(it.lineTotalMinor, order.currency)}</span>
+   313→              </p>
+   314→              <div className="mt-1 flex flex-wrap gap-1.5">
+   315→                {it.authenticityVerified && <Badge variant="outline" className="border-emerald-500/40 px-1.5 py-0 text-[10px] text-emerald-600 dark:text-emerald-400">Authenticity verified</Badge>}
+   316→                {it.warrantyMonths > 0 && <Badge variant="outline" className="border-border px-1.5 py-0 text-[10px] text-muted-foreground">{it.warrantyMonths}-month warranty</Badge>}
+   317→                {it.returnable && <Badge variant="outline" className="border-border px-1.5 py-0 text-[10px] text-muted-foreground">Returnable</Badge>}
+   318→                {it.qtyDelivered != null && <Badge variant="outline" className="border-border px-1.5 py-0 text-[10px] text-muted-foreground">Delivered {it.qtyDelivered}/{it.qty}</Badge>}
+   319→                {it.qtyAccepted != null && (
+   320→                  <Badge variant="outline" className={cn('px-1.5 py-0 text-[10px]', it.qtyAccepted === it.qty
+   321→                    ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+   322→                    : 'border-amber-500/40 text-amber-600 dark:text-amber-400')}>
+   323→                    Accepted {it.qtyAccepted}/{it.qty}
+   324→                  </Badge>
+   325→                )}
+   326→              </div>
+   327→              {it.note && <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">{it.note}</p>}
+   328→            </div>
+   329→          </li>
+   330→        ))}
+   331→      </ul>
+   332→    </section>
+   333→  )
+   334→}
+   335→
+   336→function MoneyPanel({ order, payStatus }: { order: OrderDetailData; payStatus: PayStatus | null }) {
+   337→  return (
+   338→    <section className="space-y-1.5 rounded-xl border border-border bg-card/50 p-4 text-sm">
+   339→      <h3 className="text-sm font-semibold">Cost breakdown</h3>
+   340→      <Row label="Products (subtotal)" value={money(order.subtotalMinor, order.currency)} />
+   341→      <Row label="Delivery fee" value={money(order.deliveryFeeMinor, order.currency)} />
+   342→      <Row label="Tax" value={money(order.taxMinor, order.currency)} />
+   343→      <Row label="Order total" value={money(order.totalMinor, order.currency)} strong />
+   344→      {order.acceptedTotalMinor != null && (
+   345→        <Row label="Accepted value after inspection" value={money(order.acceptedTotalMinor, order.currency)} />
+   346→      )}
+   347→      <Separator className="my-1" />
+   348→      <p className="text-xs text-muted-foreground">
+   349→        Platform commission {payStatus ? `(${money(payStatus.estimatedCommissionMinor, order.currency)})` : ''} is recorded separately and taken from the supplier&apos;s proceeds at release: never charged on top of your total.
+   350→      </p>
+   351→    </section>
+   352→  )
+   353→}
+   354→
+   355→// ─────────────────────────── Delivery (steps 3–4) ───────────────────────────
+   356→
+   357→function DeliveryPanel({ order, busy, setBusy, reload, role }: {
+   358→  order: OrderDetailData
+   359→  busy: string
+   360→  setBusy: (v: string) => void
+   361→  reload: () => void
+   362→  role: string
+   363→}) {
+   364→  const d = order.delivery
+   365→  const mayArrange = canOrder(role) // delivery.arrange = OWNER/GM/PROCUREMENT
+   366→  const canArrangeNow = ARRANGEABLE.includes(order.status) && mayArrange
+   367→  const canAgree = Boolean(d && d.method === 'MEETUP' && d.status !== 'AGREED' && !d.meetupAgreedByGarage) && mayArrange
+   368→
+   369→  return (
+   370→    <section className="space-y-3 rounded-xl border border-border bg-card/50 p-4">
+   371→      <div className="flex items-center justify-between gap-2">
+   372→        <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+   373→          <Truck className="h-4 w-4 text-primary" aria-hidden="true" /> Delivery
+   374→        </h3>
+   375→        {d ? <Badge variant="outline" className="border-border text-muted-foreground">{d.method} · {d.status}</Badge> : null}
+   376→      </div>
+   377→
+   378→      {!d && !canArrangeNow && (
+   379→        <p className="text-sm text-muted-foreground">
+   380→          Delivery is arranged after the supplier accepts{order.status === 'AWAITING_APPROVAL' ? ' (and management approves)' : ''} the order.
+   381→        </p>
+   382→      )}
+   383→
+   384→      {d && (
+   385→        <div className="space-y-1 text-sm text-muted-foreground">
+   386→          <p>Reference <span className="font-mono text-foreground">{d.refCode}</span></p>
+   387→          {d.scheduledFor && <p className="flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" aria-hidden="true" /> Scheduled {dateTimeLabel(d.scheduledFor)}{d.windowLabel ? ` (${d.windowLabel})` : ''}</p>}
+   388→          {d.courierName && <p>Courier: {d.courierName}{d.driverName ? `: driver ${d.driverName}` : ''}{d.vehicleReg ? ` (${d.vehicleReg})` : ''}</p>}
+   389→          {d.deliveryRef && <p>Delivery ref: <span className="font-mono">{d.deliveryRef}</span></p>}
+   390→          {d.supplierBranch && <p>Collection point: {d.supplierBranch.name}, {[d.supplierBranch.town, d.supplierBranch.county].filter(Boolean).join(', ')}</p>}
+   391→          {d.meetup?.address && <p className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Handover point: {d.meetup.address}{d.meetup.lat != null && d.meetup.lng != null ? ` (${d.meetup.lat.toFixed(5)}, ${d.meetup.lng.toFixed(5)})` : ''}</p>}
+   392→          {d.meetup?.address && (
+   393→            <div className="mt-1 flex flex-wrap gap-1.5">
+   394→              <AgreementFlag label="Garage" agreed={d.meetupAgreedByGarage} />
+   395→              <AgreementFlag label="Supplier" agreed={d.meetupAgreedBySupplier} />
+   396→            </div>
+   397→          )}
+   398→          {d.dispatchedAt && <p>Dispatched {dateTimeLabel(d.dispatchedAt)}{d.expectedAt ? `: expected by ${dateTimeLabel(d.expectedAt)}` : ''}</p>}
+   399→          {d.garageConfirmAt && !d.supplierConfirmAt && (
+   400→            <p className="text-amber-600 dark:text-amber-400">Handover verified by you: awaiting supplier confirmation to mark the delivery DELIVERED.</p>
+   401→          )}
+   402→          {d.failedReason && <p className="text-rose-600 dark:text-rose-400">Delivery problem: {d.failedReason}</p>}
+   403→          <p>Fee agreed: {money(d.feeMinor, order.currency)}</p>
+   404→        </div>
+   405→      )}
+   406→
+   407→      {canArrangeNow && (
+   408→        <ArrangeForm order={order} busy={busy} setBusy={setBusy} reload={reload} />
+   409→      )}
+   410→
+   411→      {canAgree && (
+   412→        <Button
+   413→          disabled={busy === 'agree-location'}
+   414→          onClick={async () => {
+   415→            setBusy('agree-location')
+   416→            try {
+   417→              const res = await apiSend<{ message: string }>(`/api/supply/orders/${order.id}/action`, 'POST', { action: 'agree-location' })
+   418→              toast.success(res.message || 'Agreement recorded.')
+   419→              reload()
+   420→            } catch (e) {
+   421→              toast.error(e instanceof ClientApiError ? e.message : 'Could not record agreement.')
+   422→            } finally {
+   423→              setBusy('')
+   424→            }
+   425→          }}
+   426→        >
+   427→          {busy === 'agree-location' ? <BtnSpinner className="mr-1.5" /> : <Check className="mr-1.5 h-4 w-4" aria-hidden="true" />}
+   428→          Agree to this location
+   429→        </Button>
+   430→      )}
+   431→    </section>
+   432→  )
+   433→}
+   434→
+   435→function AgreementFlag({ label, agreed }: { label: string; agreed: boolean }) {
+   436→  return (
+   437→    <Badge variant="outline" className={agreed
+   438→      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+   439→      : 'border-border bg-muted text-muted-foreground'}>
+   440→      {agreed ? <Check className="mr-1 h-3 w-3" aria-hidden="true" /> : null}
+   441→      {label} {agreed ? 'agreed' : 'pending'}
+   442→    </Badge>
+   443→  )
+   444→}
+   445→
+   446→// ─────────────────────────── Arrange form (step 3) ───────────────────────────
+   447→
+   448→function ArrangeForm({ order, busy, setBusy, reload }: {
+   449→  order: OrderDetailData
+   450→  busy: string
+   451→  setBusy: (v: string) => void
+   452→  reload: () => void
+   453→}) {
+   454→  const [open, setOpen] = useState(false)
+   455→  return (
+   456→    <div>
+   457→      {!open ? (
+   458→        <Button onClick={() => setOpen(true)} disabled={busy !== ''}>
+   459→          <Truck className="mr-1.5 h-4 w-4" aria-hidden="true" />
+   460→          {order.delivery ? 'Change delivery arrangement' : 'Arrange delivery'}
+   461→        </Button>
+   462→      ) : (
+   463→        <ArrangeFormInner order={order} busy={busy} setBusy={setBusy} reload={() => { setOpen(false); reload() }} onCancel={() => setOpen(false)} />
+   464→      )}
+   465→    </div>
+   466→  )
+   467→}
+   468→
+   469→function ArrangeFormInner({ order, busy, setBusy, reload, onCancel }: {
+   470→  order: OrderDetailData
+   471→  busy: string
+   472→  setBusy: (v: string) => void
+   473→  reload: () => void
+   474→  onCancel: () => void
+   475→}) {
+   476→  const [method, setMethod] = useState<'DIRECT' | 'COLLECTION' | 'MEETUP'>('DIRECT')
+   477→  const [supplierBranches, setSupplierBranches] = useState<{ id: string; name: string; code: string; county: string; town: string | null; isPrimary: boolean }[] | null>(null)
+   478→  const [supplierBranchId, setSupplierBranchId] = useState('')
+   479→  const [address, setAddress] = useState(order.delivery?.meetup?.address ?? '')
+   480→  const [lat, setLat] = useState(order.delivery?.meetup?.lat != null ? String(order.delivery.meetup.lat) : '')
+   481→  const [lng, setLng] = useState(order.delivery?.meetup?.lng != null ? String(order.delivery.meetup.lng) : '')
+   482→  const [geoBusy, setGeoBusy] = useState(false)
+   483→  const [scheduledFor, setScheduledFor] = useState('')
+   484→  const [windowLabel, setWindowLabel] = useState(order.delivery?.windowLabel ?? '')
+   485→  const [fee, setFee] = useState(order.delivery ? String(order.delivery.feeMinor / 100) : '0')
+   486→  const [courierName, setCourierName] = useState(order.delivery?.courierName ?? '')
+   487→
+   488→  // supplier warehouses are public storefront data; needed for COLLECTION
+   489→  useEffect(() => {
+   490→    if (method !== 'COLLECTION' || supplierBranches !== null) return
+   491→    let stale = false
+   492→    apiGet<{ branches: { id: string; name: string; code: string; county: string; town: string | null; isPrimary: boolean }[] }>(`/api/suppliers/${order.supplier.id}`)
+   493→      .then((d) => { if (!stale) setSupplierBranches(d.branches) })
+   494→      .catch(() => { if (!stale) setSupplierBranches([]) })
+   495→    return () => { stale = true }
+   496→  }, [method, supplierBranches, order.supplier.id])
+   497→
+   498→  function useMyLocation() {
+   499→    if (!('geolocation' in navigator)) {
+   500→      toast.error('Geolocation is not available in this browser.')
+   501→      return
+   502→    }
+   503→    setGeoBusy(true)
+   504→    navigator.geolocation.getCurrentPosition(
+   505→      (pos) => {
+   506→        setLat(pos.coords.latitude.toFixed(6))
+   507→        setLng(pos.coords.longitude.toFixed(6))
+   508→        setGeoBusy(false)
+   509→        if (!address.trim()) setAddress('Current location (adjust the address text)')
+   510→      },
+   511→      () => { setGeoBusy(false); toast.error('Could not read your location: check browser permissions.') },
+   512→      { enableHighAccuracy: true, timeout: 10_000 }
+   513→    )
+   514→  }
+   515→
+   516→  async function submit() {
+   517→    const feeMinor = fee.trim() === '' ? 0 : kesToMinor(fee) ?? -1
+   518→    if (feeMinor < 0) {
+   519→      toast.error('Enter the delivery fee as a KES amount (or 0).')
+   520→      return
+   521→    }
+   522→    const body: Record<string, unknown> = { action: 'arrange', method, feeMinor }
+   523→    if (supplierBranchId) body.supplierBranchId = supplierBranchId
+   524→    if (method === 'MEETUP') {
+   525→      const latNum = Number(lat)
+   526→      const lngNum = Number(lng)
+   527→      if (address.trim().length < 4 || !Number.isFinite(latNum) || !Number.isFinite(lngNum) || Math.abs(latNum) > 90 || Math.abs(lngNum) > 180) {
+   528→        toast.error('Propose a handover point: an address plus valid lat/lng (or use your current location).')
+   529→        return
+   530→      }
+   531→      body.meetup = { lat: latNum, lng: lngNum, address: address.trim() }
+   532→    }
+   533→    if (scheduledFor) body.scheduledFor = new Date(scheduledFor).toISOString()
+   534→    if (windowLabel.trim()) body.windowLabel = windowLabel.trim()
+   535→    if (courierName.trim()) body.courierName = courierName.trim()
+   536→
+   537→    setBusy('arrange')
+   538→    try {
+   539→      const res = await apiSend<{ message: string }>(`/api/supply/orders/${order.id}/action`, 'POST', body)
+   540→      toast.success(res.message || 'Delivery arrangement saved.')
+   541→      reload()
+   542→    } catch (e) {
+   543→      toast.error(e instanceof ClientApiError ? e.message : 'Could not arrange delivery.')
+   544→    } finally {
+   545→      setBusy('')
+   546→    }
+   547→  }
+   548→
+   549→  return (
+   550→    <div className="space-y-3 rounded-lg border border-border bg-background/40 p-3">
+   551→      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+   552→        {DELIVERY_METHODS.map((m) => (
+   553→          <button
+   554→            key={m.value}
+   555→            type="button"
+   556→            onClick={() => setMethod(m.value as 'DIRECT' | 'COLLECTION' | 'MEETUP')}
+   557→            className={cn(
+   558→              'rounded-lg border p-2.5 text-left text-xs transition-colors',
+   559→              method === m.value ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-card text-muted-foreground hover:border-primary/40'
+   560→            )}
+   561→            aria-pressed={method === m.value}
+   562→          >
+   563→            <span className="block text-sm font-semibold">{m.label}</span>
+   564→            <span className="mt-0.5 block leading-snug">{m.hint}</span>
+   565→          </button>
+   566→        ))}
+   567→      </div>
+   568→
+   569→      {method === 'COLLECTION' && (
+   570→        <div className="space-y-1.5">
+   571→          <Label>Supplier warehouse *</Label>
+   572→          {supplierBranches === null ? (
+   573→            <Skeleton className="h-9 w-full" />
+   574→          ) : supplierBranches.length === 0 ? (
+   575→            <p className="text-sm text-amber-600 dark:text-amber-400">This supplier has no public warehouse listed; choose another method.</p>
+   576→          ) : (
+   577→            <Select value={supplierBranchId} onValueChange={setSupplierBranchId}>
+   578→              <SelectTrigger aria-label="Supplier warehouse"><SelectValue placeholder="Choose collection point" /></SelectTrigger>
+   579→              <SelectContent>
+   580→                {supplierBranches.map((b) => (
+   581→                  <SelectItem key={b.id} value={b.id}>{b.name} ({b.code}){b.town ? `: ${b.town}` : ''}</SelectItem>
+   582→                ))}
+   583→              </SelectContent>
+   584→            </Select>
+   585→          )}
+   586→        </div>
+   587→      )}
+   588→
+   589→      {method === 'MEETUP' && (
+   590→        <div className="space-y-2 rounded-lg border border-border p-3">
+   591→          <Label className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Handover location</Label>
+   592→          <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. Total Rongai petrol station, Magadi Road" aria-label="Meeting address" />
+   593→          <div className="grid grid-cols-2 gap-2">
+   594→            <Input value={lat} onChange={(e) => setLat(e.target.value)} inputMode="decimal" placeholder="Latitude (e.g. -1.39215)" aria-label="Latitude" />
+   595→            <Input value={lng} onChange={(e) => setLng(e.target.value)} inputMode="decimal" placeholder="Longitude (e.g. 36.74992)" aria-label="Longitude" />
+   596→          </div>
+   597→          <div className="flex items-center justify-between gap-2">
+   598→            <Button variant="outline" size="sm" onClick={useMyLocation} disabled={geoBusy}>
+   599→              {geoBusy ? <BtnSpinner className="mr-1.5" /> : <Navigation className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />}
+   600→              Use my current location
+   601→            </Button>
+   602→          </div>
+   603→          <p className="text-xs text-amber-600 dark:text-amber-400">
+   604→            Both parties must agree before the location is locked; changes require new mutual agreement.
+   605→          </p>
+   606→        </div>
+   607→      )}
+   608→
+   609→      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+   610→        <div className="space-y-1.5">
+   611→          <Label htmlFor="arr-when">Preferred date & time</Label>
+   612→          <Input id="arr-when" type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />
+   613→        </div>
+   614→        <div className="space-y-1.5">
+   615→          <Label htmlFor="arr-window">Window label</Label>
+   616→          <Input id="arr-window" value={windowLabel} onChange={(e) => setWindowLabel(e.target.value)} maxLength={60} placeholder="e.g. Morning (08:00–12:00)" />
+   617→        </div>
+   618→        <div className="space-y-1.5">
+   619→          <Label htmlFor="arr-fee">Delivery fee (KES)</Label>
+   620→          <Input id="arr-fee" value={fee} onChange={(e) => setFee(e.target.value)} inputMode="decimal" placeholder="0" />
+   621→        </div>
+   622→        <div className="space-y-1.5">
+   623→          <Label htmlFor="arr-courier">Courier / transport</Label>
+   624→          <Input id="arr-courier" value={courierName} onChange={(e) => setCourierName(e.target.value)} maxLength={80} placeholder="e.g. Supplier-owned" />
+   625→        </div>
+   626→      </div>
+   627→
+   628→      <div className="flex gap-2">
+   629→        <Button onClick={submit} disabled={busy === 'arrange'}>
+   630→          {busy === 'arrange' ? <BtnSpinner className="mr-1.5" /> : null} Save arrangement
+   631→        </Button>
+   632→        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+   633→      </div>
+   634→    </div>
+   635→  )
+   636→}
+   637→

@@ -1,0 +1,943 @@
+     1→'use client'
+     2→
+     3→/* Trust & Credit managers: business-side, private.
+     4→ *
+     5→ * TrustManager  : the business's Trusted Customer Programme. Labels are
+     6→ *                 internal relationship markers: never shared with other
+     7→ *                 businesses and never treated as credit ratings.
+     8→ * CreditManager : business-controlled customer credit ledger. CARMAZE is
+     9→ *                 management technology only, not a lender.
+    10→ *
+    11→ * Every number comes from GET /api/org/trust and GET /api/org/credit; the
+    12→ * balances are derived from the append-only ledger server-side. */
+    13→
+    14→import { useCallback, useEffect, useState } from 'react'
+    15→import {
+    16→  BadgeCheck, CalendarClock, CircleAlert, HandCoins, Landmark, Lock, Plus,
+    17→  RefreshCw, ShieldAlert, ShieldCheck, UserPlus, UserMinus, Wallet,
+    18→} from 'lucide-react'
+    19→import { toast } from 'sonner'
+    20→import { Button } from '@/components/ui/button'
+    21→import { Input } from '@/components/ui/input'
+    22→import { Label } from '@/components/ui/label'
+    23→import { Badge } from '@/components/ui/badge'
+    24→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    25→import { Skeleton } from '@/components/ui/skeleton'
+    26→import { Textarea } from '@/components/ui/textarea'
+    27→import {
+    28→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    29→} from '@/components/ui/dialog'
+    30→import {
+    31→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+    32→  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    33→} from '@/components/ui/alert-dialog'
+    34→import {
+    35→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    36→} from '@/components/ui/select'
+    37→import {
+    38→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    39→} from '@/components/ui/table'
+    40→import { apiGet, apiSend } from '@/lib/client'
+    41→import { dateLabel, money, timeAgo } from '@/lib/format'
+    42→import { cn } from '@/lib/utils'
+    43→
+    44→// ───────────────────────────── types ─────────────────────────────
+    45→
+    46→type CustomerRef = { id: string; name: string; phone: string | null }
+    47→type TrustMemberRow = {
+    48→  id: string; label: string
+    49→  customer: CustomerRef
+    50→  note: string | null
+    51→  createdAt: string
+    52→}
+    53→type TrustProgramme = {
+    54→  id: string; name: string; description: string | null; terms: string | null
+    55→  status: string
+    56→  members: TrustMemberRow[]
+    57→}
+    58→type CreditLedgerEntry = {
+    59→  id: string; kind: string; amountMinor: number; balanceAfterMinor: number
+    60→  refType: string | null; dueDate: string | null; paidAt: string | null
+    61→  note: string | null; actorName: string | null; createdAt: string
+    62→}
+    63→type Facility = {
+    64→  id: string; refCode: string
+    65→  customer: CustomerRef
+    66→  limitMinor: number; depositMinor: number; status: string; terms: string | null
+    67→  outstandingMinor: number; availableMinor: number; overdue: boolean
+    68→  approvedAt: string | null; createdAt: string
+    69→  entries: CreditLedgerEntry[]
+    70→}
+    71→
+    72→const TRUST_LABELS = ['NEW', 'REGULAR', 'LOYAL', 'PREFERRED', 'TRUSTED', 'SUSPENDED'] as const
+    73→type TrustLabel = (typeof TRUST_LABELS)[number]
+    74→
+    75→const LABEL_BADGE: Record<string, string> = {
+    76→  NEW: 'border-border bg-muted text-muted-foreground',
+    77→  REGULAR: 'border-border bg-secondary text-secondary-foreground',
+    78→  LOYAL: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:border-amber-500/40 dark:text-amber-300',
+    79→  PREFERRED: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:border-amber-500/40 dark:text-amber-300',
+    80→  TRUSTED: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-300',
+    81→  SUSPENDED: 'border-rose-300 bg-rose-500/15 text-rose-800 dark:border-rose-500/40 dark:text-rose-300',
+    82→}
+    83→const FACILITY_BADGE: Record<string, string> = {
+    84→  PENDING_APPLICATION: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:border-amber-500/40 dark:text-amber-300',
+    85→  OFFERED: 'border-amber-300 bg-amber-500/15 text-amber-800 dark:border-amber-500/40 dark:text-amber-300',
+    86→  ACTIVE: 'border-emerald-300 bg-emerald-500/15 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-300',
+    87→  SUSPENDED: 'border-rose-300 bg-rose-500/15 text-rose-800 dark:border-rose-500/40 dark:text-rose-300',
+    88→  CLOSED: 'border-border bg-muted text-muted-foreground',
+    89→  REJECTED: 'border-border bg-muted text-muted-foreground',
+    90→}
+    91→
+    92→function kesToMinor(input: string): number | null {
+    93→  const n = Number(input)
+    94→  if (!Number.isFinite(n) || n < 0) return null
+    95→  return Math.round(n * 100)
+    96→}
+    97→
+    98→// ═══════════════════════════ TrustManager ═══════════════════════════
+    99→
+   100→export function TrustManager({ orgId }: { orgId: string }) {
+   101→  const [programme, setProgramme] = useState<TrustProgramme | null | undefined>(undefined)
+   102→  const [error, setError] = useState<string | null>(null)
+   103→  const [inviteOpen, setInviteOpen] = useState(false)
+   104→  const [removeTarget, setRemoveTarget] = useState<TrustMemberRow | null>(null)
+   105→
+   106→  const load = useCallback(() => {
+   107→    apiGet<{ programme: TrustProgramme | null }>(`/api/org/trust?orgId=${orgId}`)
+   108→      .then((d) => { setProgramme(d.programme); setError(null) })
+   109→      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the trust programme'))
+   110→  }, [orgId])
+   111→
+   112→  useEffect(() => { load() }, [load])
+   113→
+   114→  async function createProgramme(form: { name: string; description: string; terms: string }) {
+   115→    try {
+   116→      await apiSend('/api/org/trust', 'POST', {
+   117→        orgId,
+   118→        name: form.name.trim(),
+   119→        description: form.description.trim() || undefined,
+   120→        terms: form.terms.trim() || undefined,
+   121→      })
+   122→      toast.success('Trusted Customer Programme created: invite customers by email')
+   123→      load()
+   124→    } catch (e) {
+   125→      toast.error(e instanceof Error ? e.message : 'Could not create the programme')
+   126→    }
+   127→  }
+   128→
+   129→  async function invite(email: string, label: TrustLabel, note: string) {
+   130→    try {
+   131→      const d = await apiSend<{ message: string }>('/api/org/trust', 'POST', {
+   132→        action: 'invite', orgId, customerEmail: email.trim(), label, ...(note.trim() ? { note: note.trim() } : {}),
+   133→      })
+   134→      toast.success(d.message)
+   135→      setInviteOpen(false)
+   136→      load()
+   137→    } catch (e) {
+   138→      const code = (e as { code?: string }).code
+   139→      toast.error(e instanceof Error ? e.message : 'Could not invite the customer', {
+   140→        description: code === 'NO_CUSTOMER' ? 'No CARMAZE account uses that email. Customers must register first.' : undefined,
+   141→      })
+   142→    }
+   143→  }
+   144→
+   145→  async function changeLabel(memberId: string, label: TrustLabel, note?: string) {
+   146→    try {
+   147→      await apiSend('/api/org/trust', 'POST', { action: 'label', memberId, label, ...(note ? { note } : {}) })
+   148→      toast.success(`Label updated to ${label}`)
+   149→      load()
+   150→    } catch (e) {
+   151→      toast.error(e instanceof Error ? e.message : 'Could not update the label')
+   152→    }
+   153→  }
+   154→
+   155→  async function removeMember(memberId: string) {
+   156→    try {
+   157→      await apiSend('/api/org/trust', 'POST', { action: 'remove', memberId })
+   158→      toast.success('Member removed from the programme')
+   159→      load()
+   160→    } catch (e) {
+   161→      toast.error(e instanceof Error ? e.message : 'Could not remove the member')
+   162→    }
+   163→  }
+   164→
+   165→  if (error) {
+   166→    return (
+   167→      <Card>
+   168→        <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+   169→          <CircleAlert className="h-8 w-8 text-muted-foreground" />
+   170→          <p className="font-medium">Could not load the trust programme</p>
+   171→          <p className="text-sm text-muted-foreground">{error}</p>
+   172→          <Button variant="outline" className="min-h-11" onClick={() => { setProgramme(undefined); load() }}><RefreshCw className="h-4 w-4" /> Try again</Button>
+   173→        </CardContent>
+   174→      </Card>
+   175→    )
+   176→  }
+   177→
+   178→  if (programme === undefined) {
+   179→    return <Skeleton className="h-56 rounded-xl" aria-busy="true" />
+   180→  }
+   181→
+   182→  if (programme === null) {
+   183→    return <CreateTrustForm onCreate={createProgramme} />
+   184→  }
+   185→
+   186→  return (
+   187→    <div className="space-y-4">
+   188→      <Card>
+   189→        <CardHeader className="pb-3">
+   190→          <div className="flex flex-wrap items-center justify-between gap-2">
+   191→            <div>
+   192→              <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-5 w-5 text-primary" /> {programme.name}</CardTitle>
+   193→              <CardDescription className="mt-1">
+   194→                {programme.members.length} member{programme.members.length === 1 ? '' : 's'} · status {programme.status.toLowerCase()}
+   195→              </CardDescription>
+   196→            </div>
+   197→            <Button className="min-h-11" onClick={() => setInviteOpen(true)}><UserPlus className="h-4 w-4" /> Invite customer</Button>
+   198→          </div>
+   199→        </CardHeader>
+   200→        <CardContent className="space-y-3">
+   201→          {programme.description && <p className="text-sm text-muted-foreground">{programme.description}</p>}
+   202→
+   203→          {/* Prominent privacy note: required copy */}
+   204→          <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-500/10 p-3 dark:border-amber-500/40">
+   205→            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
+   206→            <p className="text-sm text-amber-800 dark:text-amber-200">
+   207→              Labels are private to your business: never shared with other businesses and never treated
+   208→              as credit ratings.
+   209→            </p>
+   210→          </div>
+   211→
+   212→          {programme.members.length === 0 ? (
+   213→            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+   214→              No members yet. Invite customers by their CARMAZE account email; they must register first.
+   215→            </div>
+   216→          ) : (
+   217→            <div className="overflow-hidden rounded-lg border">
+   218→              <div className="overflow-x-auto scrollbar-thin">
+   219→                <Table>
+   220→                  <TableHeader>
+   221→                    <TableRow>
+   222→                      <TableHead>Customer</TableHead>
+   223→                      <TableHead>Label</TableHead>
+   224→                      <TableHead>Internal note</TableHead>
+   225→                      <TableHead>Added</TableHead>
+   226→                      <TableHead className="text-right">Actions</TableHead>
+   227→                    </TableRow>
+   228→                  </TableHeader>
+   229→                  <TableBody>
+   230→                    {programme.members.map((m) => (
+   231→                      <TableRow key={m.id}>
+   232→                        <TableCell>
+   233→                          <p className="font-medium">{m.customer.name}</p>
+   234→                          <p className="text-xs text-muted-foreground">{m.customer.phone ?? 'Not provided'}</p>
+   235→                        </TableCell>
+   236→                        <TableCell>
+   237→                          <Badge variant="outline" className={LABEL_BADGE[m.label] ?? LABEL_BADGE.NEW}>{m.label}</Badge>
+   238→                        </TableCell>
+   239→                        <TableCell className="max-w-48">
+   240→                          <p className="truncate text-sm text-muted-foreground">{m.note ?? 'Not provided'}</p>
+   241→                        </TableCell>
+   242→                        <TableCell className="text-sm">{timeAgo(m.createdAt)}</TableCell>
+   243→                        <TableCell>
+   244→                          <div className="flex items-center justify-end gap-1.5">
+   245→                            <Select
+   246→                              value={m.label}
+   247→                              onValueChange={(v) => changeLabel(m.id, v as TrustLabel)}
+   248→                            >
+   249→                              <SelectTrigger size="sm" aria-label={`Change label for ${m.customer.name}`} className="w-32">
+   250→                                <SelectValue />
+   251→                              </SelectTrigger>
+   252→                              <SelectContent>
+   253→                                {TRUST_LABELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+   254→                              </SelectContent>
+   255→                            </Select>
+   256→                            <Button
+   257→                              variant="ghost"
+   258→                              size="sm"
+   259→                              className="min-h-11 text-muted-foreground hover:text-destructive"
+   260→                              aria-label={`Remove ${m.customer.name}`}
+   261→                              onClick={() => setRemoveTarget(m)}
+   262→                            >
+   263→                              <UserMinus className="h-4 w-4" />
+   264→                            </Button>
+   265→                          </div>
+   266→                        </TableCell>
+   267→                      </TableRow>
+   268→                    ))}
+   269→                  </TableBody>
+   270→                </Table>
+   271→              </div>
+   272→            </div>
+   273→          )}
+   274→        </CardContent>
+   275→      </Card>
+   276→
+   277→      {inviteOpen && (
+   278→        <InviteDialog
+   279→          onClose={() => setInviteOpen(false)}
+   280→          onSubmit={async (email, label, note) => { await invite(email, label, note) }}
+   281→        />
+   282→      )}
+   283→
+   284→      <AlertDialog open={removeTarget !== null} onOpenChange={(o) => { if (!o) setRemoveTarget(null) }}>
+   285→        <AlertDialogContent>
+   286→          <AlertDialogHeader>
+   287→            <AlertDialogTitle>Remove {removeTarget?.customer.name} from “{programme.name}”?</AlertDialogTitle>
+   288→            <AlertDialogDescription>
+   289→              The customer loses the programme&apos;s relationship status with your business immediately.
+   290→              Their CARMAZE account and history are untouched, and other businesses are unaffected:
+   291→              labels never leave your business.
+   292→            </AlertDialogDescription>
+   293→          </AlertDialogHeader>
+   294→          <AlertDialogFooter>
+   295→            <AlertDialogCancel>Keep member</AlertDialogCancel>
+   296→            <AlertDialogAction
+   297→              className="bg-destructive text-white hover:bg-destructive/90"
+   298→              onClick={async (e) => {
+   299→                e.preventDefault()
+   300→                if (removeTarget) await removeMember(removeTarget.id)
+   301→                setRemoveTarget(null)
+   302→              }}
+   303→            >
+   304→              Remove member
+   305→            </AlertDialogAction>
+   306→          </AlertDialogFooter>
+   307→        </AlertDialogContent>
+   308→      </AlertDialog>
+   309→    </div>
+   310→  )
+   311→}
+   312→
+   313→function CreateTrustForm({ onCreate }: { onCreate: (f: { name: string; description: string; terms: string }) => Promise<void> }) {
+   314→  const [name, setName] = useState('')
+   315→  const [description, setDescription] = useState('')
+   316→  const [terms, setTerms] = useState('')
+   317→  const [busy, setBusy] = useState(false)
+   318→  const valid = name.trim().length >= 3
+   319→
+   320→  return (
+   321→    <Card>
+   322→      <CardHeader>
+   323→        <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-5 w-5 text-primary" /> Create your Trusted Customer Programme</CardTitle>
+   324→        <CardDescription>
+   325→          A private list of the customers you know and trust, with your own relationship labels.
+   326→        </CardDescription>
+   327→      </CardHeader>
+   328→      <CardContent className="space-y-4">
+   329→        <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-500/10 p-3 dark:border-amber-500/40">
+   330→          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
+   331→          <p className="text-sm text-amber-800 dark:text-amber-200">
+   332→            Labels are private to your business: never shared with other businesses and never treated
+   333→            as credit ratings.
+   334→          </p>
+   335→        </div>
+   336→        <div className="space-y-1.5">
+   337→          <Label htmlFor="trust-name">Programme name</Label>
+   338→          <Input id="trust-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Wanjiku Motors Trusted Customers" />
+   339→        </div>
+   340→        <div className="space-y-1.5">
+   341→          <Label htmlFor="trust-desc">Description (optional)</Label>
+   342→          <Input id="trust-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Who the programme is for and what it means" />
+   343→        </div>
+   344→        <div className="space-y-1.5">
+   345→          <Label htmlFor="trust-terms">Terms (optional, shown to members)</Label>
+   346→          <Textarea id="trust-terms" rows={3} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="What members can expect and what you expect from them" />
+   347→        </div>
+   348→        <div className="flex justify-end">
+   349→          <Button className="min-h-11" disabled={!valid || busy} onClick={async () => { setBusy(true); try { await onCreate({ name, description, terms }) } finally { setBusy(false) } }}>
+   350→            <Plus className="h-4 w-4" /> {busy ? 'Creating…' : 'Create programme'}
+   351→          </Button>
+   352→        </div>
+   353→      </CardContent>
+   354→    </Card>
+   355→  )
+   356→}
+   357→
+   358→function InviteDialog({ onClose, onSubmit }: {
+   359→  onClose: () => void
+   360→  onSubmit: (email: string, label: TrustLabel, note: string) => Promise<void>
+   361→}) {
+   362→  const [email, setEmail] = useState('')
+   363→  const [label, setLabel] = useState<TrustLabel>('NEW')
+   364→  const [note, setNote] = useState('')
+   365→  const [busy, setBusy] = useState(false)
+   366→  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+   367→
+   368→  return (
+   369→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   370→      <DialogContent className="sm:max-w-md">
+   371→        <DialogHeader>
+   372→          <DialogTitle>Invite a customer</DialogTitle>
+   373→          <DialogDescription>
+   374→            The customer must already have a CARMAZE account with that email. They see the programme
+   375→            terms and must accept them.
+   376→          </DialogDescription>
+   377→        </DialogHeader>
+   378→        <div className="space-y-4">
+   379→          <div className="space-y-1.5">
+   380→            <Label htmlFor="invite-email">Customer email</Label>
+   381→            <Input id="invite-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="customer@example.com" />
+   382→          </div>
+   383→          <div className="space-y-1.5">
+   384→            <Label>Initial label</Label>
+   385→            <Select value={label} onValueChange={(v) => setLabel(v as TrustLabel)}>
+   386→              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+   387→              <SelectContent>
+   388→                {TRUST_LABELS.filter((l) => l !== 'SUSPENDED').map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+   389→              </SelectContent>
+   390→            </Select>
+   391→          </div>
+   392→          <div className="space-y-1.5">
+   393→            <Label htmlFor="invite-note">Internal note (optional)</Label>
+   394→            <Input id="invite-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Only your team sees this" />
+   395→          </div>
+   396→        </div>
+   397→        <DialogFooter>
+   398→          <Button variant="outline" onClick={onClose}>Cancel</Button>
+   399→          <Button className="min-h-11" disabled={!valid || busy} onClick={async () => { setBusy(true); try { await onSubmit(email, label, note) } finally { setBusy(false) } }}>
+   400→            {busy ? 'Inviting…' : 'Send invite'}
+   401→          </Button>
+   402→        </DialogFooter>
+   403→      </DialogContent>
+   404→    </Dialog>
+   405→  )
+   406→}
+   407→
+   408→// ═══════════════════════════ CreditManager ═══════════════════════════
+   409→
+   410→export function CreditManager({ orgId }: { orgId: string }) {
+   411→  const [facilities, setFacilities] = useState<Facility[] | null>(null)
+   412→  const [error, setError] = useState<string | null>(null)
+   413→  const [reviewTarget, setReviewTarget] = useState<Facility | null>(null)
+   414→  const [chargeTarget, setChargeTarget] = useState<Facility | null>(null)
+   415→  const [repayTarget, setRepayTarget] = useState<Facility | null>(null)
+   416→  const [suspendTarget, setSuspendTarget] = useState<Facility | null>(null)
+   417→  const [closeTarget, setCloseTarget] = useState<Facility | null>(null)
+   418→
+   419→  const load = useCallback(() => {
+   420→    apiGet<{ facilities: Facility[] }>(`/api/org/credit?orgId=${orgId}`)
+   421→      .then((d) => { setFacilities(d.facilities); setError(null) })
+   422→      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load credit facilities'))
+   423→  }, [orgId])
+   424→
+   425→  useEffect(() => { load() }, [load])
+   426→
+   427→  async function patch(facility: Facility, body: Record<string, unknown>, successMsg: string) {
+   428→    try {
+   429→      const d = await apiSend<{ message?: string }>(`/api/org/credit/${facility.id}`, 'PATCH', body)
+   430→      toast.success(d.message ?? successMsg)
+   431→      load()
+   432→      return true
+   433→    } catch (e) {
+   434→      toast.error(e instanceof Error ? e.message : 'Action failed')
+   435→      return false
+   436→    }
+   437→  }
+   438→
+   439→  async function postEntry(facility: Facility, body: Record<string, unknown>): Promise<boolean> {
+   440→    try {
+   441→      const d = await apiSend<{ outstandingMinor: number }>(`/api/org/credit/${facility.id}`, 'POST', body)
+   442→      toast.success(`${body.kind === 'CHARGE' ? 'Charge' : 'Repayment'} recorded: outstanding ${money(d.outstandingMinor)}`)
+   443→      load()
+   444→      return true
+   445→    } catch (e) {
+   446→      const code = (e as { code?: string }).code
+   447→      const message = e instanceof Error ? e.message : 'Could not record the entry'
+   448→      toast.error(message, {
+   449→        description: code === 'LIMIT_EXCEEDED'
+   450→          ? 'The approved limit is enforced by the ledger; the charge was rejected.'
+   451→          : code === 'OVER_REPAYMENT'
+   452→            ? 'Repayments cannot exceed the outstanding balance.'
+   453→            : code === 'OUTSTANDING_BALANCE'
+   454→              ? 'Clear the outstanding balance before closing the facility.'
+   455→              : undefined,
+   456→      })
+   457→      return false
+   458→    }
+   459→  }
+   460→
+   461→  if (error) {
+   462→    return (
+   463→      <Card>
+   464→        <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+   465→          <CircleAlert className="h-8 w-8 text-muted-foreground" />
+   466→          <p className="font-medium">Could not load credit facilities</p>
+   467→          <p className="text-sm text-muted-foreground">{error}</p>
+   468→          <Button variant="outline" className="min-h-11" onClick={() => { setFacilities(null); load() }}><RefreshCw className="h-4 w-4" /> Try again</Button>
+   469→        </CardContent>
+   470→      </Card>
+   471→    )
+   472→  }
+   473→
+   474→  if (!facilities) {
+   475→    return <Skeleton className="h-56 rounded-xl" aria-busy="true" />
+   476→  }
+   477→
+   478→  return (
+   479→    <div className="space-y-4">
+   480→      <div className="flex items-start gap-2.5 rounded-lg border border-dashed p-3">
+   481→        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+   482→        <p className="text-sm text-muted-foreground">
+   483→          Management technology only. CARMAZE is not a lender; where credit products are regulated, use
+   484→          licensed partners and comply with Kenyan law.
+   485→        </p>
+   486→      </div>
+   487→
+   488→      {facilities.length === 0 ? (
+   489→        <div className="rounded-xl border border-dashed p-8 text-center">
+   490→          <Landmark className="mx-auto h-8 w-8 text-muted-foreground" />
+   491→          <p className="mt-2 font-medium">No customer credit applications</p>
+   492→          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+   493→            When a customer applies for a pay-later facility it appears here for review. Approval is
+   494→            entirely at your discretion: you set the deposit and repayment terms.
+   495→          </p>
+   496→        </div>
+   497→      ) : (
+   498→        facilities.map((f) => (
+   499→          <Card key={f.id}>
+   500→            <CardHeader className="pb-3">
+   501→              <div className="flex flex-wrap items-center justify-between gap-2">
+   502→                <div className="min-w-0">
+   503→                  <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+   504→                    {f.customer.name}
+   505→                    <Badge variant="outline" className={cn(FACILITY_BADGE[f.status] ?? FACILITY_BADGE.CLOSED)}>
+   506→                      {f.status === 'PENDING_APPLICATION' ? 'Application to review' : f.status === 'OFFERED' ? 'Offered: awaiting customer' : f.status.charAt(0) + f.status.slice(1).toLowerCase()}
+   507→                    </Badge>
+   508→                    {f.overdue && f.status === 'ACTIVE' && (
+   509→                      <Badge variant="outline" className="border-rose-300 bg-rose-500/15 text-rose-800 dark:border-rose-500/40 dark:text-rose-300">
+   510→                        <CircleAlert className="h-3 w-3" /> Overdue
+   511→                      </Badge>
+   512→                    )}
+   513→                  </CardTitle>
+   514→                  <CardDescription className="mt-1">
+   515→                    {f.refCode} · {f.customer.phone ?? 'no phone'} · applied {timeAgo(f.createdAt)}
+   516→                  </CardDescription>
+   517→                </div>
+   518→                <div className="grid grid-cols-3 gap-2 text-right">
+   519→                  <div className="rounded-lg border px-3 py-1.5">
+   520→                    <p className="text-[11px] text-muted-foreground">Limit</p>
+   521→                    <p className="text-sm font-semibold tabular-nums">{money(f.limitMinor)}</p>
+   522→                  </div>
+   523→                  <div className="rounded-lg border px-3 py-1.5">
+   524→                    <p className="text-[11px] text-muted-foreground">Outstanding</p>
+   525→                    <p className="text-sm font-semibold tabular-nums text-primary">{money(f.outstandingMinor)}</p>
+   526→                  </div>
+   527→                  <div className="rounded-lg border px-3 py-1.5">
+   528→                    <p className="text-[11px] text-muted-foreground">Available</p>
+   529→                    <p className="text-sm font-semibold tabular-nums">{money(f.availableMinor)}</p>
+   530→                  </div>
+   531→                </div>
+   532→              </div>
+   533→            </CardHeader>
+   534→            <CardContent className="space-y-3">
+   535→              {f.status === 'OFFERED' && (
+   536→                <p className="rounded-lg border border-amber-300 bg-amber-500/10 p-3 text-sm text-amber-800 dark:border-amber-500/40 dark:text-amber-200">
+   537→                  Waiting for the customer to accept the repayment terms. The facility activates only
+   538→                  when they accept: you cannot activate it for them.
+   539→                </p>
+   540→              )}
+   541→
+   542→              {f.terms && !['PENDING_APPLICATION', 'OFFERED'].includes(f.status) && (
+   543→                <p className="whitespace-pre-wrap rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">{f.terms}</p>
+   544→              )}
+   545→
+   546→              {f.entries.length > 0 && <Ledger entries={f.entries.slice(0, 10)} />}
+   547→
+   548→              <div className="flex flex-wrap justify-end gap-2">
+   549→                {f.status === 'PENDING_APPLICATION' && (
+   550→                  <Button className="min-h-11" onClick={() => setReviewTarget(f)}>
+   551→                    <BadgeCheck className="h-4 w-4" /> Review application
+   552→                  </Button>
+   553→                )}
+   554→                {f.status === 'ACTIVE' && (
+   555→                  <>
+   556→                    <Button variant="outline" className="min-h-11" onClick={() => setChargeTarget(f)}>
+   557→                      <HandCoins className="h-4 w-4" /> Record charge
+   558→                    </Button>
+   559→                    <Button variant="outline" className="min-h-11" onClick={() => setRepayTarget(f)}>
+   560→                      <Wallet className="h-4 w-4" /> Record repayment
+   561→                    </Button>
+   562→                    <Button variant="ghost" className="min-h-11 text-muted-foreground hover:text-destructive" onClick={() => setSuspendTarget(f)}>
+   563→                      Suspend
+   564→                    </Button>
+   565→                    <Button variant="ghost" className="min-h-11 text-muted-foreground hover:text-destructive" onClick={() => setCloseTarget(f)}>
+   566→                      Close
+   567→                    </Button>
+   568→                  </>
+   569→                )}
+   570→                {f.status === 'SUSPENDED' && (
+   571→                  <Button variant="outline" className="min-h-11" onClick={() => setRepayTarget(f)}>
+   572→                    <Wallet className="h-4 w-4" /> Record repayment
+   573→                  </Button>
+   574→                )}
+   575→              </div>
+   576→            </CardContent>
+   577→          </Card>
+   578→        ))
+   579→      )}
+   580→
+   581→      {/* Review / approve dialog */}
+   582→      {reviewTarget && (
+   583→        <ReviewDialog
+   584→          facility={reviewTarget}
+   585→          onClose={() => setReviewTarget(null)}
+   586→          onApprove={async (terms, depositMinor) => {
+   587→            const done = await patch(reviewTarget, { action: 'approve', terms, depositMinor }, 'Offer sent to the customer')
+   588→            if (done) setReviewTarget(null)
+   589→          }}
+   590→          onReject={async (note) => {
+   591→            const done = await patch(reviewTarget, { action: 'reject', ...(note ? { note } : {}) }, 'Application rejected')
+   592→            if (done) setReviewTarget(null)
+   593→          }}
+   594→        />
+   595→      )}
+   596→
+   597→      {/* Charge dialog */}
+   598→      {chargeTarget && (
+   599→        <ChargeDialog
+   600→          facility={chargeTarget}
+   601→          onClose={() => setChargeTarget(null)}
+   602→          onSubmit={async (payload) => {
+   603→            const done = await postEntry(chargeTarget, { kind: 'CHARGE', ...payload })
+   604→            if (done) setChargeTarget(null)
+   605→          }}
+   606→        />
+   607→      )}
+   608→
+   609→      {/* Repayment dialog */}
+   610→      {repayTarget && (
+   611→        <RepayDialog
+   612→          facility={repayTarget}
+   613→          onClose={() => setRepayTarget(null)}
+   614→          onSubmit={async (amountMinor) => {
+   615→            const done = await postEntry(repayTarget, { kind: 'REPAYMENT', amountMinor })
+   616→            if (done) setRepayTarget(null)
+   617→          }}
+   618→        />
+   619→      )}
+   620→
+   621→      {/* Suspend dialog */}
+   622→      {suspendTarget && (
+   623→        <NoteDialog
+   624→          title={`Suspend ${suspendTarget.customer.name}'s facility?`}
+   625→          description="New charges are blocked immediately. Outstanding balances still show in the customer's statement and repayments remain recordable."
+   626→          confirmLabel="Suspend facility"
+   627→          onClose={() => setSuspendTarget(null)}
+   628→          onSubmit={async (note) => {
+   629→            const done = await patch(suspendTarget, { action: 'suspend', ...(note ? { note } : {}) }, 'Facility suspended')
+   630→            if (done) setSuspendTarget(null)
+   631→          }}
+   632→        />
+   633→      )}
+   634→
+   635→      {/* Close confirm */}
+   636→      <AlertDialog open={closeTarget !== null} onOpenChange={(o) => { if (!o) setCloseTarget(null) }}>
+   637→        <AlertDialogContent>
+   638→          <AlertDialogHeader>
+   639→            <AlertDialogTitle>Close {closeTarget?.customer.name}&apos;s facility?</AlertDialogTitle>
+   640→            <AlertDialogDescription>
+   641→              Closing is permanent. The balance must be cleared first: the ledger rejects closing a
+   642→              facility with outstanding amounts.
+   643→            </AlertDialogDescription>
+   644→          </AlertDialogHeader>
+   645→          <AlertDialogFooter>
+   646→            <AlertDialogCancel>Keep facility</AlertDialogCancel>
+   647→            <AlertDialogAction
+   648→              className="bg-destructive text-white hover:bg-destructive/90"
+   649→              onClick={async (e) => {
+   650→                e.preventDefault()
+   651→                if (closeTarget) await patch(closeTarget, { action: 'close' }, 'Facility closed')
+   652→                setCloseTarget(null)
+   653→              }}
+   654→            >
+   655→              Close facility
+   656→            </AlertDialogAction>
+   657→          </AlertDialogFooter>
+   658→        </AlertDialogContent>
+   659→      </AlertDialog>
+   660→    </div>
+   661→  )
+   662→}
+   663→
+   664→// ───────────────────────────── ledger ─────────────────────────────
+   665→
+   666→function Ledger({ entries }: { entries: CreditLedgerEntry[] }) {
+   667→  return (
+   668→    <div className="overflow-hidden rounded-lg border">
+   669→      <div className="overflow-x-auto scrollbar-thin">
+   670→        <Table>
+   671→          <TableHeader>
+   672→            <TableRow>
+   673→              <TableHead>Kind</TableHead>
+   674→              <TableHead className="text-right">Amount</TableHead>
+   675→              <TableHead className="text-right">Balance after</TableHead>
+   676→              <TableHead>Due date</TableHead>
+   677→              <TableHead>Paid at</TableHead>
+   678→              <TableHead>Note</TableHead>
+   679→            </TableRow>
+   680→          </TableHeader>
+   681→          <TableBody>
+   682→            {entries.map((e) => {
+   683→              const isCharge = e.amountMinor > 0
+   684→              return (
+   685→                <TableRow key={e.id}>
+   686→                  <TableCell>
+   687→                    <span className={cn('font-medium', isCharge ? '' : 'text-emerald-700 dark:text-emerald-400')}>
+   688→                      {e.kind === 'CHARGE' ? 'Charge' : e.kind === 'REPAYMENT' ? 'Repayment' : e.kind}
+   689→                    </span>
+   690→                    {e.refType && <p className="text-xs text-muted-foreground">ref: {e.refType}</p>}
+   691→                  </TableCell>
+   692→                  <TableCell className={cn('text-right tabular-nums', !isCharge && 'text-emerald-700 dark:text-emerald-400')}>
+   693→                    {isCharge ? '' : '−'}{money(Math.abs(e.amountMinor))}
+   694→                  </TableCell>
+   695→                  <TableCell className="text-right tabular-nums">{money(e.balanceAfterMinor)}</TableCell>
+   696→                  <TableCell className="text-sm">{e.dueDate ? dateLabel(e.dueDate) : 'Not provided'}</TableCell>
+   697→                  <TableCell className="text-sm">
+   698→                    {e.paidAt ? dateLabel(e.paidAt) : isCharge ? <span className="text-amber-700 dark:text-amber-400">unpaid</span> : 'Not provided'}
+   699→                  </TableCell>
+   700→                  <TableCell className="max-w-40">
+   701→                    <p className="truncate text-xs text-muted-foreground">{e.note ?? 'Not provided'}</p>
+   702→                  </TableCell>
+   703→                </TableRow>
+   704→              )
+   705→            })}
+   706→          </TableBody>
+   707→        </Table>
+   708→      </div>
+   709→    </div>
+   710→  )
+   711→}
+   712→
+   713→// ───────────────────────── review (approve) dialog ─────────────────────────
+   714→
+   715→function ReviewDialog({ facility, onClose, onApprove, onReject }: {
+   716→  facility: Facility
+   717→  onClose: () => void
+   718→  onApprove: (terms: string, depositMinor?: number) => Promise<void>
+   719→  onReject: (note: string) => Promise<void>
+   720→}) {
+   721→  const [terms, setTerms] = useState(
+   722→    'Repayment terms: amounts charged are due within 30 days of the charge. Late balances suspend further charges. Disputes are settled directly with the business before the ledger is adjusted.'
+   723→  )
+   724→  const [deposit, setDeposit] = useState('')
+   725→  const [rejectNote, setRejectNote] = useState('')
+   726→  const [busy, setBusy] = useState(false)
+   727→  const depositMinor = deposit.trim() === '' ? null : kesToMinor(deposit)
+   728→  const termsValid = terms.trim().length >= 10
+   729→  const depositValid = depositMinor === null || (depositMinor >= 0)
+   730→
+   731→  return (
+   732→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   733→      <DialogContent className="max-h-[90vh] overflow-y-auto scrollbar-thin sm:max-w-lg">
+   734→        <DialogHeader>
+   735→          <DialogTitle>Review credit application: {facility.customer.name}</DialogTitle>
+   736→          <DialogDescription>
+   737→            Requested limit {money(facility.limitMinor)} (set by the customer&apos;s application). You set
+   738→            the deposit and the repayment terms. Sending an offer does not activate anything; the
+   739→            customer must accept the terms first.
+   740→          </DialogDescription>
+   741→        </DialogHeader>
+   742→        <div className="space-y-4">
+   743→          <div className="space-y-1.5">
+   744→            <Label htmlFor="credit-deposit">Refundable deposit (KES, optional)</Label>
+   745→            <Input id="credit-deposit" inputMode="decimal" value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0" />
+   746→          </div>
+   747→          <div className="space-y-1.5">
+   748→            <Label htmlFor="credit-terms">Repayment terms (minimum 10 characters)</Label>
+   749→            <Textarea id="credit-terms" rows={5} value={terms} onChange={(e) => setTerms(e.target.value)} />
+   750→            {!termsValid && <p className="text-xs text-rose-600 dark:text-rose-400">Terms must be at least 10 characters; write them as the customer will read them.</p>}
+   751→          </div>
+   752→          <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+   753→            Approve → sends the offer to the customer to accept. Reject → the customer is notified with your note.
+   754→          </div>
+   755→        </div>
+   756→        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+   757→          <div className="flex w-full gap-2 sm:w-auto">
+   758→            <Input
+   759→              value={rejectNote}
+   760→              onChange={(e) => setRejectNote(e.target.value)}
+   761→              placeholder="Rejection note (optional)"
+   762→              aria-label="Rejection note"
+   763→              className="h-9 flex-1"
+   764→            />
+   765→            <Button
+   766→              variant="ghost"
+   767→              className="min-h-11 text-muted-foreground hover:text-destructive"
+   768→              disabled={busy}
+   769→              onClick={async () => { setBusy(true); try { await onReject(rejectNote.trim()) } finally { setBusy(false) } }}
+   770→            >
+   771→              Reject
+   772→            </Button>
+   773→          </div>
+   774→          <Button
+   775→            className="min-h-11"
+   776→            disabled={!termsValid || !depositValid || busy}
+   777→            onClick={async () => { setBusy(true); try { await onApprove(terms.trim(), depositMinor ?? undefined) } finally { setBusy(false) } }}
+   778→          >
+   779→            {busy ? 'Working…' : 'Approve & send offer'}
+   780→          </Button>
+   781→        </DialogFooter>
+   782→      </DialogContent>
+   783→    </Dialog>
+   784→  )
+   785→}
+   786→
+   787→// ───────────────────────── charge / repay dialogs ─────────────────────────
+   788→
+   789→function ChargeDialog({ facility, onClose, onSubmit }: {
+   790→  facility: Facility
+   791→  onClose: () => void
+   792→  onSubmit: (payload: { amountMinor: number; dueDate?: string; refType?: string; note?: string }) => Promise<void>
+   793→}) {
+   794→  const [amount, setAmount] = useState('')
+   795→  const [dueDate, setDueDate] = useState('')
+   796→  const [refType, setRefType] = useState('')
+   797→  const [note, setNote] = useState('')
+   798→  const [busy, setBusy] = useState(false)
+   799→  const amountMinor = kesToMinor(amount)
+   800→  const valid = amountMinor !== null && amountMinor >= 100 && amountMinor <= facility.availableMinor
+   801→
+   802→  return (
+   803→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   804→      <DialogContent className="sm:max-w-md">
+   805→        <DialogHeader>
+   806→          <DialogTitle>Record a charge: {facility.customer.name}</DialogTitle>
+   807→          <DialogDescription>
+   808→            {money(facility.availableMinor)} available of the {money(facility.limitMinor)} limit. The
+   809→            ledger enforces the limit: a charge beyond it is rejected.
+   810→          </DialogDescription>
+   811→        </DialogHeader>
+   812→        <div className="space-y-4">
+   813→          <div className="space-y-1.5">
+   814→            <Label htmlFor="charge-amount">Amount (KES)</Label>
+   815→            <Input id="charge-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(facility.availableMinor / 100).toLocaleString()} />
+   816→            {!valid && amount !== '' && (
+   817→              <p className="text-xs text-rose-600 dark:text-rose-400">
+   818→                Enter between 1 and {(facility.availableMinor / 100).toLocaleString()} KES.
+   819→              </p>
+   820→            )}
+   821→          </div>
+   822→          <div className="grid grid-cols-2 gap-4">
+   823→            <div className="space-y-1.5">
+   824→              <Label htmlFor="charge-due">Due date</Label>
+   825→              <Input id="charge-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+   826→            </div>
+   827→            <div className="space-y-1.5">
+   828→              <Label htmlFor="charge-ref">Reference (optional)</Label>
+   829→              <Input id="charge-ref" value={refType} onChange={(e) => setRefType(e.target.value)} placeholder="e.g. SERVICE, BOOKING" />
+   830→            </div>
+   831→          </div>
+   832→          <div className="space-y-1.5">
+   833→            <Label htmlFor="charge-note">Note (optional)</Label>
+   834→            <Input id="charge-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What the charge is for" />
+   835→          </div>
+   836→        </div>
+   837→        <DialogFooter>
+   838→          <Button variant="outline" onClick={onClose}>Cancel</Button>
+   839→          <Button
+   840→            className="min-h-11"
+   841→            disabled={!valid || busy}
+   842→            onClick={async () => {
+   843→              setBusy(true)
+   844→              try {
+   845→                await onSubmit({
+   846→                  amountMinor: amountMinor!,
+   847→                  ...(dueDate ? { dueDate } : {}),
+   848→                  ...(refType.trim() ? { refType: refType.trim().toUpperCase() } : {}),
+   849→                  ...(note.trim() ? { note: note.trim() } : {}),
+   850→                })
+   851→              } finally { setBusy(false) }
+   852→            }}
+   853→          >
+   854→            {busy ? 'Recording…' : 'Record charge'}
+   855→          </Button>
+   856→        </DialogFooter>
+   857→      </DialogContent>
+   858→    </Dialog>
+   859→  )
+   860→}
+   861→
+   862→function RepayDialog({ facility, onClose, onSubmit }: {
+   863→  facility: Facility
+   864→  onClose: () => void
+   865→  onSubmit: (amountMinor: number) => Promise<void>
+   866→}) {
+   867→  const [amount, setAmount] = useState('')
+   868→  const [busy, setBusy] = useState(false)
+   869→  const amountMinor = kesToMinor(amount)
+   870→  const valid = amountMinor !== null && amountMinor >= 100 && amountMinor <= facility.outstandingMinor
+   871→
+   872→  return (
+   873→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   874→      <DialogContent className="sm:max-w-md">
+   875→        <DialogHeader>
+   876→          <DialogTitle>Record a repayment: {facility.customer.name}</DialogTitle>
+   877→          <DialogDescription>
+   878→            Outstanding balance {money(facility.outstandingMinor)}. Repayments are appended to the
+   879→            ledger immediately and reduce the balance.
+   880→          </DialogDescription>
+   881→        </DialogHeader>
+   882→        <div className="space-y-2">
+   883→          <Label htmlFor="biz-repay-amount">Amount (KES)</Label>
+   884→          <Input id="biz-repay-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(facility.outstandingMinor / 100).toLocaleString()} />
+   885→          {!valid && amount !== '' && (
+   886→            <p className="text-xs text-rose-600 dark:text-rose-400">
+   887→              Enter between 1 and {(facility.outstandingMinor / 100).toLocaleString()} KES.
+   888→            </p>
+   889→          )}
+   890→        </div>
+   891→        <DialogFooter>
+   892→          <Button variant="outline" onClick={onClose}>Cancel</Button>
+   893→          <Button
+   894→            className="min-h-11"
+   895→            disabled={!valid || busy}
+   896→            onClick={async () => { setBusy(true); try { await onSubmit(amountMinor!) } finally { setBusy(false) } }}
+   897→          >
+   898→            {busy ? 'Recording…' : 'Record repayment'}
+   899→          </Button>
+   900→        </DialogFooter>
+   901→      </DialogContent>
+   902→    </Dialog>
+   903→  )
+   904→}
+   905→
+   906→// ───────────────────────── note dialog (suspend) ─────────────────────────
+   907→
+   908→function NoteDialog({ title, description, confirmLabel, onClose, onSubmit }: {
+   909→  title: string
+   910→  description: string
+   911→  confirmLabel: string
+   912→  onClose: () => void
+   913→  onSubmit: (note: string) => Promise<void>
+   914→}) {
+   915→  const [note, setNote] = useState('')
+   916→  const [busy, setBusy] = useState(false)
+   917→  return (
+   918→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   919→      <DialogContent className="sm:max-w-md">
+   920→        <DialogHeader>
+   921→          <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5 text-primary" /> {title}</DialogTitle>
+   922→          <DialogDescription>{description}</DialogDescription>
+   923→        </DialogHeader>
+   924→        <div className="space-y-1.5">
+   925→          <Label htmlFor="suspend-note">Note to the customer (optional)</Label>
+   926→          <Input id="suspend-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Contact us for details" />
+   927→        </div>
+   928→        <DialogFooter>
+   929→          <Button variant="outline" onClick={onClose}>Cancel</Button>
+   930→          <Button
+   931→            variant="destructive"
+   932→            className="min-h-11"
+   933→            disabled={busy}
+   934→            onClick={async () => { setBusy(true); try { await onSubmit(note.trim()) } finally { setBusy(false) } }}
+   935→          >
+   936→            {busy ? 'Working…' : confirmLabel}
+   937→          </Button>
+   938→        </DialogFooter>
+   939→      </DialogContent>
+   940→    </Dialog>
+   941→  )
+   942→}
+   943→

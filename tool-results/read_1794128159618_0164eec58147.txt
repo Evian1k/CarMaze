@@ -1,0 +1,458 @@
+    36→   701→   701→    )
+    37→   702→   702→  }
+    38→   703→   703→
+    39→   704→   704→  return (
+    40→   705→   705→    <Card className="border-primary/30">
+    41→   706→   706→      <CardContent className="space-y-3 px-4 py-4">
+    42→   707→   707→        <div className="flex flex-wrap items-center justify-between gap-2">
+    43→   708→   708→          <div>
+    44→   709→   709→            <p className="flex items-center gap-2 text-sm font-semibold"><Truck className="h-4 w-4 text-primary" /> Dispatch order</p>
+    45→   710→   710→            <p className="text-xs text-muted-foreground">
+    46→   711→   711→              Funds are protected. Record the handover details: the garage receives a 6-digit handover code to verify delivery.
+    47→   712→   712→            </p>
+    48→   713→   713→          </div>
+    49→   714→   714→          {!open && (
+    50→   715→   715→            <Button className="min-h-11" disabled={busy !== null} onClick={() => setOpen(true)}>
+    51→   716→   716→              <Truck className="h-4 w-4" /> Record dispatch
+    52→   717→   717→            </Button>
+    53→   718→   718→          )}
+    54→   719→   719→        </div>
+    55→   720→   720→
+    56→   721→   721→        {open && (
+    57→   722→   722→          <div className="space-y-3">
+    58→   723→   723→            <div className="grid gap-3 sm:grid-cols-2">
+    59→   724→   724→              <div className="space-y-1.5">
+    60→   725→   725→                <Label htmlFor="dp-courier">Courier / transport company</Label>
+    61→   726→   726→                <Input id="dp-courier" value={courierName} onChange={(e) => setCourierName(e.target.value)} placeholder="e.g. G4S Courier" maxLength={80} />
+    62→   727→   727→              </div>
+    63→   728→   728→              <div className="space-y-1.5">
+    64→   729→   729→                <Label htmlFor="dp-driver">Driver name</Label>
+    65→   730→   730→                <Input id="dp-driver" value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="e.g. John Otieno" maxLength={80} />
+    66→   731→   731→              </div>
+    67→   732→   732→              <div className="space-y-1.5">
+    68→   733→   733→                <Label htmlFor="dp-phone">Driver phone</Label>
+    69→   734→   734→                <Input id="dp-phone" type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="+254 7xx xxx xxx" maxLength={20} />
+    70→   735→   735→              </div>
+    71→   736→   736→              <div className="space-y-1.5">
+    72→   737→   737→                <Label htmlFor="dp-reg">Vehicle registration</Label>
+    73→   738→   738→                <Input id="dp-reg" value={vehicleReg} onChange={(e) => setVehicleReg(e.target.value)} placeholder="e.g. KDA 123A" maxLength={20} />
+    74→   739→   739→              </div>
+    75→   740→   740→              <div className="space-y-1.5">
+    76→   741→   741→                <Label htmlFor="dp-ref">Delivery reference</Label>
+    77→   742→   742→                <Input id="dp-ref" value={deliveryRef} onChange={(e) => setDeliveryRef(e.target.value)} placeholder="Consignment / waybill number" maxLength={60} />
+    78→   743→   743→              </div>
+    79→   744→   744→              <div className="space-y-1.5">
+    80→   745→   745→                <Label htmlFor="dp-hours">Expected transit (hours)</Label>
+    81→   746→   746→                <Input id="dp-hours" inputMode="numeric" value={expectedHours} onChange={(e) => setExpectedHours(e.target.value.replace(/[^\d]/g, ''))} placeholder="e.g. 24" />
+    82→   747→   747→              </div>
+    83→   748→   748→            </div>
+    84→   749→   749→
+    85→   750→   750→            <div className="space-y-2">
+    86→   751→   751→              <Label>Dispatch evidence ({evidence.length}/6)</Label>
+    87→   752→   752→              <input
+    88→   753→   753→                id="dp-evidence"
+    89→   754→   754→                type="file"
+    90→   755→   755→                multiple
+    91→   756→   756→                accept="image/jpeg,image/png,image/webp,application/pdf"
+    92→   757→   757→                className="hidden"
+    93→   758→   758→                onChange={(e) => {
+    94→   759→   759→                  handleFiles(e.target.files)
+    95→   760→   760→                  e.target.value = ''
+    96→   761→   761→                }}
+    97→   762→   762→              />
+    98→   763→   763→              <div className="flex flex-wrap items-center gap-2">
+    99→   764→   764→                {evidence.map((url) => (
+   100→   765→   765→                  <div key={url} className="relative">
+   101→   766→   766→                    <img src={url} alt="Dispatch evidence" className="h-14 w-14 rounded-md border border-border object-cover" />
+   102→   767→   767→                    <button
+   103→   768→   768→                      type="button"
+   104→   769→   769→                      aria-label="Remove evidence"
+   105→   770→   770→                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+   106→   771→   771→                      onClick={() => setEvidence((prev) => prev.filter((u) => u !== url))}
+   107→   772→   772→                    >
+   108→   773→   773→                      <XCircle className="h-3 w-3" />
+   109→   774→   774→                    </button>
+   110→   775→   775→                  </div>
+   111→   776→   776→                ))}
+   112→   777→   777→                {evidence.length < 6 && (
+   113→   778→   778→                  <button
+   114→   779→   779→                    type="button"
+   115→   780→   780→                    onClick={() => document.getElementById('dp-evidence')?.click()}
+   116→   781→   781→                    disabled={uploading}
+   117→   782→   782→                    className="flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+   118→   783→   783→                  >
+   119→   784→   784→                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+   120→   785→   785→                    <span className="text-[9px]">{uploading ? 'Uploading…' : 'Upload'}</span>
+   121→   786→   786→                  </button>
+   122→   787→   787→                )}
+   123→   788→   788→              </div>
+   124→   789→   789→              <p className="text-xs text-muted-foreground">Packing photos or signed waybills; visible to the garage and platform reviewers.</p>
+   125→   790→   790→            </div>
+   126→   791→   791→
+   127→   792→   792→            <div className="flex flex-wrap justify-end gap-2">
+   128→   793→   793→              <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy !== null}>Cancel</Button>
+   129→   794→   794→              <Button
+   130→   795→   795→                className="min-h-11"
+   131→   796→   796→                disabled={busy !== null || uploading}
+   132→   797→   797→                onClick={() =>
+   133→   798→   798→                  act('dispatch', () =>
+   134→   799→   799→                    apiSend(`/api/supply/orders/${order.id}/action`, 'POST', {
+   135→   800→   800→                      action: 'dispatch',
+   136→   801→   801→                      courierName: courierName.trim() || undefined,
+   137→   802→   802→                      driverName: driverName.trim() || undefined,
+   138→   803→   803→                      driverPhone: driverPhone.trim() || undefined,
+   139→   804→   804→                      vehicleReg: vehicleReg.trim() || undefined,
+   140→   805→   805→                      deliveryRef: deliveryRef.trim() || undefined,
+   141→   806→   806→                      expectedHours: expectedHours.trim() ? Number(expectedHours) : undefined,
+   142→   807→   807→                      evidence,
+   143→   808→   808→                    })
+   144→   809→   809→                  ).then(() => setOpen(false))
+   145→   810→   810→                }
+   146→   811→   811→              >
+   147→   812→   812→                {busy === 'dispatch' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />} Record dispatch
+   148→   813→   813→              </Button>
+   149→   814→   814→            </div>
+   150→   815→   815→          </div>
+   151→   816→   816→        )}
+   152→   817→   817→      </CardContent>
+   153→   818→   818→    </Card>
+   154→   819→   819→  )
+   155→   820→   820→}
+   156→   821→   821→
+   157→   822→   822→// ───────────────────────────── Dispute ─────────────────────────────
+   158→   823→   823→
+   159→   824→   824→function DisputeSection({ orderId, busy, act }: {
+   160→   825→   825→  orderId: string
+   161→   826→   826→  busy: string | null
+   162→   827→   827→  act: (key: string, fn: () => Promise<unknown>) => Promise<unknown>
+   163→   828→   828→}) {
+   164→   829→   829→  const [open, setOpen] = useState(false)
+   165→   830→   830→  const [reason, setReason] = useState<string>('MISSING_ITEMS')
+   166→   831→   831→  const [details, setDetails] = useState('')
+   167→   832→   832→  const [evidence, setEvidence] = useState<{ url: string; name: string }[]>([])
+   168→   833→   833→  const [uploading, setUploading] = useState(false)
+   169→   834→   834→
+   170→   835→   835→  async function handleFiles(files: FileList | null) {
+   171→   836→   836→    if (!files || files.length === 0) return
+   172→   837→   837→    const room = 6 - evidence.length
+   173→   838→   838→    if (room <= 0) {
+   174→   839→   839→      toast.error('At most 6 evidence files.')
+   175→   840→   840→      return
+   176→   841→   841→    }
+   177→   842→   842→    setUploading(true)
+   178→   843→   843→    try {
+   179→   844→   844→      for (const file of Array.from(files).slice(0, room)) {
+   180→   845→   845→        const res = await uploadOne(file)
+   181→   846→   846→        setEvidence((prev) => [...prev, { url: res.url, name: res.name || file.name }])
+   182→   847→   847→      }
+   183→   848→   848→      toast.success('Evidence uploaded')
+   184→   849→   849→    } catch (e) {
+   185→   850→   850→      toast.error(await errMessage(e, 'Upload failed: please try again.'))
+   186→   851→   851→    } finally {
+   187→   852→   852→      setUploading(false)
+   188→   853→   853→    }
+   189→   854→   854→  }
+   190→   855→   855→
+   191→   856→   856→  if (!open) {
+   192→   857→   857→    return (
+   193→   858→   858→      <div className="flex justify-end">
+   194→   859→   859→        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={busy !== null} onClick={() => setOpen(true)}>
+   195→   860→   860→          <AlertTriangle className="h-3.5 w-3.5" /> Open dispute
+   196→   861→   861→        </Button>
+   197→   862→   862→      </div>
+   198→   863→   863→    )
+   199→   864→   864→  }
+   200→   865→   865→
+   201→   866→   866→  return (
+   202→   867→   867→    <Card className="border-destructive/40">
+   203→   868→   868→      <CardContent className="space-y-3 px-4 py-4">
+   204→   869→   869→        <div>
+   205→   870→   870→          <p className="flex items-center gap-2 text-sm font-semibold text-destructive"><AlertTriangle className="h-4 w-4" /> Open a dispute</p>
+   206→   871→   871→          <p className="text-xs text-muted-foreground">
+   207→   872→   872→            Freezes further workflow steps on this order. Platform admins investigate with the full order, payment and
+   208→   873→   873→            delivery evidence. Use honest, specific details.
+   209→   874→   874→          </p>
+   210→   875→   875→        </div>
+   211→   876→   876→        <div className="grid gap-3 sm:grid-cols-2">
+   212→   877→   877→          <div className="space-y-1.5">
+   213→   878→   878→            <Label htmlFor="ds-reason">Reason</Label>
+   214→   879→   879→            <Select value={reason} onValueChange={setReason}>
+   215→   880→   880→              <SelectTrigger id="ds-reason" aria-label="Dispute reason"><SelectValue /></SelectTrigger>
+   216→   881→   881→              <SelectContent>
+   217→   882→   882→                {DISPUTE_REASONS.map((r) => <SelectItem key={r} value={r}>{DISPUTE_REASON_LABELS[r]}</SelectItem>)}
+   218→   883→   883→              </SelectContent>
+   219→   884→   884→            </Select>
+   220→   885→   885→          </div>
+   221→   886→   886→          <div className="space-y-1.5 sm:col-span-2">
+   222→   887→   887→            <Label htmlFor="ds-details">Details (min 10 characters)</Label>
+   223→   888→   888→            <Textarea id="ds-details" rows={3} value={details} onChange={(e) => setDetails(e.target.value)} maxLength={2000}
+   224→   889→   889→              placeholder="What happened, which lines are affected, what resolution you expect." />
+   225→   890→   890→          </div>
+   226→   891→   891→        </div>
+   227→   892→   892→        <div className="space-y-2">
+   228→   893→   893→          <Label>Evidence ({evidence.length}/6)</Label>
+   229→   894→   894→          <input
+   230→   895→   895→            id="ds-evidence"
+   231→   896→   896→            type="file"
+   232→   897→   897→            multiple
+   233→   898→   898→            accept="image/jpeg,image/png,image/webp,application/pdf"
+   234→   899→   899→            className="hidden"
+   235→   900→   900→            onChange={(e) => {
+   236→   901→   901→              handleFiles(e.target.files)
+   237→   902→   902→              e.target.value = ''
+   238→   903→   903→            }}
+   239→   904→   904→          />
+   240→   905→   905→          <div className="flex flex-wrap items-center gap-2">
+   241→   906→   906→            {evidence.map((ev) => (
+   242→   907→   907→              <div key={ev.url} className="relative">
+   243→   908→   908→                <img src={ev.url} alt={ev.name} className="h-14 w-14 rounded-md border border-border object-cover" />
+   244→   909→   909→                <button
+   245→   910→   910→                  type="button"
+   246→   911→   911→                  aria-label={`Remove ${ev.name}`}
+   247→   912→   912→                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+   248→   913→   913→                  onClick={() => setEvidence((prev) => prev.filter((x) => x.url !== ev.url))}
+   249→   914→   914→                >
+   250→   915→   915→                  <XCircle className="h-3 w-3" />
+   251→   916→   916→                </button>
+   252→   917→   917→              </div>
+   253→   918→   918→            ))}
+   254→   919→   919→            {evidence.length < 6 && (
+   255→   920→   920→              <button
+   256→   921→   921→                type="button"
+   257→   922→   922→                onClick={() => document.getElementById('ds-evidence')?.click()}
+   258→   923→   923→                disabled={uploading}
+   259→   924→   924→                className="flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+   260→   925→   925→              >
+   261→   926→   926→                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+   262→   927→   927→                <span className="text-[9px]">{uploading ? 'Uploading…' : 'Upload'}</span>
+   263→   928→   928→              </button>
+   264→   929→   929→            )}
+   265→   930→   930→          </div>
+   266→   931→   931→        </div>
+   267→   932→   932→        <div className="flex flex-wrap justify-end gap-2">
+   268→   933→   933→          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy !== null}>Cancel</Button>
+   269→   934→   934→          <Button
+   270→   935→   935→            variant="destructive"
+   271→   936→   936→            className="min-h-11"
+   272→   937→   937→            disabled={busy !== null || details.trim().length < 10}
+   273→   938→   938→            onClick={() =>
+   274→   939→   939→              act('dispute', () =>
+   275→   940→   940→                apiSend(`/api/supply/orders/${orderId}/action`, 'POST', {
+   276→   941→   941→                  action: 'dispute',
+   277→   942→   942→                  reason,
+   278→   943→   943→                  details: details.trim(),
+   279→   944→   944→                  evidence,
+   280→   945→   945→                })
+   281→   946→   946→              ).then(() => setOpen(false))
+   282→   947→   947→            }
+   283→   948→   948→          >
+   284→   949→   949→            {busy === 'dispute' ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />} File dispute
+   285→   950→   950→          </Button>
+   286→   951→   951→        </div>
+   287→   952→   952→      </CardContent>
+   288→   953→   953→    </Card>
+   289→   954→   954→  )
+   290→   955→   955→}
+   291→   956→   956→
+   292→   957→   957→// ───────────────────────────── Items, panels, timeline ─────────────────────────────
+   293→   958→   958→
+   294→   959→   959→function ItemsTable({ order }: { order: NonNullable<OrderDetail['order']> }) {
+   295→   960→   960→  return (
+   296→   961→   961→    <div className="overflow-hidden rounded-lg border border-border">
+   297→   962→   962→      <div className="overflow-x-auto scrollbar-thin">
+   298→   963→   963→        <table className="w-full text-sm">
+   299→   964→   964→          <thead>
+   300→   965→   965→            <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+   301→   966→   966→              <th className="px-3 py-2 font-medium">Item</th>
+   302→   967→   967→              <th className="px-3 py-2 text-right font-medium">Qty</th>
+   303→   968→   968→              <th className="px-3 py-2 text-right font-medium">Unit</th>
+   304→   969→   969→              <th className="px-3 py-2 text-right font-medium">Line total</th>
+   305→   970→   970→              <th className="px-3 py-2 text-right font-medium">Accepted</th>
+   306→   971→   971→            </tr>
+   307→   972→   972→          </thead>
+   308→   973→   973→          <tbody>
+   309→   974→   974→            {order.items.map((i) => (
+   310→   975→   975→              <tr key={i.id} className="border-b border-border last:border-0">
+   311→   976→   976→                <td className="max-w-64 px-3 py-2">
+   312→   977→   977→                  <div className="flex items-center gap-2">
+   313→   978→   978→                    {i.image ? <img src={i.image} alt="" className="h-9 w-9 rounded border border-border object-cover" /> : <span className="flex h-9 w-9 items-center justify-center rounded border border-border bg-muted/40"><Package className="h-4 w-4 text-muted-foreground" /></span>}
+   314→   979→   979→                    <div className="min-w-0">
+   315→   980→   980→                      <p className="truncate font-medium">{i.name}</p>
+   316→   981→   981→                      <p className="font-mono text-[11px] text-muted-foreground">{i.sku}{i.brand ? ` · ${i.brand}` : ''}{i.note ? ` · note: ${i.note}` : ''}</p>
+   317→   982→   982→                    </div>
+   318→   983→   983→                  </div>
+   319→   984→   984→                </td>
+   320→   985→   985→                <td className="px-3 py-2 text-right">{i.qty}</td>
+   321→   986→   986→                <td className="px-3 py-2 text-right">{money(i.unitPriceMinor, order.currency)}</td>
+   322→   987→   987→                <td className="px-3 py-2 text-right">{money(i.lineTotalMinor, order.currency)}</td>
+   323→   988→   988→                <td className="px-3 py-2 text-right">{i.qtyAccepted ?? 'Not set'}</td>
+   324→   989→   989→              </tr>
+   325→   990→   990→            ))}
+   326→   991→   991→          </tbody>
+   327→   992→   992→        </table>
+   328→   993→   993→      </div>
+   329→   994→   994→      <div className="space-y-1 border-t border-border bg-muted/20 px-3 py-2.5 text-sm">
+   330→   995→   995→        <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{money(order.subtotalMinor, order.currency)}</span></div>
+   331→   996→   996→        <div className="flex justify-between text-muted-foreground"><span>Tax</span><span>{money(order.taxMinor, order.currency)}</span></div>
+   332→   997→   997→        <div className="flex justify-between text-muted-foreground"><span>Delivery fee</span><span>{money(order.deliveryFeeMinor, order.currency)}</span></div>
+   333→   998→   998→        <div className="flex justify-between font-semibold"><span>Total</span><span>{money(order.totalMinor, order.currency)}</span></div>
+   334→   999→   999→        {order.acceptedTotalMinor !== null && (
+   335→  1000→  1000→          <div className="flex justify-between text-primary"><span>Accepted value after inspection</span><span className="font-semibold">{money(order.acceptedTotalMinor, order.currency)}</span></div>
+   336→  1001→  1001→        )}
+   337→  1002→  1002→      </div>
+   338→  1003→  1003→    </div>
+   339→  1004→  1004→  )
+   340→  1005→  1005→}
+   341→  1006→  1006→
+   342→  1007→  1007→function DeliveryPanel({ order }: { order: NonNullable<OrderDetail['order']> }) {
+   343→  1008→  1008→  const d = order.delivery
+   344→  1009→  1009→  return (
+   345→  1010→  1010→    <Card>
+   346→  1011→  1011→      <CardContent className="space-y-2 px-4 py-4 text-sm">
+   347→  1012→  1012→        <p className="flex items-center gap-2 font-semibold"><Truck className="h-4 w-4 text-muted-foreground" /> Delivery</p>
+   348→  1013→  1013→        {!d ? (
+   349→  1014→  1014→          <p className="text-xs text-muted-foreground">
+   350→  1015→  1015→            Not arranged yet. After you accept, the delivery method (direct, collection or meetup) is agreed between you and the garage.
+   351→  1016→  1016→          </p>
+   352→  1017→  1017→        ) : (
+   353→  1018→  1018→          <>
+   354→  1019→  1019→            <div className="flex flex-wrap gap-1.5">
+   355→  1020→  1020→              <StatusBadge status={d.status} labels={DELIVERY_STATUS_LABELS} classes={{ AGREED: 'bg-primary/15 text-primary', ARRANGING: 'bg-accent/30 text-accent-foreground' }} />
+   356→  1021→  1021→              <Badge variant="outline" className="text-[10px]">{d.method}</Badge>
+   357→  1022→  1022→            </div>
+   358→  1023→  1023→            <dl className="space-y-1 text-xs text-muted-foreground">
+   359→  1024→  1024→              {d.scheduledFor && <div className="flex gap-1"><CalendarClock className="h-3 w-3 shrink-0" /><span>Scheduled {new Date(d.scheduledFor).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })}{d.windowLabel ? ` · ${d.windowLabel}` : ''}</span></div>}
+   360→  1025→  1025→              {d.courierName && <div>Courier: {d.courierName}</div>}
+   361→  1026→  1026→              {d.driverName && <div>Driver: {d.driverName}{d.driverPhone ? ` · ${d.driverPhone}` : ''}</div>}
+   362→  1027→  1027→              {d.vehicleReg && <div>Vehicle: {d.vehicleReg}</div>}
+   363→  1028→  1028→              {d.deliveryRef && <div>Ref: <span className="font-mono">{d.deliveryRef}</span></div>}
+   364→  1029→  1029→              {d.dispatchedAt && <div>Dispatched {timeAgo(d.dispatchedAt)}{d.expectedAt ? ` · expected ${dateLabel(d.expectedAt)}` : ''}</div>}
+   365→  1030→  1030→              {order.destinationBranch && <div className="flex gap-1"><MapPin className="h-3 w-3 shrink-0" /><span>To: {order.destinationBranch.name}, {order.destinationBranch.address || order.destinationBranch.town}</span></div>}
+   366→  1031→  1031→              {d.supplierBranch && <div className="flex gap-1"><MapPin className="h-3 w-3 shrink-0" /><span>Collection: {d.supplierBranch.name}, {d.supplierBranch.town}</span></div>}
+   367→  1032→  1032→              {d.meetup?.address && <div className="flex gap-1"><MapPin className="h-3 w-3 shrink-0" /><span>Meetup: {d.meetup.address}</span></div>}
+   368→  1033→  1033→            </dl>
+   369→  1034→  1034→            {d.dispatchEvidence.length > 0 && (
+   370→  1035→  1035→              <div className="flex flex-wrap gap-1.5 pt-1">
+   371→  1036→  1036→                {d.dispatchEvidence.map((url) => (
+   372→  1037→  1037→                  <img key={url} src={url} alt="Dispatch evidence" className="h-12 w-12 rounded border border-border object-cover" />
+   373→  1038→  1038→                ))}
+   374→  1039→  1039→              </div>
+   375→  1040→  1040→            )}
+   376→  1041→  1041→            <HandoverVerification d={d} />
+   377→  1042→  1042→          </>
+   378→  1043→  1043→        )}
+   379→  1044→  1044→      </CardContent>
+   380→  1045→  1045→    </Card>
+   381→  1046→  1046→  )
+   382→  1047→  1047→}
+   383→  1048→  1048→
+   384→  1049→  1049→function HandoverVerification({ d }: { d: NonNullable<OrderDetail['order']['delivery']> }) {
+   385→  1050→  1050→  const active = ['DISPATCHED', 'IN_TRANSIT', 'DELIVERED'].includes(d.status)
+   386→  1051→  1051→  if (!active) return null
+   387→  1052→  1052→  return (
+   388→  1053→  1053→    <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+   389→  1054→  1054→      <p className="flex items-center gap-1.5 font-medium text-foreground"><ShieldCheck className="h-3.5 w-3.5 text-primary" /> Handover verification</p>
+   390→  1055→  1055→      <p className="mt-1">
+   391→  1056→  1056→        {d.otpHint
+   392→  1057→  1057→          ? <>The garage holds the 6-digit handover code; it ends <span className="font-mono font-semibold text-foreground">··{d.otpHint}</span>. You never see the full code; they read it out only at handover.</>
+   393→  1058→  1058→          : 'The garage receives a 6-digit handover code at dispatch; it is verified at delivery.'}
+   394→  1059→  1059→      </p>
+   395→  1060→  1060→      <p className="mt-0.5">
+   396→  1061→  1061→        {d.qrToken ? 'QR handover verification is enabled for this delivery.' : 'QR handover is not enabled for this delivery.'}
+   397→  1062→  1062→      </p>
+   398→  1063→  1063→    </div>
+   399→  1064→  1064→  )
+   400→  1065→  1065→}
+   401→  1066→  1066→
+   402→  1067→  1067→function PaymentPanel({ order }: { order: NonNullable<OrderDetail['order']> }) {
+   403→  1068→  1068→  const p = order.payment
+   404→  1069→  1069→  return (
+   405→  1070→  1070→    <Card>
+   406→  1071→  1071→      <CardContent className="space-y-2 px-4 py-4 text-sm">
+   407→  1072→  1072→        <p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-muted-foreground" /> Payment</p>
+   408→  1073→  1073→        {!p ? (
+   409→  1074→  1074→          <p className="text-xs text-muted-foreground">
+   410→  1075→  1075→            No payment yet. After confirmation the garage pays via M-Pesa into protected escrow; funds release to you
+   411→  1076→  1076→            after the garage accepts the delivery.
+   412→  1077→  1077→          </p>
+   413→  1078→  1078→        ) : (
+   414→  1079→  1079→          <>
+   415→  1080→  1080→            <div className="flex flex-wrap gap-1.5">
+   416→  1081→  1081→              <StatusBadge status={p.status} labels={PAYMENT_STATUS_LABELS} classes={paymentBadgeClass(p.status)} />
+   417→  1082→  1082→              {p.provider && <Badge variant="outline" className="text-[10px]">{p.provider}</Badge>}
+   418→  1083→  1083→            </div>
+   419→  1084→  1084→            <dl className="space-y-1 text-xs text-muted-foreground">
+   420→  1085→  1085→              <div>Amount: <span className="font-semibold text-foreground">{money(p.amountMinor, order.currency)}</span></div>
+   421→  1086→  1086→              <div>Ref: <span className="font-mono">{p.refCode}</span></div>
+   422→  1087→  1087→              {p.protectedAt && <div>Funds protected {timeAgo(p.protectedAt)}</div>}
+   423→  1088→  1088→            </dl>
+   424→  1089→  1089→            <p className="text-xs text-muted-foreground">
+   425→  1090→  1090→              {p.status === 'PROTECTED'
+   426→  1091→  1091→                ? 'Funds are held in protection and release after the garage inspects and accepts the delivery.'
+   427→  1092→  1092→                : p.status === 'RELEASED' || p.status === 'PARTIALLY_RELEASED'
+   428→  1093→  1093→                  ? 'Released funds are paid out per the platform finance schedule; the commission is recorded separately.'
+   429→  1094→  1094→                  : 'Payment states change only when the payment provider or platform finance confirms them; this panel never assumes.'}
+   430→  1095→  1095→            </p>
+   431→  1096→  1096→          </>
+   432→  1097→  1097→        )}
+   433→  1098→  1098→      </CardContent>
+   434→  1099→  1099→    </Card>
+   435→  1100→  1100→  )
+   436→  1101→  1101→}
+   437→  1102→  1102→
+   438→  1103→  1103→function Timeline({ order }: { order: NonNullable<OrderDetail['order']> }) {
+   439→  1104→  1104→  const events: PoEvent[] = useMemo(() => {
+   440→  1105→  1105→    const all = [...order.events, ...(order.delivery?.events ?? []).map((e) => ({ ...e, type: `Delivery · ${e.type}` }))]
+   441→  1106→  1106→    return all.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+   442→  1107→  1107→  }, [order])
+   443→  1108→  1108→
+   444→  1109→  1109→  return (
+   445→  1110→  1110→    <div>
+   446→  1111→  1111→      <p className="mb-2 text-sm font-semibold">Timeline</p>
+   447→  1112→  1112→      <ol className="max-h-64 space-y-0 overflow-y-auto scrollbar-thin pr-1">
+   448→  1113→  1113→        {events.map((e) => (
+   449→  1114→  1114→          <li key={e.id} className="relative border-l border-border pb-3 pl-4 last:pb-0">
+   450→  1115→  1115→            <span className="absolute -left-[4.5px] top-1.5 h-2 w-2 rounded-full bg-primary/60" />
+   451→  1116→  1116→            <p className="text-xs">
+   452→  1117→  1117→              <span className="font-medium">{e.type.replaceAll('_', ' ')}</span>
+   453→  1118→  1118→              {' '}· {EVENT_SIDE_LABELS[e.actorSide ?? ''] ?? 'Party'}
+   454→  1119→  1119→              {e.actorName ? ` (${e.actorName})` : ''}
+   455→  1120→  1120→              {' '}· {new Date(e.createdAt).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })}
+   456→  1121→  1121→            </p>
+   457→  1122→  1122→            {e.note && <p className="mt-0.5 text-xs text-muted-foreground">{e.note}</p>}
+   458→  1123→  1123→          </li>
+   459→  1124→  1124→        ))}
+   460→  1125→  1125→        {events.length === 0 && <li className="text-xs text-muted-foreground">No events recorded.</li>}
+   461→  1126→  1126→      </ol>
+   462→  1127→  1127→      {order.revisions.length > 0 && (
+   463→  1128→  1128→        <>
+   464→  1129→  1129→          <Separator className="my-3" />
+   465→  1130→  1130→          <p className="mb-1.5 text-sm font-semibold">Revisions</p>
+   466→  1131→  1131→          <ul className="space-y-1.5">
+   467→  1132→  1132→            {order.revisions.map((r) => (
+   468→  1133→  1133→              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+   469→  1134→  1134→                <span>
+   470→  1135→  1135→                  Proposed {timeAgo(r.createdAt)} · {r.changes.length} change{r.changes.length === 1 ? '' : 's'}
+   471→  1136→  1136→                  {r.note ? ` · “${r.note}”` : ''}
+   472→  1137→  1137→                </span>
+   473→  1138→  1138→                <span className="flex items-center gap-2">
+   474→  1139→  1139→                  <span className="font-semibold">{money(r.newTotalMinor, order.currency)}</span>
+   475→  1140→  1140→                  <Badge variant="secondary" className={cn('border-transparent', r.status === 'APPROVED' ? 'bg-primary text-primary-foreground' : r.status === 'DECLINED' ? 'bg-destructive/15 text-destructive' : 'bg-accent/40 text-accent-foreground')}>
+   476→  1141→  1141→                    {r.status === 'APPROVED' ? 'Approved' : r.status === 'DECLINED' ? 'Declined' : 'Pending'}
+   477→  1142→  1142→                  </Badge>
+   478→  1143→  1143→                </span>
+   479→  1144→  1144→              </li>
+   480→  1145→  1145→            ))}
+   481→  1146→  1146→          </ul>
+   482→  1147→  1147→        </>
+   483→  1148→  1148→      )}
+   484→  1149→  1149→      {order.inspectionStatus && (
+   485→  1150→  1150→        <p className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+   486→  1151→  1151→          Garage inspection result: <strong className="text-foreground">{order.inspectionStatus}</strong>
+   487→  1152→  1152→          {order.acceptedTotalMinor !== null ? `: accepted value ${money(order.acceptedTotalMinor, order.currency)}.` : ''}
+   488→  1153→  1153→        </p>
+   489→  1154→  1154→      )}
+   490→  1155→  1155→    </div>
+   491→  1156→  1156→  )
+   492→  1157→  1157→}
+   493→  1158→  1158→

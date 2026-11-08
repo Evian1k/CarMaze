@@ -1,0 +1,898 @@
+     1→'use client'
+     2→
+     3→/* SupplierOS: Products tab: wholesale catalogue management.
+     4→ * Create/edit with the full product schema, multi-image upload, publish
+     5→ * toggle, and a per-product vehicle-compatibility editor (fitment rows are
+     6→ * submitted as supplier references: verified:false until platform admins
+     7→ * review them).
+     8→ *
+     9→ * HONESTY RULES:
+    10→ *  - authenticityVerified is displayed read-only with an explanation that only
+    11→ *    CARMAZE can verify authenticity: suppliers cannot self-verify.
+    12→ *  - The categories endpoint does not expose internal category IDs (reported
+    13→ *    mismatch), so the form resolves category IDs from the supplier's own
+    14→ *    products. Categories never used before are disabled with an explanation.
+    15→ */
+    16→
+    17→import { useMemo, useState } from 'react'
+    18→import { toast } from 'sonner'
+    19→import {
+    20→  BadgeCheck, Boxes, Loader2, Package, PackagePlus, Pencil, Plus, Search, ShieldCheck, Trash2, Upload, X, GitBranch,
+    21→} from 'lucide-react'
+    22→import { apiSend } from '@/lib/client'
+    23→import { money } from '@/lib/format'
+    24→import { VEHICLE_MAKES } from '@/lib/format'
+    25→import { Button } from '@/components/ui/button'
+    26→import { Card, CardContent } from '@/components/ui/card'
+    27→import { Input } from '@/components/ui/input'
+    28→import { Label } from '@/components/ui/label'
+    29→import { Textarea } from '@/components/ui/textarea'
+    30→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    31→import { Switch } from '@/components/ui/switch'
+    32→import { Badge } from '@/components/ui/badge'
+    33→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    34→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    35→import { Separator } from '@/components/ui/separator'
+    36→import { cn } from '@/lib/utils'
+    37→import {
+    38→  type FetchState, type ProductItem, type ProductCategory, type CompatibilityRow,
+    39→  useFetch, supplierRoleCan, StatusBadge, LoadingBlock, ModuleNotice, EmptyState,
+    40→  PRODUCT_STATUS_LABELS, PRODUCT_BADGE_CLASS, CONDITION_LABELS,
+    41→  kesToMinor, minorToKesInput, splitComma, uploadOne, errMessage, availableAcrossStocks,
+    42→} from './shared'
+    43→
+    44→type Props = {
+    45→  products: FetchState<{ products: ProductItem[] }>
+    46→  role: string
+    47→  orgId: string
+    48→}
+    49→
+    50→type ProductForm = {
+    51→  name: string
+    52→  sku: string
+    53→  categorySlug: string // '' = none chosen
+    54→  mpn: string
+    55→  oemRef: string
+    56→  brand: string
+    57→  description: string
+    58→  condition: 'NEW' | 'REFURBISHED' | 'USED'
+    59→  unitPrice: string
+    60→  wholesalePrice: string
+    61→  wholesaleMinQty: string
+    62→  taxRatePct: string
+    63→  warrantyMonths: string
+    64→  returnable: boolean
+    65→  tags: string
+    66→  vehicleMakes: string
+    67→  batchTracked: boolean
+    68→  serialTracked: boolean
+    69→  provenanceNote: string
+    70→  publish: boolean // create: publish now; edit: target status
+    71→}
+    72→
+    73→const EMPTY_FORM: ProductForm = {
+    74→  name: '', sku: '', categorySlug: '', mpn: '', oemRef: '', brand: '', description: '',
+    75→  condition: 'NEW', unitPrice: '', wholesalePrice: '', wholesaleMinQty: '', taxRatePct: '',
+    76→  warrantyMonths: '', returnable: true, tags: '', vehicleMakes: '', batchTracked: false,
+    77→  serialTracked: false, provenanceNote: '', publish: true,
+    78→}
+    79→
+    80→function formFromProduct(p: ProductItem): ProductForm {
+    81→  return {
+    82→    name: p.name,
+    83→    sku: p.sku,
+    84→    categorySlug: p.category.slug,
+    85→    mpn: p.mpn ?? '',
+    86→    oemRef: p.oemRef ?? '',
+    87→    brand: p.brand ?? '',
+    88→    description: p.description,
+    89→    condition: p.condition,
+    90→    unitPrice: minorToKesInput(p.unitPriceMinor),
+    91→    wholesalePrice: minorToKesInput(p.wholesalePriceMinor),
+    92→    wholesaleMinQty: p.wholesaleMinQty ? String(p.wholesaleMinQty) : '',
+    93→    taxRatePct: p.taxRatePct ? String(p.taxRatePct) : '',
+    94→    warrantyMonths: p.warrantyMonths ? String(p.warrantyMonths) : '',
+    95→    returnable: p.returnable,
+    96→    tags: p.tags.join(', '),
+    97→    vehicleMakes: p.vehicleMakes.join(', '),
+    98→    batchTracked: p.batchTracked,
+    99→    serialTracked: p.serialTracked,
+   100→    provenanceNote: '',
+   101→    publish: p.status === 'PUBLISHED',
+   102→  }
+   103→}
+   104→
+   105→const STATUS_FILTERS = ['ALL', 'PUBLISHED', 'DRAFT', 'SUSPENDED', 'REJECTED'] as const
+   106→
+   107→export function ProductsTab({ products, role, orgId }: Props) {
+   108→  const categories = useFetch<{ categories: ProductCategory[] }>('/api/supply/categories')
+   109→  const [query, setQuery] = useState('')
+   110→  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>('ALL')
+   111→  const [editing, setEditing] = useState<ProductItem | null>(null)
+   112→  const [creating, setCreating] = useState(false)
+   113→  const [compatFor, setCompatFor] = useState<ProductItem | null>(null)
+   114→  const [togglingId, setTogglingId] = useState<string | null>(null)
+   115→
+   116→  const canWrite = supplierRoleCan(role, 'catalogue.write')
+   117→
+   118→  // slug → categoryId map harvested from the supplier's own products (the
+   119→  // public categories endpoint does not expose IDs; see module header).
+   120→  const catIdBySlug = useMemo(() => {
+   121→    const map = new Map<string, string>()
+   122→    for (const p of products.data?.products ?? []) {
+   123→      if (p.category?.slug && p.categoryId) map.set(p.category.slug, p.categoryId)
+   124→    }
+   125→    return map
+   126→  }, [products.data])
+   127→
+   128→  const list = products.data?.products ?? []
+   129→  const catalogueBoundElsewhere = list.length > 0 && list.some((p) => p.supplierOrgId !== orgId)
+   130→  const filtered = list.filter((p) => {
+   131→    if (statusFilter !== 'ALL' && p.status !== statusFilter) return false
+   132→    if (!query.trim()) return true
+   133→    const q = query.trim().toLowerCase()
+   134→    return (
+   135→      p.name.toLowerCase().includes(q) ||
+   136→      p.sku.toLowerCase().includes(q) ||
+   137→      (p.mpn ?? '').toLowerCase().includes(q) ||
+   138→      (p.brand ?? '').toLowerCase().includes(q) ||
+   139→      p.refCode.toLowerCase().includes(q)
+   140→    )
+   141→  })
+   142→
+   143→  async function togglePublish(p: ProductItem) {
+   144→    if (!canWrite) return
+   145→    const target = p.status === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED'
+   146→    setTogglingId(p.id)
+   147→    try {
+   148→      await apiSend(`/api/supply/products/${p.id}`, 'PATCH', { status: target })
+   149→      toast.success(target === 'PUBLISHED' ? 'Product published to the supply catalogue.' : 'Product moved to drafts.')
+   150→      products.reload()
+   151→    } catch (e) {
+   152→      toast.error(await errMessage(e, 'Could not update the product.'))
+   153→    } finally {
+   154→      setTogglingId(null)
+   155→    }
+   156→  }
+   157→
+   158→  return (
+   159→    <div className="space-y-4">
+   160→      <div className="flex flex-wrap items-center justify-between gap-3">
+   161→        <div>
+   162→          <h2 className="text-lg font-semibold tracking-tight">Wholesale catalogue</h2>
+   163→          <p className="text-sm text-muted-foreground">
+   164→            {list.length} product{list.length === 1 ? '' : 's'} · {list.filter((p) => p.status === 'PUBLISHED').length} published to the supply catalogue
+   165→          </p>
+   166→        </div>
+   167→        <Button
+   168→          onClick={() => setCreating(true)}
+   169→          disabled={!canWrite}
+   170→          title={canWrite ? 'Create a product' : 'Your role does not include catalogue editing'}
+   171→          className="min-h-11"
+   172→        >
+   173→          <PackagePlus className="h-4 w-4" /> New product
+   174→        </Button>
+   175→      </div>
+   176→
+   177→      {!canWrite && (
+   178→        <p className="text-xs text-muted-foreground">
+   179→          Your role ({role}) has read-only catalogue access. Only the business owner or operations managers can edit products.
+   180→        </p>
+   181→      )}
+   182→
+   183→      {catalogueBoundElsewhere && (
+   184→        <Alert>
+   185→          <Boxes className="h-4 w-4" />
+   186→          <AlertTitle>Catalogue is bound to your primary supplier business</AlertTitle>
+   187→          <AlertDescription>
+   188→            The catalogue endpoint resolves your account&apos;s first supplier business, so these products belong to a
+   189→            different business than the one selected in the header. Orders, warehouses and inventory below reflect the
+   190→            selected business.
+   191→          </AlertDescription>
+   192→        </Alert>
+   193→      )}
+   194→
+   195→      <div className="flex flex-wrap items-center gap-2">
+   196→        <div className="relative min-w-56 flex-1">
+   197→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   198→          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, MPN, brand…" className="pl-8" aria-label="Search products" />
+   199→        </div>
+   200→        <div className="flex flex-wrap gap-1.5">
+   201→          {STATUS_FILTERS.map((s) => (
+   202→            <button
+   203→              key={s}
+   204→              type="button"
+   205→              onClick={() => setStatusFilter(s)}
+   206→              className={cn(
+   207→                'rounded-full border px-3 py-1 text-xs transition-colors',
+   208→                statusFilter === s ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'
+   209→              )}
+   210→            >
+   211→              {s === 'ALL' ? 'All' : PRODUCT_STATUS_LABELS[s]}
+   212→            </button>
+   213→          ))}
+   214→        </div>
+   215→      </div>
+   216→
+   217→      {categories.data && catIdBySlug.size === 0 && (categories.data.categories?.length ?? 0) > 0 && (
+   218→        <Alert>
+   219→          <Boxes className="h-4 w-4" />
+   220→          <AlertTitle>First-product category note</AlertTitle>
+   221→          <AlertDescription>
+   222→            The platform&apos;s category list currently doesn&apos;t expose the internal IDs new products need (engineering
+   223→            ticket filed). Until it does, create your first product in a category via platform support, or pick a
+   224→            category once known: afterwards all your used categories become selectable here.
+   225→          </AlertDescription>
+   226→        </Alert>
+   227→      )}
+   228→
+   229→      {products.loading ? (
+   230→        <LoadingBlock label="Loading catalogue…" />
+   231→      ) : products.error ? (
+   232→        <ModuleNotice title="Catalogue could not load" detail={products.error.message} retry={products.reload} />
+   233→      ) : filtered.length === 0 ? (
+   234→        <EmptyState
+   235→          icon={<Package className="h-8 w-8" />}
+   236→          title={list.length === 0 ? 'No products yet' : 'No products match the filters'}
+   237→          detail={list.length === 0
+   238→            ? 'Add your first product with pricing, warranty and warehouse stock: published products appear in the supply catalogue for verified garages.'
+   239→            : 'Try a different search term or status filter.'}
+   240→        />
+   241→      ) : (
+   242→        <div className="grid gap-3 lg:grid-cols-2">
+   243→          {filtered.map((p) => (
+   244→            <ProductCard
+   245→              key={p.id}
+   246→              product={p}
+   247→              busy={togglingId === p.id}
+   248→              canWrite={canWrite}
+   249→              onEdit={() => setEditing(p)}
+   250→              onToggle={() => togglePublish(p)}
+   251→              onCompatibility={() => setCompatFor(p)}
+   252→            />
+   253→          ))}
+   254→        </div>
+   255→      )}
+   256→
+   257→      {/* Create / edit dialog */}
+   258→      {creating && (
+   259→        <ProductFormDialog
+   260→          categories={categories.data?.categories ?? []}
+   261→          catIdBySlug={catIdBySlug}
+   262→          onClose={() => setCreating(false)}
+   263→          onSaved={() => {
+   264→            setCreating(false)
+   265→            products.reload()
+   266→          }}
+   267→        />
+   268→      )}
+   269→      {editing && (
+   270→        <ProductFormDialog
+   271→          product={editing}
+   272→          categories={categories.data?.categories ?? []}
+   273→          catIdBySlug={catIdBySlug}
+   274→          onClose={() => setEditing(null)}
+   275→          onSaved={() => {
+   276→            setEditing(null)
+   277→            products.reload()
+   278→          }}
+   279→        />
+   280→      )}
+   281→
+   282→      {/* Compatibility editor */}
+   283→      {compatFor && (
+   284→        <CompatibilityDialog
+   285→          product={compatFor}
+   286→          canWrite={canWrite}
+   287→          onClose={() => setCompatFor(null)}
+   288→        />
+   289→      )}
+   290→    </div>
+   291→  )
+   292→}
+   293→
+   294→// ───────────────────────────── Product card ─────────────────────────────
+   295→
+   296→function ProductCard({ product, busy, canWrite, onEdit, onToggle, onCompatibility }: {
+   297→  product: ProductItem
+   298→  busy: boolean
+   299→  canWrite: boolean
+   300→  onEdit: () => void
+   301→  onToggle: () => void
+   302→  onCompatibility: () => void
+   303→}) {
+   304→  const available = availableAcrossStocks(product.stocks)
+   305→  const canToggle = canWrite && (product.status === 'PUBLISHED' || product.status === 'DRAFT')
+   306→  return (
+   307→    <Card className="py-4">
+   308→      <CardContent className="flex gap-3 px-4">
+   309→        {product.images[0] ? (
+   310→          <img src={product.images[0]} alt={product.name} className="h-20 w-24 shrink-0 rounded-lg border border-border object-cover" />
+   311→        ) : (
+   312→          <span className="flex h-20 w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-muted-foreground">
+   313→            <Package className="h-6 w-6" />
+   314→          </span>
+   315→        )}
+   316→        <div className="min-w-0 flex-1">
+   317→          <div className="flex items-start justify-between gap-2">
+   318→            <div className="min-w-0">
+   319→              <p className="truncate text-sm font-semibold">{product.name}</p>
+   320→              <p className="truncate text-xs text-muted-foreground">
+   321→                <span className="font-mono">{product.sku}</span>
+   322→                {product.brand ? ` · ${product.brand}` : ''} · {product.category.name}
+   323→              </p>
+   324→            </div>
+   325→            <StatusBadge status={product.status} labels={PRODUCT_STATUS_LABELS} classes={PRODUCT_BADGE_CLASS} />
+   326→          </div>
+   327→          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+   328→            <span className="font-semibold text-foreground">{money(product.unitPriceMinor)}</span>
+   329→            {product.wholesalePriceMinor ? (
+   330→              <span>Wholesale {money(product.wholesalePriceMinor)}{product.wholesaleMinQty ? ` · min ${product.wholesaleMinQty}` : ''}</span>
+   331→            ) : null}
+   332→            <span className={cn(available === 0 && 'text-destructive')}>{available} available</span>
+   333→            {product.authenticityVerified && (
+   334→              <Badge variant="secondary" className="gap-1 border-transparent bg-primary/10 px-1 py-0 text-[10px] text-primary">
+   335→                <BadgeCheck className="h-3 w-3" /> Authenticity verified
+   336→              </Badge>
+   337→            )}
+   338→          </div>
+   339→          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+   340→            <Button size="sm" variant="outline" className="h-8" disabled={!canWrite} onClick={onEdit}>
+   341→              <Pencil className="h-3.5 w-3.5" /> Edit
+   342→            </Button>
+   343→            <Button size="sm" variant="outline" className="h-8" onClick={onCompatibility}>
+   344→              <GitBranch className="h-3.5 w-3.5" /> Compatibility
+   345→            </Button>
+   346→            {canToggle && (
+   347→              <Button size="sm" variant="ghost" className="h-8" disabled={busy} onClick={onToggle}>
+   348→                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+   349→                {product.status === 'PUBLISHED' ? 'Unpublish' : 'Publish'}
+   350→              </Button>
+   351→            )}
+   352→          </div>
+   353→        </div>
+   354→      </CardContent>
+   355→    </Card>
+   356→  )
+   357→}
+   358→
+   359→// ───────────────────────────── Product form ─────────────────────────────
+   360→
+   361→function ProductFormDialog({ product, categories, catIdBySlug, onClose, onSaved }: {
+   362→  product?: ProductItem
+   363→  categories: ProductCategory[]
+   364→  catIdBySlug: Map<string, string>
+   365→  onClose: () => void
+   366→  onSaved: () => void
+   367→}) {
+   368→  const isEdit = Boolean(product)
+   369→  const [form, setForm] = useState<ProductForm>(() => (product ? formFromProduct(product) : EMPTY_FORM))
+   370→  const [images, setImages] = useState<string[]>(product?.images ?? [])
+   371→  const [uploading, setUploading] = useState(false)
+   372→  const [saving, setSaving] = useState(false)
+   373→  const [categoryError, setCategoryError] = useState<string | null>(null)
+   374→
+   375→  const set = <K extends keyof ProductForm>(k: K, v: ProductForm[K]) => setForm((f) => ({ ...f, [k]: v }))
+   376→
+   377→  const unknownCategory = !isEdit && form.categorySlug !== '' && !catIdBySlug.has(form.categorySlug)
+   378→
+   379→  async function handleFiles(files: FileList | null) {
+   380→    if (!files || files.length === 0) return
+   381→    const room = 8 - images.length
+   382→    if (room <= 0) {
+   383→      toast.error('A product can have at most 8 images.')
+   384→      return
+   385→    }
+   386→    setUploading(true)
+   387→    try {
+   388→      for (const file of Array.from(files).slice(0, room)) {
+   389→        const res = await uploadOne(file)
+   390→        setImages((prev) => [...prev, res.url])
+   391→      }
+   392→      toast.success('Image uploaded')
+   393→    } catch (e) {
+   394→      toast.error(await errMessage(e, 'Upload failed: please try again.'))
+   395→    } finally {
+   396→      setUploading(false)
+   397→    }
+   398→  }
+   399→
+   400→  function validate(): string | null {
+   401→    if (form.name.trim().length < 3) return 'Product name must be at least 3 characters.'
+   402→    if (!isEdit && (form.sku.trim().length < 2 || form.sku.trim().length > 40)) return 'SKU must be 2–40 characters.'
+   403→    if (!form.categorySlug) return 'Choose a product category.'
+   404→    if (unknownCategory) return 'That category has no internal ID available yet; pick a category you have used before.'
+   405→    if (form.description.trim().length < 10) return 'Description must be at least 10 characters.'
+   406→    const unit = kesToMinor(form.unitPrice)
+   407→    if (unit === null || unit < 100) return 'Enter a unit price of at least KES 1.'
+   408→    if (form.wholesalePrice.trim() && (kesToMinor(form.wholesalePrice) ?? 0) < 0) return 'Wholesale price is invalid.'
+   409→    const minQty = form.wholesaleMinQty.trim() ? Number(form.wholesaleMinQty) : 0
+   410→    if (!Number.isInteger(minQty) || minQty < 0 || minQty > 10000) return 'Wholesale minimum quantity must be 0–10,000.'
+   411→    const tax = form.taxRatePct.trim() ? Number(form.taxRatePct) : 0
+   412→    if (!Number.isFinite(tax) || tax < 0 || tax > 50) return 'Tax rate must be 0–50%.'
+   413→    const warranty = form.warrantyMonths.trim() ? Number(form.warrantyMonths) : 0
+   414→    if (!Number.isInteger(warranty) || warranty < 0 || warranty > 120) return 'Warranty must be 0–120 months.'
+   415→    if (images.length > 8) return 'A product can have at most 8 images.'
+   416→    if (splitComma(form.tags).length > 12) return 'At most 12 tags.'
+   417→    if (splitComma(form.vehicleMakes).length > 30) return 'At most 30 vehicle makes.'
+   418→    if (form.provenanceNote.length > 1000) return 'Provenance note must be at most 1000 characters.'
+   419→    return null
+   420→  }
+   421→
+   422→  async function save() {
+   423→    const problem = validate()
+   424→    if (problem) {
+   425→      toast.error(problem)
+   426→      return
+   427→    }
+   428→    setSaving(true)
+   429→    setCategoryError(null)
+   430→    try {
+   431→      const categoryId = isEdit ? undefined : catIdBySlug.get(form.categorySlug)
+   432→      if (!isEdit && !categoryId) {
+   433→        setCategoryError('Category ID unavailable: the platform category list does not expose internal IDs for new categories.')
+   434→        setSaving(false)
+   435→        return
+   436→      }
+   437→      if (isEdit && product) {
+   438→        await apiSend(`/api/supply/products/${product.id}`, 'PATCH', {
+   439→          name: form.name.trim(),
+   440→          ...(form.categorySlug ? { categoryId: catIdBySlug.get(form.categorySlug) } : {}),
+   441→          mpn: form.mpn.trim() || null,
+   442→          oemRef: form.oemRef.trim() || null,
+   443→          brand: form.brand.trim() || null,
+   444→          description: form.description.trim(),
+   445→          condition: form.condition,
+   446→          unitPriceMinor: kesToMinor(form.unitPrice)!,
+   447→          wholesalePriceMinor: form.wholesalePrice.trim() ? kesToMinor(form.wholesalePrice) : null,
+   448→          wholesaleMinQty: form.wholesaleMinQty.trim() ? Number(form.wholesaleMinQty) : 0,
+   449→          taxRatePct: form.taxRatePct.trim() ? Number(form.taxRatePct) : 0,
+   450→          warrantyMonths: form.warrantyMonths.trim() ? Number(form.warrantyMonths) : 0,
+   451→          returnable: form.returnable,
+   452→          images,
+   453→          tags: splitComma(form.tags),
+   454→          vehicleMakes: splitComma(form.vehicleMakes),
+   455→          provenanceNote: form.provenanceNote.trim() || undefined,
+   456→          status: form.publish ? 'PUBLISHED' : 'DRAFT',
+   457→        })
+   458→        toast.success('Product updated.')
+   459→      } else {
+   460→        await apiSend('/api/supply/products', 'POST', {
+   461→          name: form.name.trim(),
+   462→          sku: form.sku.trim(),
+   463→          categoryId,
+   464→          mpn: form.mpn.trim() || null,
+   465→          oemRef: form.oemRef.trim() || null,
+   466→          brand: form.brand.trim() || null,
+   467→          description: form.description.trim(),
+   468→          condition: form.condition,
+   469→          unitPriceMinor: kesToMinor(form.unitPrice)!,
+   470→          wholesalePriceMinor: form.wholesalePrice.trim() ? kesToMinor(form.wholesalePrice) : null,
+   471→          wholesaleMinQty: form.wholesaleMinQty.trim() ? Number(form.wholesaleMinQty) : 0,
+   472→          taxRatePct: form.taxRatePct.trim() ? Number(form.taxRatePct) : 0,
+   473→          warrantyMonths: form.warrantyMonths.trim() ? Number(form.warrantyMonths) : 0,
+   474→          returnable: form.returnable,
+   475→          images,
+   476→          tags: splitComma(form.tags),
+   477→          vehicleMakes: splitComma(form.vehicleMakes),
+   478→          batchTracked: form.batchTracked,
+   479→          serialTracked: form.serialTracked,
+   480→          provenanceNote: form.provenanceNote.trim() || null,
+   481→          publish: form.publish,
+   482→        })
+   483→        toast.success(form.publish ? 'Product published to the supply catalogue.' : 'Product saved as draft.')
+   484→      }
+   485→      onSaved()
+   486→    } catch (e) {
+   487→      toast.error(await errMessage(e, 'Could not save the product.'))
+   488→    } finally {
+   489→      setSaving(false)
+   490→    }
+   491→  }
+   492→
+   493→  return (
+   494→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   495→      <DialogContent className="max-h-[92vh] overflow-y-auto scrollbar-thin sm:max-w-3xl">
+   496→        <DialogHeader>
+   497→          <DialogTitle>{isEdit ? `Edit ${product?.name}` : 'New product'}</DialogTitle>
+   498→          <DialogDescription>
+   499→            {isEdit
+   500→              ? 'Changes apply to the supply catalogue. Price changes are recorded in the product price history.'
+   501→              : 'Published products are visible to verified garages in the Automotive Supply Network catalogue.'}
+   502→          </DialogDescription>
+   503→        </DialogHeader>
+   504→
+   505→        <div className="grid gap-4 sm:grid-cols-2">
+   506→          <div className="space-y-1.5">
+   507→            <Label htmlFor="pf-name">Product name *</Label>
+   508→            <Input id="pf-name" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Toyota Oil Filter (OEM-spec)" maxLength={140} />
+   509→          </div>
+   510→          <div className="space-y-1.5">
+   511→            <Label htmlFor="pf-sku">SKU *</Label>
+   512→            <Input id="pf-sku" value={form.sku} onChange={(e) => set('sku', e.target.value)} placeholder="e.g. SIF-FLT-OIL-TY" maxLength={40} disabled={isEdit}
+   513→              title={isEdit ? 'SKU is permanent once created' : undefined} />
+   514→          </div>
+   515→          <div className="space-y-1.5">
+   516→            <Label htmlFor="pf-category">Category *</Label>
+   517→            <Select value={form.categorySlug || undefined} onValueChange={(v) => { set('categorySlug', v); setCategoryError(null) }}>
+   518→              <SelectTrigger id="pf-category" aria-label="Category"><SelectValue placeholder="Select category" /></SelectTrigger>
+   519→              <SelectContent className="max-h-72">
+   520→                {categories.map((c) => {
+   521→                  const known = isEdit || catIdBySlug.has(c.slug)
+   522→                  return (
+   523→                    <SelectItem key={c.slug} value={c.slug} disabled={!known}>
+   524→                      {c.name}{!known ? ': ID unavailable' : ''}
+   525→                    </SelectItem>
+   526→                  )
+   527→                })}
+   528→                {categories.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">Loading categories…</div>}
+   529→              </SelectContent>
+   530→            </Select>
+   531→            {unknownCategory && (
+   532→              <p className="text-xs text-destructive">This category has no internal ID available yet. Pick a category you have used before.</p>
+   533→            )}
+   534→            {categoryError && <p className="text-xs text-destructive">{categoryError}</p>}
+   535→          </div>
+   536→          <div className="space-y-1.5">
+   537→            <Label htmlFor="pf-condition">Condition *</Label>
+   538→            <Select value={form.condition} onValueChange={(v) => set('condition', v as ProductForm['condition'])}>
+   539→              <SelectTrigger id="pf-condition" aria-label="Condition"><SelectValue /></SelectTrigger>
+   540→              <SelectContent>
+   541→                {(Object.keys(CONDITION_LABELS) as ('NEW' | 'REFURBISHED' | 'USED')[]).map((c) => (
+   542→                  <SelectItem key={c} value={c}>{CONDITION_LABELS[c]}</SelectItem>
+   543→                ))}
+   544→              </SelectContent>
+   545→            </Select>
+   546→          </div>
+   547→          <div className="space-y-1.5">
+   548→            <Label htmlFor="pf-brand">Brand</Label>
+   549→            <Input id="pf-brand" value={form.brand} onChange={(e) => set('brand', e.target.value)} placeholder="e.g. Denso" maxLength={60} />
+   550→          </div>
+   551→          <div className="space-y-1.5">
+   552→            <Label htmlFor="pf-mpn">Manufacturer part number (MPN)</Label>
+   553→            <Input id="pf-mpn" value={form.mpn} onChange={(e) => set('mpn', e.target.value)} placeholder="e.g. 90915-YZZE1" maxLength={60} />
+   554→          </div>
+   555→          <div className="space-y-1.5">
+   556→            <Label htmlFor="pf-oem">OEM reference</Label>
+   557→            <Input id="pf-oem" value={form.oemRef} onChange={(e) => set('oemRef', e.target.value)} placeholder="e.g. 90915-YZZE1" maxLength={60} />
+   558→          </div>
+   559→          <div className="space-y-1.5 sm:col-span-2">
+   560→            <Label htmlFor="pf-desc">Description * (min 10 characters)</Label>
+   561→            <Textarea id="pf-desc" rows={3} value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="What the part fits, materials, packaging, brand authorisation…" maxLength={4000} />
+   562→          </div>
+   563→
+   564→          <Separator className="sm:col-span-2" />
+   565→
+   566→          <div className="space-y-1.5">
+   567→            <Label htmlFor="pf-unit">Unit price (KES) *</Label>
+   568→            <Input id="pf-unit" inputMode="decimal" value={form.unitPrice} onChange={(e) => set('unitPrice', e.target.value)} placeholder="e.g. 650" />
+   569→          </div>
+   570→          <div className="space-y-1.5">
+   571→            <Label htmlFor="pf-ws">Wholesale price (KES)</Label>
+   572→            <Input id="pf-ws" inputMode="decimal" value={form.wholesalePrice} onChange={(e) => set('wholesalePrice', e.target.value)} placeholder="Optional bulk price" />
+   573→          </div>
+   574→          <div className="space-y-1.5">
+   575→            <Label htmlFor="pf-wsq">Wholesale min quantity</Label>
+   576→            <Input id="pf-wsq" inputMode="numeric" value={form.wholesaleMinQty} onChange={(e) => set('wholesaleMinQty', e.target.value)} placeholder="e.g. 12" />
+   577→          </div>
+   578→          <div className="grid grid-cols-2 gap-3">
+   579→            <div className="space-y-1.5">
+   580→              <Label htmlFor="pf-tax">Tax rate (%)</Label>
+   581→              <Input id="pf-tax" inputMode="decimal" value={form.taxRatePct} onChange={(e) => set('taxRatePct', e.target.value)} placeholder="e.g. 16" />
+   582→            </div>
+   583→            <div className="space-y-1.5">
+   584→              <Label htmlFor="pf-warranty">Warranty (months)</Label>
+   585→              <Input id="pf-warranty" inputMode="numeric" value={form.warrantyMonths} onChange={(e) => set('warrantyMonths', e.target.value)} placeholder="e.g. 12" />
+   586→            </div>
+   587→          </div>
+   588→          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+   589→            <div>
+   590→              <Label htmlFor="pf-returnable" className="text-sm">Returnable</Label>
+   591→              <p className="text-xs text-muted-foreground">Garages can request returns under your policy.</p>
+   592→            </div>
+   593→            <Switch id="pf-returnable" checked={form.returnable} onCheckedChange={(v) => set('returnable', v)} />
+   594→          </div>
+   595→          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+   596→            <div>
+   597→              <Label htmlFor="pf-publish" className="text-sm">{isEdit ? 'Published' : 'Publish immediately'}</Label>
+   598→              <p className="text-xs text-muted-foreground">{isEdit ? 'Toggle to move between catalogue and drafts.' : 'Uncheck to save as a private draft.'}</p>
+   599→            </div>
+   600→            <Switch id="pf-publish" checked={form.publish} onCheckedChange={(v) => set('publish', v)} />
+   601→          </div>
+   602→
+   603→          <div className="space-y-1.5">
+   604→            <Label htmlFor="pf-tags">Tags (comma separated)</Label>
+   605→            <Input id="pf-tags" value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="e.g. Toyota, Denso, Service part" maxLength={400} />
+   606→          </div>
+   607→          <div className="space-y-1.5">
+   608→            <Label htmlFor="pf-makes">Vehicle makes (comma separated)</Label>
+   609→            <Input id="pf-makes" value={form.vehicleMakes} onChange={(e) => set('vehicleMakes', e.target.value)} placeholder="e.g. Toyota, Lexus" maxLength={600} />
+   610→            <div className="flex flex-wrap gap-1.5 pt-1">
+   611→              {VEHICLE_MAKES.slice(0, 8).map((m) => (
+   612→                <button
+   613→                  key={m}
+   614→                  type="button"
+   615→                  className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+   616→                  onClick={() => {
+   617→                    const parts = new Set(splitComma(form.vehicleMakes))
+   618→                    parts.add(m)
+   619→                    set('vehicleMakes', Array.from(parts).join(', '))
+   620→                  }}
+   621→                >
+   622→                  <Plus className="mr-0.5 inline h-3 w-3" />{m}
+   623→                </button>
+   624→              ))}
+   625→            </div>
+   626→          </div>
+   627→
+   628→          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+   629→            <div>
+   630→              <Label htmlFor="pf-batch" className="text-sm">Batch tracked</Label>
+   631→              <p className="text-xs text-muted-foreground">Trace stock by batch number.</p>
+   632→            </div>
+   633→            <Switch id="pf-batch" checked={form.batchTracked} onCheckedChange={(v) => set('batchTracked', v)} />
+   634→          </div>
+   635→          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+   636→            <div>
+   637→              <Label htmlFor="pf-serial" className="text-sm">Serial tracked</Label>
+   638→              <p className="text-xs text-muted-foreground">Trace stock by serial number.</p>
+   639→            </div>
+   640→            <Switch id="pf-serial" checked={form.serialTracked} onCheckedChange={(v) => set('serialTracked', v)} />
+   641→          </div>
+   642→
+   643→          <div className="space-y-1.5 sm:col-span-2">
+   644→            <Label htmlFor="pf-prov">Provenance note</Label>
+   645→            <Textarea id="pf-prov" rows={2} value={form.provenanceNote} onChange={(e) => set('provenanceNote', e.target.value)}
+   646→              placeholder={isEdit && !form.provenanceNote ? 'Leave empty to keep the existing provenance note.' : 'Source evidence, e.g. “Supplier declaration + invoice documentation on file”.'} maxLength={1000} />
+   647→            <p className="text-xs text-muted-foreground">
+   648→              Provenance notes are supplier-supplied evidence. They do not verify authenticity: only CARMAZE admins can
+   649→              mark a product authenticity-verified.
+   650→            </p>
+   651→          </div>
+   652→
+   653→          {/* Images */}
+   654→          <div className="space-y-2 sm:col-span-2">
+   655→            <Label>Images ({images.length}/8)</Label>
+   656→            <input
+   657→              id="pf-image-file"
+   658→              type="file"
+   659→              multiple
+   660→              accept="image/jpeg,image/png,image/webp"
+   661→              className="hidden"
+   662→              onChange={(e) => {
+   663→                handleFiles(e.target.files)
+   664→                e.target.value = ''
+   665→              }}
+   666→            />
+   667→            <div className="flex flex-wrap gap-2">
+   668→              {images.map((url) => (
+   669→                <div key={url} className="group relative">
+   670→                  <img src={url} alt="Product image" className="h-20 w-20 rounded-lg border border-border object-cover" />
+   671→                  <button
+   672→                    type="button"
+   673→                    aria-label="Remove image"
+   674→                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+   675→                    onClick={() => setImages((prev) => prev.filter((u) => u !== url))}
+   676→                  >
+   677→                    <X className="h-3 w-3" />
+   678→                  </button>
+   679→                </div>
+   680→              ))}
+   681→              {images.length < 8 && (
+   682→                <button
+   683→                  type="button"
+   684→                  onClick={() => document.getElementById('pf-image-file')?.click()}
+   685→                  disabled={uploading}
+   686→                  className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+   687→                >
+   688→                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+   689→                  <span className="text-[10px]">{uploading ? 'Uploading…' : 'Upload'}</span>
+   690→                </button>
+   691→              )}
+   692→            </div>
+   693→          </div>
+   694→
+   695→          {isEdit && product && (
+   696→            <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:col-span-2">
+   697→              <ShieldCheck className="h-4 w-4 shrink-0" />
+   698→              <span>
+   699→                Authenticity: {product.authenticityVerified ? 'Independently verified by CARMAZE.' : 'Not verified.'}
+   700→                {' '}Suppliers cannot self-verify authenticity: the platform marks it after independent review.
+   701→              </span>
+   702→            </div>
+   703→          )}
+   704→        </div>
+   705→
+   706→        <DialogFooter>
+   707→          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
+   708→          <Button onClick={save} disabled={saving || uploading} className="min-h-11">
+   709→            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}
+   710→            {isEdit ? 'Save changes' : form.publish ? 'Publish product' : 'Save draft'}
+   711→          </Button>
+   712→        </DialogFooter>
+   713→      </DialogContent>
+   714→    </Dialog>
+   715→  )
+   716→}
+   717→
+   718→// ───────────────────────────── Compatibility editor ─────────────────────────────
+   719→
+   720→type CompatForm = { make: string; model: string; yearFrom: string; yearTo: string; engine: string; trim: string; chassis: string; note: string }
+   721→
+   722→const EMPTY_COMPAT: CompatForm = { make: '', model: '', yearFrom: '', yearTo: '', engine: '', trim: '', chassis: '', note: '' }
+   723→
+   724→function CompatibilityDialog({ product, canWrite, onClose }: {
+   725→  product: ProductItem
+   726→  canWrite: boolean
+   727→  onClose: () => void
+   728→}) {
+   729→  const rows = useFetch<{ compatibility: CompatibilityRow[] }>(`/api/supply/products/${product.id}/compatibility`)
+   730→  const [form, setForm] = useState<CompatForm>(EMPTY_COMPAT)
+   731→  const [saving, setSaving] = useState(false)
+   732→  const [deletingId, setDeletingId] = useState<string | null>(null)
+   733→
+   734→  const set = (k: keyof CompatForm, v: string) => setForm((f) => ({ ...f, [k]: v }))
+   735→
+   736→  async function add() {
+   737→    if (form.make.trim().length < 2) {
+   738→      toast.error('Enter the vehicle make (at least 2 characters).')
+   739→      return
+   740→    }
+   741→    const yf = form.yearFrom.trim() ? Number(form.yearFrom) : null
+   742→    const yt = form.yearTo.trim() ? Number(form.yearTo) : null
+   743→    for (const [label, y] of [['Year from', yf], ['Year to', yt]] as const) {
+   744→      if (y !== null && (!Number.isInteger(y) || y < 1950 || y > 2100)) {
+   745→        toast.error(`${label} must be a year between 1950 and 2100.`)
+   746→        return
+   747→      }
+   748→    }
+   749→    if (yf !== null && yt !== null && yf > yt) {
+   750→      toast.error('Year range is invalid: “from” must be ≤ “to”.')
+   751→      return
+   752→    }
+   753→    setSaving(true)
+   754→    try {
+   755→      await apiSend(`/api/supply/products/${product.id}/compatibility`, 'POST', {
+   756→        make: form.make.trim(),
+   757→        model: form.model.trim() || null,
+   758→        yearFrom: yf,
+   759→        yearTo: yt,
+   760→        engine: form.engine.trim() || null,
+   761→        trim: form.trim.trim() || null,
+   762→        chassis: form.chassis.trim() || null,
+   763→        note: form.note.trim() || null,
+   764→      })
+   765→      toast.success('Fitment reference added: it stays “pending admin review” until the platform verifies it.')
+   766→      setForm(EMPTY_COMPAT)
+   767→      rows.reload()
+   768→    } catch (e) {
+   769→      toast.error(await errMessage(e, 'Could not add the fitment record.'))
+   770→    } finally {
+   771→      setSaving(false)
+   772→    }
+   773→  }
+   774→
+   775→  async function remove(id: string) {
+   776→    setDeletingId(id)
+   777→    try {
+   778→      await apiSend(`/api/supply/products/${product.id}/compatibility?compatId=${id}`, 'DELETE')
+   779→      rows.reload()
+   780→    } catch (e) {
+   781→      toast.error(await errMessage(e, 'Could not remove the fitment record.'))
+   782→    } finally {
+   783→      setDeletingId(null)
+   784→    }
+   785→  }
+   786→
+   787→  return (
+   788→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   789→      <DialogContent className="max-h-[92vh] overflow-y-auto scrollbar-thin sm:max-w-2xl">
+   790→        <DialogHeader>
+   791→          <DialogTitle>Vehicle compatibility: {product.name}</DialogTitle>
+   792→          <DialogDescription>
+   793→            Fitment references you add are marked “pending admin review” until the platform verifies them. CARMAZE never
+   794→            invents compatibility: these rows tell garages exactly what you declare the part fits.
+   795→          </DialogDescription>
+   796→        </DialogHeader>
+   797→
+   798→        <div className="space-y-2">
+   799→          {rows.loading ? (
+   800→            <LoadingBlock label="Loading fitment records…" />
+   801→          ) : rows.error ? (
+   802→            <ModuleNotice title="Fitment records could not load" detail={rows.error.message} retry={rows.reload} />
+   803→          ) : (rows.data?.compatibility ?? []).length === 0 ? (
+   804→            <EmptyState
+   805→              icon={<GitBranch className="h-7 w-7" />}
+   806→              title="No fitment records yet"
+   807→              detail="Add makes, models and year ranges so garages searching by vehicle can find this part."
+   808→            />
+   809→          ) : (
+   810→            <ul className="max-h-64 space-y-2 overflow-y-auto scrollbar-thin">
+   811→              {(rows.data?.compatibility ?? []).map((r) => (
+   812→                <li key={r.id} className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2">
+   813→                  <div className="min-w-0 text-sm">
+   814→                    <p className="font-medium">
+   815→                      {r.make}{r.model ? ` ${r.model}` : ''}
+   816→                      {r.yearFrom || r.yearTo ? (
+   817→                        <span className="font-normal text-muted-foreground">
+   818→                          {' '}· {r.yearFrom ?? '…'}–{r.yearTo ?? '…'}
+   819→                        </span>
+   820→                      ) : null}
+   821→                    </p>
+   822→                    <p className="truncate text-xs text-muted-foreground">
+   823→                      {[r.engine, r.trim, r.chassis, r.note].filter(Boolean).join(' · ') || 'No additional details'}
+   824→                    </p>
+   825→                    {r.verified ? (
+   826→                      <Badge variant="secondary" className="mt-1 gap-1 border-transparent bg-primary/10 px-1 py-0 text-[10px] text-primary">
+   827→                        <BadgeCheck className="h-3 w-3" /> Verified
+   828→                      </Badge>
+   829→                    ) : (
+   830→                      <Badge variant="secondary" className="mt-1 border-transparent bg-accent/40 px-1 py-0 text-[10px] text-accent-foreground">
+   831→                        Pending admin review
+   832→                      </Badge>
+   833→                    )}
+   834→                  </div>
+   835→                  {canWrite && (
+   836→                    <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-destructive hover:text-destructive" aria-label="Remove fitment record" disabled={deletingId === r.id} onClick={() => remove(r.id)}>
+   837→                      {deletingId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+   838→                    </Button>
+   839→                  )}
+   840→                </li>
+   841→              ))}
+   842→            </ul>
+   843→          )}
+   844→        </div>
+   845→
+   846→        {canWrite && (
+   847→          <>
+   848→            <Separator />
+   849→            <div className="grid gap-3 sm:grid-cols-2">
+   850→              <div className="space-y-1.5">
+   851→                <Label htmlFor="cf-make">Make *</Label>
+   852→                <Input id="cf-make" value={form.make} onChange={(e) => set('make', e.target.value)} placeholder="e.g. Toyota" list="compat-makes" maxLength={50} />
+   853→                <datalist id="compat-makes">{VEHICLE_MAKES.map((m) => <option key={m} value={m} />)}</datalist>
+   854→              </div>
+   855→              <div className="space-y-1.5">
+   856→                <Label htmlFor="cf-model">Model</Label>
+   857→                <Input id="cf-model" value={form.model} onChange={(e) => set('model', e.target.value)} placeholder="e.g. Prado" maxLength={60} />
+   858→              </div>
+   859→              <div className="grid grid-cols-2 gap-3">
+   860→                <div className="space-y-1.5">
+   861→                  <Label htmlFor="cf-yf">Year from</Label>
+   862→                  <Input id="cf-yf" inputMode="numeric" value={form.yearFrom} onChange={(e) => set('yearFrom', e.target.value)} placeholder="e.g. 2009" />
+   863→                </div>
+   864→                <div className="space-y-1.5">
+   865→                  <Label htmlFor="cf-yt">Year to</Label>
+   866→                  <Input id="cf-yt" inputMode="numeric" value={form.yearTo} onChange={(e) => set('yearTo', e.target.value)} placeholder="e.g. 2021" />
+   867→                </div>
+   868→              </div>
+   869→              <div className="space-y-1.5">
+   870→                <Label htmlFor="cf-engine">Engine</Label>
+   871→                <Input id="cf-engine" value={form.engine} onChange={(e) => set('engine', e.target.value)} placeholder="e.g. 2.7L 2TR-FE" maxLength={80} />
+   872→              </div>
+   873→              <div className="space-y-1.5">
+   874→                <Label htmlFor="cf-trim">Trim</Label>
+   875→                <Input id="cf-trim" value={form.trim} onChange={(e) => set('trim', e.target.value)} placeholder="e.g. TX" maxLength={80} />
+   876→              </div>
+   877→              <div className="space-y-1.5">
+   878→                <Label htmlFor="cf-chassis">Chassis code</Label>
+   879→                <Input id="cf-chassis" value={form.chassis} onChange={(e) => set('chassis', e.target.value)} placeholder="e.g. GRJ150" maxLength={40} />
+   880→              </div>
+   881→              <div className="space-y-1.5 sm:col-span-2">
+   882→                <Label htmlFor="cf-note">Note</Label>
+   883→                <Input id="cf-note" value={form.note} onChange={(e) => set('note', e.target.value)} placeholder="Optional note shown to garages" maxLength={300} />
+   884→              </div>
+   885→            </div>
+   886→            <DialogFooter>
+   887→              <Button variant="ghost" onClick={onClose}>Done</Button>
+   888→              <Button onClick={add} disabled={saving} className="min-h-11">
+   889→                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add fitment record
+   890→              </Button>
+   891→            </DialogFooter>
+   892→          </>
+   893→        )}
+   894→      </DialogContent>
+   895→    </Dialog>
+   896→  )
+   897→}
+   898→

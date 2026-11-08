@@ -1,0 +1,809 @@
+     1→'use client'
+     2→
+     3→/* Shared two-pane messaging panel used by the business portals
+     4→ * (scope='org': garage / dealer inboxes) and the customer dashboards
+     5→ * (scope='mine'). Talks to /api/conversations only; no view-specific logic.
+     6→ *
+     7→ * Exports:
+     8→ *  - MessagesTab            drop-in tab content for any dashboard
+     9→ *  - ConversationPanel      the raw panel (used by MessagesTab)
+    10→ *  - useUnreadConversations live unread counter for tab badges
+    11→ */
+    12→
+    13→import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+    14→import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+    15→import {
+    16→  ArrowLeft, Check, FileText, Loader2, MessageSquareText, MessagesSquare,
+    17→  Paperclip, Phone, Search, Send, X,
+    18→} from 'lucide-react'
+    19→import { toast } from 'sonner'
+    20→import { cn } from '@/lib/utils'
+    21→import { apiGet, apiSend, apiUpload, navigate } from '@/lib/client'
+    22→import { money, timeAgo } from '@/lib/format'
+    23→import { Button } from '@/components/ui/button'
+    24→import { Input } from '@/components/ui/input'
+    25→import { Badge } from '@/components/ui/badge'
+    26→import { Skeleton } from '@/components/ui/skeleton'
+    27→import { Textarea } from '@/components/ui/textarea'
+    28→import { CountUp } from '@/components/motion/reveal'
+    29→
+    30→// ───────────────────────────── Types (API contract) ─────────────────────────────
+    31→
+    32→export type ConversationSummary = {
+    33→  id: string
+    34→  orgId: string
+    35→  orgName: string
+    36→  orgType: string
+    37→  customerId?: string
+    38→  customerName?: string
+    39→  subject: string | null
+    40→  kind: string
+    41→  lastMessageAt: string
+    42→  lastMessagePreview: string
+    43→  unreadForCustomer?: number
+    44→  unreadForOrg?: number
+    45→  status: string
+    46→}
+    47→
+    48→export type ConversationMessage = {
+    49→  id: string
+    50→  senderId: string
+    51→  senderName: string
+    52→  senderSide: 'CUSTOMER' | 'ORG' | 'SYSTEM'
+    53→  body: string
+    54→  attachments: string[]
+    55→  createdAt: string
+    56→}
+    57→
+    58→export type ConversationThread = {
+    59→  conversation: {
+    60→    id: string
+    61→    orgId: string
+    62→    orgName: string
+    63→    orgType: string
+    64→    orgPhone: string | null
+    65→    whatsappEnabled: boolean
+    66→    callEnabled: boolean
+    67→    customerId: string
+    68→    customerName: string
+    69→    subject: string | null
+    70→    kind: string
+    71→    status: string
+    72→    vehicle: { id: string; make: string; model: string; year: number; priceMinor: number; currency: string; photo: string | null } | null
+    73→    serviceTitle: string | null
+    74→  }
+    75→  messages: ConversationMessage[]
+    76→}
+    77→
+    78→export type MsgScope = 'mine' | 'org'
+    79→
+    80→const KIND_LABELS: Record<string, string> = {
+    81→  VEHICLE_ENQUIRY: 'Vehicle enquiry',
+    82→  GENERAL: 'General',
+    83→  SUPPORT: 'Support',
+    84→  SERVICE: 'Service',
+    85→  TEST_DRIVE: 'Test drive',
+    86→  CUSTODY: 'Custody',
+    87→  OFFER: 'Offer',
+    88→  OTHER: 'Other',
+    89→}
+    90→
+    91→function kindLabel(kind: string): string {
+    92→  return KIND_LABELS[kind] ?? kind.charAt(0) + kind.replaceAll('_', ' ').slice(1).toLowerCase()
+    93→}
+    94→
+    95→function unreadOf(c: ConversationSummary, scope: MsgScope): number {
+    96→  return (scope === 'org' ? c.unreadForOrg : c.unreadForCustomer) ?? 0
+    97→}
+    98→
+    99→function displayNameOf(c: ConversationSummary, scope: MsgScope): string {
+   100→  return scope === 'org' ? (c.customerName ?? 'Customer') : c.orgName
+   101→}
+   102→
+   103→function isImageUrl(url: string): boolean {
+   104→  return /\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(url) || url.startsWith('data:image/')
+   105→}
+   106→
+   107→function attachmentName(url: string): string {
+   108→  try {
+   109→    const clean = url.split('?')[0]
+   110→    return decodeURIComponent(clean.split('/').pop() ?? 'attachment') || 'attachment'
+   111→  } catch {
+   112→    return 'attachment'
+   113→  }
+   114→}
+   115→
+   116→function dayKey(iso: string): string {
+   117→  const d = new Date(iso)
+   118→  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+   119→}
+   120→
+   121→function dayLabel(iso: string): string {
+   122→  const d = new Date(iso)
+   123→  const today = new Date()
+   124→  const yesterday = new Date()
+   125→  yesterday.setDate(today.getDate() - 1)
+   126→  const same = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+   127→  if (same(d, today)) return 'Today'
+   128→  if (same(d, yesterday)) return 'Yesterday'
+   129→  return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })
+   130→}
+   131→
+   132→function timeLabel(iso: string): string {
+   133→  return new Date(iso).toLocaleTimeString('en-KE', { hour: 'numeric', minute: '2-digit' })
+   134→}
+   135→
+   136→// ───────────────────────────── Unread hook (for tab badges) ─────────────────────────────
+   137→
+   138→export function useUnreadConversations(scope: MsgScope): number {
+   139→  const [unread, setUnread] = useState(0)
+   140→
+   141→  useEffect(() => {
+   142→    let cancelled = false
+   143→    const load = () => {
+   144→      apiGet<{ conversations: ConversationSummary[] }>(`/api/conversations?scope=${scope}`)
+   145→        .then((d) => {
+   146→          if (cancelled) return
+   147→          setUnread(d.conversations.reduce((sum, c) => sum + unreadOf(c, scope), 0))
+   148→        })
+   149→        .catch(() => {})
+   150→    }
+   151→    load()
+   152→    const t = setInterval(load, 20_000)
+   153→    return () => {
+   154→      cancelled = true
+   155→      clearInterval(t)
+   156→    }
+   157→  }, [scope])
+   158→
+   159→  return unread
+   160→}
+   161→
+   162→// ───────────────────────────── MessagesTab ─────────────────────────────
+   163→
+   164→export function MessagesTab({ scope }: { scope: MsgScope }) {
+   165→  const [conversations, setConversations] = useState<ConversationSummary[] | null>(null)
+   166→  const [unavailable, setUnavailable] = useState(false)
+   167→  const [tick, setTick] = useState(0)
+   168→
+   169→  useEffect(() => {
+   170→    let cancelled = false
+   171→    apiGet<{ conversations: ConversationSummary[] }>(`/api/conversations?scope=${scope}`)
+   172→      .then((d) => {
+   173→        if (cancelled) return
+   174→        setConversations(d.conversations)
+   175→        setUnavailable(false)
+   176→      })
+   177→      .catch(() => {
+   178→        if (cancelled) return
+   179→        setConversations([])
+   180→        setUnavailable(true)
+   181→      })
+   182→    return () => {
+   183→      cancelled = true
+   184→    }
+   185→  }, [scope, tick])
+   186→
+   187→  useEffect(() => {
+   188→    const t = setInterval(() => setTick((k) => k + 1), 20_000)
+   189→    return () => clearInterval(t)
+   190→  }, [])
+   191→
+   192→  const reload = useCallback(() => setTick((k) => k + 1), [])
+   193→
+   194→  const unread = useMemo(
+   195→    () => (conversations ?? []).reduce((sum, c) => sum + unreadOf(c, scope), 0),
+   196→    [conversations, scope],
+   197→  )
+   198→
+   199→  return (
+   200→    <div className="space-y-4">
+   201→      <div className="grid max-w-xs grid-cols-2 gap-3" aria-label="Message summary">
+   202→        <div className="rounded-xl border bg-card p-3">
+   203→          <p className="text-2xl font-bold tabular-nums">
+   204→            <CountUp value={conversations?.length ?? 0} />
+   205→          </p>
+   206→          <p className="mt-0.5 text-xs text-muted-foreground">Conversations</p>
+   207→        </div>
+   208→        <div className={cn('rounded-xl border p-3', unread > 0 && 'border-accent/60 bg-accent/10')}>
+   209→          <p className="flex items-center gap-1.5 text-2xl font-bold tabular-nums">
+   210→            <CountUp value={unread} />
+   211→            {unread > 0 && <UnreadPulseDot />}
+   212→          </p>
+   213→          <p className="mt-0.5 text-xs text-muted-foreground">Unread {scope === 'org' ? 'from customers' : 'from businesses'}</p>
+   214→        </div>
+   215→      </div>
+   216→
+   217→      <ConversationPanel
+   218→        scope={scope}
+   219→        conversations={conversations}
+   220→        unavailable={unavailable}
+   221→        onChanged={reload}
+   222→        onMarkRead={(id) => setConversations((prev) =>
+   223→          prev ? prev.map((c) => (c.id === id ? { ...c, ...(scope === 'org' ? { unreadForOrg: 0 } : { unreadForCustomer: 0 }) } : c)) : prev,
+   224→        )}
+   225→      />
+   226→    </div>
+   227→  )
+   228→}
+   229→
+   230→function UnreadPulseDot() {
+   231→  const reduce = useReducedMotion()
+   232→  if (reduce) return <span className="inline-flex h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+   233→  return (
+   234→    <span className="relative inline-flex h-2 w-2" aria-hidden="true">
+   235→      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+   236→      <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+   237→    </span>
+   238→  )
+   239→}
+   240→
+   241→// ───────────────────────────── ConversationPanel ─────────────────────────────
+   242→
+   243→export function ConversationPanel({ scope, conversations, unavailable, onChanged, onMarkRead }: {
+   244→  scope: MsgScope
+   245→  conversations: ConversationSummary[] | null
+   246→  unavailable?: boolean
+   247→  onChanged?: () => void
+   248→  onMarkRead?: (id: string) => void
+   249→}) {
+   250→  const reduce = useReducedMotion()
+   251→  const [search, setSearch] = useState('')
+   252→  const [activeId, setActiveId] = useState<string | null>(null)
+   253→  const [thread, setThread] = useState<ConversationThread | null>(null)
+   254→  const [threadLoading, setThreadLoading] = useState(false)
+   255→  const [draft, setDraft] = useState('')
+   256→  const [pendingFiles, setPendingFiles] = useState<{ url: string; name: string }[]>([])
+   257→  const [uploading, setUploading] = useState(false)
+   258→  const [sending, setSending] = useState(false)
+   259→  const [busyAction, setBusyAction] = useState<string | null>(null)
+   260→  const scrollRef = useRef<HTMLDivElement>(null)
+   261→  const viewerSide: 'CUSTOMER' | 'ORG' = scope === 'org' ? 'ORG' : 'CUSTOMER'
+   262→
+   263→  const loadThread = useCallback(async (id: string, silent = false) => {
+   264→    if (!silent) setThreadLoading(true)
+   265→    try {
+   266→      const d = await apiGet<ConversationThread>(`/api/conversations/${id}`)
+   267→      setThread(d)
+   268→      // Fetching marks the thread read server-side; reflect it in the list immediately.
+   269→      onMarkRead?.(id)
+   270→    } catch {
+   271→      if (!silent) toast.error('Could not open the conversation.')
+   272→    } finally {
+   273→      if (!silent) setThreadLoading(false)
+   274→    }
+   275→  }, [onMarkRead])
+   276→
+   277→  useEffect(() => {
+   278→    if (!activeId) return
+   279→    loadThread(activeId)
+   280→  }, [activeId, loadThread])
+   281→
+   282→  // Live-ish feel: poll the open thread every 8 seconds (with cleanup).
+   283→  useEffect(() => {
+   284→    if (!activeId) return
+   285→    const t = setInterval(() => loadThread(activeId, true), 8_000)
+   286→    return () => clearInterval(t)
+   287→  }, [activeId, loadThread])
+   288→
+   289→  // Auto-scroll to the newest message when the thread updates or opens.
+   290→  const messageCount = thread?.messages.length ?? 0
+   291→  useEffect(() => {
+   292→    const el = scrollRef.current
+   293→    if (el) el.scrollTo({ top: el.scrollHeight, behavior: reduce ? ('instant' as ScrollBehavior) : 'smooth' })
+   294→  }, [messageCount, activeId, reduce])
+   295→
+   296→  const list = useMemo(
+   297→    () => [...(conversations ?? [])].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()),
+   298→    [conversations],
+   299→  )
+   300→  const filtered = useMemo(() => {
+   301→    const q = search.trim().toLowerCase()
+   302→    if (!q) return list
+   303→    return list.filter((c) =>
+   304→      `${displayNameOf(c, scope)} ${c.subject ?? ''} ${c.kind} ${c.lastMessagePreview}`.toLowerCase().includes(q),
+   305→    )
+   306→  }, [list, search, scope])
+   307→
+   308→  const active = thread?.conversation ?? null
+   309→  const closed = active ? active.status !== 'OPEN' : false
+   310→
+   311→  async function sendMessage() {
+   312→    if (!activeId || sending) return
+   313→    const body = draft.trim()
+   314→    if (!body && pendingFiles.length === 0) return
+   315→    setSending(true)
+   316→    try {
+   317→      await apiSend(`/api/conversations/${activeId}`, 'POST', {
+   318→        body,
+   319→        attachments: pendingFiles.length > 0 ? pendingFiles.map((f) => f.url) : undefined,
+   320→      })
+   321→      setDraft('')
+   322→      setPendingFiles([])
+   323→      await loadThread(activeId, true)
+   324→      onChanged?.()
+   325→    } catch (e) {
+   326→      toast.error(e instanceof Error ? e.message : 'Could not send the message.')
+   327→    } finally {
+   328→      setSending(false)
+   329→    }
+   330→  }
+   331→
+   332→  async function uploadAttachment(file: File) {
+   333→    if (pendingFiles.length >= 5) {
+   334→      toast.error('Maximum 5 attachments per message.')
+   335→      return
+   336→    }
+   337→    setUploading(true)
+   338→    try {
+   339→      const fd = new FormData()
+   340→      fd.append('file', file)
+   341→      const d = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
+   342→      setPendingFiles((prev) => [...prev, { url: d.url, name: d.name || file.name }])
+   343→    } catch (e) {
+   344→      toast.error(e instanceof Error ? e.message : 'Upload failed.')
+   345→    } finally {
+   346→      setUploading(false)
+   347→    }
+   348→  }
+   349→
+   350→  async function statusAction(action: 'close' | 'reopen' | 'archive' | 'unarchive') {
+   351→    if (!activeId) return
+   352→    setBusyAction(action)
+   353→    try {
+   354→      await apiSend(`/api/conversations/${activeId}`, 'PATCH', { action })
+   355→      toast.success(
+   356→        action === 'close' ? 'Conversation closed'
+   357→          : action === 'reopen' ? 'Conversation reopened'
+   358→            : action === 'archive' ? 'Conversation archived' : 'Conversation restored',
+   359→      )
+   360→      await loadThread(activeId, true)
+   361→      onChanged?.()
+   362→    } catch (e) {
+   363→      toast.error(e instanceof Error ? e.message : 'Action failed.')
+   364→    } finally {
+   365→      setBusyAction(null)
+   366→    }
+   367→  }
+   368→
+   369→  const total = conversations?.length ?? 0
+   370→
+   371→  // ── Loading / empty / unavailable states ──
+   372→  if (conversations === null) {
+   373→    return (
+   374→      <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
+   375→        <div className="space-y-2">
+   376→          <Skeleton className="h-10 w-full rounded-lg" />
+   377→          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
+   378→        </div>
+   379→        <Skeleton className="hidden h-96 rounded-xl lg:block" />
+   380→      </div>
+   381→    )
+   382→  }
+   383→
+   384→  if (unavailable && total === 0) {
+   385→    return (
+   386→      <EmptyMessaging
+   387→        icon={<MessagesSquare className="h-7 w-7" />}
+   388→        title="Messaging is connecting"
+   389→        desc="The messaging service is being integrated on this deployment. Your conversations will appear here the moment it is live."
+   390→      />
+   391→    )
+   392→  }
+   393→
+   394→  if (total === 0) {
+   395→    return scope === 'mine' ? (
+   396→      <EmptyMessaging
+   397→        icon={<MessagesSquare className="h-7 w-7" />}
+   398→        title="No conversations yet"
+   399→        desc="When you ask about a vehicle or book a service, the conversation with the business lands here; with photos, files and the vehicle reference attached."
+   400→        actionLabel="Browse cars"
+   401→        onAction={() => navigate('cars')}
+   402→      />
+   403→    ) : (
+   404→      <EmptyMessaging
+   405→        icon={<MessagesSquare className="h-7 w-7" />}
+   406→        title="No customer messages yet"
+   407→        desc="Enquiries and follow-ups from customers about your listings and services appear here. Fast replies win the sale."
+   408→      />
+   409→    )
+   410→  }
+   411→
+   412→  return (
+   413→    <div className={cn('grid h-[74vh] min-h-[560px] overflow-hidden rounded-xl border bg-card', 'lg:grid-cols-[340px_1fr]')}>
+   414→      {/* ── List pane ── */}
+   415→      <div className={cn('flex min-h-0 flex-col border-r', activeId !== null && 'hidden lg:flex')}>
+   416→        <div className="border-b p-3">
+   417→          <div className="relative">
+   418→            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+   419→            <Input
+   420→              value={search}
+   421→              onChange={(e) => setSearch(e.target.value)}
+   422→              placeholder={scope === 'org' ? 'Search customers or subjects…' : 'Search garages, dealers, subjects…'}
+   423→              className="pl-9"
+   424→              aria-label="Search conversations"
+   425→            />
+   426→          </div>
+   427→        </div>
+   428→        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2 scrollbar-thin" role="list" aria-label="Conversations">
+   429→          {filtered.length === 0 ? (
+   430→            <p className="px-3 py-8 text-center text-sm text-muted-foreground">No conversations match “{search.trim()}”.</p>
+   431→          ) : (
+   432→            filtered.map((c, i) => {
+   433→              const unread = unreadOf(c, scope)
+   434→              const isActive = c.id === activeId
+   435→              return (
+   436→                <motion.button
+   437→                  key={c.id}
+   438→                  role="listitem"
+   439→                  initial={reduce ? false : { opacity: 0, y: 10 }}
+   440→                  animate={{ opacity: 1, y: 0 }}
+   441→                  transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3), ease: 'easeOut' }}
+   442→                  onClick={() => setActiveId(c.id)}
+   443→                  aria-current={isActive}
+   444→                  className={cn(
+   445→                    'block w-full rounded-xl border p-3 text-left transition-colors',
+   446→                    isActive ? 'border-primary/60 bg-primary/5' : 'border-transparent hover:bg-muted/60',
+   447→                  )}
+   448→                >
+   449→                  <div className="flex items-center justify-between gap-2">
+   450→                    <span className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
+   451→                      {unread > 0 && <UnreadPulseDot />}
+   452→                      <span className="truncate">{displayNameOf(c, scope)}</span>
+   453→                    </span>
+   454→                    <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(c.lastMessageAt)}</span>
+   455→                  </div>
+   456→                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+   457→                    <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">{kindLabel(c.kind)}</Badge>
+   458→                    {c.status !== 'OPEN' && (
+   459→                      <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-normal">{c.status.toLowerCase()}</Badge>
+   460→                    )}
+   461→                    {unread > 0 && (
+   462→                      <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+   463→                        {unread > 9 ? '9+' : unread}
+   464→                      </span>
+   465→                    )}
+   466→                  </div>
+   467→                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{c.lastMessagePreview || 'No messages yet'}</p>
+   468→                </motion.button>
+   469→              )
+   470→            })
+   471→          )}
+   472→        </div>
+   473→      </div>
+   474→
+   475→      {/* ── Thread pane ── */}
+   476→      <AnimatePresence mode="wait" initial={false}>
+   477→        {activeId === null ? (
+   478→          <motion.div
+   479→            key="placeholder"
+   480→            initial={reduce ? false : { opacity: 0 }}
+   481→            animate={{ opacity: 1 }}
+   482→            exit={{ opacity: 0 }}
+   483→            className="hidden flex-col items-center justify-center p-8 text-center lg:flex"
+   484→          >
+   485→            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
+   486→              <MessageSquareText className="h-6 w-6" aria-hidden="true" />
+   487→            </span>
+   488→            <h3 className="mt-3 font-semibold">Select a conversation</h3>
+   489→            <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+   490→              Pick a thread to read and reply. New messages arrive live while the thread is open.
+   491→            </p>
+   492→          </motion.div>
+   493→        ) : (
+   494→          <motion.div
+   495→            key={activeId}
+   496→            initial={reduce ? false : { opacity: 0, x: 16 }}
+   497→            animate={{ opacity: 1, x: 0 }}
+   498→            exit={{ opacity: 0, x: -12 }}
+   499→            transition={{ duration: 0.25, ease: 'easeOut' }}
+   500→            className="flex min-h-0 flex-col"
+   501→          >
+   502→            {/* Header */}
+   503→            <div className="border-b p-3">
+   504→              <div className="flex items-start justify-between gap-2">
+   505→                <div className="flex min-w-0 items-start gap-2">
+   506→                  <Button
+   507→                    variant="ghost"
+   508→                    size="icon"
+   509→                    className="h-9 w-9 shrink-0 lg:hidden"
+   510→                    aria-label="Back to conversations"
+   511→                    onClick={() => { setActiveId(null); setThread(null) }}
+   512→                  >
+   513→                    <ArrowLeft className="h-4 w-4" />
+   514→                  </Button>
+   515→                  <div className="min-w-0">
+   516→                    <div className="flex flex-wrap items-center gap-1.5">
+   517→                      <h3 className="truncate text-sm font-bold">
+   518→                        {active ? (scope === 'org' ? active.customerName : active.orgName) : 'Conversation'}
+   519→                      </h3>
+   520→                      {active && (
+   521→                        <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">{kindLabel(active.kind)}</Badge>
+   522→                      )}
+   523→                      {active && (
+   524→                        <Badge
+   525→                          variant="secondary"
+   526→                          className={cn(
+   527→                            'px-1.5 py-0 text-[10px] font-normal',
+   528→                            !closed && 'border-transparent bg-primary/15 text-primary dark:text-[#9dc3ae]',
+   529→                          )}
+   530→                        >
+   531→                          {active.status.toLowerCase()}
+   532→                        </Badge>
+   533→                      )}
+   534→                    </div>
+   535→                    {active?.subject && <p className="mt-0.5 truncate text-xs text-muted-foreground">{active.subject}</p>}
+   536→                  </div>
+   537→                </div>
+   538→                <div className="flex shrink-0 items-center gap-1.5">
+   539→                  {active && scope === 'mine' && active.orgPhone && (active.callEnabled || active.whatsappEnabled) && (
+   540→                    <>
+   541→                      {active.whatsappEnabled && (
+   542→                        <Button asChild variant="outline" size="icon" className="h-9 w-9">
+   543→                          <a
+   544→                            href={`https://wa.me/${active.orgPhone.replace(/[^\d]/g, '')}`}
+   545→                            target="_blank"
+   546→                            rel="noreferrer"
+   547→                            aria-label="Chat on WhatsApp"
+   548→                          >
+   549→                            <MessageSquareText className="h-4 w-4" />
+   550→                          </a>
+   551→                        </Button>
+   552→                      )}
+   553→                      {active.callEnabled && (
+   554→                        <Button asChild variant="outline" size="icon" className="h-9 w-9">
+   555→                          <a href={`tel:${active.orgPhone}`} aria-label={`Call ${active.orgName}`}>
+   556→                            <Phone className="h-4 w-4" />
+   557→                          </a>
+   558→                        </Button>
+   559→                      )}
+   560→                    </>
+   561→                  )}
+   562→                  {active && !closed && (
+   563→                    <Button variant="ghost" size="sm" className="h-9 min-h-9 gap-1 text-xs" disabled={busyAction !== null} onClick={() => statusAction('close')}>
+   564→                      <X className="h-3.5 w-3.5" /> Close
+   565→                    </Button>
+   566→                  )}
+   567→                  {active && closed && active.status !== 'ARCHIVED' && (
+   568→                    <Button variant="ghost" size="sm" className="h-9 min-h-9 gap-1 text-xs" disabled={busyAction !== null} onClick={() => statusAction('reopen')}>
+   569→                      <Check className="h-3.5 w-3.5" /> Reopen
+   570→                    </Button>
+   571→                  )}
+   572→                  {active && (
+   573→                    <Button
+   574→                      variant="ghost"
+   575→                      size="icon"
+   576→                      className="hidden h-9 w-9 sm:inline-flex"
+   577→                      aria-label={active.status === 'ARCHIVED' ? 'Unarchive conversation' : 'Archive conversation'}
+   578→                      title={active.status === 'ARCHIVED' ? 'Unarchive' : 'Archive'}
+   579→                      disabled={busyAction !== null}
+   580→                      onClick={() => statusAction(active.status === 'ARCHIVED' ? 'unarchive' : 'archive')}
+   581→                    >
+   582→                      {busyAction === 'archive' || busyAction === 'unarchive'
+   583→                        ? <Loader2 className="h-4 w-4 animate-spin" />
+   584→                        : <FileText className="h-4 w-4" />}
+   585→                    </Button>
+   586→                  )}
+   587→                </div>
+   588→              </div>
+   589→
+   590→              {/* Vehicle / service context chip */}
+   591→              {active && (active.vehicle || active.serviceTitle) && (
+   592→                <div className="mt-2 flex flex-wrap items-center gap-2">
+   593→                  {active.vehicle && (
+   594→                    <button
+   595→                      onClick={() => navigate(`vehicle-detail/${active.vehicle!.id}`)}
+   596→                      className="flex items-center gap-2 rounded-full border bg-muted/50 py-1 pl-1 pr-3 text-xs transition-colors hover:bg-muted"
+   597→                      aria-label={`Open ${active.vehicle.make} ${active.vehicle.model}`}
+   598→                    >
+   599→                      {active.vehicle.photo ? (
+   600→                         
+   601→                        <img src={active.vehicle.photo} alt="" className="h-6 w-8 rounded-full object-cover" />
+   602→                      ) : (
+   603→                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">V</span>
+   604→                      )}
+   605→                      <span className="font-medium">
+   606→                        {active.vehicle.make} {active.vehicle.model} {active.vehicle.year}
+   607→                      </span>
+   608→                      <span className="text-muted-foreground">· {money(active.vehicle.priceMinor, active.vehicle.currency)}</span>
+   609→                    </button>
+   610→                  )}
+   611→                  {active.serviceTitle && (
+   612→                    <span className="rounded-full border bg-muted/50 px-2.5 py-1 text-xs">{active.serviceTitle}</span>
+   613→                  )}
+   614→                </div>
+   615→              )}
+   616→            </div>
+   617→
+   618→            {/* Messages */}
+   619→            <div ref={scrollRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-muted/30 p-3 scrollbar-thin" aria-live="polite">
+   620→              {threadLoading && !thread ? (
+   621→                <div className="space-y-3 pt-2">
+   622→                  {[0, 1, 2, 3].map((i) => <Skeleton key={i} className={cn('h-14 rounded-2xl', i % 2 ? 'ml-auto w-2/3' : 'w-1/2')} />)}
+   623→                </div>
+   624→              ) : (
+   625→                <>
+   626→                  {thread?.messages.map((m, i) => {
+   627→                    const prev = thread.messages[i - 1]
+   628→                    const showDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
+   629→                    const mine = m.senderSide === viewerSide
+   630→                    const system = m.senderSide === 'SYSTEM'
+   631→                    return (
+   632→                      <div key={m.id}>
+   633→                        {showDay && (
+   634→                          <div className="my-3 flex justify-center">
+   635→                            <span className="rounded-full bg-background px-3 py-1 text-[10px] font-medium text-muted-foreground shadow-sm">
+   636→                              {dayLabel(m.createdAt)}
+   637→                            </span>
+   638→                          </div>
+   639→                        )}
+   640→                        {system ? (
+   641→                          <div className="flex justify-center py-1">
+   642→                            <p className="max-w-md rounded-full border bg-background px-3 py-1 text-center text-[11px] text-muted-foreground">
+   643→                              {m.body}
+   644→                            </p>
+   645→                          </div>
+   646→                        ) : (
+   647→                          <motion.div
+   648→                            initial={reduce ? false : { opacity: 0, y: 8 }}
+   649→                            animate={{ opacity: 1, y: 0 }}
+   650→                            transition={{ duration: 0.25, ease: 'easeOut' }}
+   651→                            className={cn('flex', mine ? 'justify-end' : 'justify-start')}
+   652→                          >
+   653→                            <div className={cn('max-w-[82%] sm:max-w-[72%]', mine ? 'items-end' : 'items-start')}>
+   654→                              {!mine && (
+   655→                                <p className="mb-0.5 px-1 text-[10px] font-semibold text-muted-foreground">{m.senderName}</p>
+   656→                              )}
+   657→                              <div
+   658→                                className={cn(
+   659→                                  'rounded-2xl px-3 py-2 text-sm shadow-sm',
+   660→                                  mine ? 'rounded-br-md bg-primary text-primary-foreground' : 'rounded-bl-md border bg-card',
+   661→                                )}
+   662→                              >
+   663→                                {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
+   664→                                {m.attachments.length > 0 && (
+   665→                                  <div className={cn('mt-1.5 flex flex-wrap gap-1.5', !m.body && 'mt-0')}>
+   666→                                    {m.attachments.map((url) =>
+   667→                                      isImageUrl(url) ? (
+   668→                                        <a key={url} href={url} target="_blank" rel="noreferrer" className="block">
+   669→                                          { }
+   670→                                          <img
+   671→                                            src={url}
+   672→                                            alt="Attachment"
+   673→                                            className="h-24 w-32 rounded-lg border object-cover transition-transform hover:scale-[1.02]"
+   674→                                          />
+   675→                                        </a>
+   676→                                      ) : (
+   677→                                        <a
+   678→                                          key={url}
+   679→                                          href={url}
+   680→                                          target="_blank"
+   681→                                          rel="noreferrer"
+   682→                                          className={cn(
+   683→                                            'flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs underline-offset-2 hover:underline',
+   684→                                            mine ? 'border-primary-foreground/30' : 'bg-muted/60',
+   685→                                          )}
+   686→                                        >
+   687→                                          <FileText className="h-3.5 w-3.5 shrink-0" />
+   688→                                          <span className="max-w-40 truncate">{attachmentName(url)}</span>
+   689→                                        </a>
+   690→                                      ),
+   691→                                    )}
+   692→                                  </div>
+   693→                                )}
+   694→                                <p className={cn('mt-1 text-right text-[10px]', mine ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
+   695→                                  {timeLabel(m.createdAt)}
+   696→                                </p>
+   697→                              </div>
+   698→                            </div>
+   699→                          </motion.div>
+   700→                        )}
+   701→                      </div>
+   702→                    )
+   703→                  })}
+   704→                  {thread && thread.messages.length === 0 && (
+   705→                    <p className="py-10 text-center text-sm text-muted-foreground">No messages yet; say hello.</p>
+   706→                  )}
+   707→                </>
+   708→              )}
+   709→            </div>
+   710→
+   711→            {/* Composer */}
+   712→            <div className="border-t p-3">
+   713→              {closed && (
+   714→                <p className="mb-2 rounded-lg border bg-muted/50 px-3 py-2 text-center text-xs text-muted-foreground">
+   715→                  This conversation is {active?.status.toLowerCase()}: reopen it to send a new message.
+   716→                </p>
+   717→              )}
+   718→              {pendingFiles.length > 0 && (
+   719→                <ul className="mb-2 flex flex-wrap gap-1.5">
+   720→                  {pendingFiles.map((f, i) => (
+   721→                    <li key={f.url} className="flex items-center gap-1 rounded-full border bg-muted/60 py-1 pl-2.5 pr-1 text-xs">
+   722→                      <FileText className="h-3 w-3 shrink-0" />
+   723→                      <span className="max-w-36 truncate">{f.name}</span>
+   724→                      <button
+   725→                        className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-background"
+   726→                        aria-label={`Remove attachment ${f.name}`}
+   727→                        onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
+   728→                      >
+   729→                        <X className="h-3 w-3" />
+   730→                      </button>
+   731→                    </li>
+   732→                  ))}
+   733→                </ul>
+   734→              )}
+   735→              <div className="flex items-end gap-1.5">
+   736→                <label
+   737→                  className={cn(
+   738→                    'flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted',
+   739→                    (uploading || closed || pendingFiles.length >= 5) && 'pointer-events-none opacity-50',
+   740→                  )}
+   741→                  aria-label="Attach a file"
+   742→                  title="Attach a file (max 5 per message)"
+   743→                >
+   744→                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+   745→                  <input
+   746→                    type="file"
+   747→                    className="sr-only"
+   748→                    accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+   749→                    disabled={uploading || closed}
+   750→                    onChange={(e) => {
+   751→                      const f = e.target.files?.[0]
+   752→                      if (f) uploadAttachment(f)
+   753→                      e.currentTarget.value = ''
+   754→                    }}
+   755→                  />
+   756→                </label>
+   757→                <Textarea
+   758→                  value={draft}
+   759→                  onChange={(e) => setDraft(e.target.value)}
+   760→                  onKeyDown={(e) => {
+   761→                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+   762→                      e.preventDefault()
+   763→                      sendMessage()
+   764→                    }
+   765→                  }}
+   766→                  placeholder="Write a message… (Enter to send, Shift+Enter for a new line)"
+   767→                  rows={1}
+   768→                  disabled={closed}
+   769→                  className="max-h-32 min-h-11 flex-1 resize-none py-2.5"
+   770→                  aria-label="Message"
+   771→                />
+   772→                <Button
+   773→                  onClick={sendMessage}
+   774→                  disabled={sending || closed || (!draft.trim() && pendingFiles.length === 0)}
+   775→                  className="h-11 w-11 shrink-0 p-0"
+   776→                  aria-label="Send message"
+   777→                >
+   778→                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+   779→                </Button>
+   780→              </div>
+   781→            </div>
+   782→          </motion.div>
+   783→        )}
+   784→      </AnimatePresence>
+   785→    </div>
+   786→  )
+   787→}
+   788→
+   789→// ───────────────────────────── Empty state ─────────────────────────────
+   790→
+   791→function EmptyMessaging({ icon, title, desc, actionLabel, onAction }: {
+   792→  icon: React.ReactNode
+   793→  title: string
+   794→  desc: string
+   795→  actionLabel?: string
+   796→  onAction?: () => void
+   797→}) {
+   798→  return (
+   799→    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed px-6 py-16 text-center">
+   800→      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">{icon}</span>
+   801→      <h3 className="mt-4 text-base font-semibold">{title}</h3>
+   802→      <p className="mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">{desc}</p>
+   803→      {actionLabel && onAction && (
+   804→        <Button className="mt-5 min-h-11" variant="outline" onClick={onAction}>{actionLabel}</Button>
+   805→      )}
+   806→    </div>
+   807→  )
+   808→}
+   809→

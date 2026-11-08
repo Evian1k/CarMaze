@@ -1,0 +1,665 @@
+     1→'use client'
+     2→
+     3→/*
+     4→ * CARMAZE: 3D Car Customizer view.
+     5→ * Left: live WebGL showroom (Canvas lives here; the scene contents are in
+     6→ * ./car-scene). Right: control panel where every control mutates the CarConfig
+     7→ * state and therefore the 3D scene. Saving posts the validated config to
+     8→ * /api/customizer/configs and rewrites the hash to ?cfg=<shareId> so the URL
+     9→ * itself becomes the share link; ?cfg=… restores stored configurations.
+    10→ */
+    11→
+    12→import { Suspense, useEffect, useRef, useState } from 'react'
+    13→import { Canvas } from '@react-three/fiber'
+    14→import { Html } from '@react-three/drei'
+    15→import { useTheme } from 'next-themes'
+    16→import Image from 'next/image'
+    17→
+    18→import { Alert, AlertDescription } from '@/components/ui/alert'
+    19→import { Badge } from '@/components/ui/badge'
+    20→import { Button } from '@/components/ui/button'
+    21→import { Card, CardContent } from '@/components/ui/card'
+    22→import {
+    23→  Dialog,
+    24→  DialogContent,
+    25→  DialogDescription,
+    26→  DialogFooter,
+    27→  DialogHeader,
+    28→  DialogTitle,
+    29→} from '@/components/ui/dialog'
+    30→import { Input } from '@/components/ui/input'
+    31→import { Label } from '@/components/ui/label'
+    32→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    33→import { Separator } from '@/components/ui/separator'
+    34→import { Skeleton } from '@/components/ui/skeleton'
+    35→import { Slider } from '@/components/ui/slider'
+    36→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    37→import { Textarea } from '@/components/ui/textarea'
+    38→import {
+    39→  ACCESSORY_OPTIONS,
+    40→  CUSTOMIZER_MODEL_ID,
+    41→  DEFAULT_CONFIG,
+    42→  describeConfig,
+    43→  FINISH_OPTIONS,
+    44→  paintName,
+    45→  PAINTS,
+    46→  rimColorName,
+    47→  RIM_COLORS,
+    48→  RIM_STYLE_OPTIONS,
+    49→  type CarConfig,
+    50→} from '@/components/customizer/presets'
+    51→import { CarScene, type OrbitControlsRef } from '@/components/customizer/car-scene'
+    52→import { apiGet, apiSend, ClientApiError, navigate } from '@/lib/client'
+    53→import { KENYA_COUNTIES } from '@/lib/format'
+    54→import { useHashRoute } from '@/hooks/use-hash-route'
+    55→import { useAuth } from '@/stores/auth'
+    56→import { toast } from 'sonner'
+    57→import { Camera, Car, Check, Copy, Info, Loader2, RotateCcw, Share2, Wrench } from 'lucide-react'
+    58→
+    59→type WebGLState = 'checking' | 'ok' | 'unsupported'
+    60→
+    61→type QuoteResponse = {
+    62→  refCode?: string
+    63→  request?: { refCode?: string }
+    64→  serviceRequest?: { refCode?: string }
+    65→}
+    66→
+    67→function rideLabel(v: number): string {
+    68→  if (v > 0.005) return `Lifted +${v.toFixed(2)}`
+    69→  if (v < -0.005) return `Lowered ${v.toFixed(2)}`
+    70→  return 'Standard ride height'
+    71→}
+    72→
+    73→export default function View() {
+    74→  const route = useHashRoute()
+    75→  const cfgParam = route.query.get('cfg')
+    76→  const user = useAuth((s) => s.user)
+    77→  const { resolvedTheme } = useTheme()
+    78→
+    79→  const [webgl, setWebgl] = useState<WebGLState>('checking')
+    80→  const [config, setConfig] = useState<CarConfig>(DEFAULT_CONFIG)
+    81→  const [configId, setConfigId] = useState<string | null>(null)
+    82→  const [banner, setBanner] = useState<string | null>(null)
+    83→  const [saving, setSaving] = useState(false)
+    84→  const [shareOpen, setShareOpen] = useState(false)
+    85→  const [signinOpen, setSigninOpen] = useState(false)
+    86→  const [shareLink, setShareLink] = useState('')
+    87→  const [copied, setCopied] = useState(false)
+    88→
+    89→  // Quote form
+    90→  const [quoteOpen, setQuoteOpen] = useState(false)
+    91→  const [quoteCounty, setQuoteCounty] = useState('')
+    92→  const [quoteTown, setQuoteTown] = useState('')
+    93→  const [quoteDesc, setQuoteDesc] = useState('')
+    94→  const [quoteVehicle, setQuoteVehicle] = useState('')
+    95→  const [descDirty, setDescDirty] = useState(false)
+    96→  const [requesting, setRequesting] = useState(false)
+    97→
+    98→  const controlsRef = useRef<OrbitControlsRef | null>(null)
+    99→  const appliedRef = useRef<string | null>(null)
+   100→  const configIdRef = useRef<string | null>(null)
+   101→  const savedSnapshotRef = useRef<string | null>(null)
+   102→
+   103→  // ── WebGL capability probe (async so we never setState in the effect body) ──
+   104→  useEffect(() => {
+   105→    let cancelled = false
+   106→    Promise.resolve().then(() => {
+   107→      if (cancelled) return
+   108→      try {
+   109→        const probe = document.createElement('canvas')
+   110→        const supported = Boolean(probe.getContext('webgl2') ?? probe.getContext('webgl'))
+   111→        setWebgl(supported ? 'ok' : 'unsupported')
+   112→      } catch {
+   113→        setWebgl('unsupported')
+   114→      }
+   115→    })
+   116→    return () => {
+   117→      cancelled = true
+   118→    }
+   119→  }, [])
+   120→
+   121→  // ── Restore a shared configuration from ?cfg=<shareId> ──
+   122→  useEffect(() => {
+   123→    if (!cfgParam || appliedRef.current === cfgParam) return
+   124→    appliedRef.current = cfgParam
+   125→    let cancelled = false
+   126→    apiGet<{ modelId: string; config: CarConfig; createdAt: string; views: number }>(
+   127→      `/api/customizer/configs/${encodeURIComponent(cfgParam)}`
+   128→    )
+   129→      .then((data) => {
+   130→        if (cancelled) return
+   131→        setConfig(data.config)
+   132→        setConfigId(cfgParam)
+   133→        configIdRef.current = cfgParam
+   134→        savedSnapshotRef.current = JSON.stringify(data.config)
+   135→        setShareLink(`${window.location.origin}/#/customizer?cfg=${cfgParam}`)
+   136→        setBanner(null)
+   137→      })
+   138→      .catch(() => {
+   139→        if (cancelled) return
+   140→        setBanner('This shared configuration is no longer available; showing default setup')
+   141→        setConfigId(null)
+   142→        configIdRef.current = null
+   143→        savedSnapshotRef.current = null
+   144→      })
+   145→    return () => {
+   146→      cancelled = true
+   147→    }
+   148→  }, [cfgParam])
+   149→
+   150→  function patch(p: Partial<CarConfig>) {
+   151→    setConfig((c) => ({ ...c, ...p }))
+   152→  }
+   153→
+   154→  function resetAll() {
+   155→    setConfig(DEFAULT_CONFIG)
+   156→    setBanner(null)
+   157→    controlsRef.current?.reset()
+   158→    toast('Setup reset to the showroom default')
+   159→  }
+   160→
+   161→  /** POST the current config (deduped) and return its share id. */
+   162→  async function ensureSaved(current: CarConfig): Promise<string | null> {
+   163→    const snapshot = JSON.stringify(current)
+   164→    if (configIdRef.current && savedSnapshotRef.current === snapshot) return configIdRef.current
+   165→    setSaving(true)
+   166→    try {
+   167→      const res = await apiSend<{ shareId: string }>('/api/customizer/configs', 'POST', {
+   168→        modelId: CUSTOMIZER_MODEL_ID,
+   169→        config: current,
+   170→      })
+   171→      configIdRef.current = res.shareId
+   172→      savedSnapshotRef.current = snapshot
+   173→      setConfigId(res.shareId)
+   174→      setShareLink(`${window.location.origin}/#/customizer?cfg=${res.shareId}`)
+   175→      appliedRef.current = res.shareId
+   176→      // Make the current URL the share link itself.
+   177→      navigate(`customizer?cfg=${res.shareId}`, { replace: true })
+   178→      return res.shareId
+   179→    } catch (e) {
+   180→      toast.error(e instanceof ClientApiError ? e.message : 'Could not save the configuration. Please try again.')
+   181→      return null
+   182→    } finally {
+   183→      setSaving(false)
+   184→    }
+   185→  }
+   186→
+   187→  async function handleSaveAndShare() {
+   188→    if (!user) {
+   189→      setSigninOpen(true)
+   190→      return
+   191→    }
+   192→    const id = await ensureSaved(config)
+   193→    if (id) setShareOpen(true)
+   194→  }
+   195→
+   196→  async function handleQuoteClick() {
+   197→    if (!user) {
+   198→      setSigninOpen(true)
+   199→      return
+   200→    }
+   201→    const id = await ensureSaved(config)
+   202→    if (!id) return
+   203→    if (!descDirty) setQuoteDesc(describeConfig(config))
+   204→    setQuoteOpen(true)
+   205→  }
+   206→
+   207→  async function submitQuote() {
+   208→    if (!configId) {
+   209→      toast.error('Save the configuration first.')
+   210→      return
+   211→    }
+   212→    if (!quoteCounty) {
+   213→      toast.error('Select your county so garages can respond.')
+   214→      return
+   215→    }
+   216→    setRequesting(true)
+   217→    try {
+   218→      const data = await apiSend<QuoteResponse>('/api/service-requests', 'POST', {
+   219→        category: 'MODIFICATIONS',
+   220→        description: quoteDesc.trim() || describeConfig(config),
+   221→        county: quoteCounty,
+   222→        town: quoteTown.trim() || undefined,
+   223→        configId,
+   224→        vehicleDesc: quoteVehicle.trim() || undefined,
+   225→      })
+   226→      const ref = data.refCode ?? data.request?.refCode ?? data.serviceRequest?.refCode
+   227→      toast.success(ref ? `Quote request ${ref} received` : 'Quote request received', {
+   228→        description: 'Nearby garages can now quote. Quotes appear in your account requests tab.',
+   229→      })
+   230→      setQuoteOpen(false)
+   231→      setDescDirty(false)
+   232→    } catch (e) {
+   233→      if (e instanceof ClientApiError && e.status === 401) {
+   234→        setQuoteOpen(false)
+   235→        setSigninOpen(true)
+   236→        return
+   237→      }
+   238→      toast.error(e instanceof ClientApiError ? e.message : 'Could not submit the request. Please try again.')
+   239→    } finally {
+   240→      setRequesting(false)
+   241→    }
+   242→  }
+   243→
+   244→  async function copyShareLink() {
+   245→    try {
+   246→      await navigator.clipboard.writeText(shareLink)
+   247→      setCopied(true)
+   248→      toast.success('Link copied to clipboard')
+   249→      window.setTimeout(() => setCopied(false), 2000)
+   250→    } catch {
+   251→      toast.error('Copy failed: select the link text and copy manually.')
+   252→    }
+   253→  }
+   254→
+   255→  const swatchButton = (hex: string, name: string, active: boolean, onSelect: () => void, keyPrefix: string) => (
+   256→    <button
+   257→      key={`${keyPrefix}-${hex}`}
+   258→      type="button"
+   259→      onClick={onSelect}
+   260→      title={name}
+   261→      aria-label={`${name}${active ? ' (selected)' : ''}`}
+   262→      aria-pressed={active}
+   263→      className={`flex h-11 w-full items-center justify-center rounded-xl border transition-transform hover:scale-[1.04] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
+   264→        active ? 'border-primary ring-2 ring-primary ring-offset-2 ring-offset-background' : 'border-border'
+   265→      }`}
+   266→    >
+   267→      <span className="h-7 w-7 rounded-full border border-black/10 shadow-inner" style={{ backgroundColor: hex }} />
+   268→    </button>
+   269→  )
+   270→
+   271→  return (
+   272→    <div className="mx-auto w-full max-w-7xl px-4 pb-12 pt-6 sm:px-6">
+   273→      {/* Header */}
+   274→      <div className="mb-5 flex flex-wrap items-center gap-3">
+   275→        <div>
+   276→          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">3D Studio</h1>
+   277→          <p className="text-sm text-muted-foreground">
+   278→            Build your Sedan Classic: paint, rims, glass, stance. Every control updates the live model.
+   279→          </p>
+   280→        </div>
+   281→        <Badge variant="outline" className="ml-auto gap-1.5">
+   282→          <Car className="h-3.5 w-3.5" aria-hidden="true" />
+   283→          Sedan Classic · {configId ? `Shared (${configId})` : 'Unsaved draft'}
+   284→        </Badge>
+   285→      </div>
+   286→
+   287→      {banner && (
+   288→        <Alert className="mb-5">
+   289→          <Info className="h-4 w-4" aria-hidden="true" />
+   290→          <AlertDescription>{banner}</AlertDescription>
+   291→        </Alert>
+   292→      )}
+   293→
+   294→      {webgl === 'unsupported' ? (
+   295→        <WebglFallback />
+   296→      ) : (
+   297→        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+   298→          {/* ── Showroom canvas ── */}
+   299→          <div className="relative h-[52vh] overflow-hidden rounded-2xl border bg-[#EFEFEA] shadow-sm lg:h-[64vh] dark:bg-[#191c18]">
+   300→            {webgl === 'ok' && (
+   301→              <Canvas
+   302→                dpr={[1, 1.75]}
+   303→                shadows="soft"
+   304→                camera={{ position: [4.2, 1.8, 5.2], fov: 40 }}
+   305→                gl={{ antialias: true, alpha: true }}
+   306→              >
+   307→                <Suspense
+   308→                  fallback={
+   309→                    <Html center>
+   310→                      <div className="rounded-full bg-background/85 px-4 py-2 text-xs text-muted-foreground shadow-sm">
+   311→                        Preparing showroom…
+   312→                      </div>
+   313→                    </Html>
+   314→                  }
+   315→                >
+   316→                  <CarScene config={config} controlsRef={controlsRef} dark={resolvedTheme === 'dark'} />
+   317→                </Suspense>
+   318→              </Canvas>
+   319→            )}
+   320→            {webgl === 'checking' && (
+   321→              <div className="flex h-full items-center justify-center">
+   322→                <Skeleton className="h-full w-full rounded-none" />
+   323→              </div>
+   324→            )}
+   325→
+   326→            <div className="pointer-events-none absolute left-3 top-3">
+   327→              <Badge className="bg-[#202421]/85 text-[#F7F7F5] hover:bg-[#202421]/85">Drag to orbit · Pinch or scroll to zoom</Badge>
+   328→            </div>
+   329→            <Button
+   330→              type="button"
+   331→              variant="secondary"
+   332→              size="sm"
+   333→              className="absolute right-3 top-3 gap-1.5"
+   334→              onClick={() => controlsRef.current?.reset()}
+   335→              aria-label="Reset camera position"
+   336→            >
+   337→              <Camera className="h-4 w-4" aria-hidden="true" />
+   338→              Camera
+   339→            </Button>
+   340→          </div>
+   341→
+   342→          {/* ── Control panel ── */}
+   343→          <Card className="self-start">
+   344→            <CardContent className="p-4">
+   345→              <Tabs defaultValue="paint">
+   346→                <TabsList className="grid w-full grid-cols-3">
+   347→                  <TabsTrigger value="paint">Paint</TabsTrigger>
+   348→                  <TabsTrigger value="wheels">Wheels</TabsTrigger>
+   349→                  <TabsTrigger value="stance">Stance</TabsTrigger>
+   350→                </TabsList>
+   351→
+   352→                {/* Paint & finish */}
+   353→                <TabsContent value="paint" className="mt-4 space-y-5">
+   354→                  <div>
+   355→                    <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Paint</Label>
+   356→                    <div className="grid grid-cols-5 gap-2" role="group" aria-label="Paint color swatches">
+   357→                      {PAINTS.map((p) => swatchButton(p.hex, p.name, config.paint.toLowerCase() === p.hex.toLowerCase(), () => patch({ paint: p.hex }), 'paint'))}
+   358→                    </div>
+   359→                    <div className="mt-3 flex items-center gap-3">
+   360→                      <input
+   361→                        type="color"
+   362→                        value={config.paint}
+   363→                        onChange={(e) => patch({ paint: e.target.value.toUpperCase() })}
+   364→                        aria-label="Custom paint color"
+   365→                        className="h-9 w-12 cursor-pointer rounded-lg border bg-background p-1"
+   366→                      />
+   367→                      <span className="font-mono text-xs text-muted-foreground">{config.paint.toUpperCase()} · {paintName(config.paint)}</span>
+   368→                    </div>
+   369→                  </div>
+   370→
+   371→                  <Separator />
+   372→
+   373→                  <div>
+   374→                    <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Finish</Label>
+   375→                    <div className="grid grid-cols-3 gap-2" role="group" aria-label="Paint finish">
+   376→                      {FINISH_OPTIONS.map((f) => (
+   377→                        <Button
+   378→                          key={f.value}
+   379→                          type="button"
+   380→                          size="sm"
+   381→                          variant={config.finish === f.value ? 'default' : 'outline'}
+   382→                          aria-pressed={config.finish === f.value}
+   383→                          onClick={() => patch({ finish: f.value })}
+   384→                        >
+   385→                          {f.label}
+   386→                        </Button>
+   387→                      ))}
+   388→                    </div>
+   389→                  </div>
+   390→                </TabsContent>
+   391→
+   392→                {/* Wheels & glass */}
+   393→                <TabsContent value="wheels" className="mt-4 space-y-5">
+   394→                  <div>
+   395→                    <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Rim style</Label>
+   396→                    <div className="grid grid-cols-3 gap-2" role="group" aria-label="Rim style">
+   397→                      {RIM_STYLE_OPTIONS.map((r) => (
+   398→                        <Button
+   399→                          key={r.value}
+   400→                          type="button"
+   401→                          size="sm"
+   402→                          variant={config.rimStyle === r.value ? 'default' : 'outline'}
+   403→                          aria-pressed={config.rimStyle === r.value}
+   404→                          onClick={() => patch({ rimStyle: r.value })}
+   405→                        >
+   406→                          {r.label}
+   407→                        </Button>
+   408→                      ))}
+   409→                    </div>
+   410→                  </div>
+   411→
+   412→                  <div>
+   413→                    <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Rim color</Label>
+   414→                    <div className="grid grid-cols-6 gap-2" role="group" aria-label="Rim color swatches">
+   415→                      {RIM_COLORS.map((r) => swatchButton(r.hex, r.name, config.rimColor.toLowerCase() === r.hex.toLowerCase(), () => patch({ rimColor: r.hex }), 'rim'))}
+   416→                    </div>
+   417→                    <p className="mt-2 text-xs text-muted-foreground">Selected: {rimColorName(config.rimColor)}</p>
+   418→                  </div>
+   419→
+   420→                  <Separator />
+   421→
+   422→                  <div>
+   423→                    <div className="mb-2 flex items-center justify-between">
+   424→                      <Label className="text-xs uppercase tracking-wide text-muted-foreground">Glass tint</Label>
+   425→                      <span className="text-xs font-medium">{Math.round(config.glassTint * 100)}%</span>
+   426→                    </div>
+   427→                    <Slider
+   428→                      value={[config.glassTint]}
+   429→                      min={0}
+   430→                      max={0.9}
+   431→                      step={0.05}
+   432→                      onValueChange={(v) => patch({ glassTint: v[0] ?? 0 })}
+   433→                      aria-label="Glass tint"
+   434→                    />
+   435→                  </div>
+   436→                </TabsContent>
+   437→
+   438→                {/* Stance & accessories */}
+   439→                <TabsContent value="stance" className="mt-4 space-y-5">
+   440→                  <div>
+   441→                    <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Accessory</Label>
+   442→                    <div className="grid grid-cols-3 gap-2" role="group" aria-label="Accessory">
+   443→                      {ACCESSORY_OPTIONS.map((a) => (
+   444→                        <Button
+   445→                          key={a.value}
+   446→                          type="button"
+   447→                          size="sm"
+   448→                          variant={config.accessory === a.value ? 'default' : 'outline'}
+   449→                          aria-pressed={config.accessory === a.value}
+   450→                          onClick={() => patch({ accessory: a.value })}
+   451→                        >
+   452→                          {a.label}
+   453→                        </Button>
+   454→                      ))}
+   455→                    </div>
+   456→                  </div>
+   457→
+   458→                  <Separator />
+   459→
+   460→                  <div>
+   461→                    <div className="mb-2 flex items-center justify-between">
+   462→                      <Label className="text-xs uppercase tracking-wide text-muted-foreground">Ride height</Label>
+   463→                      <span className="text-xs font-medium">{rideLabel(config.rideHeight)}</span>
+   464→                    </div>
+   465→                    <Slider
+   466→                      value={[config.rideHeight]}
+   467→                      min={-0.06}
+   468→                      max={0.1}
+   469→                      step={0.01}
+   470→                      onValueChange={(v) => patch({ rideHeight: v[0] ?? 0 })}
+   471→                      aria-label="Ride height"
+   472→                    />
+   473→                    <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+   474→                      <span>Lowered</span>
+   475→                      <span>Lifted</span>
+   476→                    </div>
+   477→                  </div>
+   478→                </TabsContent>
+   479→              </Tabs>
+   480→
+   481→              <Separator className="my-4" />
+   482→
+   483→              <p className="min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">{describeConfig(config)}</p>
+   484→
+   485→              {/* Actions */}
+   486→              <div className="mt-3 grid gap-2">
+   487→                <Button type="button" onClick={handleSaveAndShare} disabled={saving} className="gap-2">
+   488→                  {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Share2 className="h-4 w-4" aria-hidden="true" />}
+   489→                  {saving ? 'Saving…' : 'Save & Share'}
+   490→                </Button>
+   491→                <Button type="button" variant="outline" onClick={handleQuoteClick} disabled={saving} className="gap-2">
+   492→                  <Wrench className="h-4 w-4" aria-hidden="true" />
+   493→                  Request garage quote
+   494→                </Button>
+   495→                <Button type="button" variant="ghost" onClick={resetAll} className="gap-2">
+   496→                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+   497→                  Reset setup
+   498→                </Button>
+   499→              </div>
+   500→            </CardContent>
+   501→          </Card>
+   502→        </div>
+   503→      )}
+   504→
+   505→      <p className="mt-6 flex items-start gap-2 text-xs text-muted-foreground">
+   506→        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+   507→        Configurations are validated and stored server-side; share links restore the exact setup.
+   508→      </p>
+   509→
+   510→      {/* ── Share success dialog ── */}
+   511→      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+   512→        <DialogContent className="sm:max-w-md">
+   513→          <DialogHeader>
+   514→            <DialogTitle>Configuration saved</DialogTitle>
+   515→            <DialogDescription>
+   516→              Anyone with this link opens the studio with this exact setup already applied.
+   517→            </DialogDescription>
+   518→          </DialogHeader>
+   519→          <div className="flex items-center gap-2">
+   520→            <Input readOnly value={shareLink} aria-label="Share link" className="font-mono text-xs" onFocus={(e) => e.target.select()} />
+   521→            <Button type="button" size="sm" variant="outline" onClick={copyShareLink} className="shrink-0 gap-1.5">
+   522→              {copied ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+   523→              {copied ? 'Copied' : 'Copy'}
+   524→            </Button>
+   525→          </div>
+   526→          <DialogFooter>
+   527→            <Button type="button" variant="secondary" onClick={() => setShareOpen(false)}>
+   528→              Done
+   529→            </Button>
+   530→          </DialogFooter>
+   531→        </DialogContent>
+   532→      </Dialog>
+   533→
+   534→      {/* ── Sign-in prompt ── */}
+   535→      <Dialog open={signinOpen} onOpenChange={setSigninOpen}>
+   536→        <DialogContent className="sm:max-w-sm">
+   537→          <DialogHeader>
+   538→            <DialogTitle>Sign in to continue</DialogTitle>
+   539→            <DialogDescription>
+   540→              Create a free account or sign in to save configurations, share them and request garage quotes.
+   541→            </DialogDescription>
+   542→          </DialogHeader>
+   543→          <DialogFooter className="gap-2">
+   544→            <Button type="button" variant="ghost" onClick={() => setSigninOpen(false)}>
+   545→              Not now
+   546→            </Button>
+   547→            <Button
+   548→              type="button"
+   549→              onClick={() => {
+   550→                setSigninOpen(false)
+   551→                navigate('signin')
+   552→              }}
+   553→            >
+   554→              Sign in
+   555→            </Button>
+   556→          </DialogFooter>
+   557→        </DialogContent>
+   558→      </Dialog>
+   559→
+   560→      {/* ── Garage quote request dialog ── */}
+   561→      <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
+   562→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+   563→          <DialogHeader>
+   564→            <DialogTitle>Request garage quotes</DialogTitle>
+   565→            <DialogDescription>
+   566→              Send this build to garages near you for modification quotes. Your saved configuration is attached automatically.
+   567→            </DialogDescription>
+   568→          </DialogHeader>
+   569→
+   570→          <div className="space-y-4">
+   571→            <div className="flex flex-wrap gap-1.5">
+   572→              <Badge variant="outline" className="gap-1.5">
+   573→                <span className="inline-block h-3 w-3 rounded-full border border-black/10" style={{ backgroundColor: config.paint }} aria-hidden="true" />
+   574→                {paintName(config.paint)} ({config.finish})
+   575→              </Badge>
+   576→              <Badge variant="outline">
+   577→                {RIM_STYLE_OPTIONS.find((r) => r.value === config.rimStyle)?.label} rims · {rimColorName(config.rimColor)}
+   578→              </Badge>
+   579→              {config.accessory !== 'none' && (
+   580→                <Badge variant="outline">{ACCESSORY_OPTIONS.find((a) => a.value === config.accessory)?.label}</Badge>
+   581→              )}
+   582→              <Badge variant="outline">Tint {Math.round(config.glassTint * 100)}%</Badge>
+   583→              <Badge variant="outline">{rideLabel(config.rideHeight)}</Badge>
+   584→            </div>
+   585→
+   586→            <div className="grid gap-2">
+   587→              <Label htmlFor="quote-county">County</Label>
+   588→              <Select value={quoteCounty} onValueChange={setQuoteCounty}>
+   589→                <SelectTrigger id="quote-county" aria-label="County">
+   590→                  <SelectValue placeholder="Select county" />
+   591→                </SelectTrigger>
+   592→                <SelectContent>
+   593→                  {KENYA_COUNTIES.map((c) => (
+   594→                    <SelectItem key={c} value={c}>
+   595→                      {c}
+   596→                    </SelectItem>
+   597→                  ))}
+   598→                </SelectContent>
+   599→              </Select>
+   600→            </div>
+   601→
+   602→            <div className="grid gap-2">
+   603→              <Label htmlFor="quote-town">Town (optional)</Label>
+   604→              <Input id="quote-town" value={quoteTown} onChange={(e) => setQuoteTown(e.target.value)} placeholder="e.g. Westlands" maxLength={60} />
+   605→            </div>
+   606→
+   607→            <div className="grid gap-2">
+   608→              <Label htmlFor="quote-desc">What should the garage do?</Label>
+   609→              <Textarea
+   610→                id="quote-desc"
+   611→                rows={4}
+   612→                value={quoteDesc}
+   613→                onChange={(e) => {
+   614→                  setQuoteDesc(e.target.value)
+   615→                  setDescDirty(true)
+   616→                }}
+   617→                placeholder="Describe the work…"
+   618→                maxLength={2000}
+   619→              />
+   620→            </div>
+   621→
+   622→            <div className="grid gap-2">
+   623→              <Label htmlFor="quote-vehicle">Your vehicle (optional)</Label>
+   624→              <Input id="quote-vehicle" value={quoteVehicle} onChange={(e) => setQuoteVehicle(e.target.value)} placeholder="e.g. 2018 Toyota Axio, silver" maxLength={120} />
+   625→            </div>
+   626→          </div>
+   627→
+   628→          <DialogFooter className="gap-2">
+   629→            <Button type="button" variant="ghost" onClick={() => setQuoteOpen(false)} disabled={requesting}>
+   630→              Cancel
+   631→            </Button>
+   632→            <Button type="button" onClick={submitQuote} disabled={requesting || !quoteCounty} className="gap-2">
+   633→              {requesting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+   634→              {requesting ? 'Sending…' : 'Send request'}
+   635→            </Button>
+   636→          </DialogFooter>
+   637→        </DialogContent>
+   638→      </Dialog>
+   639→    </div>
+   640→  )
+   641→}
+   642→
+   643→/** Static fallback for browsers without WebGL. */
+   644→function WebglFallback() {
+   645→  return (
+   646→    <Card className="overflow-hidden">
+   647→      <div className="relative h-56 w-full bg-[#202421] sm:h-72">
+   648→        <Image src="/images/hero.png" alt="CARMAZE showroom sedan illustration" fill className="object-cover" priority />
+   649→      </div>
+   650→      <CardContent className="space-y-3 p-6">
+   651→        <h2 className="text-lg font-semibold">3D Studio needs WebGL</h2>
+   652→        <p className="max-w-prose text-sm text-muted-foreground">
+   653→          Your browser or device does not support WebGL, which powers the live 3D customizer. You can still browse the
+   654→          marketplace and request modification quotes from verified garages; our team can apply any configuration with
+   655→          you directly.
+   656→        </p>
+   657→        <Button type="button" onClick={() => navigate('cars')} className="gap-2">
+   658→          <Car className="h-4 w-4" aria-hidden="true" />
+   659→          Browse cars
+   660→        </Button>
+   661→      </CardContent>
+   662→    </Card>
+   663→  )
+   664→}
+   665→

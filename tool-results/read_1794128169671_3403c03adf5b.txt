@@ -1,0 +1,685 @@
+     1→'use client'
+     2→
+     3→/* SupplierOS: Consumer orders tab: B2C parts orders placed directly by
+     4→ * signed-in customers (deliberately separate from the B2B purchase-order
+     5→ * workflow). Accept (choosing the fulfilling warehouse), reject with a
+     6→ * reason, dispatch with a courier, and mark delivered by verifying the
+     7→ * collection code the customer received.
+     8→ *
+     9→ * HONESTY RULES:
+    10→ *  - The customer's collection code is never displayed here (the buyer owns
+    11→ *    it: it was delivered to their notifications). Only the server-provided
+    12→ *    hint is shown, and delivery requires the code the customer/courier reads out.
+    13→ *  - Payment states are rendered exactly as the API reports them.
+    14→ */
+    15→
+    16→import { useState } from 'react'
+    17→import { toast } from 'sonner'
+    18→import {
+    19→  BadgeCheck, CheckCircle2, ClipboardList, Inbox, Loader2, MapPin, Package,
+    20→  PackageCheck, Phone, Search, ShieldCheck, Truck, User, XCircle,
+    21→} from 'lucide-react'
+    22→import { apiSend } from '@/lib/client'
+    23→import { money, timeAgo, dateLabel } from '@/lib/format'
+    24→import { Button } from '@/components/ui/button'
+    25→import { Card, CardContent } from '@/components/ui/card'
+    26→import { Input } from '@/components/ui/input'
+    27→import { Label } from '@/components/ui/label'
+    28→import { Textarea } from '@/components/ui/textarea'
+    29→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    30→import { Badge } from '@/components/ui/badge'
+    31→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    32→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    33→import { Skeleton } from '@/components/ui/skeleton'
+    34→import { cn } from '@/lib/utils'
+    35→import {
+    36→  type BranchItem, type FetchState, useFetch, supplierRoleCan, StatusBadge,
+    37→  LoadingBlock, ModuleNotice, EmptyState, errMessage,
+    38→} from './shared'
+    39→
+    40→// ───────────────────────────── Types ─────────────────────────────
+    41→
+    42→type ConsumerOrderItem = {
+    43→  id: string
+    44→  productId: string
+    45→  name: string
+    46→  sku: string
+    47→  qty: number
+    48→  unitPriceMinor: number
+    49→  lineTotalMinor: number
+    50→  image: string | null
+    51→}
+    52→
+    53→export type ConsumerOrder = {
+    54→  id: string
+    55→  refCode: string
+    56→  status: string
+    57→  paymentStatus: string
+    58→  buyer: { id: string; name: string }
+    59→  deliveryMethod: string
+    60→  county: string
+    61→  address: string
+    62→  phone: string
+    63→  notes: string | null
+    64→  courierName: string | null
+    65→  fulfillmentBranchId: string | null
+    66→  rejectedReason: string | null
+    67→  itemCount: number
+    68→  items: ConsumerOrderItem[]
+    69→  deliveryFeeMinor: number
+    70→  totalMinor: number
+    71→  currency: string
+    72→  invoice: { id: string; refCode: string; status: string } | null
+    73→  createdAt: string
+    74→  updatedAt: string
+    75→}
+    76→
+    77→type ConsumerOrderDetail = {
+    78→  side: string
+    79→  role: string | null
+    80→  order: ConsumerOrder & {
+    81→    fulfillmentBranch: { id: string; name: string; town: string } | null
+    82→    deliveredAt: string | null
+    83→    completedAt: string | null
+    84→    otpHint: string | null
+    85→    invoice: { id: string; refCode: string; status: string; amountMinor: number; dueDate: string | null } | null
+    86→    events: { id: string; type: string; actorSide: string; actorName: string; note: string | null; createdAt: string }[]
+    87→  }
+    88→}
+    89→
+    90→type Props = {
+    91→  orgId: string
+    92→  role: string
+    93→  orders: FetchState<{ orders: ConsumerOrder[]; counts: Record<string, number> }>
+    94→  branches: FetchState<{ branches: BranchItem[] }>
+    95→}
+    96→
+    97→type OrderFilter = 'ALL' | 'SUBMITTED' | 'OPEN' | 'CLOSED'
+    98→
+    99→const CO_STATUS_LABELS: Record<string, string> = {
+   100→  SUBMITTED: 'Awaiting your response',
+   101→  ACCEPTED: 'Accepted',
+   102→  REJECTED: 'Rejected',
+   103→  CONFIRMED: 'Confirmed',
+   104→  DISPATCHED: 'Dispatched',
+   105→  DELIVERED: 'Delivered',
+   106→  COMPLETED: 'Completed',
+   107→  CANCELLED: 'Cancelled',
+   108→  DISPUTED: 'Under dispute',
+   109→}
+   110→
+   111→const CO_BADGE_CLASS: Record<string, string> = {
+   112→  SUBMITTED: 'bg-accent/40 text-accent-foreground',
+   113→  ACCEPTED: 'bg-primary/15 text-primary',
+   114→  REJECTED: 'bg-destructive/15 text-destructive',
+   115→  CONFIRMED: 'bg-primary/15 text-primary',
+   116→  DISPATCHED: 'bg-secondary text-secondary-foreground',
+   117→  DELIVERED: 'bg-primary text-primary-foreground',
+   118→  COMPLETED: 'bg-primary text-primary-foreground',
+   119→  CANCELLED: 'bg-muted text-muted-foreground',
+   120→  DISPUTED: 'bg-destructive/15 text-destructive',
+   121→}
+   122→
+   123→const CO_PAYMENT_LABELS: Record<string, string> = {
+   124→  UNPAID: 'Not paid',
+   125→  PROCESSING: 'Payment initiating',
+   126→  PAID: 'Paid',
+   127→  REFUNDED: 'Refunded',
+   128→}
+   129→
+   130→const EVENT_SIDE_LABELS: Record<string, string> = {
+   131→  CUSTOMER: 'Customer',
+   132→  SUPPLIER: 'You',
+   133→  SYSTEM: 'System',
+   134→}
+   135→
+   136→const CLOSED_STATUSES = ['REJECTED', 'CANCELLED', 'COMPLETED']
+   137→const OPEN_STATUSES = ['ACCEPTED', 'CONFIRMED', 'DISPATCHED', 'DELIVERED', 'DISPUTED']
+   138→
+   139→// ───────────────────────────── Tab ─────────────────────────────
+   140→
+   141→export function ConsumerOrdersTab({ orgId, role, orders, branches }: Props) {
+   142→  const [filter, setFilter] = useState<OrderFilter>('ALL')
+   143→  const [openId, setOpenId] = useState<string | null>(null)
+   144→  const [query, setQuery] = useState('')
+   145→
+   146→  const canRespond = supplierRoleCan(role, 'order.respond')
+   147→
+   148→  const list = orders.data?.orders ?? []
+   149→  const awaiting = list.filter((o) => o.status === 'SUBMITTED').length
+   150→
+   151→  const filtered = list.filter((o) => {
+   152→    if (filter === 'SUBMITTED' && o.status !== 'SUBMITTED') return false
+   153→    if (filter === 'OPEN' && !OPEN_STATUSES.includes(o.status)) return false
+   154→    if (filter === 'CLOSED' && !CLOSED_STATUSES.includes(o.status)) return false
+   155→    if (query.trim()) {
+   156→      const q = query.trim().toLowerCase()
+   157→      if (!o.refCode.toLowerCase().includes(q) && !o.buyer.name.toLowerCase().includes(q)) return false
+   158→    }
+   159→    return true
+   160→  })
+   161→
+   162→  return (
+   163→    <div className="space-y-4">
+   164→      <div className="flex flex-wrap items-center justify-between gap-3">
+   165→        <div>
+   166→          <h2 className="text-lg font-semibold tracking-tight">Consumer orders</h2>
+   167→          <p className="text-sm text-muted-foreground">
+   168→            {awaiting > 0 ? `${awaiting} order${awaiting === 1 ? '' : 's'} awaiting your response.` : 'Parts orders placed directly by customers from your public catalogue.'}
+   169→          </p>
+   170→        </div>
+   171→        <div className="relative w-full sm:w-64">
+   172→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   173→          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search ref or customer…" className="pl-8" aria-label="Search consumer orders" />
+   174→        </div>
+   175→      </div>
+   176→
+   177→      <div className="flex flex-wrap gap-1.5">
+   178→        {(['ALL', 'SUBMITTED', 'OPEN', 'CLOSED'] as OrderFilter[]).map((f) => (
+   179→          <button
+   180→            key={f}
+   181→            type="button"
+   182→            onClick={() => setFilter(f)}
+   183→            className={cn(
+   184→              'rounded-full border px-3 py-1 text-xs transition-colors',
+   185→              filter === f ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'
+   186→            )}
+   187→          >
+   188→            {f === 'ALL' ? 'All' : f === 'SUBMITTED' ? `Awaiting response${awaiting ? ` (${awaiting})` : ''}` : f === 'OPEN' ? 'Open' : 'Closed'}
+   189→          </button>
+   190→        ))}
+   191→      </div>
+   192→
+   193→      {orders.loading ? (
+   194→        <LoadingBlock label="Loading consumer orders…" />
+   195→      ) : orders.error ? (
+   196→        <ModuleNotice title="Consumer orders could not load" detail={orders.error.message} retry={orders.reload} />
+   197→      ) : filtered.length === 0 ? (
+   198→        <EmptyState
+   199→          icon={<ClipboardList className="h-8 w-8" />}
+   200→          title={list.length === 0 ? 'No consumer orders yet' : 'No orders match the filters'}
+   201→          detail={list.length === 0
+   202→            ? 'When a signed-in customer orders parts from your published catalogue it lands here for you to accept, dispatch or reject.'
+   203→            : 'Try a different search or filter.'}
+   204→        />
+   205→      ) : (
+   206→        <div className="space-y-3">
+   207→          {filtered.map((o) => (
+   208→            <ConsumerOrderCard key={o.id} order={o} onOpen={() => setOpenId(o.id)} />
+   209→          ))}
+   210→        </div>
+   211→      )}
+   212→
+   213→      {openId && (
+   214→        <ConsumerOrderDetailDialog
+   215→          orderId={openId}
+   216→          orgId={orgId}
+   217→          canRespond={canRespond}
+   218→          branches={branches}
+   219→          onClose={() => setOpenId(null)}
+   220→          onChanged={orders.reload}
+   221→        />
+   222→      )}
+   223→    </div>
+   224→  )
+   225→}
+   226→
+   227→// ───────────────────────────── Card ─────────────────────────────
+   228→
+   229→function ConsumerOrderCard({ order, onOpen }: { order: ConsumerOrder; onOpen: () => void }) {
+   230→  return (
+   231→    <Card className="cursor-pointer py-4 transition-colors hover:border-primary/40" onClick={onOpen} role="button" aria-label={`Open consumer order ${order.refCode}`}>
+   232→      <CardContent className="flex flex-wrap items-start justify-between gap-3 px-4">
+   233→        <div className="min-w-0">
+   234→          <div className="flex flex-wrap items-center gap-2">
+   235→            <p className="font-mono text-sm font-semibold">{order.refCode}</p>
+   236→            <StatusBadge status={order.status} labels={CO_STATUS_LABELS} classes={CO_BADGE_CLASS} />
+   237→            <StatusBadge status={order.paymentStatus} labels={CO_PAYMENT_LABELS} classes="bg-muted text-muted-foreground" />
+   238→          </div>
+   239→          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+   240→            <span className="flex items-center gap-1"><User className="h-3 w-3" /> {order.buyer.name}</span>
+   241→            <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {order.county}</span>
+   242→            <span>{order.itemCount} line{order.itemCount === 1 ? '' : 's'}</span>
+   243→            <span>{order.deliveryMethod === 'COLLECTION' ? 'Collection' : 'Delivery'}</span>
+   244→            <span>{timeAgo(order.createdAt)}</span>
+   245→          </p>
+   246→        </div>
+   247→        <div className="text-right">
+   248→          <p className="text-base font-semibold">{money(order.totalMinor, order.currency)}</p>
+   249→          <p className="text-xs text-muted-foreground">incl. {money(order.deliveryFeeMinor, order.currency)} delivery</p>
+   250→        </div>
+   251→      </CardContent>
+   252→    </Card>
+   253→  )
+   254→}
+   255→
+   256→// ───────────────────────────── Detail dialog ─────────────────────────────
+   257→
+   258→function ConsumerOrderDetailDialog({ orderId, orgId, canRespond, branches, onClose, onChanged }: {
+   259→  orderId: string
+   260→  orgId: string
+   261→  canRespond: boolean
+   262→  branches: FetchState<{ branches: BranchItem[] }>
+   263→  onClose: () => void
+   264→  onChanged: () => void
+   265→}) {
+   266→  const detail = useFetch<ConsumerOrderDetail>(`/api/orders/${orderId}`)
+   267→  const order = detail.data?.order ?? null
+   268→  const [busy, setBusy] = useState<string | null>(null)
+   269→
+   270→  async function act<T>(key: string, fn: () => Promise<T>): Promise<T | null> {
+   271→    setBusy(key)
+   272→    try {
+   273→      const res = await fn()
+   274→      detail.reload()
+   275→      onChanged()
+   276→      return res
+   277→    } catch (e) {
+   278→      toast.error(await errMessage(e, 'Action failed: please try again.'))
+   279→      return null
+   280→    } finally {
+   281→      setBusy(null)
+   282→    }
+   283→  }
+   284→
+   285→  return (
+   286→    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+   287→      <DialogContent className="max-h-[94vh] overflow-y-auto scrollbar-thin sm:max-w-3xl">
+   288→        {detail.loading || !order ? (
+   289→          <div className="space-y-3 py-4" aria-busy="true">
+   290→            <Skeleton className="h-7 w-52" />
+   291→            <Skeleton className="h-4 w-80" />
+   292→            <Skeleton className="h-40 w-full" />
+   293→            <Skeleton className="h-40 w-full" />
+   294→          </div>
+   295→        ) : (
+   296→          <>
+   297→            <DialogHeader>
+   298→              <DialogTitle className="flex flex-wrap items-center gap-2">
+   299→                <span className="font-mono">{order.refCode}</span>
+   300→                <StatusBadge status={order.status} labels={CO_STATUS_LABELS} classes={CO_BADGE_CLASS} />
+   301→                <StatusBadge status={order.paymentStatus} labels={CO_PAYMENT_LABELS} classes="bg-muted text-muted-foreground" />
+   302→              </DialogTitle>
+   303→              <DialogDescription>
+   304→                {order.buyer.name} · {order.county} · {order.deliveryMethod === 'COLLECTION' ? 'customer collects' : 'delivery to customer'}
+   305→                {' '}· placed {dateLabel(order.createdAt)}
+   306→              </DialogDescription>
+   307→            </DialogHeader>
+   308→
+   309→            {order.status === 'REJECTED' && order.rejectedReason && (
+   310→              <Alert variant="destructive">
+   311→                <XCircle className="h-4 w-4" />
+   312→                <AlertTitle>Rejected</AlertTitle>
+   313→                <AlertDescription>{order.rejectedReason}</AlertDescription>
+   314→              </Alert>
+   315→            )}
+   316→
+   317→            {/* Actions */}
+   318→            {canRespond && order.status === 'SUBMITTED' && (
+   319→              <AcceptRejectSection order={order} busy={busy} act={act} branches={branches} />
+   320→            )}
+   321→            {canRespond && ['ACCEPTED', 'CONFIRMED'].includes(order.status) && (
+   322→              <DispatchSection order={order} busy={busy} act={act} />
+   323→            )}
+   324→            {canRespond && order.status === 'DISPATCHED' && (
+   325→              <MarkDeliveredSection order={order} busy={busy} act={act} />
+   326→            )}
+   327→
+   328→            <ItemsTable order={order} />
+   329→
+   330→            {/* Customer + payment panels */}
+   331→            <div className="grid gap-3 sm:grid-cols-2">
+   332→              <Card>
+   333→                <CardContent className="space-y-2 px-4 py-4 text-sm">
+   334→                  <p className="flex items-center gap-2 font-semibold"><MapPin className="h-4 w-4 text-muted-foreground" /> {order.deliveryMethod === 'COLLECTION' ? 'Collection' : 'Delivery'}</p>
+   335→                  <dl className="space-y-1 text-xs text-muted-foreground">
+   336→                    <div className="flex gap-1"><User className="h-3 w-3 shrink-0" /><span>{order.buyer.name}</span></div>
+   337→                    <div className="flex gap-1"><Phone className="h-3 w-3 shrink-0" /><span className="font-mono">{order.phone}</span></div>
+   338→                    <div className="flex gap-1"><MapPin className="h-3 w-3 shrink-0" /><span>{order.address}, {order.county}</span></div>
+   339→                    {order.fulfillmentBranch && <div>Fulfilment: {order.fulfillmentBranch.name}</div>}
+   340→                    {order.courierName && <div>Courier: {order.courierName}</div>}
+   341→                    {order.otpHint && (
+   342→                      <div className="rounded-md bg-muted/60 px-2 py-1.5">
+   343→                        Collection code ends <span className="font-mono font-semibold text-foreground">··{order.otpHint}</span>: the customer received the full code in their notifications. Ask them to read it out at handover.
+   344→                      </div>
+   345→                    )}
+   346→                    {order.notes && <div className="rounded-md bg-muted/60 px-2 py-1.5">Customer note: “{order.notes}”</div>}
+   347→                  </dl>
+   348→                </CardContent>
+   349→              </Card>
+   350→              <Card>
+   351→                <CardContent className="space-y-2 px-4 py-4 text-sm">
+   352→                  <p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-muted-foreground" /> Payment</p>
+   353→                  <div className="flex flex-wrap gap-1.5">
+   354→                    <StatusBadge status={order.paymentStatus} labels={CO_PAYMENT_LABELS} classes="bg-muted text-muted-foreground" />
+   355→                    {order.invoice && (
+   356→                      <Badge variant="outline" className="gap-1 text-[10px]">
+   357→                        <BadgeCheck className="h-3 w-3" /> Invoice {order.invoice.refCode} · {order.invoice.status}
+   358→                      </Badge>
+   359→                    )}
+   360→                  </div>
+   361→                  {order.invoice ? (
+   362→                    <p className="text-xs text-muted-foreground">
+   363→                      A {money(order.invoice.amountMinor, order.currency)} invoice was issued to the customer
+   364→                      {order.invoice.dueDate ? `: due ${dateLabel(order.invoice.dueDate)}` : ''}.
+   365→                      {order.invoice.status === 'PAID' ? ' It has been paid.' : ' The customer pays it via M-Pesa from their account; states update only when the provider confirms.'}
+   366→                    </p>
+   367→                  ) : (
+   368→                    <p className="text-xs text-muted-foreground">No invoice yet: one is issued automatically when you accept the order.</p>
+   369→                  )}
+   370→                </CardContent>
+   371→              </Card>
+   372→            </div>
+   373→
+   374→            <Timeline order={order} />
+   375→
+   376→            <DialogFooter className="justify-start">
+   377→              <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+   378→            </DialogFooter>
+   379→          </>
+   380→        )}
+   381→      </DialogContent>
+   382→    </Dialog>
+   383→  )
+   384→}
+   385→
+   386→// ───────────────────────────── Accept / reject ─────────────────────────────
+   387→
+   388→function AcceptRejectSection({ order, busy, act, branches }: {
+   389→  order: NonNullable<ConsumerOrderDetail['order']>
+   390→  busy: string | null
+   391→  act: (key: string, fn: () => Promise<unknown>) => Promise<unknown>
+   392→  branches: FetchState<{ branches: BranchItem[] }>
+   393→}) {
+   394→  const [mode, setMode] = useState<'choose' | 'accept' | 'reject'>('choose')
+   395→  const [branchId, setBranchId] = useState('')
+   396→  const [reason, setReason] = useState('')
+   397→
+   398→  const activeBranches = (branches.data?.branches ?? []).filter((b) => b.status === 'ACTIVE')
+   399→  const selected = activeBranches.find((b) => b.id === branchId) ?? null
+   400→
+   401→  if (mode === 'choose') {
+   402→    return (
+   403→      <Card className="border-primary/30">
+   404→        <CardContent className="space-y-3 px-4 py-4">
+   405→          <div>
+   406→            <p className="flex items-center gap-2 text-sm font-semibold"><Inbox className="h-4 w-4 text-primary" /> Respond to this order</p>
+   407→            <p className="text-xs text-muted-foreground">
+   408→              Accepting takes the goods off your shelf at the fulfilling branch and issues a payable invoice to the customer. Rejecting asks for a reason the customer will see.
+   409→            </p>
+   410→          </div>
+   411→          <div className="flex flex-wrap gap-2">
+   412→            <Button className="min-h-11" disabled={busy !== null} onClick={() => setMode('accept')}>
+   413→              <CheckCircle2 className="h-4 w-4" /> Accept
+   414→            </Button>
+   415→            <Button variant="ghost" className="min-h-11 text-destructive hover:text-destructive" disabled={busy !== null} onClick={() => setMode('reject')}>
+   416→              <XCircle className="h-4 w-4" /> Reject
+   417→            </Button>
+   418→          </div>
+   419→        </CardContent>
+   420→      </Card>
+   421→    )
+   422→  }
+   423→
+   424→  if (mode === 'accept') {
+   425→    return (
+   426→      <Card className="border-primary/30">
+   427→        <CardContent className="space-y-3 px-4 py-4">
+   428→          <div>
+   429→            <p className="flex items-center gap-2 text-sm font-semibold"><PackageCheck className="h-4 w-4 text-primary" /> Accept from a branch</p>
+   430→            <p className="text-xs text-muted-foreground">
+   431→              Pick the warehouse that holds the stock. Leave it on “best stocked” to let the system choose the branch that can cover every line.
+   432→            </p>
+   433→          </div>
+   434→          <div className="space-y-1.5">
+   435→            <Label htmlFor="co-branch">Fulfilling branch / warehouse</Label>
+   436→            <Select value={branchId || undefined} onValueChange={setBranchId}>
+   437→              <SelectTrigger id="co-branch" aria-label="Fulfilling branch"><SelectValue placeholder="Best stocked branch (auto)" /></SelectTrigger>
+   438→              <SelectContent className="max-h-64">
+   439→                {activeBranches.map((b) => (
+   440→                  <SelectItem key={b.id} value={b.id}>{b.name} ({b.kind === 'WAREHOUSE' ? 'Warehouse' : 'Branch'} · {b.county})</SelectItem>
+   441→                ))}
+   442→                {activeBranches.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">No active branches; add one under Warehouses first.</div>}
+   443→              </SelectContent>
+   444→            </Select>
+   445→          </div>
+   446→          <div className="flex flex-wrap justify-end gap-2">
+   447→            <Button variant="ghost" onClick={() => { setMode('choose'); setBranchId('') }} disabled={busy !== null}>Back</Button>
+   448→            <Button
+   449→              className="min-h-11"
+   450→              disabled={busy !== null}
+   451→              onClick={() =>
+   452→                act('accept', () =>
+   453→                  apiSend(`/api/orders/${order.id}`, 'POST', {
+   454→                    action: 'accept',
+   455→                    fulfillmentBranchId: selected ? selected.id : undefined,
+   456→                  })
+   457→                ).then((res) => {
+   458→                  if (res) {
+   459→                    const message = (res as { message?: string }).message
+   460→                    if (message) toast.success(message)
+   461→                    setMode('choose')
+   462→                  }
+   463→                })
+   464→              }
+   465→            >
+   466→              {busy === 'accept' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Accept order
+   467→            </Button>
+   468→          </div>
+   469→        </CardContent>
+   470→      </Card>
+   471→    )
+   472→  }
+   473→
+   474→  return (
+   475→    <Card className="border-destructive/30">
+   476→      <CardContent className="space-y-3 px-4 py-4">
+   477→        <div>
+   478→          <p className="flex items-center gap-2 text-sm font-semibold text-destructive"><XCircle className="h-4 w-4" /> Reject this order</p>
+   479→          <p className="text-xs text-muted-foreground">The customer sees your reason. Nothing has been reserved yet, so no stock changes.</p>
+   480→        </div>
+   481→        <div className="space-y-1.5">
+   482→          <Label htmlFor="co-reject-reason">Reason (required, min 5 characters)</Label>
+   483→          <Textarea id="co-reject-reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500}
+   484→            placeholder="e.g. This part is discontinued; an equivalent is available on request." />
+   485→        </div>
+   486→        <div className="flex flex-wrap justify-end gap-2">
+   487→          <Button variant="ghost" onClick={() => { setMode('choose'); setReason('') }} disabled={busy !== null}>Back</Button>
+   488→          <Button
+   489→            variant="destructive"
+   490→            className="min-h-11"
+   491→            disabled={busy !== null || reason.trim().length < 5}
+   492→            onClick={() =>
+   493→              act('reject', () =>
+   494→                apiSend(`/api/orders/${order.id}`, 'POST', { action: 'reject', reason: reason.trim() })
+   495→              ).then((res) => {
+   496→                if (res) {
+   497→                  toast.success('Order rejected')
+   498→                  setMode('choose')
+   499→                }
+   500→              })
+   501→            }
+   502→          >
+   503→            {busy === 'reject' ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} Reject order
+   504→          </Button>
+   505→        </div>
+   506→      </CardContent>
+   507→    </Card>
+   508→  )
+   509→}
+   510→
+   511→// ───────────────────────────── Dispatch ─────────────────────────────
+   512→
+   513→function DispatchSection({ order, busy, act }: {
+   514→  order: NonNullable<ConsumerOrderDetail['order']>
+   515→  busy: string | null
+   516→  act: (key: string, fn: () => Promise<unknown>) => Promise<unknown>
+   517→}) {
+   518→  const [open, setOpen] = useState(false)
+   519→  const [courierName, setCourierName] = useState('')
+   520→
+   521→  return (
+   522→    <Card className="border-primary/30">
+   523→      <CardContent className="space-y-3 px-4 py-4">
+   524→        <div className="flex flex-wrap items-center justify-between gap-2">
+   525→          <div>
+   526→            <p className="flex items-center gap-2 text-sm font-semibold"><Truck className="h-4 w-4 text-primary" /> Dispatch order</p>
+   527→            <p className="text-xs text-muted-foreground">
+   528→              Recording dispatch generates a 6-digit collection code and delivers it to the customer&apos;s notifications. They share it with the courier; you enter it at handover.
+   529→            </p>
+   530→          </div>
+   531→          {!open && (
+   532→            <Button className="min-h-11" disabled={busy !== null} onClick={() => setOpen(true)}>
+   533→              <Truck className="h-4 w-4" /> Record dispatch
+   534→            </Button>
+   535→          )}
+   536→        </div>
+   537→
+   538→        {open && (
+   539→          <div className="space-y-3">
+   540→            <div className="space-y-1.5">
+   541→              <Label htmlFor="co-courier">Courier / transport company</Label>
+   542→              <Input id="co-courier" value={courierName} onChange={(e) => setCourierName(e.target.value)} placeholder="e.g. G4S Courier" maxLength={120} />
+   543→            </div>
+   544→            <div className="flex flex-wrap justify-end gap-2">
+   545→              <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy !== null}>Cancel</Button>
+   546→              <Button
+   547→                className="min-h-11"
+   548→                disabled={busy !== null || courierName.trim().length < 2}
+   549→                onClick={() =>
+   550→                  act('dispatch', () =>
+   551→                    apiSend(`/api/orders/${order.id}`, 'POST', { action: 'dispatch', courierName: courierName.trim() })
+   552→                  ).then((res) => {
+   553→                    if (res) {
+   554→                      const message = (res as { message?: string }).message
+   555→                      if (message) toast.success(message)
+   556→                      setOpen(false)
+   557→                    }
+   558→                  })
+   559→                }
+   560→              >
+   561→                {busy === 'dispatch' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />} Record dispatch
+   562→              </Button>
+   563→            </div>
+   564→          </div>
+   565→        )}
+   566→      </CardContent>
+   567→    </Card>
+   568→  )
+   569→}
+   570→
+   571→// ───────────────────────────── Mark delivered ─────────────────────────────
+   572→
+   573→function MarkDeliveredSection({ order, busy, act }: {
+   574→  order: NonNullable<ConsumerOrderDetail['order']>
+   575→  busy: string | null
+   576→  act: (key: string, fn: () => Promise<unknown>) => Promise<unknown>
+   577→}) {
+   578→  const [code, setCode] = useState('')
+   579→
+   580→  return (
+   581→    <Card className="border-primary/30">
+   582→      <CardContent className="space-y-3 px-4 py-4">
+   583→        <div>
+   584→          <p className="flex items-center gap-2 text-sm font-semibold"><PackageCheck className="h-4 w-4 text-primary" /> Mark delivered</p>
+   585→          <p className="text-xs text-muted-foreground">
+   586→            Enter the 6-digit collection code the customer received{order.otpHint ? `: it ends ··${order.otpHint}` : ''}. This proves the handover.
+   587→          </p>
+   588→        </div>
+   589→        <div className="flex flex-wrap items-end gap-2">
+   590→          <div className="space-y-1.5">
+   591→            <Label htmlFor="co-code">Collection code</Label>
+   592→            <Input id="co-code" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, ''))}
+   593→              placeholder="6-digit code" maxLength={6} className="w-36 font-mono" autoComplete="off" />
+   594→          </div>
+   595→          <Button
+   596→            className="min-h-11"
+   597→            disabled={busy !== null || code.trim().length < 4}
+   598→            onClick={() =>
+   599→              act('delivered', () =>
+   600→                apiSend(`/api/orders/${order.id}`, 'POST', { action: 'delivered', code: code.trim() })
+   601→              ).then((res) => {
+   602→                if (res) {
+   603→                  const message = (res as { message?: string }).message
+   604→                  if (message) toast.success(message)
+   605→                  setCode('')
+   606→                }
+   607→              })
+   608→            }
+   609→          >
+   610→            {busy === 'delivered' ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />} Mark delivered
+   611→          </Button>
+   612→        </div>
+   613→      </CardContent>
+   614→    </Card>
+   615→  )
+   616→}
+   617→
+   618→// ───────────────────────────── Items + timeline ─────────────────────────────
+   619→
+   620→function ItemsTable({ order }: { order: NonNullable<ConsumerOrderDetail['order']> }) {
+   621→  const subtotal = order.items.reduce((sum, i) => sum + i.lineTotalMinor, 0)
+   622→  return (
+   623→    <div className="overflow-hidden rounded-lg border border-border">
+   624→      <div className="overflow-x-auto scrollbar-thin">
+   625→        <table className="w-full text-sm">
+   626→          <thead>
+   627→            <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+   628→              <th className="px-3 py-2 font-medium">Item</th>
+   629→              <th className="px-3 py-2 text-right font-medium">Qty</th>
+   630→              <th className="px-3 py-2 text-right font-medium">Unit</th>
+   631→              <th className="px-3 py-2 text-right font-medium">Line total</th>
+   632→            </tr>
+   633→          </thead>
+   634→          <tbody>
+   635→            {order.items.map((i) => (
+   636→              <tr key={i.id} className="border-b border-border last:border-0">
+   637→                <td className="max-w-64 px-3 py-2">
+   638→                  <div className="flex items-center gap-2">
+   639→                    {i.image ? <img src={i.image} alt="" className="h-9 w-9 rounded border border-border object-cover" /> : <span className="flex h-9 w-9 items-center justify-center rounded border border-border bg-muted/40"><Package className="h-4 w-4 text-muted-foreground" /></span>}
+   640→                    <div className="min-w-0">
+   641→                      <p className="truncate font-medium">{i.name}</p>
+   642→                      <p className="font-mono text-[11px] text-muted-foreground">{i.sku}</p>
+   643→                    </div>
+   644→                  </div>
+   645→                </td>
+   646→                <td className="px-3 py-2 text-right">{i.qty}</td>
+   647→                <td className="px-3 py-2 text-right">{money(i.unitPriceMinor, order.currency)}</td>
+   648→                <td className="px-3 py-2 text-right">{money(i.lineTotalMinor, order.currency)}</td>
+   649→              </tr>
+   650→            ))}
+   651→          </tbody>
+   652→        </table>
+   653→      </div>
+   654→      <div className="space-y-1 border-t border-border bg-muted/20 px-3 py-2.5 text-sm">
+   655→        <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{money(subtotal, order.currency)}</span></div>
+   656→        <div className="flex justify-between text-muted-foreground"><span>Delivery fee</span><span>{money(order.deliveryFeeMinor, order.currency)}</span></div>
+   657→        <div className="flex justify-between font-semibold"><span>Total</span><span>{money(order.totalMinor, order.currency)}</span></div>
+   658→      </div>
+   659→    </div>
+   660→  )
+   661→}
+   662→
+   663→function Timeline({ order }: { order: NonNullable<ConsumerOrderDetail['order']> }) {
+   664→  return (
+   665→    <div>
+   666→      <p className="mb-2 text-sm font-semibold">Timeline</p>
+   667→      <ol className="scrollbar-thin max-h-56 space-y-0 overflow-y-auto pr-1">
+   668→        {order.events.map((e) => (
+   669→          <li key={e.id} className="relative border-l border-border pb-3 pl-4 last:pb-0">
+   670→            <span className="absolute -left-[4.5px] top-1.5 h-2 w-2 rounded-full bg-primary/60" />
+   671→            <p className="text-xs">
+   672→              <span className="font-medium">{e.type.replaceAll('_', ' ')}</span>
+   673→              {' '}· {EVENT_SIDE_LABELS[e.actorSide] ?? 'Party'}
+   674→              {e.actorName ? ` (${e.actorName})` : ''}
+   675→              {' '}· {new Date(e.createdAt).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })}
+   676→            </p>
+   677→            {e.note && <p className="mt-0.5 text-xs text-muted-foreground">{e.note}</p>}
+   678→          </li>
+   679→        ))}
+   680→        {order.events.length === 0 && <li className="text-xs text-muted-foreground">No events recorded.</li>}
+   681→      </ol>
+   682→    </div>
+   683→  )
+   684→}
+   685→

@@ -1,0 +1,642 @@
+   640→      <div className="mt-8 flex flex-col items-center gap-3">
+   641→        <Button size="lg" onClick={openWizard} className="min-h-11 px-8">
+   642→          Apply for dealership verification <ArrowRight className="h-4 w-4" />
+   643→        </Button>
+   644→        <p className="text-xs text-muted-foreground">
+   645→          Already have a CARMAZE account? Use it: the application is linked to your login.
+   646→        </p>
+   647→      </div>
+   648→
+   649→      {/* Application wizard */}
+   650→      <Dialog open={open} onOpenChange={setOpen}>
+   651→        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
+   652→          <DialogHeader>
+   653→            <DialogTitle>Dealership application</DialogTitle>
+   654→            <DialogDescription>
+   655→              Step {step} of 4 · {WIZARD_STEPS[step - 1]}; initial review target is 24 business hours.
+   656→            </DialogDescription>
+   657→          </DialogHeader>
+   658→
+   659→          <ol className="flex items-center gap-1.5" aria-label="Application progress">
+   660→            {WIZARD_STEPS.map((label, i) => (
+   661→              <li key={label} className="flex flex-1 flex-col gap-1">
+   662→                <div className={cn('h-1.5 rounded-full', i + 1 <= step ? 'bg-primary' : 'bg-muted')} />
+   663→                <span className={cn('text-[10px] font-medium', i + 1 === step ? 'text-foreground' : 'text-muted-foreground')}>{label}</span>
+   664→              </li>
+   665→            ))}
+   666→          </ol>
+   667→
+   668→          {step === 1 && (
+   669→            <div className="grid gap-4">
+   670→              <div className="grid gap-1.5">
+   671→                <Label htmlFor="wz-orgname">Dealership name *</Label>
+   672→                <Input id="wz-orgname" value={form.orgName} onChange={(e) => set('orgName', e.target.value)} placeholder="e.g. Nairobi Auto Hub" maxLength={120} />
+   673→              </div>
+   674→              <div className="grid gap-1.5">
+   675→                <Label htmlFor="wz-regno">Business registration number <span className="font-normal text-muted-foreground">(optional)</span></Label>
+   676→                <Input id="wz-regno" value={form.regNo} onChange={(e) => set('regNo', e.target.value)} placeholder="e.g. BN-2019-4482" maxLength={60} />
+   677→              </div>
+   678→              <div className="grid gap-4 sm:grid-cols-2">
+   679→                <div className="grid gap-1.5">
+   680→                  <Label>County *</Label>
+   681→                  <Select value={form.county} onValueChange={(v) => set('county', v)}>
+   682→                    <SelectTrigger aria-label="County"><SelectValue placeholder="Select county" /></SelectTrigger>
+   683→                    <SelectContent className="max-h-64 scrollbar-thin">
+   684→                      {KENYA_COUNTIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+   685→                    </SelectContent>
+   686→                  </Select>
+   687→                </div>
+   688→                <div className="grid gap-1.5">
+   689→                  <Label htmlFor="wz-town">Town / area</Label>
+   690→                  <Input id="wz-town" value={form.town} onChange={(e) => set('town', e.target.value)} placeholder="e.g. Syokimau" maxLength={60} />
+   691→                </div>
+   692→              </div>
+   693→              <div className="grid gap-1.5">
+   694→                <Label htmlFor="wz-address">Physical address of premises</Label>
+   695→                <Input id="wz-address" value={form.physicalAddress} onChange={(e) => set('physicalAddress', e.target.value)} placeholder="e.g. Mombasa Road, next to Gateway Mall" maxLength={200} />
+   696→              </div>
+   697→              <div className="grid gap-4 sm:grid-cols-2">
+   698→                <div className="grid gap-1.5">
+   699→                  <Label htmlFor="wz-phone">Business phone *</Label>
+   700→                  <Input id="wz-phone" type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+254 7XX XXX XXX" maxLength={20} />
+   701→                </div>
+   702→                <div className="grid gap-1.5">
+   703→                  <Label htmlFor="wz-email">Business email</Label>
+   704→                  <Input id="wz-email" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="sales@yourdealership.co.ke" maxLength={120} />
+   705→                </div>
+   706→              </div>
+   707→            </div>
+   708→          )}
+   709→
+   710→          {step === 2 && (
+   711→            <div className="grid gap-4">
+   712→              <div className="grid gap-1.5">
+   713→                <Label htmlFor="wz-rep">Authorised representative *</Label>
+   714→                <Input id="wz-rep" value={form.representative} onChange={(e) => set('representative', e.target.value)} placeholder="Full name of the person CARMAZE can contact" maxLength={80} />
+   715→              </div>
+   716→              <div className="grid gap-1.5">
+   717→                <Label>Plan you are interested in</Label>
+   718→                <Select value={form.accountType} onValueChange={(v) => set('accountType', v)}>
+   719→                  <SelectTrigger aria-label="Plan interest"><SelectValue /></SelectTrigger>
+   720→                  <SelectContent>
+   721→                    {ACCOUNT_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+   722→                  </SelectContent>
+   723→                </Select>
+   724→                <p className="text-xs text-muted-foreground">Interest only: you choose (or change) your plan after approval, in Billing.</p>
+   725→              </div>
+   726→              <Alert>
+   727→                <Info className="h-4 w-4" />
+   728→                <AlertTitle>Your CARMAZE account</AlertTitle>
+   729→                <AlertDescription>
+   730→                  This application is linked to the account you are signed in with. Verification decisions and messages
+   731→                  arrive as in-app notifications: no separate dealer login is created.
+   732→                </AlertDescription>
+   733→              </Alert>
+   734→            </div>
+   735→          )}
+   736→
+   737→          {step === 3 && (
+   738→            <div className="grid gap-4">
+   739→              <DocUploader
+   740→                idPrefix="wz"
+   741→                docs={docs}
+   742→                uploading={uploading}
+   743→                onAdd={handleFiles}
+   744→                onRemove={(url) => setDocs((prev) => prev.filter((d) => d.url !== url))}
+   745→              />
+   746→              <p className="text-xs leading-relaxed text-muted-foreground">
+   747→                Reviewers check that the business exists and the premises matches what you publish. Keep names and
+   748→                registration numbers readable.
+   749→              </p>
+   750→            </div>
+   751→          )}
+   752→
+   753→          {step === 4 && (
+   754→            <div className="grid gap-4">
+   755→              <dl className="grid gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+   756→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Dealership</dt><dd className="text-right font-medium">{form.orgName || 'Not set'}</dd></div>
+   757→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Reg. number</dt><dd className="text-right">{form.regNo || 'Not set'}</dd></div>
+   758→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Location</dt><dd className="text-right">{[form.town, form.county].filter(Boolean).join(', ') || 'Not set'}</dd></div>
+   759→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Phone</dt><dd className="text-right">{form.phone || 'Not provided'}</dd></div>
+   760→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Representative</dt><dd className="text-right">{form.representative || 'Not set'}</dd></div>
+   761→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Plan interest</dt><dd className="text-right">{form.accountType || 'Not set'}</dd></div>
+   762→                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Documents</dt><dd className="text-right">{docs.length} uploaded</dd></div>
+   763→              </dl>
+   764→              <label className="flex items-start gap-2.5 text-sm leading-relaxed" htmlFor="wz-consent">
+   765→                <Checkbox id="wz-consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" />
+   766→                <span>I accept the Dealer Agreement and the CARMAZE Privacy Policy, and confirm the information above is accurate.</span>
+   767→              </label>
+   768→            </div>
+   769→          )}
+   770→
+   771→          <DialogFooter className="gap-2 sm:justify-between">
+   772→            <div>
+   773→              {step > 1 && (
+   774→                <Button variant="ghost" onClick={() => setStep((s) => s - 1)} disabled={submitting}>
+   775→                  <ArrowLeft className="h-4 w-4" /> Back
+   776→                </Button>
+   777→              )}
+   778→            </div>
+   779→            <div className="flex gap-2">
+   780→              <Button variant="outline" onClick={() => submit('DRAFT')} disabled={submitting}>
+   781→                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save draft
+   782→              </Button>
+   783→              {step < 4 ? (
+   784→                <Button onClick={next}>Continue <ArrowRight className="h-4 w-4" /></Button>
+   785→              ) : (
+   786→                <Button onClick={() => submit('SUBMITTED')} disabled={submitting}>
+   787→                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Submit application
+   788→                </Button>
+   789→              )}
+   790→            </div>
+   791→          </DialogFooter>
+   792→        </DialogContent>
+   793→      </Dialog>
+   794→    </div>
+   795→  )
+   796→}
+   797→
+   798→// ───────────────────────────── State B: Pending application ─────────────────────────────
+   799→
+   800→function PendingApplication({ app, onUpdated }: { app: DealerApplication; onUpdated: () => void }) {
+   801→  const [docs, setDocs] = useState<DocItem[]>([])
+   802→  const [uploading, setUploading] = useState(false)
+   803→  const [notes, setNotes] = useState('')
+   804→  const [submitting, setSubmitting] = useState(false)
+   805→
+   806→  const needsInfo = app.status === 'MORE_INFO_REQUIRED'
+   807→  const infoEvent = [...app.events].reverse().find((e) => e.type === 'INFO_REQUESTED')
+   808→
+   809→  async function handleFiles(files: FileList | null) {
+   810→    if (!files || files.length === 0) return
+   811→    setUploading(true)
+   812→    try {
+   813→      for (const file of Array.from(files)) {
+   814→        const fd = new FormData()
+   815→        fd.append('file', file)
+   816→        fd.append('kind', 'document')
+   817→        const res = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
+   818→        setDocs((prev) => [...prev, { name: res.name || file.name, url: res.url }])
+   819→      }
+   820→      toast.success('Document uploaded')
+   821→    } catch (e) {
+   822→      toast.error(e instanceof Error ? e.message : 'Upload failed: please try again.')
+   823→    } finally {
+   824→      setUploading(false)
+   825→    }
+   826→  }
+   827→
+   828→  async function resubmit() {
+   829→    if (docs.length === 0 && notes.trim().length < 5) {
+   830→      toast.error('Add a note or attach the requested documents before resubmitting.')
+   831→      return
+   832→    }
+   833→    setSubmitting(true)
+   834→    try {
+   835→      await apiSend(`/api/applications/${app.id}`, 'PATCH', {
+   836→        action: 'resubmit',
+   837→        documents: docs.length > 0 ? docs : undefined,
+   838→        notes: notes.trim() || undefined,
+   839→      })
+   840→      toast.success('Information resubmitted: the review team has been notified.')
+   841→      onUpdated()
+   842→    } catch (e) {
+   843→      toast.error(e instanceof Error ? e.message : 'Could not resubmit.')
+   844→    } finally {
+   845→      setSubmitting(false)
+   846→    }
+   847→  }
+   848→
+   849→  return (
+   850→    <div className="mx-auto w-full max-w-3xl px-3 py-8 sm:px-6 sm:py-12">
+   851→      <Card>
+   852→        <CardHeader>
+   853→          <div className="flex flex-wrap items-center justify-between gap-2">
+   854→            <CardTitle className="flex items-center gap-2 text-xl">
+   855→              <Building2 className="h-5 w-5 text-primary" /> {app.orgName}
+   856→            </CardTitle>
+   857→            <StatusBadge status={app.status} labels={APPLICATION_STATUS_LABELS} classes={APPLICATION_BADGE_CLASS} />
+   858→          </div>
+   859→          <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
+   860→            <span className="font-mono text-xs">{app.refCode}</span>
+   861→            <span aria-hidden>·</span>
+   862→            <span>Submitted {app.submittedAt ? dateLabel(app.submittedAt) : 'Not set'}</span>
+   863→            <span aria-hidden>·</span>
+   864→            <span className="flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> Initial review target: 24 business hours</span>
+   865→          </CardDescription>
+   866→        </CardHeader>
+   867→        <CardContent className="space-y-5">
+   868→          {app.escalated && (
+   869→            <Alert className="border-accent/60 bg-accent/10">
+   870→              <AlertTriangle className="h-4 w-4" />
+   871→              <AlertTitle>Review is taking longer than our target</AlertTitle>
+   872→              <AlertDescription>
+   873→                Your application has been escalated to senior staff; no action is needed from you. We are sorry for the wait.
+   874→              </AlertDescription>
+   875→            </Alert>
+   876→          )}
+   877→
+   878→          {needsInfo && (
+   879→            <div className="space-y-3 rounded-lg border border-accent/60 bg-accent/10 p-4">
+   880→              <div className="flex items-start gap-2">
+   881→                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+   882→                <div className="text-sm">
+   883→                  <p className="font-semibold">The review team requested more information</p>
+   884→                  {infoEvent?.note && <p className="mt-1 text-muted-foreground">{infoEvent.note}</p>}
+   885→                  {app.correctionsDueAt && (
+   886→                    <p className="mt-1 text-muted-foreground">Please respond before <strong>{dateLabel(app.correctionsDueAt)}</strong> to keep your application in the queue.</p>
+   887→                  )}
+   888→                </div>
+   889→              </div>
+   890→              <Separator />
+   891→              <div className="space-y-3">
+   892→                <DocUploader
+   893→                  idPrefix="rs"
+   894→                  docs={docs}
+   895→                  uploading={uploading}
+   896→                  onAdd={handleFiles}
+   897→                  onRemove={(url) => setDocs((prev) => prev.filter((d) => d.url !== url))}
+   898→                />
+   899→                <div className="grid gap-1.5">
+   900→                  <Label htmlFor="rs-notes">Note for the review team</Label>
+   901→                  <Textarea id="rs-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Explain what you corrected or attached…" maxLength={2000} />
+   902→                </div>
+   903→                <Button onClick={resubmit} disabled={submitting} className="min-h-11">
+   904→                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Resubmit application
+   905→                </Button>
+   906→              </div>
+   907→            </div>
+   908→          )}
+   909→
+   910→          {!needsInfo && app.status !== 'APPROVED' && (
+   911→            <p className="text-sm leading-relaxed text-muted-foreground">
+   912→              Your application is in the review queue. You will receive an in-app notification as soon as the review team
+   913→              updates it: this page updates automatically when you revisit.
+   914→            </p>
+   915→          )}
+   916→          {app.status === 'APPROVED' && (
+   917→            <Alert>
+   918→              <BadgeCheck className="h-4 w-4 text-primary" />
+   919→              <AlertTitle>Application approved</AlertTitle>
+   920→              <AlertDescription>
+   921→                Your dealership has been verified. If your DealerOS workspace does not appear shortly, sign out and back in
+   922→                once: or contact support with your reference {app.refCode}.
+   923→              </AlertDescription>
+   924→            </Alert>
+   925→          )}
+   926→
+   927→          {/* Event timeline */}
+   928→          <div>
+   929→            <h3 className="text-sm font-semibold">Application timeline</h3>
+   930→            <ol className="mt-3 space-y-0">
+   931→              {app.events.map((e, i) => (
+   932→                <li key={e.id} className="relative flex gap-3 pb-5 last:pb-0">
+   933→                  {i < app.events.length - 1 && <span aria-hidden className="absolute left-[7px] top-4 h-full w-px bg-border" />}
+   934→                  <span className={cn('mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2', ['APPROVED'].includes(e.type) ? 'border-primary bg-primary' : ['INFO_REQUESTED', 'REJECTED', 'ESCALATED'].includes(e.type) ? 'border-accent bg-accent' : 'border-primary/40 bg-background')} />
+   935→                  <div className="min-w-0">
+   936→                    <p className="text-sm font-medium">{EVENT_LABELS[e.type] ?? e.type}</p>
+   937→                    {e.note && <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{e.note}</p>}
+   938→                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+   939→                      {timeAgo(e.createdAt)}{e.actorName ? ` · ${e.actorName}` : ''}
+   940→                    </p>
+   941→                  </div>
+   942→                </li>
+   943→              ))}
+   944→            </ol>
+   945→          </div>
+   946→        </CardContent>
+   947→      </Card>
+   948→    </div>
+   949→  )
+   950→}
+   951→
+   952→// ───────────────────────────── State C: Dashboard tabs ─────────────────────────────
+   953→
+   954→function OverviewTab({ orgId, dash }: { orgId: string; dash: FetchState<DashboardData> }) {
+   955→  const copilot = useFetch<{ insights: Insight[]; generatedAt: string }>(`/api/dealer/copilot?orgId=${orgId}`)
+   956→
+   957→  if (dash.loading && !dash.data) return <LoadingBlock label="Loading your dealership numbers…" />
+   958→  if (dash.error || !dash.data) {
+   959→    return <ModuleNotice title="Could not load the dashboard" detail={dash.error?.message} retry={dash.reload} />
+   960→  }
+   961→  const d = dash.data
+   962→  const s = d.stats
+   963→
+   964→  return (
+   965→    <div className="space-y-6">
+   966→      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+   967→        <StatCard label="Published" value={s.published} icon={<Car className="h-4 w-4" />} hint={`${s.reserved} reserved`} onClick={() => navigate('/dealer?tab=inventory')} />
+   968→        <StatCard label="Pending review" value={s.pending} icon={<ClipboardList className="h-4 w-4" />} hint={`${s.drafts} drafts`} onClick={() => navigate('/dealer?tab=inventory')} />
+   969→        <StatCard label="Views total" value={num(s.totalViews)} icon={<Eye className="h-4 w-4" />} hint="all listings, lifetime" />
+   970→        <StatCard label="Open enquiries" value={s.enquiriesOpen} icon={<MessageSquare className="h-4 w-4" />} hint={`${s.enquiriesAnswered} answered`} onClick={() => navigate('/dealer?tab=enquiries')} />
+   971→        <StatCard label="Offers sent" value={s.offersPending} icon={<Handshake className="h-4 w-4" />} hint="awaiting seller" onClick={() => navigate('/dealer?tab=offers')} />
+   972→      </div>
+   973→
+   974→      <div className="grid gap-6 lg:grid-cols-5">
+   975→        {/* Copilot panel */}
+   976→        <Card className="lg:col-span-3">
+   977→          <CardHeader className="pb-3">
+   978→            <CardTitle className="flex items-center gap-2 text-base">
+   979→              <Sparkles className="h-4 w-4 text-accent-foreground" /> Dealer Copilot
+   980→              {copilot.loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+   981→            </CardTitle>
+   982→            <CardDescription>
+   983→              Follow-ups computed from your live data{copilot.data?.generatedAt ? ` · updated ${timeAgo(copilot.data.generatedAt)}` : ''}.
+   984→            </CardDescription>
+   985→          </CardHeader>
+   986→          <CardContent className="space-y-3">
+   987→            {copilot.loading && !copilot.data && (
+   988→              <div className="space-y-2"><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></div>
+   989→            )}
+   990→            {copilot.error && (
+   991→              <p className="text-sm text-muted-foreground">Copilot is unavailable right now; {copilot.error.message}</p>
+   992→            )}
+   993→            {copilot.data?.insights.map((ins) => (
+   994→              <div
+   995→                key={ins.id}
+   996→                className={cn(
+   997→                  'rounded-lg border p-3',
+   998→                  ins.severity === 'urgent' && 'border-destructive/40 bg-destructive/5',
+   999→                  ins.severity === 'warning' && 'border-accent/60 bg-accent/10',
+  1000→                  ins.severity === 'info' && 'border-border bg-muted/40'
+  1001→                )}
+  1002→              >
+  1003→                <div className="flex items-start gap-2.5">
+  1004→                  {ins.severity === 'urgent' && <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />}
+  1005→                  {ins.severity === 'warning' && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
+  1006→                  {ins.severity === 'info' && <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
+  1007→                  <div className="min-w-0 flex-1">
+  1008→                    <p className="text-sm font-semibold">{ins.title}</p>
+  1009→                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{ins.detail}</p>
+  1010→                  </div>
+  1011→                  {ins.actionLink && (
+  1012→                    <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => navigate(ins.actionLink!.replace(/^\//, ''))}>
+  1013→                      Open <ArrowRight className="h-3.5 w-3.5" />
+  1014→                    </Button>
+  1015→                  )}
+  1016→                </div>
+  1017→              </div>
+  1018→            ))}
+  1019→          </CardContent>
+  1020→        </Card>
+  1021→
+  1022→        {/* Subscription + latest enquiries */}
+  1023→        <div className="space-y-6 lg:col-span-2">
+  1024→          <Card>
+  1025→            <CardHeader className="pb-3">
+  1026→              <CardTitle className="flex items-center gap-2 text-base"><CreditCard className="h-4 w-4 text-primary" /> Subscription</CardTitle>
+  1027→            </CardHeader>
+  1028→            <CardContent className="space-y-3 text-sm">
+  1029→              {d.subscription ? (
+  1030→                <>
+  1031→                  <div className="flex items-center justify-between gap-2">
+  1032→                    <span className="font-semibold">{d.subscription.planName}</span>
+  1033→                    <Badge variant="secondary" className={cn('border-transparent', d.subscription.status === 'ACTIVE' ? 'bg-primary text-primary-foreground' : 'bg-destructive/15 text-destructive')}>
+  1034→                      {d.subscription.status === 'ACTIVE' ? 'Active' : d.subscription.status}
+  1035→                    </Badge>
+  1036→                  </div>
+  1037→                  <p className="text-muted-foreground">Renews {dateLabel(d.subscription.currentPeriodEnd)}</p>
+  1038→                  <div className="space-y-1.5">
+  1039→                    <div className="flex justify-between text-xs text-muted-foreground">
+  1040→                      <span>Listing usage</span>
+  1041→                      <span>{d.listingUsage.used} of {d.listingUsage.limit ?? '∞'} active</span>
+  1042→                    </div>
+  1043→                    <Progress value={d.listingUsage.limit ? Math.min(100, Math.round((d.listingUsage.used / d.listingUsage.limit) * 100)) : 0} />
+  1044→                  </div>
+  1045→                  <p className="text-xs text-muted-foreground">
+  1046→                    {s.staffCount} of {d.subscription.staffLimit} staff seats · {d.subscription.featuredLimit} featured slots
+  1047→                  </p>
+  1048→                  <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/dealer?tab=billing')}>Manage billing</Button>
+  1049→                </>
+  1050→              ) : (
+  1051→                <div className="space-y-2">
+  1052→                  <p className="text-muted-foreground">No subscription on this dealership yet; pick a plan to publish listings.</p>
+  1053→                  <Button size="sm" onClick={() => navigate('/dealer?tab=billing')}>Choose a plan</Button>
+  1054→                </div>
+  1055→              )}
+  1056→            </CardContent>
+  1057→          </Card>
+  1058→
+  1059→          <Card>
+  1060→            <CardHeader className="pb-3">
+  1061→              <CardTitle className="flex items-center gap-2 text-base"><MessageSquare className="h-4 w-4 text-primary" /> Latest enquiries</CardTitle>
+  1062→            </CardHeader>
+  1063→            <CardContent>
+  1064→              {d.recentEnquiries.length === 0 ? (
+  1065→                <p className="text-sm text-muted-foreground">No enquiries yet: they appear here the moment a customer asks about a listing.</p>
+  1066→              ) : (
+  1067→                <ul className="divide-y">
+  1068→                  {d.recentEnquiries.map((e) => (
+  1069→                    <li key={e.id} className="py-2.5 first:pt-0 last:pb-0">
+  1070→                      <button className="w-full text-left" onClick={() => navigate('/dealer?tab=enquiries')}>
+  1071→                        <div className="flex items-center justify-between gap-2">
+  1072→                          <span className="truncate text-sm font-medium">{e.vehicle.make} {e.vehicle.model} {e.vehicle.year}</span>
+  1073→                          <span className="shrink-0 text-[11px] text-muted-foreground">{timeAgo(e.createdAt)}</span>
+  1074→                        </div>
+  1075→                        <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+  1076→                          {e.lastMessage ? `${e.lastMessage.senderSide === 'SELLER' ? 'You' : e.lastMessage.senderName}: ${e.lastMessage.body}` : e.customerName}
+  1077→                        </p>
+  1078→                      </button>
+  1079→                    </li>
+  1080→                  ))}
+  1081→                </ul>
+  1082→              )}
+  1083→            </CardContent>
+  1084→          </Card>
+  1085→        </div>
+  1086→      </div>
+  1087→    </div>
+  1088→  )
+  1089→}
+  1090→
+  1091→function VehicleRowActions({ v, onDone }: { v: VehicleItem; onDone: () => void }) {
+  1092→  const [busy, setBusy] = useState(false)
+  1093→  const [confirmSold, setConfirmSold] = useState(false)
+  1094→
+  1095→  async function patch(action: 'submit' | 'mark_sold') {
+  1096→    setBusy(true)
+  1097→    try {
+  1098→      await apiSend(`/api/vehicles/${v.id}`, 'PATCH', { action })
+  1099→      toast.success(action === 'submit' ? `${v.refCode} submitted for review.` : `${v.refCode} marked as sold.`)
+  1100→      onDone()
+  1101→    } catch (e) {
+  1102→      toast.error(e instanceof Error ? e.message : 'Action failed.')
+  1103→    } finally {
+  1104→      setBusy(false)
+  1105→      setConfirmSold(false)
+  1106→    }
+  1107→  }
+  1108→
+  1109→  return (
+  1110→    <div className="flex flex-wrap items-center justify-end gap-1.5">
+  1111→      <Button variant="outline" size="sm" className="h-8" onClick={() => navigate(`vehicle-detail/${v.id}`)}>
+  1112→        <Eye className="h-3.5 w-3.5" /> View
+  1113→      </Button>
+  1114→      {v.status === 'DRAFT' && (
+  1115→        <Button size="sm" className="h-8" disabled={busy} onClick={() => patch('submit')}>
+  1116→          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Submit
+  1117→        </Button>
+  1118→      )}
+  1119→      {(v.status === 'PUBLISHED' || v.status === 'RESERVED') && (
+  1120→        <>
+  1121→          <Button variant="outline" size="sm" className="h-8" onClick={() => setConfirmSold(true)} disabled={busy}>
+  1122→            <Check className="h-3.5 w-3.5" /> Mark sold
+  1123→          </Button>
+  1124→          <AlertDialog open={confirmSold} onOpenChange={setConfirmSold}>
+  1125→            <AlertDialogContent>
+  1126→              <AlertDialogHeader>
+  1127→                <AlertDialogTitle>Mark {v.refCode} as sold?</AlertDialogTitle>
+  1128→                <AlertDialogDescription>
+  1129→                  The listing will no longer appear in the marketplace search. This is used for honest reporting of your
+  1130→                  sales.
+  1131→                </AlertDialogDescription>
+  1132→              </AlertDialogHeader>
+  1133→              <AlertDialogFooter>
+  1134→                <AlertDialogCancel>Cancel</AlertDialogCancel>
+  1135→                <AlertDialogAction onClick={() => patch('mark_sold')}>Mark as sold</AlertDialogAction>
+  1136→              </AlertDialogFooter>
+  1137→            </AlertDialogContent>
+  1138→          </AlertDialog>
+  1139→        </>
+  1140→      )}
+  1141→    </div>
+  1142→  )
+  1143→}
+  1144→
+  1145→function InventoryTab({ orgId, dash }: { orgId: string; dash: FetchState<DashboardData> }) {
+  1146→  // Org-scoped "mine" query: orgId is validated server-side against the
+  1147→  // caller's memberships, so this only ever returns this org's vehicles.
+  1148→  const vehicles = useFetch<{ vehicles: VehicleItem[] }>(orgId ? `/api/vehicles?mine=1&orgId=${encodeURIComponent(orgId)}` : null)
+  1149→  const usage = dash.data?.listingUsage ?? null
+  1150→
+  1151→  const moduleMissing = vehicles.error?.status === 404
+  1152→  const list = vehicles.data?.vehicles ?? []
+  1153→
+  1154→  return (
+  1155→    <div className="space-y-4">
+  1156→      <div className="flex flex-wrap items-center justify-between gap-3">
+  1157→        <div className="min-w-48 flex-1">
+  1158→          <div className="flex items-center justify-between text-xs text-muted-foreground">
+  1159→            <span>Active listings</span>
+  1160→            <span>{usage ? `${usage.used} of ${usage.limit ?? '∞'} used` : 'Not set'}</span>
+  1161→          </div>
+  1162→          <Progress className="mt-1" value={usage?.limit ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0} />
+  1163→        </div>
+  1164→        <Button onClick={() => navigate('/sell')} className="min-h-11">
+  1165→          <Plus className="h-4 w-4" /> Add vehicle
+  1166→        </Button>
+  1167→      </div>
+  1168→
+  1169→      <Alert>
+  1170→        <Info className="h-4 w-4" />
+  1171→        <AlertDescription>
+  1172→          Listings go through CARMAZE review before publishing; submitted vehicles appear in the marketplace once approved.
+  1173→        </AlertDescription>
+  1174→      </Alert>
+  1175→
+  1176→      {vehicles.loading && !vehicles.data ? (
+  1177→        <LoadingBlock label="Loading your inventory…" />
+  1178→      ) : moduleMissing ? (
+  1179→        <ModuleNotice loading title="Inventory module is loading…" detail="The listings service is being integrated; your vehicles will appear here shortly." retry={vehicles.reload} />
+  1180→      ) : vehicles.error ? (
+  1181→        <ModuleNotice title="Could not load inventory" detail={vehicles.error.message} retry={vehicles.reload} />
+  1182→      ) : list.length === 0 ? (
+  1183→        <EmptyState icon={<Car className="h-8 w-8" />} title="No vehicles yet" detail="Add your first vehicle; it will go through CARMAZE review before it is published." />
+  1184→      ) : (
+  1185→        <>
+  1186→          {/* Desktop table */}
+  1187→          <Card className="hidden md:block">
+  1188→            <CardContent className="px-0 py-0">
+  1189→              <Table>
+  1190→                <TableHeader>
+  1191→                  <TableRow>
+  1192→                    <TableHead className="pl-4">Vehicle</TableHead>
+  1193→                    <TableHead>Price</TableHead>
+  1194→                    <TableHead>Status</TableHead>
+  1195→                    <TableHead className="text-right">Views</TableHead>
+  1196→                    <TableHead className="pr-4 text-right">Actions</TableHead>
+  1197→                  </TableRow>
+  1198→                </TableHeader>
+  1199→                <TableBody>
+  1200→                  {list.map((v) => {
+  1201→                    const thumb = photoUrl(v.photos?.[0])
+  1202→                    return (
+  1203→                      <TableRow key={v.id}>
+  1204→                        <TableCell className="pl-4">
+  1205→                          <div className="flex items-center gap-3">
+  1206→                            {thumb ? (
+  1207→                               
+  1208→                              <img src={thumb} alt={`${v.make} ${v.model}`} className="h-10 w-14 shrink-0 rounded-md object-cover" />
+  1209→                            ) : (
+  1210→                              <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"><Car className="h-4 w-4" /></div>
+  1211→                            )}
+  1212→                            <div className="min-w-0">
+  1213→                              <p className="truncate text-sm font-medium">{vehicleTitle(v)}</p>
+  1214→                              <p className="font-mono text-[11px] text-muted-foreground">{v.refCode}</p>
+  1215→                            </div>
+  1216→                          </div>
+  1217→                        </TableCell>
+  1218→                        <TableCell className="text-sm">{money(v.priceMinor, v.currency)}</TableCell>
+  1219→                        <TableCell><StatusBadge status={v.status} labels={VEHICLE_STATUS_LABELS} classes={VEHICLE_BADGE_CLASS} /></TableCell>
+  1220→                        <TableCell className="text-right text-sm tabular-nums">{num(v.views)}</TableCell>
+  1221→                        <TableCell className="pr-4"><VehicleRowActions v={v} onDone={vehicles.reload} /></TableCell>
+  1222→                      </TableRow>
+  1223→                    )
+  1224→                  })}
+  1225→                </TableBody>
+  1226→              </Table>
+  1227→            </CardContent>
+  1228→          </Card>
+  1229→
+  1230→          {/* Mobile cards */}
+  1231→          <div className="space-y-3 md:hidden">
+  1232→            {list.map((v) => {
+  1233→              const thumb = photoUrl(v.photos?.[0])
+  1234→              return (
+  1235→                <Card key={v.id} className="py-3">
+  1236→                  <CardContent className="flex gap-3 px-3">
+  1237→                    {thumb ? (
+  1238→                       
+  1239→                      <img src={thumb} alt={`${v.make} ${v.model}`} className="h-16 w-20 shrink-0 rounded-md object-cover" />
+  1240→                    ) : (
+  1241→                      <div className="flex h-16 w-20 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"><Car className="h-5 w-5" /></div>
+  1242→                    )}
+  1243→                    <div className="min-w-0 flex-1">
+  1244→                      <div className="flex items-start justify-between gap-2">
+  1245→                        <div className="min-w-0">
+  1246→                          <p className="truncate text-sm font-semibold">{vehicleTitle(v)}</p>
+  1247→                          <p className="font-mono text-[11px] text-muted-foreground">{v.refCode}</p>
+  1248→                        </div>
+  1249→                        <StatusBadge status={v.status} labels={VEHICLE_STATUS_LABELS} classes={VEHICLE_BADGE_CLASS} />
+  1250→                      </div>
+  1251→                      <div className="mt-1 flex items-center justify-between text-sm">
+  1252→                        <span className="font-semibold">{money(v.priceMinor, v.currency)}</span>
+  1253→                        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="h-3.5 w-3.5" /> {num(v.views)}</span>
+  1254→                      </div>
+  1255→                      <div className="mt-2">
+  1256→                        <VehicleRowActions v={v} onDone={vehicles.reload} />
+  1257→                      </div>
+  1258→                    </div>
+  1259→                  </CardContent>
+  1260→                </Card>
+  1261→              )
+  1262→            })}
+  1263→          </div>
+  1264→        </>
+  1265→      )}
+  1266→    </div>
+  1267→  )
+  1268→}
+  1269→
+  1270→function EnquiriesTab({ orgId }: { orgId: string }) {
+  1271→  const enquiries = useFetch<{ enquiries: EnquiryItem[] }>('/api/enquiries?forOrg=1')
+  1272→  const [selectedId, setSelectedId] = useState<string | null>(null)
+  1273→  const [reply, setReply] = useState('')
+  1274→  const [sending, setSending] = useState(false)
+  1275→
+  1276→  const moduleMissing = enquiries.error?.status === 404
+  1277→  const list = enquiries.data?.enquiries ?? []
+  1278→  const selected = list.find((e) => e.id === selectedId) ?? list[0] ?? null
+  1279→  const openCount = list.filter((e) => e.status === 'OPEN').length
+
+[showing lines 640-1279 of 2924; use offset=1280 with limit to continue reading]

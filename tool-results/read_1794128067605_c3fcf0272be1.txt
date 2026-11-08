@@ -1,0 +1,719 @@
+     1→'use client'
+     2→
+     3→/* CARMAZE: Seller verification panel
+     4→ * Individual seller identity verification (type SELLER applications).
+     5→ * One component, four states:
+     6→ *   VERIFIED       : role SELLER_VERIFIED granted: green confirmation card.
+     7→ *   IN PROGRESS    : application SUBMITTED / UNDER_REVIEW / RESUBMITTED.
+     8→ *   ACTION REQUIRED: MORE_INFO_REQUIRED: reviewer request + resubmission form.
+     9→ *   NOT STARTED    : apply form (also used for REJECTED after the decision note).
+    10→ * Verification is always a manual document review; every state says so.
+    11→ * Lives on #/sell; #/my-listings reuses useSellerApplication for its banners.
+    12→ */
+    13→
+    14→import { useCallback, useEffect, useRef, useState } from 'react'
+    15→import {
+    16→  ShieldCheck, BadgeCheck, Loader2, Upload, FileText, Plus, X,
+    17→  AlertTriangle, RefreshCw, Info, ChevronDown,
+    18→} from 'lucide-react'
+    19→import { Button } from '@/components/ui/button'
+    20→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    21→import { Input } from '@/components/ui/input'
+    22→import { Label } from '@/components/ui/label'
+    23→import { Textarea } from '@/components/ui/textarea'
+    24→import { Checkbox } from '@/components/ui/checkbox'
+    25→import { Badge } from '@/components/ui/badge'
+    26→import { Skeleton } from '@/components/ui/skeleton'
+    27→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+    28→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    29→import { hasAnyRole, useAuth, type CurrentUser } from '@/stores/auth'
+    30→import { apiGet, apiSend, apiUpload } from '@/lib/client'
+    31→import { APPLICATION_STATUS_LABELS, KENYA_COUNTIES, dateLabel, timeAgo } from '@/lib/format'
+    32→import { cn } from '@/lib/utils'
+    33→import { toast } from 'sonner'
+    34→
+    35→export type SellerApplicationEvent = {
+    36→  id: string
+    37→  type: string
+    38→  actorName: string | null
+    39→  note: string | null
+    40→  createdAt: string
+    41→}
+    42→
+    43→export type SellerApplication = {
+    44→  id: string
+    45→  refCode: string
+    46→  type: string
+    47→  status: string
+    48→  orgName: string
+    49→  county: string
+    50→  town: string | null
+    51→  phone: string
+    52→  representative: string
+    53→  /** Stored as encoded JSON: use parseSellerDocs. */
+    54→  documents: string | null
+    55→  notes: string | null
+    56→  decisionNote: string | null
+    57→  correctionsDueAt: string | null
+    58→  escalated: boolean
+    59→  submittedAt: string | null
+    60→  createdAt: string
+    61→  events: SellerApplicationEvent[]
+    62→}
+    63→
+    64→export type SellerAppDoc = { name: string; url: string }
+    65→
+    66→/** Statuses where the review team is actively working (or waiting on the seller). */
+    67→export const SELLER_ACTIVE_STATUSES: string[] = ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'RESUBMITTED']
+    68→
+    69→const IN_REVIEW_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'RESUBMITTED']
+    70→const CLOSED_BAD_STATUSES = ['REJECTED', 'SUSPENDED', 'REVOKED']
+    71→const MAX_DOCS = 10
+    72→
+    73→const SELLER_EVENT_LABELS: Record<string, string> = {
+    74→  SUBMITTED: 'Application submitted',
+    75→  REVIEW_ASSIGNED: 'Reviewer assigned',
+    76→  INFO_REQUESTED: 'Information requested',
+    77→  RESUBMITTED: 'Information resubmitted',
+    78→  REMINDER: 'Reminder sent',
+    79→  ESCALATED: 'Escalated to senior review',
+    80→  APPROVED: 'Application approved',
+    81→  REJECTED: 'Application rejected',
+    82→  NOTE: 'Note from the review team',
+    83→  STATUS_CHANGED: 'Status updated',
+    84→}
+    85→
+    86→const SELLER_BADGE_CLASS: Record<string, string> = {
+    87→  DRAFT: 'bg-muted text-muted-foreground',
+    88→  SUBMITTED: 'bg-accent/30 text-accent-foreground',
+    89→  UNDER_REVIEW: 'bg-accent/40 text-accent-foreground',
+    90→  MORE_INFO_REQUIRED: 'bg-accent/50 text-accent-foreground',
+    91→  RESUBMITTED: 'bg-accent/30 text-accent-foreground',
+    92→  APPROVED: 'bg-primary text-primary-foreground',
+    93→  REJECTED: 'bg-destructive/15 text-destructive',
+    94→  SUSPENDED: 'bg-destructive/15 text-destructive',
+    95→  REVOKED: 'bg-destructive/15 text-destructive',
+    96→}
+    97→
+    98→function parseSellerDocs(raw: string | null | undefined): SellerAppDoc[] {
+    99→  if (!raw) return []
+   100→  try {
+   101→    const parsed: unknown = JSON.parse(raw)
+   102→    if (!Array.isArray(parsed)) return []
+   103→    return parsed.filter(
+   104→      (d): d is SellerAppDoc =>
+   105→        typeof d === 'object' && d !== null && typeof (d as SellerAppDoc).url === 'string'
+   106→    )
+   107→  } catch {
+   108→    return []
+   109→  }
+   110→}
+   111→
+   112→/** Fetches the signed-in user's most recent SELLER application.
+   113→ * `enabled` gates the request (only when signed in and not already verified). */
+   114→export function useSellerApplication(enabled: boolean) {
+   115→  const [app, setApp] = useState<SellerApplication | null>(null)
+   116→  const [loading, setLoading] = useState(enabled)
+   117→  const [error, setError] = useState<string | null>(null)
+   118→  const [tick, setTick] = useState(0)
+   119→
+   120→  useEffect(() => {
+   121→    if (!enabled) return
+   122→    let cancelled = false
+   123→    const run = async () => {
+   124→      try {
+   125→        const d = await apiGet<{ applications: SellerApplication[] }>('/api/applications')
+   126→        if (cancelled) return
+   127→        const sellers = d.applications
+   128→          .filter((a) => a.type === 'SELLER')
+   129→          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+   130→        setApp(sellers[0] ?? null)
+   131→        setError(null)
+   132→      } catch (e) {
+   133→        if (!cancelled) setError((e as { message?: string })?.message ?? 'Could not load verification status.')
+   134→      } finally {
+   135→        if (!cancelled) setLoading(false)
+   136→      }
+   137→    }
+   138→    run()
+   139→    return () => { cancelled = true }
+   140→  }, [enabled, tick])
+   141→
+   142→  // Event-context refresh: safe to set state here (never called from an effect body).
+   143→  const reload = useCallback(() => {
+   144→    if (enabled) setLoading(true)
+   145→    setTick((t) => t + 1)
+   146→  }, [enabled])
+   147→
+   148→  // Derived reset for the disabled state; no synchronous setState inside effects.
+   149→  return { app: enabled ? app : null, loading: enabled && loading, error: enabled ? error : null, reload }
+   150→}
+   151→
+   152→// ───────────────────────────── Shared pieces ─────────────────────────────
+   153→
+   154→function StatusBadge({ status }: { status: string }) {
+   155→  return (
+   156→    <Badge className={cn('border-transparent', SELLER_BADGE_CLASS[status] ?? 'bg-muted text-muted-foreground')}>
+   157→      {APPLICATION_STATUS_LABELS[status] ?? status}
+   158→    </Badge>
+   159→  )
+   160→}
+   161→
+   162→function ApplicationHeader({ app }: { app: SellerApplication }) {
+   163→  return (
+   164→    <div className="flex flex-wrap items-center gap-2">
+   165→      <StatusBadge status={app.status} />
+   166→      <span className="font-mono text-sm font-semibold tracking-wide">{app.refCode}</span>
+   167→      {app.submittedAt && (
+   168→        <span className="text-sm text-muted-foreground">Submitted {dateLabel(app.submittedAt)}</span>
+   169→      )}
+   170→    </div>
+   171→  )
+   172→}
+   173→
+   174→/** Compact event timeline: events arrive oldest first, so newest renders last. */
+   175→function EventTimeline({ events }: { events: SellerApplicationEvent[] }) {
+   176→  if (events.length === 0) return null
+   177→  return (
+   178→    <div>
+   179→      <h3 className="text-sm font-semibold">Progress</h3>
+   180→      <ol className="mt-3 space-y-0">
+   181→        {events.map((e, i) => (
+   182→          <li key={e.id} className="relative flex gap-3 pb-5 last:pb-0">
+   183→            {i < events.length - 1 && <span aria-hidden className="absolute left-[7px] top-4 h-full w-px bg-border" />}
+   184→            <span
+   185→              className={cn(
+   186→                'mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2',
+   187→                e.type === 'APPROVED'
+   188→                  ? 'border-primary bg-primary'
+   189→                  : e.type === 'INFO_REQUESTED' || e.type === 'REJECTED' || e.type === 'ESCALATED'
+   190→                    ? 'border-accent bg-accent'
+   191→                    : 'border-primary/40 bg-background'
+   192→              )}
+   193→            />
+   194→            <div className="min-w-0">
+   195→              <p className="text-sm font-medium">{SELLER_EVENT_LABELS[e.type] ?? e.type}</p>
+   196→              {e.note && <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{e.note}</p>}
+   197→              <p className="mt-0.5 text-[11px] text-muted-foreground">
+   198→                {timeAgo(e.createdAt)}{e.actorName ? ` · ${e.actorName}` : ''}
+   199→              </p>
+   200→            </div>
+   201→          </li>
+   202→        ))}
+   203→      </ol>
+   204→    </div>
+   205→  )
+   206→}
+   207→
+   208→/** Document uploader: same pattern as the dealer application wizard. */
+   209→function DocUploader({ docs, onAdd, onRemove, uploading, idPrefix, title, hint }: {
+   210→  docs: SellerAppDoc[]
+   211→  onAdd: (files: FileList | null) => void
+   212→  onRemove: (url: string) => void
+   213→  uploading: boolean
+   214→  idPrefix: string
+   215→  title: string
+   216→  hint?: string
+   217→}) {
+   218→  const inputRef = useRef<HTMLInputElement>(null)
+   219→  return (
+   220→    <div className="space-y-3">
+   221→      <input
+   222→        ref={inputRef}
+   223→        id={`${idPrefix}-file`}
+   224→        type="file"
+   225→        multiple
+   226→        accept="image/jpeg,image/png,image/webp,application/pdf"
+   227→        className="hidden"
+   228→        onChange={(e) => {
+   229→          onAdd(e.target.files)
+   230→          e.target.value = ''
+   231→        }}
+   232→      />
+   233→      <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-center">
+   234→        <Upload className="mx-auto h-5 w-5 text-muted-foreground" />
+   235→        <p className="mt-1 text-sm font-medium">{title}</p>
+   236→        <p className="text-xs text-muted-foreground">JPG, PNG, WEBP or PDF · up to 8MB each</p>
+   237→        <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => inputRef.current?.click()} disabled={uploading}>
+   238→          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+   239→          {uploading ? 'Uploading…' : 'Upload documents'}
+   240→        </Button>
+   241→      </div>
+   242→      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+   243→      {docs.length > 0 && (
+   244→        <ul className="space-y-2">
+   245→          {docs.map((d) => (
+   246→            <li key={d.url} className="flex items-center gap-2 rounded-md border bg-card px-3 py-2">
+   247→              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+   248→              <span className="min-w-0 flex-1 truncate text-sm">{d.name}</span>
+   249→              <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`Remove ${d.name}`} onClick={() => onRemove(d.url)}>
+   250→                <X className="h-3.5 w-3.5" />
+   251→              </Button>
+   252→            </li>
+   253→          ))}
+   254→        </ul>
+   255→      )}
+   256→      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+   257→        <ShieldCheck className="h-3.5 w-3.5" /> Documents are private: only CARMAZE reviewers can view them.
+   258→      </p>
+   259→    </div>
+   260→  )
+   261→}
+   262→
+   263→async function uploadDocs(files: FileList | null, current: number, onDoc: (d: SellerAppDoc) => void) {
+   264→  if (!files || files.length === 0) return
+   265→  const slots = MAX_DOCS - current
+   266→  const list = Array.from(files).slice(0, slots)
+   267→  if (list.length === 0) { toast.warning(`Maximum of ${MAX_DOCS} documents`); return }
+   268→  try {
+   269→    for (const file of list) {
+   270→      const fd = new FormData()
+   271→      fd.append('file', file)
+   272→      fd.append('kind', 'document')
+   273→      const res = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
+   274→      onDoc({ name: res.name || file.name, url: res.url })
+   275→    }
+   276→    toast.success('Document uploaded')
+   277→  } catch (e) {
+   278→    toast.error(e instanceof Error ? e.message : 'Upload failed: please try again.')
+   279→  }
+   280→}
+   281→
+   282→// ───────────────────────────── State A: Verified ─────────────────────────────
+   283→
+   284→function VerifiedCard() {
+   285→  return (
+   286→    <Card className="border-emerald-500/40 bg-emerald-500/5">
+   287→      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:gap-4 sm:p-5">
+   288→        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500/15">
+   289→          <ShieldCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+   290→        </div>
+   291→        <div className="min-w-0">
+   292→          <div className="flex flex-wrap items-center gap-2">
+   293→            <p className="font-semibold text-emerald-800 dark:text-emerald-200">Verified seller</p>
+   294→            <Badge variant="outline" className="gap-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+   295→              <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" /> Verified
+   296→            </Badge>
+   297→          </div>
+   298→          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+   299→            Your identity and authority-to-sell documents have been reviewed and approved by the CARMAZE verification team.
+   300→          </p>
+   301→          <p className="mt-1 text-xs text-muted-foreground">
+   302→            Verification shows on your listings: buyers see the trust marker next to your name.
+   303→          </p>
+   304→        </div>
+   305→      </CardContent>
+   306→    </Card>
+   307→  )
+   308→}
+   309→
+   310→// ───────────────────────────── State B: In review ─────────────────────────────
+   311→
+   312→function InProgress({ app }: { app: SellerApplication }) {
+   313→  const docs = parseSellerDocs(app.documents)
+   314→  return (
+   315→    <div className="space-y-5">
+   316→      <ApplicationHeader app={app} />
+   317→
+   318→      {app.escalated && (
+   319→        <Alert className="border-accent/60 bg-accent/10">
+   320→          <AlertTriangle className="h-4 w-4" />
+   321→          <AlertTitle>Review is taking longer than our target</AlertTitle>
+   322→          <AlertDescription>
+   323→            Your application has been escalated to senior staff; no action is needed from you. We are sorry for the wait.
+   324→          </AlertDescription>
+   325→        </Alert>
+   326→      )}
+   327→
+   328→      <EventTimeline events={app.events} />
+   329→
+   330→      <div className="space-y-1">
+   331→        <p className="text-sm leading-relaxed text-muted-foreground">
+   332→          Our review team checks identity and ownership documents manually. Uploading documents never
+   333→          self-verifies an account: you&apos;ll get a notification the moment a decision is made.
+   334→        </p>
+   335→        <p className="text-xs text-muted-foreground">
+   336→          {docs.length} document{docs.length === 1 ? '' : 's'} on file for this application.
+   337→        </p>
+   338→      </div>
+   339→    </div>
+   340→  )
+   341→}
+   342→
+   343→// ───────────────────────────── State C: Action required ─────────────────────────────
+   344→
+   345→function ActionRequired({ app, onDone }: { app: SellerApplication; onDone: () => void }) {
+   346→  const infoEvent = [...app.events].reverse().find((e) => e.type === 'INFO_REQUESTED')
+   347→  const onFile = parseSellerDocs(app.documents)
+   348→  const [docs, setDocs] = useState<SellerAppDoc[]>([])
+   349→  const [uploading, setUploading] = useState(false)
+   350→  const [notes, setNotes] = useState('')
+   351→  const [submitting, setSubmitting] = useState(false)
+   352→  const [apiError, setApiError] = useState<string | null>(null)
+   353→
+   354→  async function handleFiles(files: FileList | null) {
+   355→    setUploading(true)
+   356→    await uploadDocs(files, docs.length, (d) => setDocs((prev) => (prev.length < MAX_DOCS ? [...prev, d] : prev)))
+   357→    setUploading(false)
+   358→  }
+   359→
+   360→  async function resubmit() {
+   361→    if (docs.length === 0 && notes.trim().length < 5) {
+   362→      toast.error('Add a note or attach the requested documents before resubmitting.')
+   363→      return
+   364→    }
+   365→    setSubmitting(true)
+   366→    setApiError(null)
+   367→    try {
+   368→      await apiSend(`/api/applications/${app.id}`, 'PATCH', {
+   369→        action: 'resubmit',
+   370→        documents: docs.length > 0 ? docs : undefined,
+   371→        notes: notes.trim() || undefined,
+   372→      })
+   373→      toast.success('Information resubmitted: the review team has been notified.')
+   374→      onDone()
+   375→    } catch (e) {
+   376→      const message = e instanceof Error ? e.message : 'Could not resubmit.'
+   377→      setApiError(message)
+   378→      toast.error(message)
+   379→    } finally {
+   380→      setSubmitting(false)
+   381→    }
+   382→  }
+   383→
+   384→  return (
+   385→    <div className="space-y-5">
+   386→      <ApplicationHeader app={app} />
+   387→
+   388→      {/* The reviewer's request: prominent */}
+   389→      <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+   390→        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+   391→        <div className="min-w-0 text-sm">
+   392→          <p className="font-semibold">The review team requested more information</p>
+   393→          {infoEvent?.note && <p className="mt-1 leading-relaxed">{infoEvent.note}</p>}
+   394→          {app.correctionsDueAt && (
+   395→            <p className="mt-1 text-xs opacity-90">
+   396→              Please respond before {dateLabel(app.correctionsDueAt)} to keep your application in the queue.
+   397→            </p>
+   398→          )}
+   399→        </div>
+   400→      </div>
+   401→
+   402→      <DocUploader
+   403→        idPrefix="sva-rs"
+   404→        docs={docs}
+   405→        uploading={uploading}
+   406→        onAdd={handleFiles}
+   407→        onRemove={(url) => setDocs((prev) => prev.filter((d) => d.url !== url))}
+   408→        title="Attach the requested documents"
+   409→        hint={
+   410→          onFile.length > 0
+   411→            ? `${onFile.length} document${onFile.length === 1 ? ' is' : 's are'} already on file: new uploads replace them, so attach everything the reviewer needs.`
+   412→            : 'Attach exactly what the reviewer asked for.'
+   413→        }
+   414→      />
+   415→
+   416→      <div className="grid gap-1.5">
+   417→        <Label htmlFor="sva-rs-notes">Note for the review team</Label>
+   418→        <Textarea
+   419→          id="sva-rs-notes"
+   420→          rows={3}
+   421→          maxLength={2000}
+   422→          value={notes}
+   423→          onChange={(e) => setNotes(e.target.value)}
+   424→          placeholder="Explain what you corrected or attached…"
+   425→        />
+   426→      </div>
+   427→
+   428→      {apiError && (
+   429→        <Alert className="border-destructive/40 bg-destructive/5 text-destructive [&>svg]:text-destructive">
+   430→          <AlertTriangle className="h-4 w-4" />
+   431→          <AlertTitle>Couldn&apos;t resubmit</AlertTitle>
+   432→          <AlertDescription>{apiError}</AlertDescription>
+   433→        </Alert>
+   434→      )}
+   435→
+   436→      <Button onClick={resubmit} disabled={submitting} className="min-h-11 px-6">
+   437→        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Resubmit for review
+   438→      </Button>
+   439→
+   440→      <EventTimeline events={app.events} />
+   441→    </div>
+   442→  )
+   443→}
+   444→
+   445→// ───────────────────── State D: Not started / rejected ─────────────────────
+   446→
+   447→function NotStarted({ user, previousApp, onDone }: {
+   448→  user: CurrentUser
+   449→  previousApp: SellerApplication | null
+   450→  onDone: () => void
+   451→}) {
+   452→  const closed = previousApp !== null && CLOSED_BAD_STATUSES.includes(previousApp.status)
+   453→  const [open, setOpen] = useState(false)
+   454→  const [form, setForm] = useState({
+   455→    orgName: user.name,
+   456→    regNo: '',
+   457→    county: '',
+   458→    town: '',
+   459→    phone: user.phone ?? '',
+   460→    representative: user.name,
+   461→    notes: '',
+   462→  })
+   463→  const [docs, setDocs] = useState<SellerAppDoc[]>([])
+   464→  const [uploading, setUploading] = useState(false)
+   465→  const [submitting, setSubmitting] = useState(false)
+   466→  const [consent, setConsent] = useState(false)
+   467→  const [apiError, setApiError] = useState<string | null>(null)
+   468→
+   469→  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }))
+   470→
+   471→  async function handleFiles(files: FileList | null) {
+   472→    setUploading(true)
+   473→    await uploadDocs(files, docs.length, (d) => setDocs((prev) => (prev.length < MAX_DOCS ? [...prev, d] : prev)))
+   474→    setUploading(false)
+   475→  }
+   476→
+   477→  async function submit() {
+   478→    if (form.orgName.trim().length < 2) { toast.error('Enter your full legal name.'); return }
+   479→    if (form.regNo.trim().length < 3) { toast.error('Enter your national ID or passport number.'); return }
+   480→    if (!form.county) { toast.error('Select your county.'); return }
+   481→    if (form.phone.trim().length < 9) { toast.error('Enter a valid phone number.'); return }
+   482→    if (form.representative.trim().length < 2) { toast.error('Enter the authorised representative name.'); return }
+   483→    if (docs.length === 0) {
+   484→      toast.error('Attach at least one document: your government ID and a logbook/ownership document or authority-to-sell letter.')
+   485→      return
+   486→    }
+   487→    if (!consent) { toast.error('Please confirm your information is true and accept the verification terms and privacy notice.'); return }
+   488→    setSubmitting(true)
+   489→    setApiError(null)
+   490→    try {
+   491→      const res = await apiSend<{ application: SellerApplication }>('/api/applications', 'POST', {
+   492→        type: 'SELLER',
+   493→        status: 'SUBMITTED',
+   494→        orgName: form.orgName.trim(),
+   495→        regNo: form.regNo.trim(),
+   496→        county: form.county,
+   497→        town: form.town.trim() || undefined,
+   498→        phone: form.phone.trim(),
+   499→        email: user.email || undefined,
+   500→        representative: form.representative.trim(),
+   501→        documents: docs,
+   502→        consent: true,
+   503→        notes: form.notes.trim() || undefined,
+   504→      })
+   505→      toast.success(`Seller verification submitted: ${res.application.refCode}. Our review team checks documents manually.`)
+   506→      setOpen(false)
+   507→      onDone()
+   508→    } catch (e) {
+   509→      const message = e instanceof Error ? e.message : 'Could not submit the application.'
+   510→      setApiError(message)
+   511→      toast.error(message)
+   512→    } finally {
+   513→      setSubmitting(false)
+   514→    }
+   515→  }
+   516→
+   517→  return (
+   518→    <div className="space-y-4">
+   519→      {previousApp?.status === 'DRAFT' && (
+   520→        <Alert className="border-accent/50 bg-accent/10">
+   521→          <Info className="h-4 w-4" />
+   522→          <AlertTitle>Draft {previousApp.refCode} saved</AlertTitle>
+   523→          <AlertDescription>
+   524→            A draft was saved earlier but was never sent to the review team. Submit a fresh application below.
+   525→          </AlertDescription>
+   526→        </Alert>
+   527→      )}
+   528→
+   529→      {closed && previousApp && (
+   530→        <Alert className="border-destructive/40 bg-destructive/5 text-destructive [&>svg]:text-destructive">
+   531→          <AlertTriangle className="h-4 w-4" />
+   532→          <AlertTitle>
+   533→            {previousApp.refCode} was {APPLICATION_STATUS_LABELS[previousApp.status]?.toLowerCase() ?? previousApp.status.toLowerCase()}
+   534→          </AlertTitle>
+   535→          <AlertDescription>
+   536→            {previousApp.decisionNote
+   537→              ? `Reviewer note: ${previousApp.decisionNote}`
+   538→              : 'You can correct the details and submit a fresh application.'}
+   539→          </AlertDescription>
+   540→        </Alert>
+   541→      )}
+   542→
+   543→      <div className="flex flex-wrap items-center justify-between gap-3">
+   544→        <p className="max-w-md text-sm text-muted-foreground">
+   545→          {closed
+   546→            ? 'Correct the issues noted above, then submit a fresh application for review.'
+   547→            : 'Verify your identity and authority to sell; approved accounts carry the verified trust marker on their listings.'}
+   548→        </p>
+   549→        <Button
+   550→          variant={closed ? 'default' : 'outline'}
+   551→          className="h-11 px-5 sm:h-9"
+   552→          onClick={() => setOpen((o) => !o)}
+   553→          aria-expanded={open}
+   554→        >
+   555→          {closed ? 'Correct and resubmit' : open ? 'Close form' : 'Start verification'}
+   556→          <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+   557→        </Button>
+   558→      </div>
+   559→
+   560→      {open && (
+   561→        <div className="space-y-4 rounded-xl border border-border p-4">
+   562→          <div className="grid gap-4 sm:grid-cols-2">
+   563→            <div className="space-y-1.5">
+   564→              <Label htmlFor="sva-name">Full legal name *</Label>
+   565→              <Input id="sva-name" placeholder="As it appears on your ID" value={form.orgName} onChange={(e) => set('orgName', e.target.value)} />
+   566→            </div>
+   567→            <div className="space-y-1.5">
+   568→              <Label htmlFor="sva-reg">National ID / passport number *</Label>
+   569→              <Input id="sva-reg" placeholder="e.g. 12345678" value={form.regNo} onChange={(e) => set('regNo', e.target.value)} />
+   570→            </div>
+   571→            <div className="space-y-1.5">
+   572→              <Label>County *</Label>
+   573→              <Select value={form.county || undefined} onValueChange={(v) => set('county', v)}>
+   574→                <SelectTrigger className="w-full"><SelectValue placeholder="Select county" /></SelectTrigger>
+   575→                <SelectContent>
+   576→                  {KENYA_COUNTIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+   577→                </SelectContent>
+   578→              </Select>
+   579→            </div>
+   580→            <div className="space-y-1.5">
+   581→              <Label htmlFor="sva-town">Town / area</Label>
+   582→              <Input id="sva-town" placeholder="e.g. Syokimau" value={form.town} onChange={(e) => set('town', e.target.value)} />
+   583→            </div>
+   584→            <div className="space-y-1.5">
+   585→              <Label htmlFor="sva-phone">Phone *</Label>
+   586→              <Input id="sva-phone" inputMode="tel" placeholder="e.g. 0712 345 678" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+   587→            </div>
+   588→            <div className="space-y-1.5">
+   589→              <Label htmlFor="sva-rep">Authorised representative *</Label>
+   590→              <Input id="sva-rep" value={form.representative} onChange={(e) => set('representative', e.target.value)} />
+   591→              <p className="text-xs text-muted-foreground">For private sellers this is you; the person selling the vehicle(s).</p>
+   592→            </div>
+   593→          </div>
+   594→
+   595→          <DocUploader
+   596→            idPrefix="sva-new"
+   597→            docs={docs}
+   598→            uploading={uploading}
+   599→            onAdd={handleFiles}
+   600→            onRemove={(url) => setDocs((prev) => prev.filter((d) => d.url !== url))}
+   601→            title="Identity & ownership documents"
+   602→            hint="Attach your government ID (national ID or passport) plus a logbook/ownership document: or an authority-to-sell letter for each vehicle you're listing."
+   603→          />
+   604→
+   605→          <div className="grid gap-1.5">
+   606→            <Label htmlFor="sva-notes">Notes for the review team (optional)</Label>
+   607→            <Textarea
+   608→              id="sva-notes"
+   609→              rows={3}
+   610→              maxLength={2000}
+   611→              value={form.notes}
+   612→              onChange={(e) => set('notes', e.target.value)}
+   613→              placeholder="Anything that helps the reviewer: e.g. the vehicle(s) you plan to list…"
+   614→            />
+   615→          </div>
+   616→
+   617→          <label className="flex items-start gap-2.5 text-sm leading-relaxed" htmlFor="sva-consent">
+   618→            <Checkbox id="sva-consent" className="mt-0.5" checked={consent} onCheckedChange={(v) => setConsent(v === true)} />
+   619→            <span>I confirm the information and documents are true and I accept the verification terms and privacy notice.</span>
+   620→          </label>
+   621→
+   622→          {apiError && (
+   623→            <Alert className="border-destructive/40 bg-destructive/5 text-destructive [&>svg]:text-destructive">
+   624→              <AlertTriangle className="h-4 w-4" />
+   625→              <AlertTitle>Couldn&apos;t submit the application</AlertTitle>
+   626→              <AlertDescription>{apiError}</AlertDescription>
+   627→            </Alert>
+   628→          )}
+   629→
+   630→          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+   631→            Verification is completed by our review team after document checks; it is never automatic.
+   632→            Initial review target: 24 business hours.
+   633→          </p>
+   634→
+   635→          <Button onClick={submit} disabled={submitting} className="min-h-11 px-6">
+   636→            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Submit for verification
+   637→          </Button>
+   638→        </div>
+   639→      )}
+   640→    </div>
+   641→  )
+   642→}
+   643→
+   644→// ───────────────────── Edge: approved but session not refreshed ─────────────────────
+   645→
+   646→function ApprovedPendingRole({ onRefresh }: { onRefresh: () => void }) {
+   647→  return (
+   648→    <Alert>
+   649→      <BadgeCheck className="h-4 w-4 text-primary" />
+   650→      <AlertTitle>Verification approved</AlertTitle>
+   651→      <AlertDescription className="flex flex-wrap items-center gap-3">
+   652→        <span>Your documents were approved by the review team.</span>
+   653→        <Button type="button" variant="outline" size="sm" className="h-9" onClick={onRefresh}>
+   654→          <RefreshCw className="h-4 w-4" /> Refresh status
+   655→        </Button>
+   656→      </AlertDescription>
+   657→    </Alert>
+   658→  )
+   659→}
+   660→
+   661→// ───────────────────────────── Panel ─────────────────────────────
+   662→
+   663→export function VerificationPanel() {
+   664→  const { user, refresh } = useAuth()
+   665→  const verified = hasAnyRole(user, 'SELLER_VERIFIED')
+   666→  const { app, loading, error, reload } = useSellerApplication(!!user && !verified)
+   667→
+   668→  const onActionDone = () => {
+   669→    reload()
+   670→    void refresh()
+   671→  }
+   672→
+   673→  if (!user) return null
+   674→
+   675→  if (verified) return <VerifiedCard />
+   676→
+   677→  return (
+   678→    <Card>
+   679→      <CardHeader className="pb-3">
+   680→        <CardTitle className="flex items-center gap-2 text-base">
+   681→          <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" /> Seller verification
+   682→        </CardTitle>
+   683→        <CardDescription>
+   684→          A one-time manual document review adds the verified trust marker buyers look for.
+   685→        </CardDescription>
+   686→      </CardHeader>
+   687→      <CardContent>
+   688→        {loading ? (
+   689→          <div className="space-y-3" aria-busy="true">
+   690→            <Skeleton className="h-5 w-52" />
+   691→            <Skeleton className="h-24 w-full rounded-xl" />
+   692→          </div>
+   693→        ) : error ? (
+   694→          <Alert className="border-destructive/40 bg-destructive/5 text-destructive [&>svg]:text-destructive">
+   695→            <AlertTriangle className="h-4 w-4" />
+   696→            <AlertTitle>Couldn&apos;t load your verification status</AlertTitle>
+   697→            <AlertDescription className="flex flex-wrap items-center gap-3">
+   698→              <span>{error}</span>
+   699→              <Button type="button" variant="outline" size="sm" className="h-9" onClick={reload}>
+   700→                <RefreshCw className="h-4 w-4" /> Try again
+   701→              </Button>
+   702→            </AlertDescription>
+   703→          </Alert>
+   704→        ) : !app || app.status === 'DRAFT' ? (
+   705→          <NotStarted user={user} previousApp={app} onDone={onActionDone} />
+   706→        ) : app.status === 'MORE_INFO_REQUIRED' ? (
+   707→          <ActionRequired app={app} onDone={onActionDone} />
+   708→        ) : IN_REVIEW_STATUSES.includes(app.status) ? (
+   709→          <InProgress app={app} />
+   710→        ) : app.status === 'APPROVED' ? (
+   711→          <ApprovedPendingRole onRefresh={() => void refresh()} />
+   712→        ) : (
+   713→          <NotStarted user={user} previousApp={app} onDone={onActionDone} />
+   714→        )}
+   715→      </CardContent>
+   716→    </Card>
+   717→  )
+   718→}
+   719→
