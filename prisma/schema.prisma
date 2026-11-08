@@ -506,6 +506,7 @@ model Org {
   memberOrg       BusinessMembership[] @relation("MembershipOrg")
   customerOrdersAsSupplier CustomerOrder[] @relation("CustomerOrderSupplier")
   verificationDocuments VerificationDocument[] @relation("DocumentOrg")
+  settlements    Settlement[] @relation("SupplierSettlements")
 }
 
 model OrgMember {
@@ -1414,6 +1415,7 @@ model PurchaseOrder {
   refunds      Refund[]
   disputes     Dispute[]
   events       POEvent[]
+  settlements  Settlement[] @relation("OrderSettlements")
 
   @@index([garageOrgId, status])
   @@index([supplierOrgId, status])
@@ -1567,6 +1569,58 @@ model Refund {
   createdAt      DateTime @default(now())
 
   @@index([orderId])
+}
+
+// ── Supplier settlements ─────────────────────────────────────────────────
+// Auditable payout ledger for released protected payments. A settlement is
+// CREATED (PENDING) when a purchase order payment is RELEASED to the
+// supplier's benefit; it becomes SETTLED only when a payout provider confirms
+// the transfer or FINANCE records a manual reconciliation with a reference.
+// No code path ever marks money as moved without that confirmation.
+
+model Settlement {
+  id               String    @id @default(cuid())
+  refCode          String    @unique
+  orgId            String
+  org              Org       @relation("SupplierSettlements", fields: [orgId], references: [id], onDelete: Cascade)
+  orderId          String?
+  order            PurchaseOrder? @relation("OrderSettlements", fields: [orderId], references: [id], onDelete: SetNull)
+  kind             String    @default("PO_RELEASE") // PO_RELEASE | REFUND_ADJUSTMENT | MANUAL
+  amountMinor      Int       // released gross amount this settlement covers
+  commissionMinor  Int       @default(0) // platform commission deducted
+  netMinor         Int       // amount owed to supplier = amountMinor - commissionMinor
+  currency         String    @default("KES")
+  status           String    @default("PENDING") // PENDING | PROCESSING | SETTLED | FAILED | ON_HOLD | CANCELLED
+  provider         String?   // MPESA_B2C | MANUAL
+  providerRef      String?   // provider conversation/receipt reference
+  attempts         Int       @default(0)
+  lastError        String?
+  holdReason       String?
+  reconciledById   String?
+  reconciledByName String?
+  reconciledNote   String?
+  settledAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  events           SettlementEvent[]
+
+  @@index([orgId, status])
+  @@index([status, createdAt])
+  @@index([orderId])
+}
+
+model SettlementEvent {
+  id           String     @id @default(cuid())
+  settlementId String
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  type         String     // CREATED | PAYOUT_ATTEMPT | SETTLED | FAILED | HOLD | HOLD_RELEASED | CANCELLED | NOTE
+  actorId      String?
+  actorName    String?
+  actorSide    String     @default("SYSTEM") // SYSTEM | FINANCE | ADMIN | SUPPLIER
+  note         String?
+  createdAt    DateTime   @default(now())
+
+  @@index([settlementId, createdAt])
 }
 
 model Dispute {

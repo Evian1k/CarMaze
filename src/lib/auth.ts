@@ -8,10 +8,23 @@ const SESSION_DAYS = 7
 /** Default demo session lifetime: 2 weeks. */
 export const DEMO_SESSION_MINUTES_DEFAULT = 14 * 24 * 60
 
-// Dev fallback secret: in production always set AUTH_SECRET env var.
-const secret = new TextEncoder().encode(
-  process.env.AUTH_SECRET || 'carmaze-dev-secret-change-in-production'
-)
+// Session signing secret.
+// PRODUCTION: AUTH_SECRET is mandatory and must be >= 32 characters — the
+// module fails fast at boot rather than silently running with a known value.
+// DEVELOPMENT: a clearly-named dev fallback keeps the sandbox usable.
+function resolveSessionSecret(): Uint8Array {
+  const provided = process.env.AUTH_SECRET
+  if (provided && provided.length >= 32) return new TextEncoder().encode(provided)
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'AUTH_SECRET is not configured: set a strong (>= 32 character) AUTH_SECRET environment variable before running in production.'
+    )
+  }
+  console.warn('[auth] AUTH_SECRET not set — using the development fallback secret. NEVER run in production like this.')
+  return new TextEncoder().encode('carmaze-dev-secret-change-in-production')
+}
+
+const secret = resolveSessionSecret()
 
 export const ROLE = {
   CUSTOMER: 'CUSTOMER',

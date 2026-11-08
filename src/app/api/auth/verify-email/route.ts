@@ -6,6 +6,7 @@ import { route, ok, fail, parseBody } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/audit'
 import { sixDigitCode } from '@/lib/ids'
+import { emailProviderConfigured, sendEmail } from '@/lib/providers/email'
 
 const schema = z.object({
   action: z.enum(['request', 'confirm']),
@@ -14,9 +15,13 @@ const schema = z.object({
 
 /**
  * Email address verification.
- * HONESTY NOTE: this deployment has no SMTP configured, so the request action
- * returns the generated code in the response and clearly labels it as a
- * development-mode code. It is never represented as a real email delivery.
+ *
+ *  - SMTP configured (SMTP_URL): the code is sent by the real provider and
+ *    NEVER returned in the response.
+ *  - No provider, production: honest 503 — the code is never leaked in an
+ *    HTTP response, because without a provider it could not be delivered.
+ *  - No provider, development only: the code is returned explicitly labelled
+ *    as a development-mode code (sandbox affordance, never in production).
  */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
@@ -27,14 +32,28 @@ export const POST = route(async (req: NextRequest) => {
     if (!rl.allowed) return fail(429, 'RATE_LIMITED', `Too many verification requests. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
     const code = sixDigitCode()
     await db.user.update({ where: { id: user.id }, data: { emailCode: code } })
-    const smtpConfigured = Boolean(process.env.SMTP_URL)
+
+    if (emailProviderConfigured()) {
+      const result = await sendEmail({
+        to: user.email,
+        subject: `CARMAZE verification code: ${code}`,
+        text: `Your CARMAZE email verification code is ${code}. If you did not request this, ignore this email.`,
+      })
+      if (result.accepted) {
+        return ok({ sent: true, channel: 'email', message: 'A verification code was sent to your email address.' })
+      }
+      return fail(502, 'SEND_FAILED', `The verification email could not be sent (${result.detail}). Please try again shortly.`)
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      return fail(503, 'CHANNEL_NOT_CONFIGURED', 'Email delivery is not configured on this deployment. Contact CARMAZE support to verify your account.')
+    }
+
     return ok({
       sent: true,
-      channel: smtpConfigured ? 'email' : 'dev',
-      devCode: smtpConfigured ? undefined : code,
-      message: smtpConfigured
-        ? 'A verification code was sent to your email address.'
-        : 'Email delivery is not configured on this deployment; showing the development code instead. This is not a real email delivery.',
+      channel: 'dev',
+      devCode: code,
+      message: 'Email delivery is not configured on this deployment; showing the development code instead. This is not a real email delivery.',
     })
   }
 

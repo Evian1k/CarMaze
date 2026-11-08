@@ -77,6 +77,7 @@ export function BecomeSupplierDialog({ open, onOpenChange }: { open: boolean; on
     for (const file of Array.from(files).slice(0, room)) {
       const fd = new FormData()
       fd.set('file', file)
+      fd.set('kind', 'document') // business documents are PRIVATE (owner + reviewers only)
       try {
         const res = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
         setDocuments((d) => [...d, { name: file.name, url: res.url }])

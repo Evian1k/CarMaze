@@ -11,6 +11,7 @@ import {
   requireOrgMember, roleCan, poEvent, deliveryEvent,
   releaseReservation, fulfillStock, computeCommission, getFees, jsonParse,
 } from '@/lib/supply'
+import { createSettlementForRelease, holdSettlementsForOrder } from '@/lib/settlements'
 
 export const dynamic = 'force-dynamic'
 
@@ -493,6 +494,15 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         await db.invoice.update({ where: { id: order.invoiceId }, data: { status: 'PAID', paidAt: new Date() } })
       }
       await poEvent(id, { type: 'RELEASED', actorId: user.id, actorName: user.name, actorSide: side, note: `Released ${(accepted / 100).toLocaleString()} KES to supplier. Platform commission: ${(commission / 100).toLocaleString()} KES recorded separately.` })
+      // Supplier settlement: money is now OWED to the supplier (PENDING) — it
+      // becomes SETTLED only on payout-provider confirmation or an audited
+      // FINANCE reconciliation. Never simulated here.
+      await createSettlementForRelease({
+        supplierOrgId: order.supplierOrgId,
+        orderId: id,
+        releasedMinor: accepted,
+        commissionMinor: commission,
+      })
       await audit({
         actorId: user.id, actorName: user.name,
         action: 'PAYMENT_RELEASED', targetType: 'PURCHASE_ORDER', targetId: id,
@@ -522,6 +532,8 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         },
       })
       await db.purchaseOrder.update({ where: { id }, data: { status: 'DISPUTED' } })
+      // Hold any owed payout for this order until the dispute resolves.
+      await holdSettlementsForOrder(id, `Dispute ${dispute.refCode}: ${body.reason}`)
       await poEvent(id, { type: 'NOTE', actorId: user.id, actorName: user.name, actorSide: side, note: `Dispute ${dispute.refCode} opened (${body.reason}). Amount frozen where supported.` })
       await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_OPENED', targetType: 'DISPUTE', targetId: dispute.id, metadata: { order: order.refCode, reason: body.reason } })
       const { staffUserIds } = await import('@/lib/orgs')

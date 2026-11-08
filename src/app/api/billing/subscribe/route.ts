@@ -12,14 +12,19 @@ const bodySchema = z.object({
 })
 
 /**
- * POST /api/billing/subscribe: authenticated users with an org membership
- * (DEALER_OWNER for DEALER plans / GARAGE_OWNER for GARAGE plans).
+ * POST /api/billing/subscribe: authenticated owners of an org whose type
+ * matches the plan audience (DEALER_OWNER / GARAGE_OWNER / SUPPLIER_OWNER).
  *
  * IMPORTANT (honest billing): this creates a PENDING invoice only. The
  * subscription itself is NOT created or activated here; it is activated
  * exclusively when payment is confirmed (M-Pesa Daraja callback with
  * ResultCode 0, or a FINANCE manual reconciliation via mark-paid).
  */
+const AUDIENCE_ROLE: Record<string, string> = {
+  DEALER: 'DEALER_OWNER',
+  GARAGE: 'GARAGE_OWNER',
+  SUPPLIER: 'SUPPLIER_OWNER',
+}
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const rl = rateLimit(`subscribe:${user.id}:${getIp(req)}`, 10, 60 * 60 * 1000)
@@ -29,9 +34,13 @@ export const POST = route(async (req: NextRequest) => {
   const plan = await db.plan.findUnique({ where: { code: body.planCode } })
   if (!plan || !plan.active) return fail(404, 'PLAN_NOT_FOUND', 'That plan does not exist or is no longer offered.')
 
-  const requiredRole = plan.audience === 'DEALER' ? 'DEALER_OWNER' : 'GARAGE_OWNER'
+  const requiredRole = AUDIENCE_ROLE[plan.audience]
+  if (!requiredRole) {
+    return fail(400, 'UNSUPPORTED_AUDIENCE', `Plan audience "${plan.audience}" is not supported.`)
+  }
+  const audienceLabel = plan.audience === 'DEALER' ? 'verified dealerships' : plan.audience === 'GARAGE' ? 'verified garages' : 'verified suppliers'
   if (!user.roles.includes(requiredRole)) {
-    return fail(403, 'ROLE_REQUIRED', `This plan is for ${plan.audience === 'DEALER' ? 'verified dealerships' : 'verified garages'}. Your account must be an approved ${plan.audience === 'DEALER' ? 'dealer' : 'garage'} owner.`)
+    return fail(403, 'ROLE_REQUIRED', `This plan is for ${audienceLabel}. Your account must be an approved ${plan.audience.toLowerCase()} owner.`)
   }
 
   const memberships = await db.orgMember.findMany({

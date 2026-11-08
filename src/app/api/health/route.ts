@@ -1,6 +1,8 @@
 import { db } from '@/lib/db'
 import { route, ok } from '@/lib/api'
-import { mpesaConfigured } from '@/lib/mpesa'
+import { mpesaConfigured, mpesaB2cConfigured } from '@/lib/mpesa'
+import { emailProviderConfigured } from '@/lib/providers/email'
+import { smsProviderConfigured, smsProviderName } from '@/lib/providers/sms'
 
 /** Health check: real DB connectivity + honest integration status. */
 export const GET = route(async () => {
@@ -17,8 +19,9 @@ export const GET = route(async () => {
     checks: {
       database: dbStatus,
       mpesa: mpesaConfigured() ? 'configured' : 'not_configured',
-      email: process.env.SMTP_URL ? 'configured' : 'not_configured',
-      sms: process.env.SMS_API_KEY ? 'configured' : 'not_configured',
+      mpesa_b2c: mpesaB2cConfigured() ? 'configured' : 'not_configured',
+      email: emailProviderConfigured() ? 'configured' : 'not_configured',
+      sms: smsProviderConfigured() ? `configured (${smsProviderName()})` : 'not_configured',
       ai: 'managed_sdk',
     },
   })

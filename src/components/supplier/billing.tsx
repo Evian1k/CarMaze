@@ -1,19 +1,20 @@
 'use client'
 
-/* SupplierOS: Billing tab: supplier subscription plans, invoices and M-Pesa
- * payment. HONEST BILLING RULES (mirroring the platform contract):
+/* SupplierOS: Billing tab: supplier subscription plans, invoices, M-Pesa
+ * payment and the supplier settlement ledger. HONEST BILLING RULES (mirroring
+ * the platform contract):
  *  - Subscribing creates a PENDING invoice only; the subscription activates
  *    exclusively after payment is confirmed by M-Pesa Daraja callback or
  *    platform finance reconciliation. Never claim otherwise.
  *  - M-Pesa STK push failures (incl. unconfigured deployments) are surfaced
  *    verbatim from the API: no simulated payments, ever.
- *  - The subscribe endpoint currently gates supplier plans behind a garage
- *    owner role (reported mismatch). The API error is shown verbatim; the UI
- *    never hides it behind fake success. */
+ *  - Settlements show money OWED from released protected payments; they are
+ *    marked SETTLED only on provider confirmation or audited finance
+ *    reconciliation — never by this UI. */
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Check, Info, Loader2, Receipt, Wallet } from 'lucide-react'
+import { Check, Info, Loader2, Receipt, Wallet, Landmark } from 'lucide-react'
 import { apiSend } from '@/lib/client'
 import { money, dateLabel } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -33,9 +34,42 @@ import {
 type PlansPayload = { plans: PlanItem[]; packages?: unknown[] }
 type InvoicesPayload = { invoices: InvoiceItem[]; scope: string }
 
+type SettlementItem = {
+  id: string
+  refCode: string
+  kind: string
+  amountMinor: number
+  commissionMinor: number
+  netMinor: number
+  currency: string
+  status: string
+  provider: string | null
+  providerRef: string | null
+  attempts: number
+  lastError: string | null
+  holdReason: string | null
+  settledAt: string | null
+  createdAt: string
+  order: { refCode: string } | null
+}
+type SettlementsPayload = {
+  settlements: SettlementItem[]
+  totals: { pendingNetMinor: number; processingNetMinor: number; settledNetMinor: number; onHoldNetMinor: number }
+}
+
+const SETTLEMENT_BADGE: Record<string, string> = {
+  PENDING: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+  PROCESSING: 'bg-sky-500/15 text-sky-700 dark:text-sky-400',
+  SETTLED: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
+  FAILED: 'bg-red-500/15 text-red-700 dark:text-red-400',
+  ON_HOLD: 'bg-orange-500/15 text-orange-700 dark:text-orange-400',
+  CANCELLED: 'bg-muted text-muted-foreground',
+}
+
 export function BillingTab() {
   const plans = useFetch<PlansPayload>('/api/billing/plans')
   const invoices = useFetch<InvoicesPayload>('/api/billing/invoices?org=1')
+  const settlements = useFetch<SettlementsPayload>('/api/settlements')
   const [busyCode, setBusyCode] = useState<string | null>(null)
   const [payInvoice, setPayInvoice] = useState<InvoiceItem | null>(null)
 
@@ -146,6 +180,63 @@ export function BillingTab() {
         </CardContent>
       </Card>
 
+      {/* Settlements */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><Landmark className="h-4 w-4" /> Settlements</CardTitle>
+          <CardDescription>
+            Money owed to you from released protected payments. A payout is marked settled only after the payment
+            provider confirms the transfer or platform finance reconciles it with an external reference.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {settlements.loading ? (
+            <LoadingBlock label="Loading settlements…" />
+          ) : settlements.error ? (
+            <ModuleNotice title="Settlements could not load" detail={settlements.error.message} retry={settlements.reload} />
+          ) : (settlements.data?.settlements.length ?? 0) === 0 ? (
+            <EmptyState
+              icon={<Landmark className="h-8 w-8" />}
+              title="No settlements yet"
+              detail="When a garage releases payment on one of your orders, the payout owed appears here."
+            />
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <SettlementStat label="Owed (pending)" minor={settlements.data?.totals.pendingNetMinor ?? 0} />
+                <SettlementStat label="Processing" minor={settlements.data?.totals.processingNetMinor ?? 0} />
+                <SettlementStat label="Settled" minor={settlements.data?.totals.settledNetMinor ?? 0} />
+                <SettlementStat label="On hold" minor={settlements.data?.totals.onHoldNetMinor ?? 0} />
+              </div>
+              <ul className="max-h-72 divide-y divide-border overflow-y-auto scrollbar-thin">
+                {(settlements.data?.settlements ?? []).map((s) => (
+                  <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                        <span className="font-mono text-xs text-muted-foreground">{s.refCode}</span>
+                        {s.order && <span className="text-xs text-muted-foreground">order {s.order.refCode}</span>}
+                        <Badge variant="secondary" className={cn('border-transparent', SETTLEMENT_BADGE[s.status] ?? 'bg-muted text-muted-foreground')}>
+                          {s.status === 'PENDING' ? 'Owed to you' : s.status === 'PROCESSING' ? 'Payout in progress' : s.status === 'ON_HOLD' ? 'On hold' : s.status === 'SETTLED' ? 'Settled' : s.status}
+                        </Badge>
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Net {money(s.netMinor, s.currency)} (gross {money(s.amountMinor, s.currency)} · commission {money(s.commissionMinor, s.currency)})
+                      </p>
+                      {s.holdReason && <p className="mt-0.5 text-xs text-orange-600 dark:text-orange-400">Held: {s.holdReason}</p>}
+                      {s.lastError && <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">Last error: {s.lastError}</p>}
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground">
+                      {s.settledAt ? `settled ${dateLabel(s.settledAt)}` : `created ${dateLabel(s.createdAt)}`}
+                      {s.provider && <p>{s.provider === 'MANUAL' ? 'reconciled by finance' : s.provider}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {payInvoice && (
         <MpesaPayDialog
           invoice={payInvoice}
@@ -244,5 +335,14 @@ function MpesaPayDialog({ invoice, onClose, onPaid }: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function SettlementStat({ label, minor }: { label: string; minor: number }) {
+  return (
+    <div className="rounded-md border bg-muted/40 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-sm font-semibold">{money(minor, 'KES')}</p>
+    </div>
   )
 }
