@@ -12,6 +12,7 @@ This is the **index document**. CARMAZE's documentation is large, so it is split
 | Part | Topic | File |
 |---|---|---|
 | Index + Part 1 + Part 22 (executive summary, glossary) | What CARMAZE is · handover orientation | **this file** |
+| Whole-platform narrative (10-page continuous read) | The entire story of the platform in one sitting | [CARMAZE_TEN_PAGE_NARRATIVE.md](CARMAZE_TEN_PAGE_NARRATIVE.md) |
 | Part 2 | How the website was built (technology stack) | [02-technology-stack.md](02-technology-stack.md) |
 | Part 3 | Complete project structure | [03-project-structure.md](03-project-structure.md) |
 | Part 4 | How the entire system works (browser → database flows) | [04-system-workflows.md](04-system-workflows.md) |
