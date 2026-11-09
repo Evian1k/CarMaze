@@ -1,0 +1,1277 @@
+# CARMAZE — COMPLETE PRODUCTION READINESS, SECURITY, PAYMENTS & BUSINESS REMEDIATION
+
+## YOUR ROLE
+
+Act as CARMAZE's principal software architect, senior full-stack engineer, application security engineer, database engineer, payment integration engineer, QA lead, and production-readiness auditor.
+
+You are working on the EXISTING CARMAZE CODEBASE.
+
+Your mission is to transform the existing implementation into a secure, reliable, genuinely functional, production-ready automotive ecosystem.
+
+This is an implementation assignment, not a documentation-only exercise.
+
+You must inspect the actual repository, independently verify every issue listed below, fix confirmed problems, implement missing functionality, run tests, and provide evidence of the results.
+
+Do not simply describe what should be done.
+
+Do not rebuild the platform from scratch.
+
+Do not discard working modules.
+
+Do not replace real functionality with mock data, simulated success messages, placeholder buttons, or hardcoded responses.
+
+Do not claim something works simply because a component or API route exists.
+
+---
+
+# PHASE 0 — PROTECT THE EXISTING PROJECT
+
+Before making changes:
+
+1. Inspect the complete repository structure.
+2. Identify the actual framework, dependencies, database, authentication system, API structure, frontend architecture, and deployment configuration.
+3. Read the existing CARMAZE documentation, especially:
+   - Part 5 — Every Role and Its Dashboard.
+   - Part 13 — Payments, Subscriptions and How CARMAZE Makes Money.
+   - Part 17 — Security, Privacy and Compliance.
+   - Part 20 — Known Limitations and Future Development.
+4. Compare the documentation against the actual source code.
+5. Identify existing functionality that is already implemented and tested.
+6. Identify unfinished, broken, frontend-only, backend-only, and demonstration-only functionality.
+7. Identify database risks and migration requirements.
+
+### Protection rules
+
+- Preserve existing working functionality and existing user journeys.
+- Do not delete database records or production data.
+- Do not reset, reseed, or overwrite a real database.
+- Never expose `.env` files, passwords, API tokens, private keys, or credentials in logs or documentation.
+- Never commit secrets.
+- Do not silently change existing database structures without an appropriate migration.
+- Back up data before any potentially destructive database operation.
+- Use the existing architecture unless there is a clearly justified technical reason to change it.
+- Do not upgrade major dependencies unnecessarily.
+- Do not modify unrelated working features simply for code-style preferences.
+
+Create a baseline report identifying the current state before implementation.
+
+---
+
+# PHASE 1 — SECURE FILE UPLOADS
+
+PRIORITY: CRITICAL
+
+The documentation identifies that frontend components call `POST /api/upload`, but the backend write endpoint is missing.
+
+Verify this independently and implement the complete upload workflow.
+
+### Requirements
+
+Implement a secure authenticated upload endpoint compatible with the existing frontend.
+
+Support the legitimate CARMAZE upload use cases:
+
+- Vehicle listing photographs.
+- Showroom and garage photographs.
+- Business logos and cover images.
+- Identity and business verification documents.
+- Vehicle ownership evidence.
+- Incident photographs and evidence.
+- Garage vehicle handover photographs.
+- Road-test and collection evidence.
+- Logistics proof-of-delivery photographs.
+- Relevant supporting documents.
+
+### Security requirements
+
+- Authenticate every private upload.
+- Enforce server-side permissions and ownership.
+- Apply the demo sandbox rules.
+- Enforce strict file-size limits.
+- Validate MIME types and actual file signatures.
+- Use an explicit file-type allowlist.
+- Generate unpredictable server-side filenames.
+- Prevent path traversal and filename injection.
+- Reject executable and dangerous file formats.
+- Prevent unauthorised overwriting.
+- Store sensitive documents separately from public marketplace images.
+- Never make identity documents publicly accessible.
+- Add malware-scanning integration where an available service can support it.
+- Record upload metadata, ownership, timestamps, file purpose, and access permissions.
+- Preserve existing private document access logging.
+- Implement appropriate cleanup for failed or abandoned uploads.
+
+Use the existing private file-serving and public media-serving routes where appropriate.
+
+Do not expose private documents through public media URLs.
+
+### Testing
+
+Test:
+
+- Valid authenticated uploads.
+- Unauthenticated uploads.
+- Unsupported formats.
+- Oversized files.
+- Spoofed MIME types.
+- Path traversal attempts.
+- Cross-user document access.
+- Cross-organisation access.
+- Demo upload isolation.
+- Private document access logging.
+- Failed upload recovery.
+
+All existing frontend upload callers must work with the implemented API.
+
+---
+
+# PHASE 2 — AUTHENTICATION AND ACCOUNT SECURITY
+
+PRIORITY: CRITICAL
+
+Inspect and harden all authentication functionality.
+
+### 2.1 Authentication secrets
+
+Remove every hardcoded development fallback for `AUTH_SECRET` from authentication, TOTP, and related security modules.
+
+Requirements:
+
+- Fail safely when required production secrets are missing.
+- Validate secret configuration during application startup.
+- Never use a development secret in production.
+- Document secure secret generation and rotation.
+- Never print secret values.
+
+### 2.2 Verification codes
+
+Replace all security-sensitive uses of `Math.random()` with cryptographically secure random generation.
+
+Implement:
+
+- Secure six-digit email and phone verification codes.
+- Expiration timestamps.
+- Maximum verification attempts.
+- Rate limiting.
+- Single-use verification.
+- Abuse prevention.
+- Proper audit records.
+- Safe error responses.
+
+A verification code must never remain valid indefinitely.
+
+### 2.3 Session security
+
+Implement a reliable session revocation strategy.
+
+At minimum:
+
+- Password reset invalidates existing sessions.
+- Password change invalidates sessions according to the security policy.
+- MFA reset and recovery are protected.
+- Suspended accounts lose access immediately.
+- Removed organisation staff lose access immediately.
+- Revoked permissions are checked against current database state.
+- Users can view and revoke their active sessions.
+- Sensitive actions can require recent authentication.
+
+Review JWT expiration, cookie configuration, refresh behaviour, CSRF protections, and session handling.
+
+Do not weaken existing authentication controls to make login easier.
+
+### 2.4 Account protection
+
+Review:
+
+- Registration.
+- Login.
+- Password reset.
+- Email verification.
+- Phone verification.
+- MFA enrollment.
+- MFA disablement.
+- Demo authentication.
+- Staff invitations.
+- Account suspension.
+- Account recovery.
+
+Ensure errors do not disclose whether an account exists unnecessarily.
+
+---
+
+# PHASE 3 — COMPLETE ROLE-BASED ACCESS CONTROL
+
+PRIORITY: CRITICAL
+
+CARMAZE supports multiple user types and business organisations.
+
+Preserve the existing role architecture while fixing permission gaps.
+
+Roles include:
+
+- Visitor.
+- Customer.
+- Private Seller.
+- Showroom Owner.
+- Showroom Manager and Staff.
+- Garage Owner.
+- Garage Manager.
+- Garage Reception.
+- Garage Technician.
+- Supplier Owner.
+- Supplier Staff.
+- Logistics Partner.
+- Platform Support.
+- Reviewer.
+- Moderator.
+- Finance.
+- Admin.
+- Founder.
+
+### Requirements
+
+1. Enforce permissions on the backend, not only in frontend navigation.
+2. Use deny-by-default access control.
+3. Validate organisation membership for every business resource.
+4. Enforce ownership for customer and seller resources.
+5. Prevent cross-tenant data exposure.
+6. Prevent users from assigning themselves elevated roles.
+7. Protect founder accounts from unauthorised administrative changes.
+8. Revoke permissions immediately after suspension or removal.
+9. Restrict demo accounts to demo resources.
+10. Keep platform administration separate from public business dashboards.
+
+### Garage permission granularity
+
+The current documentation identifies that reception staff and technicians have insufficiently differentiated permissions.
+
+Implement a granular GarageOS permission system.
+
+Suggested capabilities:
+
+**Garage Owner**
+- Full access to their organisation.
+- Billing and subscriptions.
+- Staff and branch management.
+- Permission assignment.
+- Vehicle custody oversight.
+- Sensitive vehicle release approval.
+
+**Garage Manager**
+- Daily operational management.
+- Job assignment.
+- Booking management.
+- Quote approval within authorised limits.
+- Custody oversight.
+- Staff task management.
+- No ownership transfer or unrestricted billing access.
+
+**Reception**
+- Customer check-in.
+- Booking management.
+- Quote intake.
+- Customer communication.
+- Vehicle handover initiation.
+- No independent authority to approve road tests or release vehicles unless explicitly authorised.
+
+**Technician**
+- Assigned jobs only.
+- Job notes and progress.
+- Assigned vehicle condition updates.
+- Work completion.
+- Requests for additional work approval.
+- No independent authority to collect, release, or authorise movement of customer vehicles.
+
+**Accountant**
+- Financial records and authorised invoices.
+- No unrestricted vehicle custody permissions.
+
+All permission assignments must be configurable, audited, and enforced server-side.
+
+Do not rely on the frontend to hide restricted buttons.
+
+### Testing
+
+Attempt prohibited actions using:
+
+- Direct API requests.
+- Modified client-side role values.
+- Forged cookies.
+- Cross-organisation identifiers.
+- Suspended accounts.
+- Removed staff accounts.
+- Expired demo sessions.
+
+All unauthorised operations must be denied.
+
+---
+
+# PHASE 4 — COMPLETE GARAGE VEHICLE CUSTODY PROTECTION
+
+PRIORITY: CRITICAL
+
+CARMAZE must protect customers when their vehicles are handed to garages.
+
+The principle is:
+
+**NO VEHICLE MOVES WITHOUT ACCOUNTABILITY.**
+
+Preserve the existing custody lifecycle and strengthen its controls.
+
+### Vehicle handover
+
+Capture:
+
+- Customer and vehicle identity.
+- Registration number.
+- VIN/chassis information where available.
+- Vehicle condition.
+- Existing damage.
+- Odometer reading.
+- Fuel level.
+- Declared valuables.
+- Handover photographs.
+- Work requested.
+- Agreed spending limit.
+- Expected completion date where available.
+- Receiving staff member.
+- Date and time.
+- Customer acknowledgement.
+- Garage acknowledgement.
+
+Generate a handover reference and a customer-accessible record.
+
+### Vehicle movement
+
+Every authorised movement must record:
+
+- Vehicle.
+- Responsible person.
+- Reason for movement.
+- Permission granted.
+- Date and time.
+- Starting mileage where applicable.
+- Ending mileage where applicable.
+- Condition evidence.
+- Outcome.
+
+### Road tests
+
+Implement strict authorisation.
+
+A repair permission must not automatically grant permission for personal vehicle use.
+
+A road test requires:
+
+- Customer authorisation.
+- Approved purpose.
+- Assigned driver.
+- Garage approval.
+- Start time.
+- Expected return time.
+- Odometer readings.
+- Return condition.
+- Recorded completion.
+
+### Additional repair work
+
+Implement a real customer approval workflow.
+
+When a technician discovers additional work:
+
+1. Create an additional-work approval request.
+2. Explain the work required.
+3. Show the additional price or estimate.
+4. Explain any expected delay.
+5. Notify the customer.
+6. Allow the customer to approve or decline.
+7. Record the decision and timestamp.
+8. Prevent unauthorised additional billable work.
+
+### Vehicle collection
+
+Strengthen the collection process.
+
+- Verify the authorised collector.
+- Require a secure, single-use collection reference.
+- Record the final vehicle condition.
+- Record final mileage.
+- Record outstanding issues.
+- Record the responsible releasing staff member.
+- Record customer confirmation.
+- Preserve the collection evidence.
+- Prevent unauthorised collection.
+
+Collection codes must have attempt limits, expiry, and secure storage.
+
+A garage must not be able to erase or silently rewrite historical custody events.
+
+### Disputes
+
+Customers must be able to dispute:
+
+- Missing vehicles.
+- Unauthorised movement.
+- Unauthorised road tests.
+- Missing valuables.
+- Unexpected damage.
+- Unapproved work.
+- Incorrect collection.
+- Disputed vehicle condition.
+
+Preserve evidence and audit history.
+
+AI may prioritise suspicious activity, but it must never independently declare a customer, garage, or employee guilty.
+
+---
+
+# PHASE 5 — FIX SUBSCRIPTIONS AND ENFORCE ENTITLEMENTS
+
+PRIORITY: CRITICAL
+
+The documentation identifies a supplier billing defect in:
+
+`POST /api/billing/subscribe`
+
+The current endpoint incorrectly gates non-dealer plans behind `GARAGE_OWNER`.
+
+Verify and fix the actual implementation.
+
+### Existing seeded plans
+
+Preserve the existing plan codes and seeded pricing unless a deliberate migration or founder-approved commercial change is required.
+
+Dealer plans:
+
+- dealer-starter: KES 4,900/month.
+- dealer-pro: KES 9,900/month.
+
+Garage plans:
+
+- garage-basic: KES 2,900/month.
+- garage-pro: KES 5,900/month.
+
+Supplier plans:
+
+- supplier-starter: KES 1,499/month.
+- supplier-pro: KES 3,999/month.
+- supplier-enterprise: KES 8,999/month.
+
+Existing documented limits must be inspected and enforced.
+
+### Requirements
+
+- Correct role-to-plan eligibility checks.
+- Correct organisation ownership checks.
+- Prevent users from purchasing plans for unrelated organisations.
+- Prevent suppliers from being incorrectly treated as garages.
+- Enforce staff limits server-side.
+- Enforce listing limits server-side.
+- Enforce featured listing limits server-side.
+- Enforce garage request-volume limits server-side.
+- Enforce supplier product and warehouse limits server-side.
+- Enforce plan-specific entitlements in every relevant API.
+- Provide useful upgrade messages.
+- Prevent concurrent requests from bypassing limits.
+- Preserve existing data when subscriptions expire.
+
+### Subscription lifecycle
+
+Implement or complete:
+
+- Subscription creation.
+- Activation following verified payment.
+- Trial support if approved by the founder.
+- Renewal.
+- Upgrade.
+- Downgrade.
+- Cancellation.
+- Expiration.
+- Grace period.
+- Failed payment handling.
+- Payment retry scheduling.
+- Invoice history.
+- Receipts.
+- Subscription status history.
+- Audit logging.
+
+Do not invent trial periods or silently change existing commercial terms. If trial configuration is not yet approved, implement it as an optional configurable feature and leave it disabled.
+
+### Plan management
+
+Administrators should be able to manage plan availability and entitlements without hardcoding commercial rules throughout the application.
+
+---
+
+# PHASE 6 — COMPLETE PAYMENT AND FINANCIAL INTEGRITY
+
+PRIORITY: CRITICAL
+
+CARMAZE currently has an M-Pesa integration foundation.
+
+Do not claim live payment functionality without evidence.
+
+### 6.1 M-Pesa Daraja
+
+Inspect `src/lib/mpesa.ts` and every related payment endpoint.
+
+Verify:
+
+- OAuth authentication.
+- STK Push request generation.
+- Phone number normalisation.
+- Amount conversion.
+- Callback handling.
+- Signature verification.
+- Amount integrity.
+- Idempotency.
+- Payment attempt recording.
+- Invoice activation.
+- Payment ownership checks.
+- Demo restrictions.
+- Failure handling.
+
+Ensure production callbacks fail closed when authentication cannot be verified.
+
+Never activate subscriptions, campaigns, orders, or protected payment authorisations based on a frontend response.
+
+Only verified provider confirmation may activate a paid invoice.
+
+### 6.2 Payment reconciliation
+
+Implement a reconciliation workflow.
+
+It must compare:
+
+- CARMAZE payment attempts.
+- Provider transaction references.
+- Invoice records.
+- Payment authorisations.
+- Successful callbacks.
+- Failed callbacks.
+- Pending transactions.
+- Duplicate events.
+- Amount discrepancies.
+
+Create an authorised Finance/Admin reconciliation dashboard.
+
+Do not fabricate missing provider transaction information.
+
+### 6.3 Supplier payments and settlements
+
+This is a major business requirement.
+
+The current documentation states that supplier settlement is out-of-band.
+
+Design and implement a proper settlement ledger that can accurately track:
+
+- Original buyer payment.
+- Payment provider reference.
+- Payment authorisation.
+- Order value.
+- Platform commission.
+- Supplier net payable.
+- Inspection result.
+- Release approval.
+- Settlement status.
+- Settlement reference.
+- Settlement date.
+- Refunds.
+- Partial refunds.
+- Disputes.
+- Adjustments.
+
+Suggested statuses:
+
+`PENDING_PAYMENT`
+`PAYMENT_CONFIRMED`
+`PROTECTED`
+`AWAITING_INSPECTION`
+`RELEASE_APPROVED`
+`RELEASED`
+`SETTLEMENT_PENDING`
+`SETTLED`
+`PARTIALLY_REFUNDED`
+`REFUNDED`
+`DISPUTED`
+`CANCELLED`
+
+Adapt the actual state machine to the existing data model rather than introducing contradictory statuses.
+
+### Critical money-handling rule
+
+A database record labelled PROTECTED is not proof that CARMAZE legally or technically holds funds.
+
+Before implementing any actual holding, escrow, split-payment, or automatic supplier payout mechanism:
+
+- Verify the supported payment provider capabilities.
+- Verify the appropriate commercial and legal arrangement.
+- Identify the actual settlement destination.
+- Establish how refunds and disputes are handled.
+- Identify any required licences or regulated payment partners.
+
+If the current Daraja integration cannot safely perform the intended money movement, do not simulate it.
+
+Implement the auditable settlement ledger and manual authorised reconciliation workflow first.
+
+Only mark a supplier as SETTLED after verifiable settlement evidence exists.
+
+### 6.4 Refunds
+
+The current refund records do not automatically move money through a provider.
+
+Improve this workflow.
+
+- Record full and partial refund requests.
+- Require authorised approval.
+- Record reasons.
+- Track refund amounts.
+- Prevent refunds exceeding the original paid amount.
+- Prevent duplicate refund processing.
+- Link refunds to provider references.
+- Track pending, confirmed, failed, and manually reconciled refunds.
+- Update financial reporting accurately.
+
+Never mark a refund as financially completed merely because an administrator created a refund record.
+
+### 6.5 Financial reporting
+
+Preserve the distinction between:
+
+- Collected revenue.
+- Pending receivables.
+- Projected MRR/ARR.
+- Supplier amounts payable.
+- Settled supplier amounts.
+- Platform commissions.
+- Refunds.
+- Marketplace GMV.
+
+Marketplace GMV must not be represented as CARMAZE revenue.
+
+Build all reporting from genuine database records.
+
+---
+
+# PHASE 7 — COMPLETE BUSINESS COMMUNICATIONS
+
+PRIORITY: HIGH
+
+The documentation identifies that email and SMS delivery transports are missing.
+
+Implement a reliable provider-based notification architecture.
+
+### Email
+
+Support:
+
+- Account verification.
+- Password recovery.
+- Staff invitations.
+- Business application updates.
+- Payment confirmations.
+- Subscription reminders.
+- Customer enquiries.
+- Quote notifications.
+- Booking confirmations.
+- Vehicle custody updates.
+- Road-test authorisations.
+- Collection alerts.
+- Security incidents.
+- Important account security notifications.
+
+### SMS
+
+Support essential time-sensitive notifications where an approved provider is configured.
+
+### Requirements
+
+- Provider configuration through environment variables.
+- No hardcoded credentials.
+- Queue-based processing.
+- Retry policies.
+- Failure tracking.
+- Delivery status where the provider supports it.
+- Duplicate prevention.
+- Notification preferences.
+- Appropriate user consent.
+- Template management.
+- Audit records.
+
+Keep in-app notifications functional independently.
+
+Do not claim that a message was delivered if the provider only accepted the request.
+
+When a provider is not configured, clearly report the missing configuration.
+
+---
+
+# PHASE 8 — SCHEDULED OPERATIONS AND AUTOMATION
+
+PRIORITY: HIGH
+
+The documentation identifies manual sweeps for certain time-dependent workflows.
+
+Implement reliable scheduled processing.
+
+Include:
+
+- Application SLA reminders.
+- Overdue application escalation.
+- Campaign expiration.
+- Subscription expiry.
+- Renewal reminders.
+- Failed payment reminders.
+- Pending quote reminders.
+- Booking reminders.
+- Sales enquiry follow-ups.
+- Customer vehicle collection reminders.
+- Incident escalation.
+- Pending notification retries.
+- Expired verification codes.
+- Expired demo sessions.
+- Retention and cleanup jobs where legally appropriate.
+
+Requirements:
+
+- Reliable scheduler or background job infrastructure.
+- Idempotent jobs.
+- Retry controls.
+- Execution logs.
+- Failure alerts.
+- No duplicate invoices.
+- No duplicate notifications.
+- No duplicate financial transactions.
+- Safe recovery after application restart.
+
+Do not rely on a user opening a dashboard to trigger essential business operations.
+
+---
+
+# PHASE 9 — DATABASE, BACKUPS AND RECOVERY
+
+PRIORITY: CRITICAL BEFORE PUBLIC LAUNCH
+
+Inspect the current database architecture.
+
+The documentation identifies SQLite and no Prisma migration history.
+
+Do not assume SQLite is suitable for every future production deployment.
+
+### Requirements
+
+1. Establish a reliable migration strategy.
+2. Create and maintain Prisma migration history.
+3. Make migrations reproducible.
+4. Validate database schema changes.
+5. Add automated backups.
+6. Document backup frequency and retention.
+7. Protect backup files and credentials.
+8. Implement restore procedures.
+9. Perform a restore test in an isolated environment.
+10. Document recovery objectives and operational procedures.
+
+If a migration to PostgreSQL is recommended, explain why and provide a safe migration plan.
+
+Do not silently switch databases or lose existing records.
+
+Ensure indexes and constraints protect financial and operational records.
+
+---
+
+# PHASE 10 — KENYA DATA PROTECTION AND PRIVACY READINESS
+
+PRIORITY: HIGH
+
+CARMAZE will process personal information, identity documents, vehicle records, contact details, business records, and potentially sensitive incident evidence.
+
+Review the platform against the Kenya Data Protection Act, 2019 and relevant applicable regulations.
+
+This is an engineering-readiness exercise, not a claim of legal certification.
+
+### Implement
+
+- A personal data inventory.
+- Data categories and processing purposes.
+- Appropriate lawful-basis and consent records.
+- Privacy notice version tracking.
+- Marketing consent management.
+- User data access requests.
+- User data export.
+- Data correction requests.
+- Data deletion or anonymisation workflows where legally appropriate.
+- Data retention schedules.
+- Secure document deletion.
+- Staff access records.
+- Breach incident management.
+- Breach-response procedures.
+- Data processor inventory.
+- Third-party data sharing records.
+
+### Sensitive information
+
+- Keep identity documents private.
+- Restrict document access to authorised roles.
+- Record access to sensitive files.
+- Avoid unnecessary collection of personal data.
+- Do not expose personal phone numbers publicly without appropriate authorisation.
+- Do not retain information indefinitely without a justified retention requirement.
+
+Do not delete financial, fraud, dispute, or legal records where a lawful retention obligation applies.
+
+Provide a clear list of matters requiring legal review, including any applicable ODPC registration obligations.
+
+---
+
+# PHASE 11 — ENFORCE ALL BUSINESS PLAN LIMITS
+
+PRIORITY: HIGH
+
+Review every plan entitlement across all business types.
+
+The current implementation must not rely on progress bars or frontend checks alone.
+
+Enforce entitlements at the API and database-operation level.
+
+### DealerOS
+
+- Listing quantity.
+- Featured listing quantity.
+- Staff seats.
+- Branch limits where applicable.
+- Promotions.
+- Business tools.
+- Analytics.
+
+### GarageOS
+
+- Service request volume.
+- Staff seats.
+- Branches where applicable.
+- Bookings and service management.
+- Promotions.
+- Advanced reporting.
+
+### SupplierOS
+
+- Product quantity.
+- Warehouse quantity.
+- Staff permissions.
+- Procurement tools.
+- Advanced reporting.
+
+### Requirements
+
+- Centralised entitlement service.
+- Consistent API checks.
+- Transaction-safe limit enforcement.
+- Clear limit errors.
+- Upgrade paths.
+- Admin override with audit.
+- Historical subscription preservation.
+
+Test attempts to bypass every limit using direct API requests and concurrent requests.
+
+---
+
+# PHASE 12 — COMPLETE SALES, GARAGE AND CUSTOMER WORKFLOWS
+
+PRIORITY: HIGH
+
+Do not introduce unrelated features before completing the workflows already present.
+
+### DealerOS
+
+Implement the missing sales lead assignment and follow-up capabilities identified in Part 20.
+
+Include:
+
+- Central enquiry inbox.
+- Assignment to staff.
+- Automatic assignment where configured.
+- Manual reassignment.
+- Follow-up dates.
+- Overdue alerts.
+- Viewing appointment tracking.
+- Enquiry status history.
+- Staff accountability.
+- Conversion reporting based on actual records.
+
+### GarageOS
+
+Complete:
+
+- Job cards.
+- Technician assignment.
+- Repair progress.
+- Additional-work approval.
+- Customer repair invoicing.
+- Work completion evidence.
+- Collection workflow.
+- Customer history.
+
+### Customer experience
+
+Complete:
+
+- Saved-search alerts.
+- Notification preferences.
+- Vehicle service reminders where actual data supports them.
+- My Garage.
+- Vehicle Passport history.
+- Quote acceptance and rejection.
+- Booking status.
+- Custody updates.
+- Dispute reporting.
+- Customer data access requests.
+
+Do not show fake vehicle history or invented service records.
+
+---
+
+# PHASE 13 — PRODUCTION INFRASTRUCTURE HARDENING
+
+Review:
+
+- Distributed rate limiting.
+- CSRF protection.
+- Content Security Policy.
+- Secure headers.
+- Request-size limits.
+- Input validation.
+- Output encoding.
+- Dependency vulnerabilities.
+- Error tracking.
+- Application monitoring.
+- Database monitoring.
+- Health checks.
+- Structured logs.
+- Secret management.
+- Deployment configuration.
+- Production environment validation.
+
+The current in-memory rate limiter is not sufficient for a multi-instance production deployment.
+
+Implement a shared rate-limiting solution appropriate to the actual hosting environment.
+
+Review all security-sensitive API endpoints.
+
+Never expose internal stack traces, secrets, or sensitive records to users.
+
+---
+
+# PHASE 14 — AUTOMATED TESTING AND REAL FUNCTIONAL VERIFICATION
+
+PRIORITY: CRITICAL
+
+Create or improve a proper testing system.
+
+The documentation says there is a security test suite, but no complete end-to-end testing infrastructure.
+
+Preserve existing security tests and extend them.
+
+### Required test categories
+
+**Authentication**
+- Registration.
+- Login.
+- Password reset.
+- Session revocation.
+- MFA.
+- Verification expiry.
+- Rate limiting.
+
+**Permissions**
+- Every role.
+- Direct API access.
+- Cross-tenant access.
+- Resource ownership.
+- Suspended users.
+- Removed staff.
+- Demo restrictions.
+
+**Uploads**
+- Valid files.
+- Invalid files.
+- Oversized files.
+- Private documents.
+- Access control.
+
+**Payments**
+- Valid payment callbacks.
+- Invalid signatures.
+- Duplicate callbacks.
+- Underpayments.
+- Incorrect amounts.
+- Failed transactions.
+- Refund limits.
+- Reconciliation.
+- Supplier settlement records.
+
+**Subscriptions**
+- Dealer subscription.
+- Garage subscription.
+- Supplier subscription.
+- Incorrect role.
+- Expired plan.
+- Failed renewal.
+- Staff limits.
+- Listing limits.
+- Request limits.
+- Product limits.
+
+**Garage custody**
+- Handover.
+- Road-test approval.
+- Unauthorised movement.
+- Additional-work approval.
+- Collection.
+- Invalid collection code.
+- Dispute.
+- Removed employee access.
+
+**Business workflows**
+- Dealer application.
+- Garage application.
+- Supplier application.
+- Staff invitation.
+- Enquiry assignment.
+- Quote.
+- Booking.
+- Order.
+- Inspection.
+- Dispute.
+- Refund.
+
+### Build verification
+
+- Remove any configuration that suppresses genuine TypeScript errors.
+- Fix TypeScript errors.
+- Run lint.
+- Run type checking.
+- Run unit tests.
+- Run integration tests.
+- Run security tests.
+- Run end-to-end tests.
+- Run production build.
+- Verify database migrations.
+
+Do not report success if a test was skipped or did not actually execute.
+
+Do not weaken tests to make them pass.
+
+---
+
+# PHASE 15 — DEMO ENVIRONMENT PROTECTION
+
+Preserve the existing demo system.
+
+Demo accounts must remain isolated from real customers and businesses.
+
+Verify:
+
+- Demo users cannot trigger real M-Pesa pushes.
+- Demo notifications cannot reach real users.
+- Demo staff cannot access real customer PII.
+- Demo admin cannot perform production-wide actions.
+- Demo orders cannot create real financial obligations.
+- Demo vehicle records cannot leak into public production listings.
+- Demo data can be safely reset without touching real data.
+
+Keep demo access useful for testing all legitimate role dashboards.
+
+Clearly label demonstration records and sessions.
+
+---
+
+# PHASE 16 — REVENUE AND BUSINESS OPERATIONS
+
+CARMAZE must be a sustainable business.
+
+Preserve the existing subscription and commission architecture while ensuring every revenue stream is genuine and accurately recorded.
+
+Review:
+
+1. Dealer subscriptions.
+2. Garage subscriptions.
+3. Supplier subscriptions.
+4. Featured vehicle promotions.
+5. Showroom promotions.
+6. Garage promotions.
+7. Supply network commissions.
+8. Membership platform fees.
+9. Future authorised referral commissions.
+10. Future inspection services.
+
+### Financial rules
+
+- Never count marketplace GMV as platform revenue.
+- Never count pending payments as collected revenue.
+- Never count projected subscriptions as money received.
+- Never report supplier payouts as completed without evidence.
+- Never activate paid entitlements before verified payment.
+- Never charge a customer without a clear disclosed amount.
+- Never create hidden commissions.
+- Never change plan prices without founder approval.
+
+Ensure the admin revenue dashboard calculates its figures from actual records.
+
+---
+
+# PHASE 17 — FINAL QUALITY ASSURANCE
+
+After implementation, review the complete platform as if preparing it for a real Kenyan public launch.
+
+Test the following complete journeys.
+
+### Customer
+
+Register → verify account → browse vehicles → save vehicle → contact seller → receive response → book viewing/test drive → manage vehicle → use garage services → track custody → collect vehicle → review business.
+
+### Private seller
+
+Register → verify identity as required → submit vehicle → upload evidence → staff review → publish → receive enquiries → handle dealer offers → mark vehicle sold.
+
+### Showroom
+
+Apply → submit documents → receive approval → activate subscription → configure storefront → add vehicles → obtain listing approvals → receive enquiries → assign staff → schedule viewings → manage leads → review revenue.
+
+### Garage
+
+Apply → submit documents → receive approval → configure services → activate subscription → receive request → quote → receive approval → book → receive vehicle → record condition → assign technician → request additional work approval → complete repair → invoice → release vehicle → receive review.
+
+### Supplier
+
+Apply → submit documents → receive approval → configure storefront → activate subscription → add products → manage inventory → receive order → respond → arrange delivery → confirm handover → complete inspection → record release → reconcile settlement.
+
+### Logistics partner
+
+Apply → approval → manage fleet → receive job → assign driver → accept job → collect → deliver → provide proof of delivery → track earnings records.
+
+### Platform operations
+
+Review applications → moderate listings → manage incidents → handle support → reconcile payments → process refunds → manage staff → monitor revenue → review audit records.
+
+For every journey, record:
+
+- Expected result.
+- Actual result.
+- Relevant API endpoints.
+- Database records created or changed.
+- Permission checks.
+- Notifications triggered.
+- Test outcome.
+- Outstanding limitations.
+
+---
+
+# PHASE 18 — FINAL REPORT AND HANDOVER
+
+Create an updated documentation folder under `docs/`.
+
+Produce:
+
+1. `CARMAZE_PRODUCTION_READINESS_REPORT.md`
+2. `CARMAZE_SECURITY_AUDIT.md`
+3. `CARMAZE_PAYMENT_AND_SETTLEMENT_REPORT.md`
+4. `CARMAZE_DATABASE_AND_BACKUP_GUIDE.md`
+5. `CARMAZE_DEPLOYMENT_GUIDE.md`
+6. `CARMAZE_TEST_RESULTS.md`
+7. `CARMAZE_REMAINING_BLOCKERS.md`
+8. `CARMAZE_ENVIRONMENT_VARIABLES.md`
+
+The documentation must reflect the actual final code.
+
+### Final status classifications
+
+Use these statuses:
+
+- VERIFIED WORKING
+- IMPLEMENTED BUT NOT EXTERNALLY VERIFIED
+- PARTIALLY IMPLEMENTED
+- NOT IMPLEMENTED
+- BLOCKED BY CREDENTIALS
+- BLOCKED BY EXTERNAL PROVIDER
+- REQUIRES LEGAL OR BUSINESS APPROVAL
+- FAILED TEST
+
+For each issue report:
+
+- Original problem.
+- Whether it was confirmed.
+- Root cause.
+- Implementation performed.
+- Files changed.
+- Database changes.
+- Tests performed.
+- Test results.
+- Remaining risk.
+
+### Final launch assessment
+
+Give CARMAZE one of these overall assessments:
+
+- NOT READY FOR PUBLIC LAUNCH
+- INTERNAL TESTING READY
+- LIMITED PILOT READY
+- PUBLIC PRODUCTION READY
+
+Never award PUBLIC PRODUCTION READY merely because the build succeeds.
+
+A production-ready assessment requires evidence for security, data protection, financial correctness, operational recovery, permissions, and all critical customer journeys.
+
+List all external requirements that I must personally complete, including:
+
+- Daraja credentials and live testing.
+- Webhook configuration.
+- Email provider.
+- SMS provider.
+- Production database and hosting.
+- Backup configuration.
+- Domain and SSL.
+- Any required legal or payment-provider arrangements.
+
+Do not ask me to paste secrets into chat or commit them to the repository.
+
+---
+
+# EXECUTION RULES — READ CAREFULLY
+
+1. Start by auditing the existing project.
+2. Independently verify the documented issues.
+3. Build a prioritised remediation checklist.
+4. Implement the highest-risk fixes first.
+5. Preserve existing working functionality.
+6. Make safe, incremental changes.
+7. Add migrations for schema changes.
+8. Test each implementation before moving on.
+9. Run complete regression testing.
+10. Update documentation only after verifying the actual implementation.
+11. Do not stop after producing a plan.
+12. Do not claim completion when work remains.
+13. Do not fabricate provider integrations, transactions, test results, or compliance achievements.
+14. Do not remove working features to make the code easier to maintain.
+15. If a task is blocked by missing credentials or an external dependency, complete the safe code-side work and document exactly what remains.
+16. If a migration or financial operation could risk real data, stop and request approval before performing the destructive operation.
+17. Do not invent commercial decisions. Preserve existing prices and terms unless I explicitly approve a change.
+
+## DEFINITION OF DONE
+
+This assignment is complete only when:
+
+- Critical security gaps are resolved.
+- Uploads work securely.
+- Supplier subscription access works correctly.
+- All business entitlements are enforced server-side.
+- Garage permissions protect customer vehicles.
+- Payment states accurately reflect provider evidence.
+- Supplier settlement records are auditable.
+- Database backup and restoration procedures are tested.
+- Privacy workflows are implemented to the agreed scope.
+- Scheduled jobs operate reliably.
+- Automated tests cover critical user journeys.
+- Production builds and type checks pass.
+- Remaining external dependencies are clearly documented.
+- The final report accurately reflects what is and is not ready.
+
+**FINAL INSTRUCTION: DO NOT JUST TELL ME HOW TO MAKE CARMAZE PRODUCTION READY. WORK THROUGH THE EXISTING CODEBASE AND MAKE IT PRODUCTION READY, ONE VERIFIED PHASE AT A TIME.**

@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { requireOwnOrg, jsonParse } from '@/lib/supply'
+import { getEntitlements, assertWithinLimit } from '@/lib/entitlements'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +82,18 @@ export const POST = route(async (req: NextRequest) => {
 
   const dup = await db.product.findUnique({ where: { supplierOrgId_sku: { supplierOrgId: ctx.orgId, sku: body.sku } } })
   if (dup) return fail(409, 'SKU_EXISTS', 'You already have a product with this SKU.')
+
+  // Plan entitlement (Phase 11): supplier plan product limits are enforced
+  // server-side from the seeded plan terms — not from frontend progress bars.
+  const ent = await getEntitlements(ctx.orgId)
+  const currentProducts = await db.product.count({ where: { supplierOrgId: ctx.orgId } })
+  assertWithinLimit({
+    current: currentProducts,
+    limit: ent.productLimit,
+    label: 'Product catalogue',
+    planName: ent.planName,
+    upgradeLink: '/account?tab=subscriptions',
+  })
 
   const product = await db.product.create({
     data: {

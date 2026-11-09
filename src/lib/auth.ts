@@ -59,7 +59,11 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
 
 export async function createSession(userId: string, opts?: { maxAgeSeconds?: number; demoRole?: string }): Promise<void> {
   const maxAgeSeconds = opts?.maxAgeSeconds ?? SESSION_DAYS * 24 * 60 * 60
-  const claims: Record<string, unknown> = { sub: userId }
+  // Session revocation: the token carries the user's current sessionVersion.
+  // Password reset / MFA disable increments it, instantly invalidating every
+  // previously issued token for that account (checked on every request).
+  const account = await db.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } })
+  const claims: Record<string, unknown> = { sub: userId, sv: account?.sessionVersion ?? 0 }
   if (opts?.demoRole) claims.demo = opts.demoRole
   const token = await new SignJWT(claims)
     .setProtectedHeader({ alg: 'HS256' })
@@ -123,6 +127,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     if (!userId) return null
     const user = await db.user.findUnique({ where: { id: userId } })
     if (!user || user.status !== 'ACTIVE') return null
+    // Session revocation: a token issued before the latest password reset /
+    // MFA change carries a stale sessionVersion and is rejected here.
+    if (typeof payload.sv === 'number' && payload.sv !== user.sessionVersion) return null
     return {
       id: user.id,
       email: user.email,

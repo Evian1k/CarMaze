@@ -40,14 +40,19 @@ model User {
   phone         String?
   phoneVerified Boolean  @default(false)
   phoneCode     String?
+  phoneCodeExpiresAt DateTime? // verification codes always expire
+  phoneCodeAttempts  Int       @default(0)  // confirm-attempt counter (cleared on success/new request)
   emailVerified Boolean  @default(false)
   emailCode     String?  // one-time email verification code (honest dev fallback when SMTP unconfigured)
+  emailCodeExpiresAt DateTime? // verification codes always expire
+  emailCodeAttempts  Int       @default(0)  // confirm-attempt counter (cleared on success/new request)
   roles         String   @default("CUSTOMER") // comma separated: CUSTOMER,SELLER,SELLER_VERIFIED,DEALER_OWNER,DEALER_STAFF,GARAGE_OWNER,GARAGE_STAFF,SUPPLIER_OWNER,SUPPLIER_STAFF,LOGISTICS_OWNER,PROCUREMENT,FINANCE,SUPPORT,REVIEWER,MODERATOR,ADMIN,FOUNDER
   department    String?  // company staff department (BUSINESS_VERIFICATION|SUPPORT|FINANCE|DISPUTES|FRAUD|MODERATION|TECHNICAL)
   totpSecret    String?  // base32 TOTP secret for MFA (null = MFA disabled)
   mfaEnabled    Boolean  @default(false)
   isDemo        Boolean  @default(false) // demo-experience account: sandboxed from real users/orgs, excluded from real notifications & payments
   status        String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  sessionVersion Int     @default(0) // bumped on password reset / MFA disable → all existing session JWTs invalid
   referralCode  String?  @unique // this user's own shareable referral code
   referredById  String?  // user who referred them (attribution — set once at registration)
   referredAt    DateTime?
@@ -94,6 +99,9 @@ model User {
   // ── Logistics network ──
   ownedLogisticsPartner LogisticsPartner?
   deliveryJobsRequested DeliveryJob[]       @relation("DeliveryJobRequester")
+
+  // ── Uploads ──
+  uploads UploadRecord[] @relation("UploadOwner")
 }
 
 // ───────────────────── Identity & security ─────────────────────
@@ -2067,4 +2075,26 @@ model CustomerOrderEvent {
   createdAt DateTime      @default(now())
 
   @@index([orderId, createdAt])
+}
+
+// ───────────────────── Uploads ─────────────────────
+
+// Metadata for every file accepted by POST /api/upload. The file bytes live on
+// disk (data/uploads[/media]); this record carries ownership, purpose and
+// visibility so uploads are auditable, user-listable and cleanable.
+model UploadRecord {
+  id          String   @id @default(cuid())
+  ownerUserId String
+  owner       User     @relation("UploadOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  fileName    String   @unique // server-generated <userId>.<16hex>.<ext> — matches both serving routes
+  url         String   // /api/media/<name> (PUBLIC) or /api/files/<name> (PRIVATE)
+  kind        String   // IMAGE | DOCUMENT
+  visibility  String   // PUBLIC | PRIVATE
+  mimeType    String   // verified actual (magic-byte) type, never the client-declared one
+  sizeBytes   Int
+  purpose     String?  // optional free text from the uploading flow (truncated)
+  createdAt   DateTime @default(now())
+
+  @@index([ownerUserId, createdAt])
+  @@index([visibility, createdAt])
 }

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireUser } from '@/lib/api'
 import { audit } from '@/lib/audit'
 import { requireOwnOrg, jsonParse } from '@/lib/supply'
+import { getEntitlements, assertWithinLimit } from '@/lib/entitlements'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,6 +65,19 @@ export const POST = route(async (req: NextRequest) => {
   }
   const dup = await db.orgBranch.findUnique({ where: { orgId_code: { orgId: body.orgId, code: body.code } } })
   if (dup) return fail(409, 'CODE_EXISTS', 'A branch with this code already exists.')
+
+  // Plan entitlement (Phase 11): warehouse limits from the seeded plan terms
+  // (supplier plans: 1 / 5 / unlimited). Dealers/garages keep their existing
+  // branch behaviour (no warehouse limit encoded = unlimited).
+  const ent = await getEntitlements(body.orgId)
+  const currentBranches = await db.orgBranch.count({ where: { orgId: body.orgId } })
+  assertWithinLimit({
+    current: currentBranches,
+    limit: ent.warehouseLimit,
+    label: 'Warehouse',
+    planName: ent.planName,
+    upgradeLink: '/account?tab=subscriptions',
+  })
 
   const first = (await db.orgBranch.count({ where: { orgId: body.orgId } })) === 0
   const branch = await db.orgBranch.create({

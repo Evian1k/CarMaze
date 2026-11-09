@@ -13,6 +13,7 @@ This is the **index document**. CARMAZE's documentation is large, so it is split
 |---|---|---|
 | Index + Part 1 + Part 22 (executive summary, glossary) | What CARMAZE is · handover orientation | **this file** |
 | Whole-platform narrative (10-page continuous read) | The entire story of the platform in one sitting | [CARMAZE_TEN_PAGE_NARRATIVE.md](CARMAZE_TEN_PAGE_NARRATIVE.md) |
+| **Final remediation report set (9 Nov)** | Production readiness · security audit · payments & settlements · database & backup · deployment · test results · remaining blockers · environment variables | [CARMAZE_PRODUCTION_READINESS_REPORT.md](CARMAZE_PRODUCTION_READINESS_REPORT.md) · [CARMAZE_SECURITY_AUDIT.md](CARMAZE_SECURITY_AUDIT.md) · [CARMAZE_PAYMENT_AND_SETTLEMENT_REPORT.md](CARMAZE_PAYMENT_AND_SETTLEMENT_REPORT.md) · [CARMAZE_DATABASE_AND_BACKUP_GUIDE.md](CARMAZE_DATABASE_AND_BACKUP_GUIDE.md) · [CARMAZE_DEPLOYMENT_GUIDE.md](CARMAZE_DEPLOYMENT_GUIDE.md) · [CARMAZE_TEST_RESULTS.md](CARMAZE_TEST_RESULTS.md) · [CARMAZE_REMAINING_BLOCKERS.md](CARMAZE_REMAINING_BLOCKERS.md) · [CARMAZE_ENVIRONMENT_VARIABLES.md](CARMAZE_ENVIRONMENT_VARIABLES.md) |
 | Part 2 | How the website was built (technology stack) | [02-technology-stack.md](02-technology-stack.md) |
 | Part 3 | Complete project structure | [03-project-structure.md](03-project-structure.md) |
 | Part 4 | How the entire system works (browser → database flows) | [04-system-workflows.md](04-system-workflows.md) |

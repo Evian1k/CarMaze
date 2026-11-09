@@ -1,5 +1,11 @@
 import { createLogger } from '@/lib/logger'
-import { runApplicationSweep, cleanupExpiredResetTokens } from '@/lib/sweeps'
+import {
+  runApplicationSweep,
+  cleanupExpiredResetTokens,
+  runSubscriptionExpirySweep,
+  runCampaignExpirySweep,
+  cleanupExpiredVerificationCodes,
+} from '@/lib/sweeps'
 import { audit } from '@/lib/audit'
 
 /**
@@ -7,12 +13,16 @@ import { audit } from '@/lib/audit'
  *
  * Started once per server process from src/instrumentation.ts. Interval jobs:
  *  - every 60 min: application SLA sweep (same rules as the admin endpoint)
+ *  - every 60 min: subscription expiry (3-day grace → PAST_DUE + owner notice)
+ *  - every 60 min: campaign expiry (ACTIVE past endsAt → ENDED)
  *  - every 24 h: expired password-reset token cleanup
+ *  - every 24 h: expired verification-code cleanup
  *
  * Guards:
  *  - ENABLE_JOBS=false disables everything (e.g. secondary workers)
  *  - a globalThis flag makes it hot-reload/once-per-process safe
  *  - every run is audit-logged so automation leaves the same trail as staff
+ *  - every job is idempotent (safe to re-run; no duplicate side effects)
  */
 
 const log = createLogger('jobs')
@@ -53,10 +63,31 @@ export function startScheduledJobs(): void {
     return JSON.stringify(stats)
   })
 
+  // Subscription expiry: hourly (3-day grace → PAST_DUE; owner notified once).
+  register('subscription-expiry-sweep', 60 * 60 * 1000, async () => {
+    const stats = await runSubscriptionExpirySweep()
+    if (stats.expired > 0) await audit({ action: 'SUBSCRIPTION_EXPIRY_SWEEP', metadata: { ...stats, source: 'scheduled-job' } })
+    return JSON.stringify(stats)
+  })
+
+  // Campaign expiry: hourly (ACTIVE past endsAt → ENDED; owner notified once).
+  register('campaign-expiry-sweep', 60 * 60 * 1000, async () => {
+    const stats = await runCampaignExpirySweep()
+    if (stats.ended > 0) await audit({ action: 'CAMPAIGN_EXPIRY_SWEEP', metadata: { ...stats, source: 'scheduled-job' } })
+    return JSON.stringify(stats)
+  })
+
   // Expired password-reset token cleanup: daily.
   register('reset-token-cleanup', 24 * 60 * 60 * 1000, async () => {
     const removed = await cleanupExpiredResetTokens(7)
     await audit({ action: 'RESET_TOKEN_CLEANUP', metadata: { removed, source: 'scheduled-job' } })
     return `${removed} expired tokens removed`
+  })
+
+  // Expired verification-code cleanup: daily (codes already expire on check;
+  // this removes the leftover values so they never linger in storage).
+  register('verification-code-cleanup', 24 * 60 * 60 * 1000, async () => {
+    const stats = await cleanupExpiredVerificationCodes()
+    return JSON.stringify(stats)
   })
 }

@@ -1,5 +1,7 @@
 # CARMAZE — POST-DOCUMENTATION ENGINEERING REMEDIATION REPORT
 
+> **SUPERSEDED (9 Nov 2026):** this interim report was written when two of its artifacts (`src/app/api/upload/route.ts`, `.env.example`) were still present; a sandbox file-loss incident removed them while the DB/lib work survived. The final, re-verified state — including the rebuilt upload endpoint, verification-code hardening, session revocation, entitlements, extended jobs, privacy endpoints and the restore drill — is documented in **`CARMAZE_PRODUCTION_READINESS_REPORT.md`** and the companion final report set (Security Audit, Payment & Settlement, Database & Backup, Deployment, Test Results, Remaining Blockers, Environment Variables). Keep this file for session history only.
+
 **8 Nov · Phase 5 final report. Every fix was implemented against the existing codebase (no rewrite), every claim below is backed by a test executed during this session. Nothing was mocked, nothing was simulated, no secrets are printed.**
 
 ---

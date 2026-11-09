@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/api'
-import { verifyPassword } from '@/lib/auth'
+import { createSession, verifyPassword } from '@/lib/auth'
 import { route, ok, fail, parseBody } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/audit'
@@ -27,7 +27,12 @@ export const POST = route(async (req: NextRequest) => {
     return fail(403, 'WRONG_PASSWORD', 'That password is not correct.')
   }
 
-  await db.user.update({ where: { id: user.id }, data: { totpSecret: null, mfaEnabled: false } })
+  // MFA reset protection: disabling MFA also bumps the session version so any
+  // other session that was opened before this change is signed out. The
+  // acting user's own session is re-issued with the new version (never for
+  // demo sessions, which carry a demo claim that must be preserved).
+  await db.user.update({ where: { id: user.id }, data: { totpSecret: null, mfaEnabled: false, sessionVersion: { increment: 1 } } })
+  if (!user.isDemo) await createSession(user.id)
   await audit({ actorId: user.id, actorName: user.name, action: 'MFA_DISABLED', targetType: 'USER', targetId: user.id })
 
   return ok({ enabled: false })

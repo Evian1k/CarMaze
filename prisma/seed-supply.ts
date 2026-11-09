@@ -383,6 +383,16 @@ export async function seedSupply(
     })
   }
 
+  // The flagship demo supplier runs on supplier-pro so the seeded catalogue
+  // (≈18 products, 1 warehouse) sits comfortably inside the plan's real
+  // entitlements ("Up to 500 products", "5 warehouses") — mirrors how the
+  // demo dealer/garage orgs carry active subscriptions.
+  await db.subscription.upsert({
+    where: { orgId: partsSupplier.id },
+    create: { orgId: partsSupplier.id, planCode: 'supplier-pro', status: 'ACTIVE', startedAt: daysFromNow(-45), currentPeriodEnd: daysFromNow(15) },
+    update: {},
+  })
+
   // ───────────── Business memberships (garage + showroom programmes) ─────────────
   const garageTierBasic = await db.membershipTier.upsert({
     where: { id: 'tier-garage-basic' },

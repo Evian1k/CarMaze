@@ -266,6 +266,126 @@ async function main() {
   const resetInfo = (list.json?.accounts ?? []).find((a: any) => a.roleKey === 'customer')
   check('reset recorded on registry', Boolean(resetInfo?.lastResetAt) && resetInfo?.resetCount >= 1, `lastResetAt=${resetInfo?.lastResetAt}, count=${resetInfo?.resetCount}`)
 
+  // ── 16. Secure uploads ──
+  section('Upload pipeline: authentication, type sniffing, size caps, isolation')
+  // The section-15 demo reset restores the full seeded baseline and removes
+  // users created before it — re-establish a real (non-demo) session here.
+  for (const k of Object.keys(realJar)) delete realJar[k]
+  let realRe = await req('POST', '/api/auth/register', realJar, { name: 'Real User Isolation', email: 'real.isolation@test.local', password: 'RealTest2025!x' })
+  if (realRe.status === 409) {
+    realRe = await req('POST', '/api/auth/login', realJar, { email: 'real.isolation@test.local', password: 'RealTest2025!x' })
+  }
+  check('real user session available for upload tests', realRe.status === 200 || realRe.status === 201, `status ${realRe.status}`)
+  async function uploadFile(jar: Jar, bytes: Uint8Array, filename: string, type: string, kind?: string): Promise<{ status: number; json: any }> {
+    const fd = new FormData()
+    fd.set('file', new Blob([new Uint8Array(bytes)], { type }), filename)
+    if (kind) fd.set('kind', kind)
+    const cookie = Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ')
+    const res = await fetch(`${BASE}/api/upload`, {
+      method: 'POST',
+      headers: { ...(cookie ? { Cookie: cookie } : {}) },
+      body: fd,
+    })
+    let json: any = null
+    try { json = await res.json() } catch { /* ignore */ }
+    return { status: res.status, json }
+  }
+  const PNG_SIG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13])
+  const PDF_SIG = new TextEncoder().encode('%PDF-1.4\n1 0 obj')
+  r = await req('POST', '/api/upload', {} as Jar)
+  check('anon upload rejected', r.status === 401, `status ${r.status}`)
+  let up = await uploadFile(realJar, PNG_SIG, 'photo.png', 'image/png')
+  check('valid PNG upload accepted (public media)', up.status === 201 && String(up.json?.url).startsWith('/api/media/'), `status ${up.status} url=${up.json?.url}`)
+  const mediaUrl: string = up.json?.url ?? ''
+  if (mediaUrl) {
+    const serve = await fetch(`${BASE}${mediaUrl}`)
+    check('uploaded media served with correct type', serve.status === 200 && (serve.headers.get('content-type') ?? '').startsWith('image/png'), `status ${serve.status} type=${serve.headers.get('content-type')}`)
+  }
+  up = await uploadFile(realJar, PDF_SIG, 'licence.pdf', 'application/pdf', 'document')
+  check('PDF document upload accepted (private files)', up.status === 201 && String(up.json?.url).startsWith('/api/files/'), `status ${up.status} url=${up.json?.url}`)
+  const docUrl: string = up.json?.url ?? ''
+  if (docUrl) {
+    const anonGet = await fetch(`${BASE}${docUrl}`)
+    check('private document NOT served anonymously', anonGet.status === 401, `status ${anonGet.status}`)
+    // The section-15 reset recreated the demo users, so start a fresh demo
+    // session for the cross-user isolation check.
+    const custAfterReset = await demoAs('customer')
+    const demoGet = await fetch(`${BASE}${docUrl}`, { headers: { Cookie: Object.entries(custAfterReset).map(([k, v]) => `${k}=${v}`).join('; ') } })
+    check('private document blocked for other (demo) user', demoGet.status === 403, `status ${demoGet.status}`)
+  }
+  up = await uploadFile(realJar, new TextEncoder().encode('definitely not an image'), 'evil.png', 'image/png')
+  check('text bytes claiming image/png rejected', up.status === 415 && ['UNSUPPORTED_TYPE', 'CONTENT_MISMATCH'].includes(up.json?.error), `status ${up.status} ${up.json?.error}`)
+  up = await uploadFile(realJar, PNG_SIG, 'photo.png', 'text/plain')
+  check('PNG bytes with text/plain declaration rejected (anti-spoof)', up.status === 415 && up.json?.error === 'CONTENT_MISMATCH', `status ${up.status} ${up.json?.error}`)
+  up = await uploadFile(realJar, PNG_SIG, 'photo.png', 'image/png', 'executable')
+  check('invalid upload kind rejected', up.status === 400, `status ${up.status} ${up.json?.error}`)
+  const big = new Uint8Array(9 * 1024 * 1024)
+  big.set(PNG_SIG.slice(0, 8), 0)
+  up = await uploadFile(realJar, big, 'big.png', 'image/png')
+  check('oversized image (9MB > 8MB) rejected', up.status === 413, `status ${up.status} ${up.json?.error}`)
+
+  // ── 17. Verification code lifecycle ──
+  section('Verification codes expire, are single-use and attempt-capped')
+  // Fresh user per run: the verify endpoints are rate-limited per account,
+  // so a reused account would trip its own request limit on repeat runs.
+  const vcJar: Jar = {}
+  const VC_EMAIL = `verify.codes.${Date.now()}@test.local`
+  const vcReg = await req('POST', '/api/auth/register', vcJar, { name: 'Verify Codes', email: VC_EMAIL, password: 'Vcodes2025!x' })
+  check('verification test user registered', vcReg.status === 200 || vcReg.status === 201, `status ${vcReg.status}`)
+  r = await req('POST', '/api/auth/verify-email', vcJar, { action: 'request' })
+  const devCode = r.json?.devCode
+  check('email verification code issued (dev channel, non-prod)', r.status === 200 && typeof devCode === 'string' && /^\d{6}$/.test(devCode), `status ${r.status} code-issued=${typeof devCode === 'string'}`)
+  for (let i = 0; i < 5; i++) {
+    r = await req('POST', '/api/auth/verify-email', vcJar, { action: 'confirm', code: '000000' })
+  }
+  check('five wrong attempts counted down', r.json?.error === 'INVALID_CODE' && String(r.json?.message).includes('0 attempts remaining'), `msg=${r.json?.message}`)
+  r = await req('POST', '/api/auth/verify-email', vcJar, { action: 'confirm', code: '000000' })
+  check('attempt cap invalidates code (TOO_MANY_ATTEMPTS)', r.json?.error === 'TOO_MANY_ATTEMPTS', `error=${r.json?.error}`)
+  r = await req('POST', '/api/auth/verify-email', vcJar, { action: 'confirm', code: devCode })
+  check('even the CORRECT code is dead after the cap', r.json?.error === 'INVALID_CODE', `error=${r.json?.error}`)
+
+  // ── 18. Session revocation on password reset ──
+  section('Password reset invalidates every existing session')
+  const REV_EMAIL = 'session.revoke@test.local'
+  const P_OLD = 'RevTest2025!x'
+  const P_NEW = 'RevTest2025!y'
+  const revJar: Jar = {}
+  let revLogin = await req('POST', '/api/auth/login', revJar, { email: REV_EMAIL, password: P_OLD })
+  if (revLogin.status !== 200) {
+    const fr = await req('POST', '/api/auth/forgot-password', {}, { email: REV_EMAIL })
+    const tok = fr.json?.devResetToken
+    if (tok) {
+      await req('POST', '/api/auth/reset-password', {}, { token: tok, password: P_OLD })
+      revLogin = await req('POST', '/api/auth/login', revJar, { email: REV_EMAIL, password: P_OLD })
+    } else {
+      revLogin = await req('POST', '/api/auth/register', revJar, { name: 'Session Revocation', email: REV_EMAIL, password: P_OLD })
+    }
+  }
+  check('revocation test user logged in', revLogin.status === 200, `status ${revLogin.status}`)
+  let meRev = await req('GET', '/api/auth/me', revJar)
+  check('session valid before reset', meRev.json?.user?.email === REV_EMAIL, `user=${meRev.json?.user?.email}`)
+  const fr2 = await req('POST', '/api/auth/forgot-password', {}, { email: REV_EMAIL })
+  check('forgot-password issues reset token (dev)', fr2.status === 200 && typeof fr2.json?.devResetToken === 'string', `status ${fr2.status}`)
+  const rp = await req('POST', '/api/auth/reset-password', {}, { token: fr2.json.devResetToken, password: P_NEW })
+  check('password reset completes', rp.status === 200, `status ${rp.status}`)
+  meRev = await req('GET', '/api/auth/me', revJar)
+  check('OLD session is dead after reset', meRev.json?.user === null, `user=${meRev.json?.user}`)
+  const revJar2: Jar = {}
+  const relogin = await req('POST', '/api/auth/login', revJar2, { email: REV_EMAIL, password: P_NEW })
+  meRev = await req('GET', '/api/auth/me', revJar2)
+  check('login with NEW password issues a working session', relogin.status === 200 && meRev.json?.user?.email === REV_EMAIL, `login=${relogin.status} user=${meRev.json?.user?.email}`)
+
+  // ── 19. Privacy: data export + erasure request ──
+  section('Kenya DPA: data export is self-only; erasure request is recorded')
+  const exp = await fetch(`${BASE}/api/privacy/export`, { headers: { Cookie: Object.entries(revJar2).map(([k, v]) => `${k}=${v}`).join('; ') } })
+  let expBody: any = null
+  try { expBody = await exp.json() } catch { /* ignore */ }
+  check('data export returns the user\'s own document', exp.status === 200 && expBody?.account?.email === REV_EMAIL, `status ${exp.status} email=${expBody?.account?.email}`)
+  const expStr = JSON.stringify(expBody)
+  check('export contains no other user emails or password hashes', !expStr.includes('customer@carmaze.co.ke') && !expStr.includes('passwordHash'), 'verified absent')
+  r = await req('POST', '/api/privacy/delete-request', revJar2, { reason: 'Automated verification of the erasure workflow.', scope: 'MARKETING_ONLY' })
+  check('erasure request recorded as a DPO ticket', r.status === 201 && String(r.json?.ref ?? '').startsWith('DPO-'), `status ${r.status} ref=${r.json?.ref}`)
+
   // ── Summary ──
   console.log(`\n${'═'.repeat(70)}`)
   console.log(`RESULTS: ${pass} passed, ${fail} failed`)

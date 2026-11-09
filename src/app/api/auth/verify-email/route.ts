@@ -13,6 +13,9 @@ const schema = z.object({
   code: z.string().optional(),
 })
 
+const CODE_TTL_MS = 10 * 60 * 1000 // codes always expire
+const MAX_ATTEMPTS = 5 // confirm attempts per code, then it is invalidated
+
 /**
  * Email address verification.
  *
@@ -22,6 +25,10 @@ const schema = z.object({
  *    HTTP response, because without a provider it could not be delivered.
  *  - No provider, development only: the code is returned explicitly labelled
  *    as a development-mode code (sandbox affordance, never in production).
+ *
+ * Code lifecycle: expires after 10 minutes, at most 5 confirm attempts
+ * (then it is invalidated and a new one must be requested), single-use,
+ * request rate-limited (5/h) and confirm rate-limited (10/h).
  */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
@@ -31,7 +38,10 @@ export const POST = route(async (req: NextRequest) => {
     const rl = rateLimit(`verify-email:${user.id}`, 5, 60 * 60 * 1000)
     if (!rl.allowed) return fail(429, 'RATE_LIMITED', `Too many verification requests. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
     const code = sixDigitCode()
-    await db.user.update({ where: { id: user.id }, data: { emailCode: code } })
+    await db.user.update({
+      where: { id: user.id },
+      data: { emailCode: code, emailCodeExpiresAt: new Date(Date.now() + CODE_TTL_MS), emailCodeAttempts: 0 },
+    })
 
     if (emailProviderConfigured()) {
       const result = await sendEmail({
@@ -58,10 +68,33 @@ export const POST = route(async (req: NextRequest) => {
   }
 
   const record = await db.user.findUnique({ where: { id: user.id } })
-  if (!record?.emailCode || !body.code || record.emailCode !== body.code.trim()) {
+  if (!record?.emailCode || !body.code) {
     return fail(400, 'INVALID_CODE', 'That verification code is not correct.')
   }
-  await db.user.update({ where: { id: user.id }, data: { emailVerified: true, emailCode: null } })
+
+  const rl = rateLimit(`verify-email-confirm:${user.id}`, 10, 60 * 60 * 1000)
+  if (!rl.allowed) return fail(429, 'RATE_LIMITED', `Too many confirmation attempts. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
+
+  // Expiry: a code older than its TTL is dead even if the value still matches.
+  if (record.emailCodeExpiresAt && record.emailCodeExpiresAt.getTime() < Date.now()) {
+    await db.user.update({ where: { id: user.id }, data: { emailCode: null, emailCodeExpiresAt: null, emailCodeAttempts: 0 } })
+    return fail(400, 'CODE_EXPIRED', 'That verification code has expired. Request a new one.')
+  }
+
+  // Attempt cap: brute-forcing a 6-digit code is capped, then invalidated.
+  if (record.emailCodeAttempts >= MAX_ATTEMPTS) {
+    await db.user.update({ where: { id: user.id }, data: { emailCode: null, emailCodeExpiresAt: null, emailCodeAttempts: 0 } })
+    return fail(400, 'TOO_MANY_ATTEMPTS', 'Too many incorrect attempts. Request a new verification code.')
+  }
+
+  if (record.emailCode !== body.code.trim()) {
+    await db.user.update({ where: { id: user.id }, data: { emailCodeAttempts: { increment: 1 } } })
+    const left = Math.max(0, MAX_ATTEMPTS - record.emailCodeAttempts - 1)
+    return fail(400, 'INVALID_CODE', `That verification code is not correct. ${left} attempt${left === 1 ? '' : 's'} remaining.`)
+  }
+
+  // Single use: success clears the code, its expiry and the attempt counter.
+  await db.user.update({ where: { id: user.id }, data: { emailVerified: true, emailCode: null, emailCodeExpiresAt: null, emailCodeAttempts: 0 } })
   await audit({ actorId: user.id, actorName: user.name, action: 'EMAIL_VERIFIED', targetType: 'USER', targetId: user.id })
   return ok({ verified: true })
 })

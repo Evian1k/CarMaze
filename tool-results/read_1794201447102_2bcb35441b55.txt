@@ -1,0 +1,1277 @@
+     1→# CARMAZE — COMPLETE PRODUCTION READINESS, SECURITY, PAYMENTS & BUSINESS REMEDIATION
+     2→
+     3→## YOUR ROLE
+     4→
+     5→Act as CARMAZE's principal software architect, senior full-stack engineer, application security engineer, database engineer, payment integration engineer, QA lead, and production-readiness auditor.
+     6→
+     7→You are working on the EXISTING CARMAZE CODEBASE.
+     8→
+     9→Your mission is to transform the existing implementation into a secure, reliable, genuinely functional, production-ready automotive ecosystem.
+    10→
+    11→This is an implementation assignment, not a documentation-only exercise.
+    12→
+    13→You must inspect the actual repository, independently verify every issue listed below, fix confirmed problems, implement missing functionality, run tests, and provide evidence of the results.
+    14→
+    15→Do not simply describe what should be done.
+    16→
+    17→Do not rebuild the platform from scratch.
+    18→
+    19→Do not discard working modules.
+    20→
+    21→Do not replace real functionality with mock data, simulated success messages, placeholder buttons, or hardcoded responses.
+    22→
+    23→Do not claim something works simply because a component or API route exists.
+    24→
+    25→---
+    26→
+    27→# PHASE 0 — PROTECT THE EXISTING PROJECT
+    28→
+    29→Before making changes:
+    30→
+    31→1. Inspect the complete repository structure.
+    32→2. Identify the actual framework, dependencies, database, authentication system, API structure, frontend architecture, and deployment configuration.
+    33→3. Read the existing CARMAZE documentation, especially:
+    34→   - Part 5 — Every Role and Its Dashboard.
+    35→   - Part 13 — Payments, Subscriptions and How CARMAZE Makes Money.
+    36→   - Part 17 — Security, Privacy and Compliance.
+    37→   - Part 20 — Known Limitations and Future Development.
+    38→4. Compare the documentation against the actual source code.
+    39→5. Identify existing functionality that is already implemented and tested.
+    40→6. Identify unfinished, broken, frontend-only, backend-only, and demonstration-only functionality.
+    41→7. Identify database risks and migration requirements.
+    42→
+    43→### Protection rules
+    44→
+    45→- Preserve existing working functionality and existing user journeys.
+    46→- Do not delete database records or production data.
+    47→- Do not reset, reseed, or overwrite a real database.
+    48→- Never expose `.env` files, passwords, API tokens, private keys, or credentials in logs or documentation.
+    49→- Never commit secrets.
+    50→- Do not silently change existing database structures without an appropriate migration.
+    51→- Back up data before any potentially destructive database operation.
+    52→- Use the existing architecture unless there is a clearly justified technical reason to change it.
+    53→- Do not upgrade major dependencies unnecessarily.
+    54→- Do not modify unrelated working features simply for code-style preferences.
+    55→
+    56→Create a baseline report identifying the current state before implementation.
+    57→
+    58→---
+    59→
+    60→# PHASE 1 — SECURE FILE UPLOADS
+    61→
+    62→PRIORITY: CRITICAL
+    63→
+    64→The documentation identifies that frontend components call `POST /api/upload`, but the backend write endpoint is missing.
+    65→
+    66→Verify this independently and implement the complete upload workflow.
+    67→
+    68→### Requirements
+    69→
+    70→Implement a secure authenticated upload endpoint compatible with the existing frontend.
+    71→
+    72→Support the legitimate CARMAZE upload use cases:
+    73→
+    74→- Vehicle listing photographs.
+    75→- Showroom and garage photographs.
+    76→- Business logos and cover images.
+    77→- Identity and business verification documents.
+    78→- Vehicle ownership evidence.
+    79→- Incident photographs and evidence.
+    80→- Garage vehicle handover photographs.
+    81→- Road-test and collection evidence.
+    82→- Logistics proof-of-delivery photographs.
+    83→- Relevant supporting documents.
+    84→
+    85→### Security requirements
+    86→
+    87→- Authenticate every private upload.
+    88→- Enforce server-side permissions and ownership.
+    89→- Apply the demo sandbox rules.
+    90→- Enforce strict file-size limits.
+    91→- Validate MIME types and actual file signatures.
+    92→- Use an explicit file-type allowlist.
+    93→- Generate unpredictable server-side filenames.
+    94→- Prevent path traversal and filename injection.
+    95→- Reject executable and dangerous file formats.
+    96→- Prevent unauthorised overwriting.
+    97→- Store sensitive documents separately from public marketplace images.
+    98→- Never make identity documents publicly accessible.
+    99→- Add malware-scanning integration where an available service can support it.
+   100→- Record upload metadata, ownership, timestamps, file purpose, and access permissions.
+   101→- Preserve existing private document access logging.
+   102→- Implement appropriate cleanup for failed or abandoned uploads.
+   103→
+   104→Use the existing private file-serving and public media-serving routes where appropriate.
+   105→
+   106→Do not expose private documents through public media URLs.
+   107→
+   108→### Testing
+   109→
+   110→Test:
+   111→
+   112→- Valid authenticated uploads.
+   113→- Unauthenticated uploads.
+   114→- Unsupported formats.
+   115→- Oversized files.
+   116→- Spoofed MIME types.
+   117→- Path traversal attempts.
+   118→- Cross-user document access.
+   119→- Cross-organisation access.
+   120→- Demo upload isolation.
+   121→- Private document access logging.
+   122→- Failed upload recovery.
+   123→
+   124→All existing frontend upload callers must work with the implemented API.
+   125→
+   126→---
+   127→
+   128→# PHASE 2 — AUTHENTICATION AND ACCOUNT SECURITY
+   129→
+   130→PRIORITY: CRITICAL
+   131→
+   132→Inspect and harden all authentication functionality.
+   133→
+   134→### 2.1 Authentication secrets
+   135→
+   136→Remove every hardcoded development fallback for `AUTH_SECRET` from authentication, TOTP, and related security modules.
+   137→
+   138→Requirements:
+   139→
+   140→- Fail safely when required production secrets are missing.
+   141→- Validate secret configuration during application startup.
+   142→- Never use a development secret in production.
+   143→- Document secure secret generation and rotation.
+   144→- Never print secret values.
+   145→
+   146→### 2.2 Verification codes
+   147→
+   148→Replace all security-sensitive uses of `Math.random()` with cryptographically secure random generation.
+   149→
+   150→Implement:
+   151→
+   152→- Secure six-digit email and phone verification codes.
+   153→- Expiration timestamps.
+   154→- Maximum verification attempts.
+   155→- Rate limiting.
+   156→- Single-use verification.
+   157→- Abuse prevention.
+   158→- Proper audit records.
+   159→- Safe error responses.
+   160→
+   161→A verification code must never remain valid indefinitely.
+   162→
+   163→### 2.3 Session security
+   164→
+   165→Implement a reliable session revocation strategy.
+   166→
+   167→At minimum:
+   168→
+   169→- Password reset invalidates existing sessions.
+   170→- Password change invalidates sessions according to the security policy.
+   171→- MFA reset and recovery are protected.
+   172→- Suspended accounts lose access immediately.
+   173→- Removed organisation staff lose access immediately.
+   174→- Revoked permissions are checked against current database state.
+   175→- Users can view and revoke their active sessions.
+   176→- Sensitive actions can require recent authentication.
+   177→
+   178→Review JWT expiration, cookie configuration, refresh behaviour, CSRF protections, and session handling.
+   179→
+   180→Do not weaken existing authentication controls to make login easier.
+   181→
+   182→### 2.4 Account protection
+   183→
+   184→Review:
+   185→
+   186→- Registration.
+   187→- Login.
+   188→- Password reset.
+   189→- Email verification.
+   190→- Phone verification.
+   191→- MFA enrollment.
+   192→- MFA disablement.
+   193→- Demo authentication.
+   194→- Staff invitations.
+   195→- Account suspension.
+   196→- Account recovery.
+   197→
+   198→Ensure errors do not disclose whether an account exists unnecessarily.
+   199→
+   200→---
+   201→
+   202→# PHASE 3 — COMPLETE ROLE-BASED ACCESS CONTROL
+   203→
+   204→PRIORITY: CRITICAL
+   205→
+   206→CARMAZE supports multiple user types and business organisations.
+   207→
+   208→Preserve the existing role architecture while fixing permission gaps.
+   209→
+   210→Roles include:
+   211→
+   212→- Visitor.
+   213→- Customer.
+   214→- Private Seller.
+   215→- Showroom Owner.
+   216→- Showroom Manager and Staff.
+   217→- Garage Owner.
+   218→- Garage Manager.
+   219→- Garage Reception.
+   220→- Garage Technician.
+   221→- Supplier Owner.
+   222→- Supplier Staff.
+   223→- Logistics Partner.
+   224→- Platform Support.
+   225→- Reviewer.
+   226→- Moderator.
+   227→- Finance.
+   228→- Admin.
+   229→- Founder.
+   230→
+   231→### Requirements
+   232→
+   233→1. Enforce permissions on the backend, not only in frontend navigation.
+   234→2. Use deny-by-default access control.
+   235→3. Validate organisation membership for every business resource.
+   236→4. Enforce ownership for customer and seller resources.
+   237→5. Prevent cross-tenant data exposure.
+   238→6. Prevent users from assigning themselves elevated roles.
+   239→7. Protect founder accounts from unauthorised administrative changes.
+   240→8. Revoke permissions immediately after suspension or removal.
+   241→9. Restrict demo accounts to demo resources.
+   242→10. Keep platform administration separate from public business dashboards.
+   243→
+   244→### Garage permission granularity
+   245→
+   246→The current documentation identifies that reception staff and technicians have insufficiently differentiated permissions.
+   247→
+   248→Implement a granular GarageOS permission system.
+   249→
+   250→Suggested capabilities:
+   251→
+   252→**Garage Owner**
+   253→- Full access to their organisation.
+   254→- Billing and subscriptions.
+   255→- Staff and branch management.
+   256→- Permission assignment.
+   257→- Vehicle custody oversight.
+   258→- Sensitive vehicle release approval.
+   259→
+   260→**Garage Manager**
+   261→- Daily operational management.
+   262→- Job assignment.
+   263→- Booking management.
+   264→- Quote approval within authorised limits.
+   265→- Custody oversight.
+   266→- Staff task management.
+   267→- No ownership transfer or unrestricted billing access.
+   268→
+   269→**Reception**
+   270→- Customer check-in.
+   271→- Booking management.
+   272→- Quote intake.
+   273→- Customer communication.
+   274→- Vehicle handover initiation.
+   275→- No independent authority to approve road tests or release vehicles unless explicitly authorised.
+   276→
+   277→**Technician**
+   278→- Assigned jobs only.
+   279→- Job notes and progress.
+   280→- Assigned vehicle condition updates.
+   281→- Work completion.
+   282→- Requests for additional work approval.
+   283→- No independent authority to collect, release, or authorise movement of customer vehicles.
+   284→
+   285→**Accountant**
+   286→- Financial records and authorised invoices.
+   287→- No unrestricted vehicle custody permissions.
+   288→
+   289→All permission assignments must be configurable, audited, and enforced server-side.
+   290→
+   291→Do not rely on the frontend to hide restricted buttons.
+   292→
+   293→### Testing
+   294→
+   295→Attempt prohibited actions using:
+   296→
+   297→- Direct API requests.
+   298→- Modified client-side role values.
+   299→- Forged cookies.
+   300→- Cross-organisation identifiers.
+   301→- Suspended accounts.
+   302→- Removed staff accounts.
+   303→- Expired demo sessions.
+   304→
+   305→All unauthorised operations must be denied.
+   306→
+   307→---
+   308→
+   309→# PHASE 4 — COMPLETE GARAGE VEHICLE CUSTODY PROTECTION
+   310→
+   311→PRIORITY: CRITICAL
+   312→
+   313→CARMAZE must protect customers when their vehicles are handed to garages.
+   314→
+   315→The principle is:
+   316→
+   317→**NO VEHICLE MOVES WITHOUT ACCOUNTABILITY.**
+   318→
+   319→Preserve the existing custody lifecycle and strengthen its controls.
+   320→
+   321→### Vehicle handover
+   322→
+   323→Capture:
+   324→
+   325→- Customer and vehicle identity.
+   326→- Registration number.
+   327→- VIN/chassis information where available.
+   328→- Vehicle condition.
+   329→- Existing damage.
+   330→- Odometer reading.
+   331→- Fuel level.
+   332→- Declared valuables.
+   333→- Handover photographs.
+   334→- Work requested.
+   335→- Agreed spending limit.
+   336→- Expected completion date where available.
+   337→- Receiving staff member.
+   338→- Date and time.
+   339→- Customer acknowledgement.
+   340→- Garage acknowledgement.
+   341→
+   342→Generate a handover reference and a customer-accessible record.
+   343→
+   344→### Vehicle movement
+   345→
+   346→Every authorised movement must record:
+   347→
+   348→- Vehicle.
+   349→- Responsible person.
+   350→- Reason for movement.
+   351→- Permission granted.
+   352→- Date and time.
+   353→- Starting mileage where applicable.
+   354→- Ending mileage where applicable.
+   355→- Condition evidence.
+   356→- Outcome.
+   357→
+   358→### Road tests
+   359→
+   360→Implement strict authorisation.
+   361→
+   362→A repair permission must not automatically grant permission for personal vehicle use.
+   363→
+   364→A road test requires:
+   365→
+   366→- Customer authorisation.
+   367→- Approved purpose.
+   368→- Assigned driver.
+   369→- Garage approval.
+   370→- Start time.
+   371→- Expected return time.
+   372→- Odometer readings.
+   373→- Return condition.
+   374→- Recorded completion.
+   375→
+   376→### Additional repair work
+   377→
+   378→Implement a real customer approval workflow.
+   379→
+   380→When a technician discovers additional work:
+   381→
+   382→1. Create an additional-work approval request.
+   383→2. Explain the work required.
+   384→3. Show the additional price or estimate.
+   385→4. Explain any expected delay.
+   386→5. Notify the customer.
+   387→6. Allow the customer to approve or decline.
+   388→7. Record the decision and timestamp.
+   389→8. Prevent unauthorised additional billable work.
+   390→
+   391→### Vehicle collection
+   392→
+   393→Strengthen the collection process.
+   394→
+   395→- Verify the authorised collector.
+   396→- Require a secure, single-use collection reference.
+   397→- Record the final vehicle condition.
+   398→- Record final mileage.
+   399→- Record outstanding issues.
+   400→- Record the responsible releasing staff member.
+   401→- Record customer confirmation.
+   402→- Preserve the collection evidence.
+   403→- Prevent unauthorised collection.
+   404→
+   405→Collection codes must have attempt limits, expiry, and secure storage.
+   406→
+   407→A garage must not be able to erase or silently rewrite historical custody events.
+   408→
+   409→### Disputes
+   410→
+   411→Customers must be able to dispute:
+   412→
+   413→- Missing vehicles.
+   414→- Unauthorised movement.
+   415→- Unauthorised road tests.
+   416→- Missing valuables.
+   417→- Unexpected damage.
+   418→- Unapproved work.
+   419→- Incorrect collection.
+   420→- Disputed vehicle condition.
+   421→
+   422→Preserve evidence and audit history.
+   423→
+   424→AI may prioritise suspicious activity, but it must never independently declare a customer, garage, or employee guilty.
+   425→
+   426→---
+   427→
+   428→# PHASE 5 — FIX SUBSCRIPTIONS AND ENFORCE ENTITLEMENTS
+   429→
+   430→PRIORITY: CRITICAL
+   431→
+   432→The documentation identifies a supplier billing defect in:
+   433→
+   434→`POST /api/billing/subscribe`
+   435→
+   436→The current endpoint incorrectly gates non-dealer plans behind `GARAGE_OWNER`.
+   437→
+   438→Verify and fix the actual implementation.
+   439→
+   440→### Existing seeded plans
+   441→
+   442→Preserve the existing plan codes and seeded pricing unless a deliberate migration or founder-approved commercial change is required.
+   443→
+   444→Dealer plans:
+   445→
+   446→- dealer-starter: KES 4,900/month.
+   447→- dealer-pro: KES 9,900/month.
+   448→
+   449→Garage plans:
+   450→
+   451→- garage-basic: KES 2,900/month.
+   452→- garage-pro: KES 5,900/month.
+   453→
+   454→Supplier plans:
+   455→
+   456→- supplier-starter: KES 1,499/month.
+   457→- supplier-pro: KES 3,999/month.
+   458→- supplier-enterprise: KES 8,999/month.
+   459→
+   460→Existing documented limits must be inspected and enforced.
+   461→
+   462→### Requirements
+   463→
+   464→- Correct role-to-plan eligibility checks.
+   465→- Correct organisation ownership checks.
+   466→- Prevent users from purchasing plans for unrelated organisations.
+   467→- Prevent suppliers from being incorrectly treated as garages.
+   468→- Enforce staff limits server-side.
+   469→- Enforce listing limits server-side.
+   470→- Enforce featured listing limits server-side.
+   471→- Enforce garage request-volume limits server-side.
+   472→- Enforce supplier product and warehouse limits server-side.
+   473→- Enforce plan-specific entitlements in every relevant API.
+   474→- Provide useful upgrade messages.
+   475→- Prevent concurrent requests from bypassing limits.
+   476→- Preserve existing data when subscriptions expire.
+   477→
+   478→### Subscription lifecycle
+   479→
+   480→Implement or complete:
+   481→
+   482→- Subscription creation.
+   483→- Activation following verified payment.
+   484→- Trial support if approved by the founder.
+   485→- Renewal.
+   486→- Upgrade.
+   487→- Downgrade.
+   488→- Cancellation.
+   489→- Expiration.
+   490→- Grace period.
+   491→- Failed payment handling.
+   492→- Payment retry scheduling.
+   493→- Invoice history.
+   494→- Receipts.
+   495→- Subscription status history.
+   496→- Audit logging.
+   497→
+   498→Do not invent trial periods or silently change existing commercial terms. If trial configuration is not yet approved, implement it as an optional configurable feature and leave it disabled.
+   499→
+   500→### Plan management
+   501→
+   502→Administrators should be able to manage plan availability and entitlements without hardcoding commercial rules throughout the application.
+   503→
+   504→---
+   505→
+   506→# PHASE 6 — COMPLETE PAYMENT AND FINANCIAL INTEGRITY
+   507→
+   508→PRIORITY: CRITICAL
+   509→
+   510→CARMAZE currently has an M-Pesa integration foundation.
+   511→
+   512→Do not claim live payment functionality without evidence.
+   513→
+   514→### 6.1 M-Pesa Daraja
+   515→
+   516→Inspect `src/lib/mpesa.ts` and every related payment endpoint.
+   517→
+   518→Verify:
+   519→
+   520→- OAuth authentication.
+   521→- STK Push request generation.
+   522→- Phone number normalisation.
+   523→- Amount conversion.
+   524→- Callback handling.
+   525→- Signature verification.
+   526→- Amount integrity.
+   527→- Idempotency.
+   528→- Payment attempt recording.
+   529→- Invoice activation.
+   530→- Payment ownership checks.
+   531→- Demo restrictions.
+   532→- Failure handling.
+   533→
+   534→Ensure production callbacks fail closed when authentication cannot be verified.
+   535→
+   536→Never activate subscriptions, campaigns, orders, or protected payment authorisations based on a frontend response.
+   537→
+   538→Only verified provider confirmation may activate a paid invoice.
+   539→
+   540→### 6.2 Payment reconciliation
+   541→
+   542→Implement a reconciliation workflow.
+   543→
+   544→It must compare:
+   545→
+   546→- CARMAZE payment attempts.
+   547→- Provider transaction references.
+   548→- Invoice records.
+   549→- Payment authorisations.
+   550→- Successful callbacks.
+   551→- Failed callbacks.
+   552→- Pending transactions.
+   553→- Duplicate events.
+   554→- Amount discrepancies.
+   555→
+   556→Create an authorised Finance/Admin reconciliation dashboard.
+   557→
+   558→Do not fabricate missing provider transaction information.
+   559→
+   560→### 6.3 Supplier payments and settlements
+   561→
+   562→This is a major business requirement.
+   563→
+   564→The current documentation states that supplier settlement is out-of-band.
+   565→
+   566→Design and implement a proper settlement ledger that can accurately track:
+   567→
+   568→- Original buyer payment.
+   569→- Payment provider reference.
+   570→- Payment authorisation.
+   571→- Order value.
+   572→- Platform commission.
+   573→- Supplier net payable.
+   574→- Inspection result.
+   575→- Release approval.
+   576→- Settlement status.
+   577→- Settlement reference.
+   578→- Settlement date.
+   579→- Refunds.
+   580→- Partial refunds.
+   581→- Disputes.
+   582→- Adjustments.
+   583→
+   584→Suggested statuses:
+   585→
+   586→`PENDING_PAYMENT`
+   587→`PAYMENT_CONFIRMED`
+   588→`PROTECTED`
+   589→`AWAITING_INSPECTION`
+   590→`RELEASE_APPROVED`
+   591→`RELEASED`
+   592→`SETTLEMENT_PENDING`
+   593→`SETTLED`
+   594→`PARTIALLY_REFUNDED`
+   595→`REFUNDED`
+   596→`DISPUTED`
+   597→`CANCELLED`
+   598→
+   599→Adapt the actual state machine to the existing data model rather than introducing contradictory statuses.
+   600→
+   601→### Critical money-handling rule
+   602→
+   603→A database record labelled PROTECTED is not proof that CARMAZE legally or technically holds funds.
+   604→
+   605→Before implementing any actual holding, escrow, split-payment, or automatic supplier payout mechanism:
+   606→
+   607→- Verify the supported payment provider capabilities.
+   608→- Verify the appropriate commercial and legal arrangement.
+   609→- Identify the actual settlement destination.
+   610→- Establish how refunds and disputes are handled.
+   611→- Identify any required licences or regulated payment partners.
+   612→
+   613→If the current Daraja integration cannot safely perform the intended money movement, do not simulate it.
+   614→
+   615→Implement the auditable settlement ledger and manual authorised reconciliation workflow first.
+   616→
+   617→Only mark a supplier as SETTLED after verifiable settlement evidence exists.
+   618→
+   619→### 6.4 Refunds
+   620→
+   621→The current refund records do not automatically move money through a provider.
+   622→
+   623→Improve this workflow.
+   624→
+   625→- Record full and partial refund requests.
+   626→- Require authorised approval.
+   627→- Record reasons.
+   628→- Track refund amounts.
+   629→- Prevent refunds exceeding the original paid amount.
+   630→- Prevent duplicate refund processing.
+   631→- Link refunds to provider references.
+   632→- Track pending, confirmed, failed, and manually reconciled refunds.
+   633→- Update financial reporting accurately.
+   634→
+   635→Never mark a refund as financially completed merely because an administrator created a refund record.
+   636→
+   637→### 6.5 Financial reporting
+   638→
+   639→Preserve the distinction between:
+   640→
+   641→- Collected revenue.
+   642→- Pending receivables.
+   643→- Projected MRR/ARR.
+   644→- Supplier amounts payable.
+   645→- Settled supplier amounts.
+   646→- Platform commissions.
+   647→- Refunds.
+   648→- Marketplace GMV.
+   649→
+   650→Marketplace GMV must not be represented as CARMAZE revenue.
+   651→
+   652→Build all reporting from genuine database records.
+   653→
+   654→---
+   655→
+   656→# PHASE 7 — COMPLETE BUSINESS COMMUNICATIONS
+   657→
+   658→PRIORITY: HIGH
+   659→
+   660→The documentation identifies that email and SMS delivery transports are missing.
+   661→
+   662→Implement a reliable provider-based notification architecture.
+   663→
+   664→### Email
+   665→
+   666→Support:
+   667→
+   668→- Account verification.
+   669→- Password recovery.
+   670→- Staff invitations.
+   671→- Business application updates.
+   672→- Payment confirmations.
+   673→- Subscription reminders.
+   674→- Customer enquiries.
+   675→- Quote notifications.
+   676→- Booking confirmations.
+   677→- Vehicle custody updates.
+   678→- Road-test authorisations.
+   679→- Collection alerts.
+   680→- Security incidents.
+   681→- Important account security notifications.
+   682→
+   683→### SMS
+   684→
+   685→Support essential time-sensitive notifications where an approved provider is configured.
+   686→
+   687→### Requirements
+   688→
+   689→- Provider configuration through environment variables.
+   690→- No hardcoded credentials.
+   691→- Queue-based processing.
+   692→- Retry policies.
+   693→- Failure tracking.
+   694→- Delivery status where the provider supports it.
+   695→- Duplicate prevention.
+   696→- Notification preferences.
+   697→- Appropriate user consent.
+   698→- Template management.
+   699→- Audit records.
+   700→
+   701→Keep in-app notifications functional independently.
+   702→
+   703→Do not claim that a message was delivered if the provider only accepted the request.
+   704→
+   705→When a provider is not configured, clearly report the missing configuration.
+   706→
+   707→---
+   708→
+   709→# PHASE 8 — SCHEDULED OPERATIONS AND AUTOMATION
+   710→
+   711→PRIORITY: HIGH
+   712→
+   713→The documentation identifies manual sweeps for certain time-dependent workflows.
+   714→
+   715→Implement reliable scheduled processing.
+   716→
+   717→Include:
+   718→
+   719→- Application SLA reminders.
+   720→- Overdue application escalation.
+   721→- Campaign expiration.
+   722→- Subscription expiry.
+   723→- Renewal reminders.
+   724→- Failed payment reminders.
+   725→- Pending quote reminders.
+   726→- Booking reminders.
+   727→- Sales enquiry follow-ups.
+   728→- Customer vehicle collection reminders.
+   729→- Incident escalation.
+   730→- Pending notification retries.
+   731→- Expired verification codes.
+   732→- Expired demo sessions.
+   733→- Retention and cleanup jobs where legally appropriate.
+   734→
+   735→Requirements:
+   736→
+   737→- Reliable scheduler or background job infrastructure.
+   738→- Idempotent jobs.
+   739→- Retry controls.
+   740→- Execution logs.
+   741→- Failure alerts.
+   742→- No duplicate invoices.
+   743→- No duplicate notifications.
+   744→- No duplicate financial transactions.
+   745→- Safe recovery after application restart.
+   746→
+   747→Do not rely on a user opening a dashboard to trigger essential business operations.
+   748→
+   749→---
+   750→
+   751→# PHASE 9 — DATABASE, BACKUPS AND RECOVERY
+   752→
+   753→PRIORITY: CRITICAL BEFORE PUBLIC LAUNCH
+   754→
+   755→Inspect the current database architecture.
+   756→
+   757→The documentation identifies SQLite and no Prisma migration history.
+   758→
+   759→Do not assume SQLite is suitable for every future production deployment.
+   760→
+   761→### Requirements
+   762→
+   763→1. Establish a reliable migration strategy.
+   764→2. Create and maintain Prisma migration history.
+   765→3. Make migrations reproducible.
+   766→4. Validate database schema changes.
+   767→5. Add automated backups.
+   768→6. Document backup frequency and retention.
+   769→7. Protect backup files and credentials.
+   770→8. Implement restore procedures.
+   771→9. Perform a restore test in an isolated environment.
+   772→10. Document recovery objectives and operational procedures.
+   773→
+   774→If a migration to PostgreSQL is recommended, explain why and provide a safe migration plan.
+   775→
+   776→Do not silently switch databases or lose existing records.
+   777→
+   778→Ensure indexes and constraints protect financial and operational records.
+   779→
+   780→---
+   781→
+   782→# PHASE 10 — KENYA DATA PROTECTION AND PRIVACY READINESS
+   783→
+   784→PRIORITY: HIGH
+   785→
+   786→CARMAZE will process personal information, identity documents, vehicle records, contact details, business records, and potentially sensitive incident evidence.
+   787→
+   788→Review the platform against the Kenya Data Protection Act, 2019 and relevant applicable regulations.
+   789→
+   790→This is an engineering-readiness exercise, not a claim of legal certification.
+   791→
+   792→### Implement
+   793→
+   794→- A personal data inventory.
+   795→- Data categories and processing purposes.
+   796→- Appropriate lawful-basis and consent records.
+   797→- Privacy notice version tracking.
+   798→- Marketing consent management.
+   799→- User data access requests.
+   800→- User data export.
+   801→- Data correction requests.
+   802→- Data deletion or anonymisation workflows where legally appropriate.
+   803→- Data retention schedules.
+   804→- Secure document deletion.
+   805→- Staff access records.
+   806→- Breach incident management.
+   807→- Breach-response procedures.
+   808→- Data processor inventory.
+   809→- Third-party data sharing records.
+   810→
+   811→### Sensitive information
+   812→
+   813→- Keep identity documents private.
+   814→- Restrict document access to authorised roles.
+   815→- Record access to sensitive files.
+   816→- Avoid unnecessary collection of personal data.
+   817→- Do not expose personal phone numbers publicly without appropriate authorisation.
+   818→- Do not retain information indefinitely without a justified retention requirement.
+   819→
+   820→Do not delete financial, fraud, dispute, or legal records where a lawful retention obligation applies.
+   821→
+   822→Provide a clear list of matters requiring legal review, including any applicable ODPC registration obligations.
+   823→
+   824→---
+   825→
+   826→# PHASE 11 — ENFORCE ALL BUSINESS PLAN LIMITS
+   827→
+   828→PRIORITY: HIGH
+   829→
+   830→Review every plan entitlement across all business types.
+   831→
+   832→The current implementation must not rely on progress bars or frontend checks alone.
+   833→
+   834→Enforce entitlements at the API and database-operation level.
+   835→
+   836→### DealerOS
+   837→
+   838→- Listing quantity.
+   839→- Featured listing quantity.
+   840→- Staff seats.
+   841→- Branch limits where applicable.
+   842→- Promotions.
+   843→- Business tools.
+   844→- Analytics.
+   845→
+   846→### GarageOS
+   847→
+   848→- Service request volume.
+   849→- Staff seats.
+   850→- Branches where applicable.
+   851→- Bookings and service management.
+   852→- Promotions.
+   853→- Advanced reporting.
+   854→
+   855→### SupplierOS
+   856→
+   857→- Product quantity.
+   858→- Warehouse quantity.
+   859→- Staff permissions.
+   860→- Procurement tools.
+   861→- Advanced reporting.
+   862→
+   863→### Requirements
+   864→
+   865→- Centralised entitlement service.
+   866→- Consistent API checks.
+   867→- Transaction-safe limit enforcement.
+   868→- Clear limit errors.
+   869→- Upgrade paths.
+   870→- Admin override with audit.
+   871→- Historical subscription preservation.
+   872→
+   873→Test attempts to bypass every limit using direct API requests and concurrent requests.
+   874→
+   875→---
+   876→
+   877→# PHASE 12 — COMPLETE SALES, GARAGE AND CUSTOMER WORKFLOWS
+   878→
+   879→PRIORITY: HIGH
+   880→
+   881→Do not introduce unrelated features before completing the workflows already present.
+   882→
+   883→### DealerOS
+   884→
+   885→Implement the missing sales lead assignment and follow-up capabilities identified in Part 20.
+   886→
+   887→Include:
+   888→
+   889→- Central enquiry inbox.
+   890→- Assignment to staff.
+   891→- Automatic assignment where configured.
+   892→- Manual reassignment.
+   893→- Follow-up dates.
+   894→- Overdue alerts.
+   895→- Viewing appointment tracking.
+   896→- Enquiry status history.
+   897→- Staff accountability.
+   898→- Conversion reporting based on actual records.
+   899→
+   900→### GarageOS
+   901→
+   902→Complete:
+   903→
+   904→- Job cards.
+   905→- Technician assignment.
+   906→- Repair progress.
+   907→- Additional-work approval.
+   908→- Customer repair invoicing.
+   909→- Work completion evidence.
+   910→- Collection workflow.
+   911→- Customer history.
+   912→
+   913→### Customer experience
+   914→
+   915→Complete:
+   916→
+   917→- Saved-search alerts.
+   918→- Notification preferences.
+   919→- Vehicle service reminders where actual data supports them.
+   920→- My Garage.
+   921→- Vehicle Passport history.
+   922→- Quote acceptance and rejection.
+   923→- Booking status.
+   924→- Custody updates.
+   925→- Dispute reporting.
+   926→- Customer data access requests.
+   927→
+   928→Do not show fake vehicle history or invented service records.
+   929→
+   930→---
+   931→
+   932→# PHASE 13 — PRODUCTION INFRASTRUCTURE HARDENING
+   933→
+   934→Review:
+   935→
+   936→- Distributed rate limiting.
+   937→- CSRF protection.
+   938→- Content Security Policy.
+   939→- Secure headers.
+   940→- Request-size limits.
+   941→- Input validation.
+   942→- Output encoding.
+   943→- Dependency vulnerabilities.
+   944→- Error tracking.
+   945→- Application monitoring.
+   946→- Database monitoring.
+   947→- Health checks.
+   948→- Structured logs.
+   949→- Secret management.
+   950→- Deployment configuration.
+   951→- Production environment validation.
+   952→
+   953→The current in-memory rate limiter is not sufficient for a multi-instance production deployment.
+   954→
+   955→Implement a shared rate-limiting solution appropriate to the actual hosting environment.
+   956→
+   957→Review all security-sensitive API endpoints.
+   958→
+   959→Never expose internal stack traces, secrets, or sensitive records to users.
+   960→
+   961→---
+   962→
+   963→# PHASE 14 — AUTOMATED TESTING AND REAL FUNCTIONAL VERIFICATION
+   964→
+   965→PRIORITY: CRITICAL
+   966→
+   967→Create or improve a proper testing system.
+   968→
+   969→The documentation says there is a security test suite, but no complete end-to-end testing infrastructure.
+   970→
+   971→Preserve existing security tests and extend them.
+   972→
+   973→### Required test categories
+   974→
+   975→**Authentication**
+   976→- Registration.
+   977→- Login.
+   978→- Password reset.
+   979→- Session revocation.
+   980→- MFA.
+   981→- Verification expiry.
+   982→- Rate limiting.
+   983→
+   984→**Permissions**
+   985→- Every role.
+   986→- Direct API access.
+   987→- Cross-tenant access.
+   988→- Resource ownership.
+   989→- Suspended users.
+   990→- Removed staff.
+   991→- Demo restrictions.
+   992→
+   993→**Uploads**
+   994→- Valid files.
+   995→- Invalid files.
+   996→- Oversized files.
+   997→- Private documents.
+   998→- Access control.
+   999→
+  1000→**Payments**
+  1001→- Valid payment callbacks.
+  1002→- Invalid signatures.
+  1003→- Duplicate callbacks.
+  1004→- Underpayments.
+  1005→- Incorrect amounts.
+  1006→- Failed transactions.
+  1007→- Refund limits.
+  1008→- Reconciliation.
+  1009→- Supplier settlement records.
+  1010→
+  1011→**Subscriptions**
+  1012→- Dealer subscription.
+  1013→- Garage subscription.
+  1014→- Supplier subscription.
+  1015→- Incorrect role.
+  1016→- Expired plan.
+  1017→- Failed renewal.
+  1018→- Staff limits.
+  1019→- Listing limits.
+  1020→- Request limits.
+  1021→- Product limits.
+  1022→
+  1023→**Garage custody**
+  1024→- Handover.
+  1025→- Road-test approval.
+  1026→- Unauthorised movement.
+  1027→- Additional-work approval.
+  1028→- Collection.
+  1029→- Invalid collection code.
+  1030→- Dispute.
+  1031→- Removed employee access.
+  1032→
+  1033→**Business workflows**
+  1034→- Dealer application.
+  1035→- Garage application.
+  1036→- Supplier application.
+  1037→- Staff invitation.
+  1038→- Enquiry assignment.
+  1039→- Quote.
+  1040→- Booking.
+  1041→- Order.
+  1042→- Inspection.
+  1043→- Dispute.
+  1044→- Refund.
+  1045→
+  1046→### Build verification
+  1047→
+  1048→- Remove any configuration that suppresses genuine TypeScript errors.
+  1049→- Fix TypeScript errors.
+  1050→- Run lint.
+  1051→- Run type checking.
+  1052→- Run unit tests.
+  1053→- Run integration tests.
+  1054→- Run security tests.
+  1055→- Run end-to-end tests.
+  1056→- Run production build.
+  1057→- Verify database migrations.
+  1058→
+  1059→Do not report success if a test was skipped or did not actually execute.
+  1060→
+  1061→Do not weaken tests to make them pass.
+  1062→
+  1063→---
+  1064→
+  1065→# PHASE 15 — DEMO ENVIRONMENT PROTECTION
+  1066→
+  1067→Preserve the existing demo system.
+  1068→
+  1069→Demo accounts must remain isolated from real customers and businesses.
+  1070→
+  1071→Verify:
+  1072→
+  1073→- Demo users cannot trigger real M-Pesa pushes.
+  1074→- Demo notifications cannot reach real users.
+  1075→- Demo staff cannot access real customer PII.
+  1076→- Demo admin cannot perform production-wide actions.
+  1077→- Demo orders cannot create real financial obligations.
+  1078→- Demo vehicle records cannot leak into public production listings.
+  1079→- Demo data can be safely reset without touching real data.
+  1080→
+  1081→Keep demo access useful for testing all legitimate role dashboards.
+  1082→
+  1083→Clearly label demonstration records and sessions.
+  1084→
+  1085→---
+  1086→
+  1087→# PHASE 16 — REVENUE AND BUSINESS OPERATIONS
+  1088→
+  1089→CARMAZE must be a sustainable business.
+  1090→
+  1091→Preserve the existing subscription and commission architecture while ensuring every revenue stream is genuine and accurately recorded.
+  1092→
+  1093→Review:
+  1094→
+  1095→1. Dealer subscriptions.
+  1096→2. Garage subscriptions.
+  1097→3. Supplier subscriptions.
+  1098→4. Featured vehicle promotions.
+  1099→5. Showroom promotions.
+  1100→6. Garage promotions.
+  1101→7. Supply network commissions.
+  1102→8. Membership platform fees.
+  1103→9. Future authorised referral commissions.
+  1104→10. Future inspection services.
+  1105→
+  1106→### Financial rules
+  1107→
+  1108→- Never count marketplace GMV as platform revenue.
+  1109→- Never count pending payments as collected revenue.
+  1110→- Never count projected subscriptions as money received.
+  1111→- Never report supplier payouts as completed without evidence.
+  1112→- Never activate paid entitlements before verified payment.
+  1113→- Never charge a customer without a clear disclosed amount.
+  1114→- Never create hidden commissions.
+  1115→- Never change plan prices without founder approval.
+  1116→
+  1117→Ensure the admin revenue dashboard calculates its figures from actual records.
+  1118→
+  1119→---
+  1120→
+  1121→# PHASE 17 — FINAL QUALITY ASSURANCE
+  1122→
+  1123→After implementation, review the complete platform as if preparing it for a real Kenyan public launch.
+  1124→
+  1125→Test the following complete journeys.
+  1126→
+  1127→### Customer
+  1128→
+  1129→Register → verify account → browse vehicles → save vehicle → contact seller → receive response → book viewing/test drive → manage vehicle → use garage services → track custody → collect vehicle → review business.
+  1130→
+  1131→### Private seller
+  1132→
+  1133→Register → verify identity as required → submit vehicle → upload evidence → staff review → publish → receive enquiries → handle dealer offers → mark vehicle sold.
+  1134→
+  1135→### Showroom
+  1136→
+  1137→Apply → submit documents → receive approval → activate subscription → configure storefront → add vehicles → obtain listing approvals → receive enquiries → assign staff → schedule viewings → manage leads → review revenue.
+  1138→
+  1139→### Garage
+  1140→
+  1141→Apply → submit documents → receive approval → configure services → activate subscription → receive request → quote → receive approval → book → receive vehicle → record condition → assign technician → request additional work approval → complete repair → invoice → release vehicle → receive review.
+  1142→
+  1143→### Supplier
+  1144→
+  1145→Apply → submit documents → receive approval → configure storefront → activate subscription → add products → manage inventory → receive order → respond → arrange delivery → confirm handover → complete inspection → record release → reconcile settlement.
+  1146→
+  1147→### Logistics partner
+  1148→
+  1149→Apply → approval → manage fleet → receive job → assign driver → accept job → collect → deliver → provide proof of delivery → track earnings records.
+  1150→
+  1151→### Platform operations
+  1152→
+  1153→Review applications → moderate listings → manage incidents → handle support → reconcile payments → process refunds → manage staff → monitor revenue → review audit records.
+  1154→
+  1155→For every journey, record:
+  1156→
+  1157→- Expected result.
+  1158→- Actual result.
+  1159→- Relevant API endpoints.
+  1160→- Database records created or changed.
+  1161→- Permission checks.
+  1162→- Notifications triggered.
+  1163→- Test outcome.
+  1164→- Outstanding limitations.
+  1165→
+  1166→---
+  1167→
+  1168→# PHASE 18 — FINAL REPORT AND HANDOVER
+  1169→
+  1170→Create an updated documentation folder under `docs/`.
+  1171→
+  1172→Produce:
+  1173→
+  1174→1. `CARMAZE_PRODUCTION_READINESS_REPORT.md`
+  1175→2. `CARMAZE_SECURITY_AUDIT.md`
+  1176→3. `CARMAZE_PAYMENT_AND_SETTLEMENT_REPORT.md`
+  1177→4. `CARMAZE_DATABASE_AND_BACKUP_GUIDE.md`
+  1178→5. `CARMAZE_DEPLOYMENT_GUIDE.md`
+  1179→6. `CARMAZE_TEST_RESULTS.md`
+  1180→7. `CARMAZE_REMAINING_BLOCKERS.md`
+  1181→8. `CARMAZE_ENVIRONMENT_VARIABLES.md`
+  1182→
+  1183→The documentation must reflect the actual final code.
+  1184→
+  1185→### Final status classifications
+  1186→
+  1187→Use these statuses:
+  1188→
+  1189→- VERIFIED WORKING
+  1190→- IMPLEMENTED BUT NOT EXTERNALLY VERIFIED
+  1191→- PARTIALLY IMPLEMENTED
+  1192→- NOT IMPLEMENTED
+  1193→- BLOCKED BY CREDENTIALS
+  1194→- BLOCKED BY EXTERNAL PROVIDER
+  1195→- REQUIRES LEGAL OR BUSINESS APPROVAL
+  1196→- FAILED TEST
+  1197→
+  1198→For each issue report:
+  1199→
+  1200→- Original problem.
+  1201→- Whether it was confirmed.
+  1202→- Root cause.
+  1203→- Implementation performed.
+  1204→- Files changed.
+  1205→- Database changes.
+  1206→- Tests performed.
+  1207→- Test results.
+  1208→- Remaining risk.
+  1209→
+  1210→### Final launch assessment
+  1211→
+  1212→Give CARMAZE one of these overall assessments:
+  1213→
+  1214→- NOT READY FOR PUBLIC LAUNCH
+  1215→- INTERNAL TESTING READY
+  1216→- LIMITED PILOT READY
+  1217→- PUBLIC PRODUCTION READY
+  1218→
+  1219→Never award PUBLIC PRODUCTION READY merely because the build succeeds.
+  1220→
+  1221→A production-ready assessment requires evidence for security, data protection, financial correctness, operational recovery, permissions, and all critical customer journeys.
+  1222→
+  1223→List all external requirements that I must personally complete, including:
+  1224→
+  1225→- Daraja credentials and live testing.
+  1226→- Webhook configuration.
+  1227→- Email provider.
+  1228→- SMS provider.
+  1229→- Production database and hosting.
+  1230→- Backup configuration.
+  1231→- Domain and SSL.
+  1232→- Any required legal or payment-provider arrangements.
+  1233→
+  1234→Do not ask me to paste secrets into chat or commit them to the repository.
+  1235→
+  1236→---
+  1237→
+  1238→# EXECUTION RULES — READ CAREFULLY
+  1239→
+  1240→1. Start by auditing the existing project.
+  1241→2. Independently verify the documented issues.
+  1242→3. Build a prioritised remediation checklist.
+  1243→4. Implement the highest-risk fixes first.
+  1244→5. Preserve existing working functionality.
+  1245→6. Make safe, incremental changes.
+  1246→7. Add migrations for schema changes.
+  1247→8. Test each implementation before moving on.
+  1248→9. Run complete regression testing.
+  1249→10. Update documentation only after verifying the actual implementation.
+  1250→11. Do not stop after producing a plan.
+  1251→12. Do not claim completion when work remains.
+  1252→13. Do not fabricate provider integrations, transactions, test results, or compliance achievements.
+  1253→14. Do not remove working features to make the code easier to maintain.
+  1254→15. If a task is blocked by missing credentials or an external dependency, complete the safe code-side work and document exactly what remains.
+  1255→16. If a migration or financial operation could risk real data, stop and request approval before performing the destructive operation.
+  1256→17. Do not invent commercial decisions. Preserve existing prices and terms unless I explicitly approve a change.
+  1257→
+  1258→## DEFINITION OF DONE
+  1259→
+  1260→This assignment is complete only when:
+  1261→
+  1262→- Critical security gaps are resolved.
+  1263→- Uploads work securely.
+  1264→- Supplier subscription access works correctly.
+  1265→- All business entitlements are enforced server-side.
+  1266→- Garage permissions protect customer vehicles.
+  1267→- Payment states accurately reflect provider evidence.
+  1268→- Supplier settlement records are auditable.
+  1269→- Database backup and restoration procedures are tested.
+  1270→- Privacy workflows are implemented to the agreed scope.
+  1271→- Scheduled jobs operate reliably.
+  1272→- Automated tests cover critical user journeys.
+  1273→- Production builds and type checks pass.
+  1274→- Remaining external dependencies are clearly documented.
+  1275→- The final report accurately reflects what is and is not ready.
+  1276→
+  1277→**FINAL INSTRUCTION: DO NOT JUST TELL ME HOW TO MAKE CARMAZE PRODUCTION READY. WORK THROUGH THE EXISTING CODEBASE AND MAKE IT PRODUCTION READY, ONE VERIFIED PHASE AT A TIME.**

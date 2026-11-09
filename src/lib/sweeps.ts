@@ -112,3 +112,65 @@ export async function cleanupExpiredResetTokens(graceDays = 7): Promise<number> 
   })
   return removed.count
 }
+
+/**
+ * Subscription expiry sweep.
+ *
+ * ACTIVE subscriptions more than 3 days past currentPeriodEnd become
+ * PAST_DUE (the same grace window the entitlement service applies). The
+ * subscription and all its data are preserved — only the status changes and
+ * owners are notified. Idempotent: PAST_DUE rows are never re-notified.
+ */
+export async function runSubscriptionExpirySweep(): Promise<{ expired: number }> {
+  const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) // matches entitlement grace
+  const due = await db.subscription.findMany({
+    where: { status: 'ACTIVE', currentPeriodEnd: { lt: cutoff } },
+    include: { org: { select: { name: true } } },
+  })
+  for (const sub of due) {
+    await db.subscription.update({ where: { id: sub.id }, data: { status: 'PAST_DUE' } })
+    const members = await db.orgMember.findMany({ where: { orgId: sub.orgId, role: 'OWNER' }, select: { userId: true } })
+    await notifyMany(members.map((m) => m.userId), {
+      type: 'SUBSCRIPTION_PAST_DUE',
+      title: `Subscription expired: ${sub.planCode}`,
+      body: `The ${sub.planCode} plan for ${sub.org.name} expired on ${sub.currentPeriodEnd.toISOString().slice(0, 10)}. Pay the renewal invoice to reactivate — your data is safe.`,
+      link: '/account?tab=subscriptions',
+    })
+  }
+  return { expired: due.length }
+}
+
+/** Campaign expiry sweep: ACTIVE campaigns past endsAt become ENDED. */
+export async function runCampaignExpirySweep(): Promise<{ ended: number }> {
+  const now = new Date()
+  const due = await db.campaign.findMany({
+    where: { status: 'ACTIVE', endsAt: { lt: now } },
+    select: { id: true, refCode: true, orgId: true },
+  })
+  for (const c of due) {
+    await db.campaign.update({ where: { id: c.id }, data: { status: 'ENDED' } })
+    const members = await db.orgMember.findMany({ where: { orgId: c.orgId, role: 'OWNER' }, select: { userId: true } })
+    await notifyMany(members.map((m) => m.userId), {
+      type: 'CAMPAIGN_ENDED',
+      title: `Campaign ${c.refCode} ended`,
+      body: 'The promotion period is over. The vehicle is no longer highlighted in search results.',
+      link: '/dealer?tab=billing',
+    })
+  }
+  return { ended: due.length }
+}
+
+/** Clear expired verification codes (email + phone) — codes never linger. */
+export async function cleanupExpiredVerificationCodes(): Promise<{ cleared: number }> {
+  const cutoff = new Date(Date.now() - 60 * 60 * 1000) // 1h past expiry
+  const stale = await db.user.updateMany({
+    where: {
+      OR: [
+        { emailCode: { not: null }, emailCodeExpiresAt: { lt: cutoff } },
+        { phoneCode: { not: null }, phoneCodeExpiresAt: { lt: cutoff } },
+      ],
+    },
+    data: { emailCode: null, emailCodeExpiresAt: null, emailCodeAttempts: 0, phoneCode: null, phoneCodeExpiresAt: null, phoneCodeAttempts: 0 },
+  })
+  return { cleared: stale.count }
+}

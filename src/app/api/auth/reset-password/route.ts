@@ -33,7 +33,12 @@ export const POST = route(async (req: NextRequest) => {
   await db.$transaction([
     db.user.update({
       where: { id: record.userId },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        // Session revocation: bumping the version invalidates every session
+        // token issued before this reset (checked on each request).
+        sessionVersion: { increment: 1 },
+      },
     }),
     db.passwordResetToken.update({
       where: { id: record.id },
