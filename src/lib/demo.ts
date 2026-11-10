@@ -94,7 +94,7 @@ const DEFINITIONS: Record<DemoRoleKey, { email: string; label: string; descripti
     label: 'Supplier Owner Demo',
     description: 'Run SupplierOS for Sifa Auto Spares: catalogue & fitment, branches and stock, quote requests, purchase orders, settlements and business billing.',
     icon: 'package',
-    dashboard: 'supply',
+    dashboard: 'supplier',
     restrictedNote: null,
   },
   'logistics-owner': {
