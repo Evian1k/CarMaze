@@ -2,6 +2,8 @@
 
 **9 Nov 2026 · All results below are from commands actually executed in this session. Nothing was skipped or fabricated.**
 
+> **10 Nov 2026 re-run (after the upload endpoint + `.env.example` rebuild and the private-document `no-store` cache fix):** `bun verification/security-tests.ts` → **93 passed, 0 failed** (fresh server process; includes the full §16 upload matrix against the rebuilt route). `bunx tsc --noEmit` → exit 0; `bun run lint` → clean. Live browser verification (agent-browser): sign-in → `#/sell` verification dialog renders the document input with the correct accept list; in-session upload of a real PNG → 201 `/api/media/…` → served 200 `image/png`; PDF `kind=document` → 201 `/api/files/…`; owner fetch 200 → **same-URL cookie-less fetch 401 after the `no-store` fix** (it returned 200 from the browser cache before the fix — this was the new defect, now closed); private-doc cache-busted anonymous fetch 401. Homepage/mobile render, footer push-down and tab bar verified; zero page errors in the browser console.
+
 ---
 
 ## 1. Automated verification suite — `bun verification/security-tests.ts`

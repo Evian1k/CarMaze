@@ -54,7 +54,12 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
     }
 
     return new NextResponse(new Uint8Array(data), {
-      headers: { 'Content-Type': mime, 'Cache-Control': 'private, max-age=60' },
+      // no-store is REQUIRED here: a cacheable private document would keep
+      // being served by the browser's HTTP cache even after the viewer logs
+      // out (the cache is keyed by URL, not by credentials) — observed live
+      // with `private, max-age=60`. Privacy beats the small re-download cost,
+      // and every authorised staff view now always reaches the access log.
+      headers: { 'Content-Type': mime, 'Cache-Control': 'private, no-store' },
     })
   } catch {
     return fail(404, 'NOT_FOUND', 'Document no longer exists.')
