@@ -15,7 +15,7 @@ import time
 
 PROJECT = "/home/z/my-project"
 LOG = os.path.join(PROJECT, "dev.log")
-MAX_HEAP_MB = "1536"
+MAX_HEAP_MB = "1024"
 
 
 def fork_exit():
