@@ -43,6 +43,7 @@ import {
 type ServiceRow = { id: string; category: string; title: string; description: string | null; priceFromMinor: number | null; active: boolean }
 type MyGarage = {
   org: { id: string; name: string; county: string; town: string | null; location: string | null; description: string | null; phone: string | null; status: string }
+  viewerRole?: string
   services: ServiceRow[]
   rating: { avg: number; count: number }
   stats: { openRequests: number; quoted: number; booked: number; completed: number; pendingBookings: number }
@@ -176,6 +177,11 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
   const TABS = ['overview', 'services', 'requests', 'quotes', 'bookings', 'custody', 'procurement', 'branches', 'memberships', 'inbox', 'reviews', 'profile'] as const
   const [tab, setTab] = useState<string>(TABS.includes(initialTab as (typeof TABS)[number]) ? initialTab : 'overview')
   const unreadMessages = useUnreadConversations('org')
+  // Role awareness: the server rejects owner/manager-only mutations for staff
+  // (service edits, quote sending, profile & billing). Hide those affordances
+  // instead of letting staff hit permission errors (server still enforces).
+  const viewerRole = activeGarage.viewerRole ?? 'STAFF'
+  const isOrgAdmin = ['OWNER', 'MANAGER', 'GM', 'OPERATIONS', 'ACCOUNTANT'].includes(viewerRole)
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
@@ -228,8 +234,8 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
         </TabsList>
 
         <TabsContent value="overview" className="mt-4"><OverviewTab garage={activeGarage} onGo={setTab} /></TabsContent>
-        <TabsContent value="services" className="mt-4"><ServicesTab orgId={activeOrgId} services={activeGarage.services} onChanged={onRefresh} /></TabsContent>
-        <TabsContent value="requests" className="mt-4"><RequestsTab orgId={activeOrgId} services={activeGarage.services} /></TabsContent>
+        <TabsContent value="services" className="mt-4"><ServicesTab orgId={activeOrgId} services={activeGarage.services} onChanged={onRefresh} readOnly={!isOrgAdmin} /></TabsContent>
+        <TabsContent value="requests" className="mt-4"><RequestsTab orgId={activeOrgId} services={activeGarage.services} canQuote={isOrgAdmin} /></TabsContent>
         <TabsContent value="quotes" className="mt-4"><QuotesTab orgId={activeOrgId} /></TabsContent>
         <TabsContent value="bookings" className="mt-4"><BookingsTab orgId={activeOrgId} onChanged={onRefresh} /></TabsContent>
         <TabsContent value="custody" className="mt-4"><FadeIn><CustodyTab /></FadeIn></TabsContent>
@@ -250,11 +256,19 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
         <TabsContent value="inbox" className="mt-4"><FadeIn><MessagesTab scope="org" /></FadeIn></TabsContent>
         <TabsContent value="reviews" className="mt-4"><ReviewsTab orgId={activeOrgId} rating={activeGarage.rating} /></TabsContent>
         <TabsContent value="profile" className="mt-4">
-          <div className="space-y-6">
-            <ProfileTab garage={activeGarage} onSaved={onRefresh} />
-            {/* Billing: promotions (garage packages apply to the org, same M-Pesa flow) */}
-            <PromotionsSection />
-          </div>
+          {isOrgAdmin ? (
+            <div className="space-y-6">
+              <ProfileTab garage={activeGarage} onSaved={onRefresh} />
+              {/* Billing: promotions (garage packages apply to the org, same M-Pesa flow) */}
+              <PromotionsSection />
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                Profile editing, promotions and billing are available to the garage owner or a manager.
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>
@@ -333,7 +347,7 @@ function PipelineRow({ label, value, onClick }: { label: string; value: number; 
 
 // ─────────────────────────── Services ───────────────────────────
 
-function ServicesTab({ orgId, services, onChanged }: { orgId: string; services: ServiceRow[]; onChanged: () => void }) {
+function ServicesTab({ orgId, services, onChanged, readOnly = false }: { orgId: string; services: ServiceRow[]; onChanged: () => void; readOnly?: boolean }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<ServiceRow | null>(null)
   const [category, setCategory] = useState<string>('GENERAL_SERVICE')
@@ -396,7 +410,11 @@ function ServicesTab({ orgId, services, onChanged }: { orgId: string; services: 
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Active services decide which customer requests you see. Deactivate instead of deleting to keep history.</p>
-        <Button onClick={openCreate} className="gap-1.5"><Plus className="h-4 w-4" /> Add service</Button>
+        {readOnly ? (
+          <span className="text-xs text-muted-foreground">Service catalogue editing is available to the garage owner or a manager.</span>
+        ) : (
+          <Button onClick={openCreate} className="gap-1.5"><Plus className="h-4 w-4" /> Add service</Button>
+        )}
       </div>
 
       {services.length === 0 ? (
@@ -416,8 +434,12 @@ function ServicesTab({ orgId, services, onChanged }: { orgId: string; services: 
                   <p className="mt-2 text-sm font-medium">{s.priceFromMinor ? `from ${money(s.priceFromMinor)}` : 'Price on quote'}</p>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1.5">
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => openEdit(s)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
-                  <Button size="sm" variant="ghost" onClick={() => toggleActive(s)}>{s.active ? 'Deactivate' : 'Activate'}</Button>
+                  {readOnly ? null : (
+                    <>
+                      <Button size="sm" variant="outline" className="gap-1" onClick={() => openEdit(s)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+                      <Button size="sm" variant="ghost" onClick={() => toggleActive(s)}>{s.active ? 'Deactivate' : 'Activate'}</Button>
+                    </>
+                  )}
                 </div>
               </div>
             </Card>
@@ -486,7 +508,7 @@ function useOrgRequests(orgId: string) {
   return { requests, refresh }
 }
 
-function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[] }) {
+function RequestsTab({ orgId, services, canQuote = true }: { orgId: string; services: ServiceRow[]; canQuote?: boolean }) {
   const { requests, refresh } = useOrgRequests(orgId)
   const [quoteFor, setQuoteFor] = useState<LeadRequest | null>(null)
   const [amount, setAmount] = useState('')
@@ -531,6 +553,7 @@ function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Eligible requests match your active service categories. Sending another quote updates your previous one; customers never see other garages&apos; prices.
+        {canQuote ? '' : ' Sending quotes is available to the garage owner or a manager.'}
       </p>
 
       {requests === null ? (
@@ -565,7 +588,7 @@ function RequestsTab({ orgId, services }: { orgId: string; services: ServiceRow[
                       {r.refCode} · {r.county}{r.town ? ` · ${r.town}` : ''} · {timeAgo(r.createdAt)} · requested by {r.customer.name}
                     </p>
                   </div>
-                  {eligible && (
+                  {eligible && canQuote && (
                     <Button size="sm" className="gap-1.5" onClick={() => openQuote(r)}>
                       <Send className="h-3.5 w-3.5" /> {r.myQuote ? 'Update quote' : 'Send quote'}
                     </Button>

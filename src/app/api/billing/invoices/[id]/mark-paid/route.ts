@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, parseBody, requireRole } from '@/lib/api'
+import { assertNotDemoActor } from '@/lib/demo'
 import { activatePaidInvoice, auditPaymentConfirmed } from '../../../_activate'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -24,6 +25,10 @@ const bodySchema = z.object({
  */
 export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const user = await requireRole('FINANCE', 'ADMIN', 'FOUNDER')
+  // Financial reconciliation is never available from a demo session: marking
+  // an invoice PAID is a real-money statement, and demo accounts must not
+  // simulate payment success even on demo-owned rows.
+  assertNotDemoActor(user, 'manual invoice reconciliation (mark paid)')
   const { id } = await ctx.params
   const body = await parseBody(req, bodySchema)
 

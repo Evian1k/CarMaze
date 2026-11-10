@@ -131,7 +131,14 @@ const TAB_ROLES: Partial<Record<TabKey, readonly string[]>> = {
   revenue: ['FINANCE', 'ADMIN', 'FOUNDER'],
 }
 
+/** Tabs that surface real personal, financial or security data: the server
+ * closes them to demo sessions entirely (assertNotDemoStaffRead), so the
+ * navigation hides them for demo accounts instead of rendering 403 panels.
+ * Mirrors the restricted note shown on the Platform Admin demo card. */
+const DEMO_RESTRICTED_TABS: ReadonlySet<TabKey> = new Set(['users', 'staff', 'revenue', 'audit', 'billing', 'settings'] as TabKey[])
+
 function tabVisibleFor(user: CurrentUser | null, t: TabKey): boolean {
+  if (user?.isDemo && DEMO_RESTRICTED_TABS.has(t)) return false
   const roles = TAB_ROLES[t]
   return !roles || hasAnyRole(user, ...roles)
 }
@@ -3403,7 +3410,9 @@ function NotificationsTab({ user }: { user: CurrentUser }) {
   const [error, setError] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
   // Broadcast composer state (ADMIN/FOUNDER only: server enforces the same rule)
-  const canBroadcast = hasAnyRole(user, 'ADMIN', 'FOUNDER')
+  // Demo accounts see broadcast history but cannot compose: sending to real
+  // users is a platform-wide action the sandbox blocks server-side.
+  const canBroadcast = hasAnyRole(user, 'ADMIN', 'FOUNDER') && !user.isDemo
   const [broadcasts, setBroadcasts] = useState<BroadcastRow[] | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)

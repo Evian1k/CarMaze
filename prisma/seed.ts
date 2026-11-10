@@ -481,7 +481,27 @@ async function main() {
   })
   await db.quote.create({ data: { requestId: sr2.id, orgId: garageOrg2.id, amountMinor: 480000, leadDays: 1, message: 'Genuine filters and 5W-30 oil included.', status: 'ACCEPTED' } })
   await db.booking.create({ data: { requestId: sr2.id, orgId: garageOrg2.id, scheduledAt: daysFromNow(-5), status: 'COMPLETED', notes: 'Completed on time. Customer advised brake pads at ~40% next visit.' } })
+  // A confirmed (upcoming) job for the PRIMARY garage as well: Premium Motors
+  // is the first org the GarageOS demo lands on, so its bookings tab needs a
+  // live job on first load instead of an empty state.
+  const sr3 = await db.serviceRequest.create({
+    data: {
+      refCode: 'SRQ-4TK9WP', customerId: customer.id, category: 'ELECTRICAL',
+      vehicleDesc: 'Toyota Prado TX-L 2018', description: 'Battery drains overnight. Suspect a parasitic draw; need diagnostics and a replacement unit if needed.',
+      county: 'Nairobi', town: 'South B', status: 'BOOKED',
+    },
+  })
+  await db.quote.create({ data: { requestId: sr3.id, orgId: garageOrg.id, amountMinor: 750000, leadDays: 1, message: 'Parasitic-draw diagnostics plus a 12-month-warranty battery if the test confirms. Drop-off before 9 AM for same-day collection.' , status: 'ACCEPTED' } })
+  await db.booking.create({ data: { requestId: sr3.id, orgId: garageOrg.id, scheduledAt: daysFromNow(2), status: 'CONFIRMED', notes: 'Customer will drop the car at 08:30. Diagnostics first; call before fitting a new battery.' } })
   await db.orgReview.create({ data: { orgId: garageOrg2.id, authorId: customer.id, rating: 5, comment: 'Quick, honest and clean work. Fair pricing.' } })
+  // Reviews for the PRIMARY garage (Premium Motors Garage) too: the GarageOS
+  // reviews tab must show real content on first load, not an empty state.
+  await db.orgReview.createMany({
+    data: [
+      { orgId: garageOrg.id, authorId: customer.id, rating: 5, comment: 'They fitted the lift kit exactly as quoted and the alignment was spot on. Booked again for the next service.', createdAt: daysFromNow(-14) },
+      { orgId: garageOrg.id, authorId: dealerOwner.id, rating: 4, comment: 'Solid diagnostics work on two of our stock units. Communication could be faster, but the repairs hold up.', createdAt: daysFromNow(-31) },
+    ],
+  })
 
   // ── Roadside (completed demo) ──
   await db.roadsideRequest.create({

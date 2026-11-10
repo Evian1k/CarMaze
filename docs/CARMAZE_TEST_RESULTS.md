@@ -69,3 +69,46 @@ Preserved sections (all passing): 8 demo role sessions + demo-scope claims · cu
 - Production `next build`+`start` cycle (sandbox forbids building; type-safety is enforced via enforced-at-build `tsc` + clean lint; deployment guide §2 carries the build steps).
 
 These are code-complete with honest failure modes; each needs its external credential to be *executed* — see `CARMAZE_REMAINING_BLOCKERS.md`.
+
+## 7. Addendum — 10 Nov 2026 (later session): role-surface hardening + third file-loss rebuild
+
+Scope: "make everything function the way it should including the roles" — systematic role ×
+section coverage audit across all 10 demo roles and 12+ sections.
+
+**Sandbox file-loss struck a third time**: `src/app/api/upload/route.ts` was found deleted
+again (17 client call sites depend on it). Rebuilt to the locked §16 contract
+(magic-byte sniffing, anti-spoof 415 both directions, kind/image caps 8/10 MB,
+server-side `<userId>.<16hex>.<ext>` naming with `wx` exclusive writes,
+UploadRecord + FILE_UPLOADED audit). Suite re-run on a fresh dev server:
+**93 passed, 0 failed** — including the full upload matrix.
+Serving routes (`/api/files/[name]`, `/api/media/[name]`), the UploadRecord model and
+stored files were unaffected.
+
+**Fixes shipped this round (all browser-verified per role):**
+- Demo financial guards: `mark-paid`, `refund` and the staff-scope GET of
+  `/api/billing/invoices` now refuse demo sessions (previously a demo admin could
+  mark invoices PAID / read platform billing records — inconsistent with the
+  documented demo restriction). Real FOUNDER account still works (control-tested).
+- Moderation sandbox: `/api/reports` PATCH now resolves the reported target's owner
+  (vehicle/post/comment/user) and applies `demoStaffMutationGuard` — demo staff can
+  moderate demo-ecosystem reports and are blocked from real ones (fail-closed on
+  unknown targets). Verified both directions.
+- Control Center demo UX: the admin view now hides the tabs the server closes to demo
+  sessions (Users, Staff, Billing, Settings, Audit, Revenue) instead of rendering 403
+  panels, and hides the broadcast composer for demo admins. Deep-links to those tabs
+  fall back to Overview. Verified with the platform-admin demo: exactly 11 allowed tabs.
+- DealerOS role gating: Staff and Billing tabs are hidden for members whose org role
+  is neither OWNER/MANAGER (billing also FINANCE) — those endpoints 403'd for sales
+  staff. Owner retains all 12 tabs; staff sees exactly the 10 they can use.
+- GarageOS role gating: `/api/garages?mine=1` now returns the caller's `viewerRole`;
+  service-catalogue editing, quote sending and the profile/promotions panel are
+  hidden for STAFF (with an explanatory note) and intact for OWNER. Verified both roles.
+- Seed enrichment: Premium Motors Garage (the first org the GarageOS demo lands on) now
+  has a CONFIRMED upcoming booking, an ACCEPTED quote flow (SRQ-4TK9WP) and two
+  org reviews (rating 4.5) — the dashboard was empty-on-first-load before.
+
+**Verification:** tsc 0 errors; ESLint clean; security suite 93/93 on a fresh dev
+server process; faithful per-role API sweep (exact view query params) all 200 with
+populated payloads; browser journeys re-verified for supplier-owner, garage-owner,
+garage-staff, showroom-owner, showroom-staff, customer, private-seller,
+logistics-owner, platform-support and platform-admin demos — zero console errors.

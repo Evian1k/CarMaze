@@ -84,3 +84,26 @@ Statuses used: VERIFIED WORKING / IMPLEMENTED BUT NOT EXTERNALLY VERIFIED / PART
 5. Malware-scanning service decision for uploads (hook point ready).
 
 Details: `CARMAZE_REMAINING_BLOCKERS.md` · env names: `CARMAZE_ENVIRONMENT_VARIABLES.md`.
+
+---
+
+## 2026-11-10 (later session) — Role-surface hardening & third sandbox file-loss rebuild
+
+1. **Third sandbox file-loss incident.** `src/app/api/upload/route.ts` was again missing
+   from the working tree (17 client call sites affected). Rebuilt to the §16 contract and
+   re-proven by the security suite: 93/93 on a fresh dev server process. Ops note: when a
+   session resumes with "route not found" symptoms, check for silently reverted files
+   before debugging the server.
+2. **Demo-vs-real financial boundary closed.** Demo sessions could previously reach
+   invoice mark-paid / refund / platform billing reads via ADMIN-tier roles. These now
+   hard-fail 403 `DEMO_SANDBOXED` for demo sessions while real staff accounts retain the
+   pilot-ops capability (control-tested with the seeded FOUNDER).
+3. **Sandbox-consistent moderation.** Report resolution applies
+   `demoStaffMutationGuard` against the reported content's true owner (resolved from the
+   database), so demo staff can exercise the moderation queue on demo content only.
+4. **Role-aligned business UI.** DealerOS/GarageOS now hide tabs and actions their
+   caller's org role cannot exercise server-side (staff/billing for sales staff;
+   service-editing, quoting and profile/billing for garage staff). This is UX alignment
+   only — every API re-checks authorization (deny-by-default unchanged).
+5. **Demo content completeness.** Seed now gives the primary garage org a live booking,
+   an accepted-quote flow and two reviews so no demo dashboard opens empty.

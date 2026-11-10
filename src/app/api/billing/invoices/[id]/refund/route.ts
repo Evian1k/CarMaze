@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, parseBody, requireRole } from '@/lib/api'
+import { assertNotDemoActor } from '@/lib/demo'
 import { audit } from '@/lib/audit'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -28,6 +29,9 @@ const bodySchema = z.object({
  */
 export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const user = await requireRole('FINANCE', 'ADMIN', 'FOUNDER')
+  // Refunds move real money and end paid entitlements: never available from a
+  // demo session, even when the invoice belongs to the demo ecosystem.
+  assertNotDemoActor(user, 'invoice refunds')
   const { id } = await ctx.params
   const body = await parseBody(req, bodySchema)
 

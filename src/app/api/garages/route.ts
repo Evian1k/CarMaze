@@ -77,6 +77,10 @@ export const GET = route(async (req: NextRequest) => {
             id: org.id, name: org.name, county: org.county, town: org.town,
             location: org.location, description: org.description, phone: org.phone, status: org.status,
           },
+          // The caller's membership role in THIS org: lets the UI hide
+          // owner/manager-only affordances for staff (server re-checks every
+          // mutation; this is UX alignment, not the boundary).
+          viewerRole: memberships.find((m) => m.orgId === org.id)?.role ?? 'STAFF',
           services,
           rating: ratings.get(org.id) ?? { avg: 0, count: 0 },
           stats: { openRequests, quoted, booked, completed, pendingBookings },

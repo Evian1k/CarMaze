@@ -2215,6 +2215,11 @@ function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
   const dash = useFetch<DashboardData>(`/api/dealer/dashboard?orgId=${activeOrgId}`)
   const membership = memberships.find((m) => m.orgId === activeOrgId)
   const viewerRole = dash.data?.viewerRole ?? membership?.role ?? 'STAFF'
+  // Tab visibility follows the caller's membership role. Staff tab and Billing
+  // read from OWNER/MANAGER(/FINANCE) endpoints server-side: hide them for
+  // sales staff instead of rendering error panels (server still enforces).
+  const canSeeStaffTab = viewerRole === 'OWNER' || viewerRole === 'MANAGER'
+  const canSeeBillingTab = viewerRole === 'OWNER' || viewerRole === 'MANAGER' || viewerRole === 'FINANCE'
 
   const tabParam = route.query.get('tab')
   const tab: TabKey = TABS.includes(tabParam as TabKey) ? (tabParam as TabKey) : 'overview'
@@ -2278,8 +2283,8 @@ function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
             ['testdrives', 'Test drives'],
             ['buying', 'Buying board'],
             ['memberships', 'Memberships'],
-            ['staff', 'Staff'],
-            ['billing', 'Billing'],
+            ...(canSeeStaffTab ? [['staff', 'Staff'] as [TabKey, string]] : []),
+            ...(canSeeBillingTab ? [['billing', 'Billing'] as [TabKey, string]] : []),
             ['profile', 'Profile'],
           ] as [TabKey, string][]).map(([key, label]) => (
             <TabsTrigger key={key} value={key} className="min-h-9 shrink-0 gap-1.5 px-3">
@@ -2327,10 +2332,10 @@ function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
           <BuyingTab key={activeOrgId} orgId={activeOrgId} />
         </TabsContent>
         <TabsContent value="staff" className="mt-4">
-          <StaffTab key={activeOrgId} orgId={activeOrgId} viewerRole={viewerRole} />
+          {canSeeStaffTab ? <StaffTab key={activeOrgId} orgId={activeOrgId} viewerRole={viewerRole} /> : null}
         </TabsContent>
         <TabsContent value="billing" className="mt-4">
-          <BillingTab key={activeOrgId} orgId={activeOrgId} dash={dash} />
+          {canSeeBillingTab ? <BillingTab key={activeOrgId} orgId={activeOrgId} dash={dash} /> : null}
         </TabsContent>
         <TabsContent value="profile" className="mt-4">
           {dash.data && <ProfileTab key={`${activeOrgId}-${dash.data.org.id}`} org={dash.data.org} viewerRole={viewerRole} onSaved={onRefresh} />}

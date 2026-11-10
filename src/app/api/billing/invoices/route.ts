@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { route, ok, fail } from '@/lib/api'
 import { requireUser } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
+import { assertNotDemoStaffRead } from '@/lib/demo'
 
 /**
  * GET /api/billing/invoices: scoped, never leaky:
@@ -50,6 +51,10 @@ export const GET = route(async (req: NextRequest) => {
   if (!hasRole(user, ...STAFF_ROLES)) {
     return fail(403, 'FORBIDDEN', 'Specify ?org=1 or ?mine=1 to list invoices you own.')
   }
+
+  // Platform-wide billing records are revenue data: closed to demo sessions
+  // (same policy as /api/admin/revenue).
+  assertNotDemoStaffRead(user, 'the platform billing console')
 
   // Staff view: all invoices for the Control Center.
   const invoices = await db.invoice.findMany({
