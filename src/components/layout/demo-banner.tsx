@@ -16,6 +16,8 @@ const ROLE_LABELS: Record<string, string> = {
   'showroom-staff': 'Showroom Staff',
   'garage-owner': 'Garage Owner',
   'garage-staff': 'Garage Staff',
+  'supplier-owner': 'Supplier Owner',
+  'logistics-owner': 'Logistics Partner',
   'platform-support': 'Platform Support',
   'platform-admin': 'Platform Admin (restricted)',
 }

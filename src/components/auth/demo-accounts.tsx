@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Building2, Car, ChevronDown, CircleUser, HardHat, Headset, Loader2, Play, ShieldCheck, Wrench, type LucideIcon } from 'lucide-react'
+import { Building2, Car, ChevronDown, CircleUser, HardHat, Headset, Loader2, Package, Play, ShieldCheck, Truck, Wrench, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { apiGet, apiSend, ClientApiError } from '@/lib/client'
 import { useAuth } from '@/stores/auth'
@@ -29,6 +29,8 @@ const ICONS: Record<string, LucideIcon> = {
   'id-card': Building2,
   wrench: Wrench,
   'hard-hat': HardHat,
+  package: Package,
+  truck: Truck,
   headset: Headset,
   shield: ShieldCheck,
 }

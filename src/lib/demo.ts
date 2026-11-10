@@ -24,6 +24,8 @@ export type DemoRoleKey =
   | 'showroom-staff'
   | 'garage-owner'
   | 'garage-staff'
+  | 'supplier-owner'
+  | 'logistics-owner'
   | 'platform-support'
   | 'platform-admin'
 
@@ -85,6 +87,22 @@ const DEFINITIONS: Record<DemoRoleKey, { email: string; label: string; descripti
     description: 'Assigned garage operations only: bookings, job progress and customer conversations. No billing, staff management or financials.',
     icon: 'hard-hat',
     dashboard: 'garage-dashboard',
+    restrictedNote: null,
+  },
+  'supplier-owner': {
+    email: 'supplier@carmaze.co.ke',
+    label: 'Supplier Owner Demo',
+    description: 'Run SupplierOS for Sifa Auto Spares: catalogue & fitment, branches and stock, quote requests, purchase orders, settlements and business billing.',
+    icon: 'package',
+    dashboard: 'supply',
+    restrictedNote: null,
+  },
+  'logistics-owner': {
+    email: 'logistics@carmaze.co.ke',
+    label: 'Logistics Partner Demo',
+    description: 'Run LogisticsOS for Swift Movers: delivery jobs, drivers & fleet, OTP-verified handovers, proof-of-delivery and earnings.',
+    icon: 'truck',
+    dashboard: 'logistics',
     restrictedNote: null,
   },
   'platform-support': {
