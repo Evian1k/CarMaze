@@ -181,7 +181,10 @@ function Dashboard({ garages, activeGarage, activeOrgId, onOrgChange, initialTab
   // (service edits, quote sending, profile & billing). Hide those affordances
   // instead of letting staff hit permission errors (server still enforces).
   const viewerRole = activeGarage.viewerRole ?? 'STAFF'
-  const isOrgAdmin = ['OWNER', 'MANAGER', 'GM', 'OPERATIONS', 'ACCOUNTANT'].includes(viewerRole)
+  // Must mirror the server gates exactly (garage-services / quotes / garages
+  // PATCH all accept OrgMember OWNER|MANAGER only) — otherwise the UI shows
+  // edit affordances the API would 403.
+  const isOrgAdmin = ['OWNER', 'MANAGER'].includes(viewerRole)
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">

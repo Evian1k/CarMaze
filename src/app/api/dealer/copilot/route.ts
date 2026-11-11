@@ -37,6 +37,10 @@ export const GET = route(async (req: NextRequest) => {
   }
   const membership = requestedOrgId ? memberships.find((m) => m.orgId === requestedOrgId) : memberships[0]
   if (!membership) throw new ApiError(403, 'FORBIDDEN', 'You are not a member of that dealership.')
+  // Billing insights (subscription state, invoices) are money matters: only
+  // OWNER/MANAGER/FINANCE see them — the same rule the UI applies to the
+  // Billing tab. Sales staff still get operational insights.
+  const canSeeBilling = ['OWNER', 'MANAGER', 'FINANCE'].includes(membership.role)
   const orgId = membership.orgId
   const now = Date.now()
 
@@ -164,8 +168,8 @@ export const GET = route(async (req: NextRequest) => {
     })
   }
 
-  // 5) Subscription renewal window / past due + overdue invoices.
-  if (subscription && subscription.status === 'ACTIVE') {
+  // 5) Subscription renewal window / past due + overdue invoices (billing eyes only).
+  if (canSeeBilling && subscription && subscription.status === 'ACTIVE') {
     const msLeft = subscription.currentPeriodEnd.getTime() - now
     if (msLeft > 0 && msLeft <= 5 * DAY) {
       insights.push({
@@ -176,7 +180,7 @@ export const GET = route(async (req: NextRequest) => {
         actionLink: '/dealer?tab=billing',
       })
     }
-  } else if (subscription && subscription.status === 'PAST_DUE') {
+  } else if (canSeeBilling && subscription && subscription.status === 'PAST_DUE') {
     insights.push({
       id: 'subscription-past-due',
       severity: 'warning',
@@ -190,7 +194,7 @@ export const GET = route(async (req: NextRequest) => {
   const overdueInvoices = pendingInvoices.filter(
     (inv) => inv.status === 'OVERDUE' || inv.issuedAt.getTime() < now7dAgo
   )
-  if (overdueInvoices.length > 0) {
+  if (canSeeBilling && overdueInvoices.length > 0) {
     const oldest = overdueInvoices[0]
     insights.push({
       id: 'invoice-overdue',

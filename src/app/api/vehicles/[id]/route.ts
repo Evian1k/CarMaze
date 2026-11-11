@@ -12,10 +12,19 @@ function isStaffRole(roles: string[]): boolean {
   return STAFF_ROLES.some((r) => roles.includes(r))
 }
 
-/** Owner, dealer seller (OWNER/MANAGER/SALES) or staff can manage a listing. */
+/** Platform staff who may MUTATE listings — mirrors /api/admin/listings.
+ * Read-only staff roles (SUPPORT, FINANCE) can view any listing for support
+ * purposes but must not edit or delete a seller's work. */
+const LISTING_MODERATOR_ROLES = ['REVIEWER', 'MODERATOR', 'ADMIN', 'FOUNDER'] as const
+
+function isModeratorRole(roles: string[]): boolean {
+  return LISTING_MODERATOR_ROLES.some((r) => roles.includes(r))
+}
+
+/** Owner, dealer seller (OWNER/MANAGER/SALES) or platform moderator can manage a listing. */
 async function canManageVehicle(userId: string, roles: string[], vehicle: { ownerId: string; orgId: string | null }): Promise<boolean> {
   if (vehicle.ownerId === userId) return true
-  if (isStaffRole(roles)) return true
+  if (isModeratorRole(roles)) return true
   if (!vehicle.orgId) return false
   const membership = await db.orgMember.findFirst({
     where: { orgId: vehicle.orgId, userId, role: { in: ['OWNER', 'MANAGER', 'SALES'] } },
@@ -292,7 +301,7 @@ export const DELETE = route(async (req: NextRequest, ctx: Ctx) => {
   const vehicle = await db.vehicle.findUnique({ where: { id }, select: { ownerId: true, status: true, refCode: true } })
   if (!vehicle) throw new ApiError(404, 'NOT_FOUND', 'Listing not found.')
 
-  if (vehicle.ownerId !== user.id && !isStaffRole(user.roles)) {
+  if (vehicle.ownerId !== user.id && !isModeratorRole(user.roles)) {
     throw new ApiError(403, 'FORBIDDEN', 'You can only delete your own listings.')
   }
 

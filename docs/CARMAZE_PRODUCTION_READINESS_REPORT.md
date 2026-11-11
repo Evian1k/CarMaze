@@ -107,3 +107,53 @@ Details: `CARMAZE_REMAINING_BLOCKERS.md` · env names: `CARMAZE_ENVIRONMENT_VARI
    only — every API re-checks authorization (deny-by-default unchanged).
 5. **Demo content completeness.** Seed now gives the primary garage org a live booking,
    an accepted-quote flow and two reviews so no demo dashboard opens empty.
+
+## 2026-11-11 — Full functional + roles end-to-end pass
+
+Triggered by the user's requests to (a) have a demo for every section and
+(b) "make everything function the way it should including the roles".
+
+1. **Fourth sandbox file-loss incident, same file.** `src/app/api/upload/route.ts`
+   was missing again after session recycle. Restored from the tracked copy at
+   `agent-ctx/upload-route-backup.ts` (byte-identical to the §16 contract) and
+   re-proven through the REAL UI: demo private-seller completed the full sell
+   wizard — photo upload → 201 → `/api/media/<server-name>` serves 200
+   `image/png` → listing submitted for review. Security suite re-run: **93/93**.
+2. **RBAC fixes (all server-verified in browser unless noted):**
+   - `vehicles/[id]` PATCH/DELETE staff bypass narrowed to
+     REVIEWER/MODERATOR/ADMIN/FOUNDER (was any staff role incl. SUPPORT/FINANCE),
+     mirroring `/api/admin/listings`. Staff READ access unchanged.
+   - `/api/dealer/copilot` now redacts billing insights (subscription, overdue
+     invoices) from members without an OWNER/MANAGER/FINANCE org role — verified
+     live: showroom-owner sees `subscription-renewal`, showroom-staff does not.
+   - GarageOS `isOrgAdmin` narrowed to OrgMember OWNER|MANAGER to mirror the
+     server gates exactly (GM/OPERATIONS/ACCOUNTANT no longer see edit
+     affordances the API would 403). Code-level fix; seeded roles unaffected.
+   - Demo platform-admin: `verification` added to `DEMO_RESTRICTED_TABS`, so the
+     tab (whose queue endpoint is demo-blocked server-side) no longer renders a
+     403 toast panel. Verified live: tab absent, no errors.
+   - Schema comment drift removed: `PROCUREMENT` documented as a User role but
+     only ever exists as an OrgMember role.
+3. **Demo coverage additions (seed):** a second OPEN buying request from the
+   OTHER demo dealership so DealerOS's cross-dealer board shows real market
+   demand (verified live); one shared 3D-customizer configuration
+   (`#/customizer?cfg=CRM9DEMO2XK4`) so the share-restore flow is demoable
+   (verified live: exact config restored).
+4. **Per-role browser walk (all 10 demo keys):** every demo identity logs in,
+   lands on its correct dashboard, and sees live seeded content — customer
+   (marketplace / my-garage / customizer share), private-seller (listings +
+   sell/upload), showroom-owner & staff (DealerOS with role-appropriate tabs +
+   copilot), garage-owner & staff (GarageOS + Procurement with approvals gated
+   by OWNER/GM), supplier-owner (SupplierOS: products, warehouses, PO-DEMO01/02/03),
+   logistics-owner (LogisticsOS: jobs incl. IN TRANSIT/DELIVERED, fleet),
+   platform-support (support queue incl. live DPO ticket), platform-admin
+   (restricted read-only tour).
+5. **Layout re-check:** mobile (iPhone 14) marketplace renders with the fixed
+   bottom tab bar; the `mt-auto` app footer measured flush with the document
+   bottom on desktop (`bottom=900` at `innerHeight=900`; an earlier "gap" reading
+   was a page-content `<footer>` CTA card, not the site footer). No console
+   errors; only pre-existing benign warnings.
+
+Known limitations (unchanged, honest): upload malware-scan hook is an honest
+pass-through; M-Pesa/Daraja, SMTP and SMS remain unconfigured (env names in
+`.env.example`); payment success is never simulated.

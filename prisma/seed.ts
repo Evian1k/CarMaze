@@ -445,8 +445,14 @@ async function main() {
       { vehicleId: vitz.id, orgId: dealerOrg2.id, amountMinor: 105000000, message: 'Instant cash offer, collection from your gate in Kikuyu.', status: 'PENDING', expiresAt: daysFromNow(3) },
     ],
   })
-  await db.buyingRequest.create({
-    data: { orgId: dealerOrg.id, make: 'Toyota', model: 'Land Cruiser Prado', yearFrom: 2015, yearTo: 2019, budgetMinor: 700000000, notes: 'Buying clean units, any colour, mileage under 120k.' },
+  await db.buyingRequest.createMany({
+    data: [
+      { orgId: dealerOrg.id, make: 'Toyota', model: 'Land Cruiser Prado', yearFrom: 2015, yearTo: 2019, budgetMinor: 700000000, notes: 'Buying clean units, any colour, mileage under 120k.' },
+      // Second open request from a DIFFERENT dealership so the cross-dealer
+      // board in DealerOS shows real market demand (own-org rows are filtered
+      // out of the board client-side).
+      { orgId: dealerOrg2.id, make: 'Mazda', model: 'Demio', yearFrom: 2016, yearTo: 2020, budgetMinor: 130000000, notes: 'Stocking 1.3L hatchbacks for the January run. Fresh imports preferred.' },
+    ],
   })
 
   // ── Garage services ──
@@ -533,6 +539,16 @@ async function main() {
       { myVehicleId: myVitz.id, type: 'SERVICE', title: 'Next engine service (~65,000 km)', dueDate: daysFromNow(40), intervalDays: 90 },
       { myVehicleId: myVitz.id, type: 'INSPECTION', title: 'NTSA inspection due', dueDate: daysFromNow(75) },
     ],
+  })
+
+  // ── 3D Customizer: one shared demo build (exercises the ?cfg= restore flow) ──
+  await db.customizerConfig.create({
+    data: {
+      shareId: 'CRM9DEMO2XK4',
+      modelId: 'sedan-classic',
+      config: JSON.stringify({ paint: '#B3382C', finish: 'metallic', rimStyle: 'sport', rimColor: '#D9B878', glassTint: 0.35, accessory: 'spoiler', rideHeight: 0.02 }),
+      userId: customer.id,
+    },
   })
 
   // ── Community ──

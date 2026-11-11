@@ -46,7 +46,7 @@ model User {
   emailCode     String?  // one-time email verification code (honest dev fallback when SMTP unconfigured)
   emailCodeExpiresAt DateTime? // verification codes always expire
   emailCodeAttempts  Int       @default(0)  // confirm-attempt counter (cleared on success/new request)
-  roles         String   @default("CUSTOMER") // comma separated: CUSTOMER,SELLER,SELLER_VERIFIED,DEALER_OWNER,DEALER_STAFF,GARAGE_OWNER,GARAGE_STAFF,SUPPLIER_OWNER,SUPPLIER_STAFF,LOGISTICS_OWNER,PROCUREMENT,FINANCE,SUPPORT,REVIEWER,MODERATOR,ADMIN,FOUNDER
+  roles         String   @default("CUSTOMER") // comma separated: CUSTOMER,SELLER,SELLER_VERIFIED,DEALER_OWNER,DEALER_STAFF,GARAGE_OWNER,GARAGE_STAFF,SUPPLIER_OWNER,SUPPLIER_STAFF,LOGISTICS_OWNER,FINANCE,SUPPORT,REVIEWER,MODERATOR,ADMIN,FOUNDER
   department    String?  // company staff department (BUSINESS_VERIFICATION|SUPPORT|FINANCE|DISPUTES|FRAUD|MODERATION|TECHNICAL)
   totpSecret    String?  // base32 TOTP secret for MFA (null = MFA disabled)
   mfaEnabled    Boolean  @default(false)

@@ -135,7 +135,7 @@ const TAB_ROLES: Partial<Record<TabKey, readonly string[]>> = {
  * closes them to demo sessions entirely (assertNotDemoStaffRead), so the
  * navigation hides them for demo accounts instead of rendering 403 panels.
  * Mirrors the restricted note shown on the Platform Admin demo card. */
-const DEMO_RESTRICTED_TABS: ReadonlySet<TabKey> = new Set(['users', 'staff', 'revenue', 'audit', 'billing', 'settings'] as TabKey[])
+const DEMO_RESTRICTED_TABS: ReadonlySet<TabKey> = new Set(['users', 'staff', 'revenue', 'audit', 'billing', 'settings', 'verification'] as TabKey[])
 
 function tabVisibleFor(user: CurrentUser | null, t: TabKey): boolean {
   if (user?.isDemo && DEMO_RESTRICTED_TABS.has(t)) return false
