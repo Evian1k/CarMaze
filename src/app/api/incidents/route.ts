@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { isUploadUrl } from '@/lib/upload-url'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, requireUser, parseBody } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
@@ -40,7 +41,7 @@ const createSchema = z.object({
   orgId: z.string().min(1).optional(),
   custodyId: z.string().min(1).optional(),
   testDriveId: z.string().min(1).optional(),
-  evidence: z.array(z.string().trim().min(1).max(500)).max(6).optional(),
+  evidence: z.array(z.string().trim().min(1).max(500).refine(isUploadUrl, { message: 'Evidence must reference an uploaded file' })).max(6).optional(),
 })
 
 /**

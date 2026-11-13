@@ -14,6 +14,9 @@ export const dynamic = 'force-dynamic'
 
 type Ctx = { params: Promise<{ id: string }> }
 
+// Absolute lifetime of a consumer-order collection code from dispatch.
+const ORDER_CODE_TTL_MS = 72 * 60 * 60 * 1000
+
 // ───────────────────────────── Helpers ─────────────────────────────
 
 function safeFirstImage(raw: string | null): string | null {
@@ -269,11 +272,20 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
       const dueDate = new Date(Date.now() + 7 * 24 * 3600 * 1000)
       const chosenBranch = chosen
       const updated = await db.$transaction(async (tx) => {
+        // Oversell guard: stock cover is re-checked INSIDE the transaction and
+        // each decrement is conditional (qtyOnHand must still cover the line).
+        // Two concurrent accepts of competing orders can never both take the
+        // same units — the loser gets a clean INSUFFICIENT_STOCK and NO
+        // invoice is minted (the whole transaction rolls back).
         for (const it of order.items) {
-          await tx.productStock.update({
-            where: { productId_branchId: { productId: it.productId, branchId: chosenBranch.id } },
+          const decremented = await tx.productStock.updateMany({
+            where: { productId: it.productId, branchId: chosenBranch.id, qtyOnHand: { gte: it.qty } },
             data: { qtyOnHand: { decrement: it.qty } },
           })
+          if (decremented.count === 0) {
+            const line = order.items.find((x) => x.productId === it.productId)!
+            throw new ApiError(409, 'INSUFFICIENT_STOCK', `${line.product.name}: stock at ${chosenBranch.name} was taken by another order while you were accepting. Nothing was recorded.`)
+          }
           await tx.stockMovement.create({
             data: {
               branchId: chosenBranch.id,
@@ -301,14 +313,20 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
             dueDate,
           },
         })
-        return tx.customerOrder.update({
-          where: { id: order.id },
+        // Conditional status flip: a concurrent accept/reject cannot double-
+        // issue invoices for one order.
+        const flipped = await tx.customerOrder.updateMany({
+          where: { id: order.id, status: { in: ['SUBMITTED', 'CONFIRMED'] } },
           data: {
             status: 'ACCEPTED',
             fulfillmentBranchId: chosenBranch.id,
             invoiceId: invoice.id,
           },
         })
+        if (flipped.count === 0) {
+          throw new ApiError(409, 'INVALID_STATE', 'Order state moved concurrently; nothing was recorded.')
+        }
+        return tx.customerOrder.findUniqueOrThrow({ where: { id: order.id } })
       })
 
       await orderEvent(order.id, {
@@ -365,6 +383,9 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
           courierName: body.courierName,
           otpHash: bcrypt.hashSync(code, 10),
           otpHint: code.slice(-4),
+          // Absolute TTL: the collection code is valid for 72 hours from
+          // dispatch; a code that outlives the delivery window is dead.
+          otpExpiresAt: new Date(Date.now() + ORDER_CODE_TTL_MS),
         },
       })
       await orderEvent(order.id, {
@@ -397,6 +418,10 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
       const rl = rateLimit(`order-code:${order.id}:${user.id}`, 5, 10 * 60 * 1000)
       if (!rl.allowed) {
         return fail(429, 'RATE_LIMITED', `Too many verification attempts. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
+      }
+      // Absolute expiry on the collection code.
+      if (order.otpExpiresAt && order.otpExpiresAt.getTime() < Date.now()) {
+        return fail(403, 'CODE_EXPIRED', 'This collection code has expired (72-hour validity from dispatch). Contact support to re-issue it.')
       }
       if (!order.otpHash || !bcrypt.compareSync(body.code, order.otpHash)) {
         throw new ApiError(403, 'INVALID_CODE', 'That collection code does not match. Ask the customer for the code from their notification.')

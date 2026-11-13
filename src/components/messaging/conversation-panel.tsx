@@ -338,6 +338,7 @@ export function ConversationPanel({ scope, conversations, unavailable, onChanged
     try {
       const fd = new FormData()
       fd.append('file', file)
+      fd.append('kind', 'evidence') // chat attachments: private, conversation participants only
       const d = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
       setPendingFiles((prev) => [...prev, { url: d.url, name: d.name || file.name }])
     } catch (e) {

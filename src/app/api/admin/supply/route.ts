@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { route, ok, fail, parseBody, requireRole } from '@/lib/api'
+import { route, ok, fail, parseBody, requireRole, ApiError } from '@/lib/api'
 import { ROLE, hasRole } from '@/lib/auth'
 import { refCode } from '@/lib/ids'
-import { audit } from '@/lib/audit'
+import { audit, auditTx } from '@/lib/audit'
 import { notify, notifyMany } from '@/lib/notify'
 import { staffUserIds } from '@/lib/orgs'
-import { jsonParse, getFees, poEvent } from '@/lib/supply'
+import { jsonParse } from '@/lib/supply'
 import { assertDemoResourceGuard } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
@@ -367,42 +367,56 @@ export const POST = route(async (req: NextRequest) => {
       await db.disputeEvent.create({ data: { disputeId: dispute.id, type: 'RESOLUTION', actorId: user.id, actorName: user.name, note: `${body.resolution}: ${body.note}` } })
       if (body.resolution === 'REFUND_FULL' || body.resolution === 'REFUND_PARTIAL') {
         const requested = body.resolution === 'REFUND_FULL' ? dispute.order.totalMinor : (body.refundAmountMinor ?? 0)
-        const auth = await db.paymentAuthorization.findUnique({ where: { orderId: dispute.orderId! } })
-        // Financial integrity: a refund decision can only ever claim what has
-        // NOT already left the escrow. Funds already released to the supplier
-        // or refunded earlier are counted, so a released order can never have
-        // a full refund queued on top of the payout (double payout).
-        const alreadyOut = auth ? (auth.refundedAmountMinor ?? 0) + (auth.releasedAmountMinor ?? 0) : 0
-        const refundable = Math.max(0, (auth?.amountMinor ?? dispute.order.totalMinor) - alreadyOut)
-        const amount = Math.min(requested, refundable)
-        if (requested > 0 && amount <= 0) {
-          await db.disputeEvent.create({ data: { disputeId: dispute.id, type: 'NOTE', actorId: user.id, actorName: user.name, note: `No refund queued: funds for this order have already been released or refunded (${(alreadyOut / 100).toLocaleString()} of ${((auth?.amountMinor ?? dispute.order.totalMinor) / 100).toLocaleString()} KES). Any further compensation is a manual finance decision outside escrow.` } })
-        } else if (amount > 0) {
-          await db.refund.create({
-            data: { refCode: refCode('RFD', 6), orderId: dispute.orderId!, paymentAuthId: auth?.id, amountMinor: amount, kind: body.resolution === 'REFUND_FULL' ? 'FULL' : 'PARTIAL', reason: `Dispute ${dispute.refCode}: ${body.note.slice(0, 200)}`, status: 'REQUESTED', requestedById: user.id },
-          })
-        }
-        if (dispute.order.paymentStatus === 'PROTECTED') {
-          await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { paymentStatus: body.resolution === 'REFUND_FULL' ? 'REFUNDED' : 'PARTIALLY_RELEASED' } })
-        }
-        // Financial integrity: a refund decision must remove the escrow value it
-        // covers. FULL → the authorization can no longer be released against;
-        // PARTIAL → the released amount is capped at the remaining escrow by the
-        // release gate (amountMinor − refundedAmountMinor − releasedAmountMinor).
-        // Without this, a garage could release protected funds AND keep a queued refund.
-        if (auth && amount > 0) {
-          const totalRefunded = Math.min(auth.amountMinor, (auth.refundedAmountMinor ?? 0) + amount)
-          const fullyConsumed = totalRefunded + (auth.releasedAmountMinor ?? 0) >= auth.amountMinor
-          await db.paymentAuthorization.update({
-            where: { id: auth.id },
-            data: {
-              refundedAmountMinor: totalRefunded,
-              ...(body.resolution === 'REFUND_FULL' && fullyConsumed ? { status: 'REFUNDED' } : {}),
-            },
-          })
-          if (fullyConsumed && dispute.order.paymentStatus !== 'PROTECTED') {
-            await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { paymentStatus: 'REFUNDED' } })
+        // FINANCIAL CRITICAL SECTION: the refund decision, the escrow bookkeeping
+        // and the refund queue row are written in ONE transaction against a
+        // freshly-read escrow row, so a resolution racing a concurrent release
+        // or refund can never over-claim the collected funds.
+        let queuedAmount = 0
+        await db.$transaction(async (tx) => {
+          const auth = await tx.paymentAuthorization.findUnique({ where: { orderId: dispute.orderId! } })
+          // Financial integrity: a refund decision can only ever claim what has
+          // NOT already left the escrow. Funds already released to the supplier
+          // or refunded earlier are counted, so a released order can never have
+          // a full refund queued on top of the payout (double payout).
+          const alreadyOut = auth ? (auth.refundedAmountMinor ?? 0) + (auth.releasedAmountMinor ?? 0) : 0
+          const refundable = Math.max(0, (auth?.amountMinor ?? dispute.order!.totalMinor) - alreadyOut)
+          const amount = Math.min(requested, refundable)
+          if (requested > 0 && amount <= 0) {
+            await tx.disputeEvent.create({ data: { disputeId: dispute.id, type: 'NOTE', actorId: user.id, actorName: user.name, note: `No refund queued: funds for this order have already been released or refunded (${(alreadyOut / 100).toLocaleString()} of ${((auth?.amountMinor ?? dispute.order!.totalMinor) / 100).toLocaleString()} KES). Any further compensation is a manual finance decision outside escrow.` } })
+            return
           }
+          if (amount > 0) {
+            queuedAmount = amount
+            await tx.refund.create({
+              data: { refCode: refCode('RFD', 6), orderId: dispute.orderId!, paymentAuthId: auth?.id, amountMinor: amount, kind: body.resolution === 'REFUND_FULL' ? 'FULL' : 'PARTIAL', reason: `Dispute ${dispute.refCode}: ${body.note.slice(0, 200)}`, status: 'REQUESTED', requestedById: user.id },
+            })
+          }
+          if (dispute.order!.paymentStatus === 'PROTECTED') {
+            await tx.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { paymentStatus: body.resolution === 'REFUND_FULL' ? 'REFUNDED' : 'PARTIALLY_RELEASED' } })
+          }
+          // Financial integrity: a refund decision must remove the escrow value it
+          // covers. FULL → the authorization can no longer be released against;
+          // PARTIAL → the released amount is capped at the remaining escrow by the
+          // release gate (amountMinor − refundedAmountMinor − releasedAmountMinor).
+          // Without this, a garage could release protected funds AND keep a queued refund.
+          if (auth && amount > 0) {
+            const totalRefunded = Math.min(auth.amountMinor, (auth.refundedAmountMinor ?? 0) + amount)
+            const fullyConsumed = totalRefunded + (auth.releasedAmountMinor ?? 0) >= auth.amountMinor
+            await tx.paymentAuthorization.update({
+              where: { id: auth.id },
+              data: {
+                refundedAmountMinor: totalRefunded,
+                ...(body.resolution === 'REFUND_FULL' && fullyConsumed ? { status: 'REFUNDED' } : {}),
+              },
+            })
+            if (fullyConsumed && dispute.order!.paymentStatus !== 'PROTECTED') {
+              await tx.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { paymentStatus: 'REFUNDED' } })
+            }
+          }
+          await auditTx(tx, { actorId: user.id, actorName: user.name, action: 'DISPUTE_REFUND_QUEUED', targetType: 'PURCHASE_ORDER', targetId: dispute.orderId!, metadata: { amount: queuedAmount, resolution: body.resolution, dispute: dispute.refCode } })
+        })
+        if (queuedAmount > 0) {
+          await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_REFUND_QUEUED', targetType: 'PURCHASE_ORDER', targetId: dispute.orderId!, metadata: { amount: queuedAmount, dispute: dispute.refCode } })
         }
       }
       await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { status: body.resolution === 'REJECTED' ? 'COMPLETED' : 'INSPECTED' } })
@@ -423,23 +437,40 @@ export const POST = route(async (req: NextRequest) => {
       if (!order) return fail(404, 'NOT_FOUND', 'Order not found.')
       if (order.paymentStatus === 'PROTECTED') return fail(409, 'ALREADY_PROTECTED', 'Order payment already protected.')
       if (order.status === 'DISPUTED') return fail(409, 'ORDER_DISPUTED', 'The order is under dispute: resolve the dispute first; reconciliation while frozen would bypass the dispute hold.')
-      const fees = await getFees()
-      await db.paymentAuthorization.upsert({
-        where: { orderId: order.id },
-        create: { refCode: refCode('PAY', 6), orderId: order.id, provider: 'MANUAL_RECONCILED', status: 'PROTECTED', amountMinor: order.totalMinor, checkoutRef: body.providerRef, protectedAt: new Date(), resultDesc: body.note ?? 'Reconciled against provider statement' },
-        update: { provider: 'MANUAL_RECONCILED', status: 'PROTECTED', checkoutRef: body.providerRef, protectedAt: new Date(), resultDesc: body.note ?? 'Reconciled against provider statement' },
+      // FINANCIAL CRITICAL SECTION: manual reconciliation races the provider
+      // callback. The escrow transition is a conditional updateMany inside one
+      // transaction — only a still-unprotected escrow can flip to
+      // PROTECTED(MANUAL_RECONCILED); a webhook that confirmed protection
+      // concurrently wins and this reconciliation is rejected honestly.
+      await db.$transaction(async (tx) => {
+        const auth = await tx.paymentAuthorization.findUnique({ where: { orderId: order.id } })
+        if (!auth) {
+          await tx.paymentAuthorization.create({
+            data: { refCode: refCode('PAY', 6), orderId: order.id, provider: 'MANUAL_RECONCILED', status: 'PROTECTED', amountMinor: order.totalMinor, checkoutRef: body.providerRef, protectedAt: new Date(), resultDesc: body.note ?? 'Reconciled against provider statement' },
+          })
+        } else {
+          const flipped = await tx.paymentAuthorization.updateMany({
+            where: { id: auth.id, status: { in: ['PENDING', 'PROCESSING', 'FAILED'] } },
+            data: { provider: 'MANUAL_RECONCILED', status: 'PROTECTED', checkoutRef: body.providerRef, protectedAt: new Date(), resultDesc: body.note ?? 'Reconciled against provider statement' },
+          })
+          if (flipped.count === 0) {
+            throw new ApiError(409, 'ALREADY_PROTECTED', 'Payment state moved concurrently (a provider confirmation or release landed first); reconciliation rejected.')
+          }
+        }
+        const po = await tx.purchaseOrder.updateMany({ where: { id: order.id, paymentStatus: { not: 'PROTECTED' }, status: { not: 'DISPUTED' } }, data: { paymentStatus: 'PROTECTED' } })
+        if (po.count === 0) {
+          throw new ApiError(409, 'CONFLICT', 'Order state moved concurrently; reconciliation rejected.')
+        }
+        if (order.invoiceId) await tx.invoice.updateMany({ where: { id: order.invoiceId, status: { not: 'PAID' } }, data: { status: 'PAID', paidAt: new Date(), paidVia: 'MANUAL' } })
+        await tx.pOEvent.create({ data: { orderId: order.id, type: 'PAYMENT', actorId: user.id, actorName: user.name, actorSide: staffSide as 'GARAGE' | 'SUPPLIER' | 'SYSTEM' | 'ADMIN', note: `Payment reconciled (provider ref ${body.providerRef}). Funds protected pending inspection.` } })
+        await auditTx(tx, { actorId: user.id, actorName: user.name, action: 'ORDER_PAYMENT_RECONCILED', targetType: 'PURCHASE_ORDER', targetId: order.id, metadata: { providerRef: body.providerRef } })
       })
-      await db.purchaseOrder.update({ where: { id: order.id }, data: { paymentStatus: 'PROTECTED' } })
-      if (order.invoiceId) await db.invoice.update({ where: { id: order.invoiceId }, data: { status: 'PAID', paidAt: new Date(), paidVia: 'MANUAL' } })
-      await poEvent(order.id, { type: 'PAYMENT', actorId: user.id, actorName: user.name, actorSide: staffSide, note: `Payment reconciled (provider ref ${body.providerRef}). Funds protected pending inspection.` })
-      await audit({ actorId: user.id, actorName: user.name, action: 'ORDER_PAYMENT_RECONCILED', targetType: 'PURCHASE_ORDER', targetId: order.id, metadata: { providerRef: body.providerRef } })
       await notifyMany((await db.orgMember.findMany({ where: { orgId: order.garageOrgId }, select: { userId: true } })).map((m) => m.userId), { type: 'ORDER_PAYMENT', title: `Payment protected: ${order.refCode}`, body: 'Finance confirmed the payment. The supplier can now dispatch; funds release after your inspection.', link: '/procurement?tab=orders' })
       return ok({ message: 'Payment reconciled and protected. Supplier can dispatch.' })
     }
     case 'process-refund': {
       const refund = await db.refund.findUnique({ where: { id: body.refundId }, include: { order: true } })
       if (!refund) return fail(404, 'NOT_FOUND', 'Refund not found.')
-      if (refund.status === 'PROCESSED') return fail(409, 'ALREADY_PROCESSED', 'Refund already processed.')
       // Money integrity: PROCESSED states money left the platform — it requires
       // the external reference of the actual reversal (provider statement,
       // M-Pesa reversal code, bank ref). And bookkeeping can never refund more
@@ -447,30 +478,40 @@ export const POST = route(async (req: NextRequest) => {
       if (body.decision === 'PROCESSED' && (!body.providerRef || body.providerRef.trim().length < 3)) {
         return fail(400, 'PROVIDER_REF_REQUIRED', 'Recording a refund as PROCESSED requires the external provider reference of the actual reversal.')
       }
-      const auth = await db.paymentAuthorization.findUnique({ where: { orderId: refund.orderId } })
-      // Money integrity: PROCESSED states money left the platform. The cap
-      // counts EVERYTHING that has already left the escrow — refunds recorded
-      // earlier AND proceeds released to the supplier — so the combination of
-      // a release and a refund can never exceed what was actually collected.
-      if (body.decision === 'PROCESSED' && auth && (auth.refundedAmountMinor ?? 0) + (auth.releasedAmountMinor ?? 0) + refund.amountMinor > auth.amountMinor) {
-        const out = (auth.refundedAmountMinor ?? 0) + (auth.releasedAmountMinor ?? 0)
-        return fail(409, 'REFUND_EXCEEDS_PAYMENT', `Refund of ${(refund.amountMinor / 100).toLocaleString()} KES would exceed the ${(auth.amountMinor / 100).toLocaleString()} KES collected for this order — ${(out / 100).toLocaleString()} KES has already been released to the supplier or refunded.`)
-      }
-      await db.refund.update({
-        where: { id: refund.id },
-        data: { status: body.decision, processedBy: user.name, processedAt: new Date(), providerRef: body.providerRef ?? null },
-      })
+      // FINANCIAL CRITICAL SECTION: the refund flip and the escrow bookkeeping
+      // happen in ONE transaction. The refund row moves with a conditional
+      // updateMany (only REQUESTED/APPROVED can be processed — a concurrent
+      // processing is rejected, never double-counted) and the escrow's
+      // refunded total is INCREMENTED (never overwritten) against a re-read
+      // cap, so a refund racing a release can never over-draw the escrow.
       if (body.decision === 'PROCESSED') {
-        const payment = auth ?? await db.paymentAuthorization.findUnique({ where: { orderId: refund.orderId } })
-        if (payment) {
-          const totalRefunded = payment.refundedAmountMinor + refund.amountMinor
-          await db.paymentAuthorization.update({
-            where: { id: payment.id },
-            data: { refundedAmountMinor: totalRefunded, status: totalRefunded >= payment.amountMinor ? 'REFUNDED' : payment.status },
+        await db.$transaction(async (tx) => {
+          const flipped = await tx.refund.updateMany({
+            where: { id: refund.id, status: { in: ['REQUESTED', 'APPROVED'] } },
+            data: { status: body.decision, processedBy: user.name, processedAt: new Date(), providerRef: body.providerRef ?? null },
           })
-        }
-        await audit({ actorId: user.id, actorName: user.name, action: 'REFUND_PROCESSED', targetType: 'PURCHASE_ORDER', targetId: refund.orderId, metadata: { amount: refund.amountMinor, providerRef: body.providerRef } })
+          if (flipped.count === 0) {
+            throw new ApiError(409, 'ALREADY_PROCESSED', 'Refund was processed or rejected concurrently; nothing was double-counted.')
+          }
+          const payment = await tx.paymentAuthorization.findUnique({ where: { orderId: refund.orderId } })
+          if (payment) {
+            const alreadyOut = (payment.refundedAmountMinor ?? 0) + (payment.releasedAmountMinor ?? 0)
+            if (alreadyOut + refund.amountMinor > payment.amountMinor) {
+              throw new ApiError(409, 'REFUND_EXCEEDS_PAYMENT', `Refund of ${(refund.amountMinor / 100).toLocaleString()} KES would exceed the ${(payment.amountMinor / 100).toLocaleString()} KES collected — ${(alreadyOut / 100).toLocaleString()} KES has already been released or refunded. Nothing was recorded; the transaction rolled back.`)
+            }
+            const totalRefunded = payment.refundedAmountMinor + refund.amountMinor
+            await tx.paymentAuthorization.update({
+              where: { id: payment.id },
+              data: { refundedAmountMinor: totalRefunded, status: totalRefunded >= payment.amountMinor ? 'REFUNDED' : payment.status },
+            })
+          }
+          await auditTx(tx, { actorId: user.id, actorName: user.name, action: 'REFUND_PROCESSED', targetType: 'PURCHASE_ORDER', targetId: refund.orderId, metadata: { amount: refund.amountMinor, providerRef: body.providerRef } })
+        })
       } else {
+        await db.refund.update({
+          where: { id: refund.id },
+          data: { status: body.decision, processedBy: user.name, processedAt: new Date(), providerRef: body.providerRef ?? null },
+        })
         await audit({ actorId: user.id, actorName: user.name, action: `REFUND_${body.decision}`, targetType: 'PURCHASE_ORDER', targetId: refund.orderId, metadata: { note: body.note } })
       }
       return ok({ message: `Refund ${body.decision.toLowerCase()}.` })

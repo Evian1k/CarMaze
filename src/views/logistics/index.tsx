@@ -439,6 +439,7 @@ function PhotoUploader({ photos, onChange, max = 6 }: {
     for (const file of Array.from(files).slice(0, room)) {
       const fd = new FormData()
       fd.set('file', file)
+      fd.set('kind', 'evidence') // POD photos: private, requester/partner/staff only
       try {
         const res = await apiUpload<{ url: string }>('/api/upload', fd)
         onChange([...photos, res.url])

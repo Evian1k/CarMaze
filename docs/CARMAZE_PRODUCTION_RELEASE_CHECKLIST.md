@@ -59,7 +59,7 @@ complete, reviewed and honest (it never fakes success).
 
 ## 4. Data gate
 
-- [x] Prisma migrations exist (3 applied); dev workflow `db:push`; additive-only changes in this audit (Enquiry.assignedToId, User.marketingConsent, 9 hot-path indexes)
+- [x] Prisma migrations are complete and authoritative (5 applied, incl. the drift-reconciliation migration; `prisma migrate diff` reports no drift; fresh `migrate deploy` reproduces the full schema — proven on a staging DB)
 - [x] Hot-path indexes added: Vehicle.ownerId/orgId, Enquiry.userId/vehicleId/status+createdAt, Invoice.orgId+status/userId+status/dueDate, PaymentAttempt.invoiceId, SupportTicket.status/userId
 - [x] FK behavior verified: personal artifacts cascade; business records Restrict (no orphaning, no wrong cascades)
 - [x] Backup: `bash scripts/backup-db.sh` (gzip, 30-copy retention)
@@ -83,7 +83,7 @@ complete, reviewed and honest (it never fakes success).
 
 1. Provision the domain; point DNS; install TLS.
 2. Fill `.env` from `.env.example`: strong AUTH_SECRET, NEXT_PUBLIC_SITE_URL, MPESA_* (Daraja sandbox first, then production), MPESA_WEBHOOK_SECRET (`openssl rand -hex 32`), SMTP_URL/MAIL_FROM, SMS_*.
-3. Apply DB migrations (`bunx prisma migrate deploy` once migrations are the workflow, or keep `db:push` for single-node first launch) and run one manual `backup-db.sh` + `db-restore-test.sh`.
+3. Apply DB migrations with `bun run db:deploy` (the only supported procedure — docs/CARMAZE_FRESH_DATABASE_INIT.md) and bootstrap the FOUNDER with `bun run founder:create`; run one manual `backup-db.sh` + `db-restore-test.sh`. `db:push` is DEV-ONLY.
 4. Create the real Daraja app; register the two callback URLs; pay the API accessibility fee if applicable; run one sandbox STK push end-to-end.
 5. Choose and configure the email + SMS vendors; send one real verification email + one real SMS from the staging deployment.
 6. Set up nightly `backup-db.sh` cron + off-site copy; run the restore test once on the off-site copy.

@@ -1,10 +1,17 @@
 // In-memory sliding-window rate limiter.
 //
-// Suitable for this single-instance deployment. Two documented caveats:
+// Suitable for this single-instance deployment. Three documented caveats:
 //  1. buckets reset on process restart (acceptable: a restart also ends the
 //     sessions an attacker was hammering);
 //  2. a multi-instance deployment must move to a shared store (Redis or the
-//     primary database) — flagged in the remediation plan, not hidden.
+//     primary database) — flagged in the remediation plan, not hidden. THE
+//     CONTROLLED PILOT MUST RUN AS A SINGLE APP INSTANCE (systemd
+//     restart=always, one process); horizontal scaling without a shared
+//     limiter would multiply every limit by the instance count;
+//  3. the proxy in front of the app (Caddy, see the deployment runbook) is
+//     the ONLY thing allowed to connect to the app port — it must not be
+//     bound publicly — and it must append the client IP to X-Forwarded-For.
+//     getIp() trusts the LAST XFF entry for exactly this topology.
 type Bucket = { hits: number[] }
 
 const buckets = new Map<string, Bucket>()

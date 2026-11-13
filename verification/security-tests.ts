@@ -47,6 +47,33 @@ function check(name: string, ok: boolean, evidence: string) {
 function section(t: string) { console.log(`\n── ${t} ${'─'.repeat(Math.max(2, 66 - t.length))}`) }
 
 async function main() {
+  // ── Data-isolation guard ──
+  // This suite is DESTRUCTIVE to demo fixtures (it resets demo accounts) and
+  // creates test users. It must NEVER run against a production process.
+  // Guards: (1) the target must be this localhost dev server, (2) the target
+  // must identify as carmazze dev (health check), (3) running the suite with
+  // NODE_ENV=production locally is refused.
+  if (process.env.NODE_ENV === 'production') {
+    console.error('REFUSED: security suite must not run with NODE_ENV=production.')
+    process.exit(3)
+  }
+  if (!BASE.startsWith('http://localhost:') && !BASE.startsWith('http://127.0.0.1:')) {
+    console.error(`REFUSED: suite target must be a local dev server (got ${BASE}).`)
+    process.exit(3)
+  }
+  try {
+    const health = await fetch(`${BASE}/api/health`)
+    const h = await health.json()
+    if (h?.service !== 'carmaze' || h?.checks?.database !== 'connected') {
+      console.error('REFUSED: health check does not identify a healthy CARMAZE dev server.', JSON.stringify(h))
+      process.exit(3)
+    }
+    console.log('Isolation guard: targeting a healthy LOCAL CARMAZE dev server; test data only.')
+  } catch (e) {
+    console.error('REFUSED: dev server is not reachable — start `bun run dev` first.', e)
+    process.exit(3)
+  }
+
   // ── Step 0: real (non-demo) user for isolation tests ──
   section('Setup: register a REAL (non-demo) user')
   const realJar: Jar = {}
@@ -302,7 +329,7 @@ async function main() {
     check('uploaded media served with correct type', serve.status === 200 && (serve.headers.get('content-type') ?? '').startsWith('image/png'), `status ${serve.status} type=${serve.headers.get('content-type')}`)
   }
   up = await uploadFile(realJar, PDF_SIG, 'licence.pdf', 'application/pdf', 'document')
-  check('PDF document upload accepted (private files)', up.status === 201 && String(up.json?.url).startsWith('/api/files/'), `status ${up.status} url=${up.json?.url}`)
+  check('PDF document upload accepted (private files) with honest scan status', up.status === 201 && String(up.json?.url).startsWith('/api/files/') && typeof up.json?.scanStatus === 'string', `status ${up.status} url=${up.json?.url} scan=${up.json?.scanStatus}`)
   const docUrl: string = up.json?.url ?? ''
   if (docUrl) {
     const anonGet = await fetch(`${BASE}${docUrl}`)
@@ -311,7 +338,10 @@ async function main() {
     // session for the cross-user isolation check.
     const custAfterReset = await demoAs('customer')
     const demoGet = await fetch(`${BASE}${docUrl}`, { headers: { Cookie: Object.entries(custAfterReset).map(([k, v]) => `${k}=${v}`).join('; ') } })
-    check('private document blocked for other (demo) user', demoGet.status === 403, `status ${demoGet.status}`)
+    // With no malware scanner installed on this deployment, PDFs fail closed:
+    // the file stays quarantined (423) for EVERYONE until staff approval —
+    // never silently approved. (403 would also be acceptable: denied.)
+    check('unscanned/quarantined PDF is locked for other users (423/403, never served)', demoGet.status === 423 || demoGet.status === 403, `status ${demoGet.status} (${demoGet.status === 423 ? 'SCAN_PENDING' : 'denied'})`)
   }
   up = await uploadFile(realJar, new TextEncoder().encode('definitely not an image'), 'evil.png', 'image/png')
   check('text bytes claiming image/png rejected', up.status === 415 && ['UNSUPPORTED_TYPE', 'CONTENT_MISMATCH'].includes(up.json?.error), `status ${up.status} ${up.json?.error}`)
@@ -385,6 +415,94 @@ async function main() {
   check('export contains no other user emails or password hashes', !expStr.includes('customer@carmaze.co.ke') && !expStr.includes('passwordHash'), 'verified absent')
   r = await req('POST', '/api/privacy/delete-request', revJar2, { reason: 'Automated verification of the erasure workflow.', scope: 'MARKETING_ONLY' })
   check('erasure request recorded as a DPO ticket', r.status === 201 && String(r.json?.ref ?? '').startsWith('DPO-'), `status ${r.status} ref=${r.json?.ref}`)
+
+
+  // ════════ PRE-LAUNCH BLOCKER REGRESSIONS (this hardening pass) ════════
+  section('Upload quarantine: PDFs fail closed until a real scan or audited approval')
+  const qUp = await uploadFile(realJar, PDF_SIG, 'kyc-regression.pdf', 'application/pdf', 'document')
+  check('PDF upload reports honest scan status (no silent approval)', qUp.status === 201 && qUp.json?.scanStatus === 'SCANNER_UNAVAILABLE' && qUp.json?.viewable === false, `status ${qUp.status} scan=${qUp.json?.scanStatus} viewable=${qUp.json?.viewable}`)
+  const qDocUrl: string = qUp.json?.url ?? ''
+  const qDocName = qDocUrl.split('/').pop() ?? ''
+  if (qDocUrl) {
+    const ownerLocked = await fetch(`${BASE}${qDocUrl}`, { headers: { Cookie: Object.entries(realJar).map(([k, v]) => `${k}=${v}`).join('; ') } })
+    check('quarantined PDF is locked EVEN FOR ITS OWNER (423 SCAN_PENDING)', ownerLocked.status === 423, `status ${ownerLocked.status}`)
+    const anonLocked = await fetch(`${BASE}${qDocUrl}`)
+    check('quarantined PDF is locked for anonymous callers', anonLocked.status === 401, `status ${anonLocked.status}`)
+  }
+  const evilPdf = new TextEncoder().encode('%PDF-1.7\n/JavaScript (app.alert(1))\n1 0 obj')
+  const evilUp = await uploadFile(realJar, evilPdf, 'evil-active.pdf', 'application/pdf', 'document')
+  check('PDF carrying active content (JavaScript) is refused outright', evilUp.status === 415 && evilUp.json?.error === 'ACTIVE_CONTENT_REFUSED', `status ${evilUp.status} ${evilUp.json?.error}`)
+
+  section('Upload review console: only real staff approve, and approvals are audited')
+  const reviewAdmin = await loginAs('admin@carmaze.co.ke')
+  const pendingList = await req('GET', '/api/admin/uploads?filter=pending', reviewAdmin)
+  check('admin review console lists the quarantined PDF', pendingList.status === 200 && (pendingList.json?.records ?? []).some((x: any) => x.fileName === qDocName), `status ${pendingList.status} pending=${pendingList.json?.counts?.pending}`)
+  const consoleAsUser = await req('GET', '/api/admin/uploads', realJar)
+  check('non-staff user cannot open the upload review console', consoleAsUser.status === 403, `status ${consoleAsUser.status}`)
+  const consoleAsDemo = await req('GET', '/api/admin/uploads', await demoAs('platform-admin'))
+  check('demo staff session cannot review real uploads', consoleAsDemo.status === 403, `status ${consoleAsDemo.status} ${consoleAsDemo.json?.error ?? ''}`)
+  const anonConsole = await req('GET', '/api/admin/uploads', {} as Jar)
+  check('anonymous callers cannot open the upload review console', anonConsole.status === 401, `status ${anonConsole.status}`)
+  if (qDocName) {
+    const approve = await req('POST', `/api/admin/uploads/${qDocName}/action`, reviewAdmin, { action: 'approve', note: 'verification suite: controlled-pilot review of a benign test PDF' })
+    check('staff approval releases the PDF with APPROVED_MANUAL (audited)', approve.status === 200 && approve.json?.record?.scanStatus === 'APPROVED_MANUAL', `status ${approve.status} scan=${approve.json?.record?.scanStatus}`)
+    const ownerAfter = await fetch(`${BASE}${qDocUrl}`, { headers: { Cookie: Object.entries(realJar).map(([k, v]) => `${k}=${v}`).join('; ') } })
+    check('approved PDF now serves to its owner', ownerAfter.status === 200, `status ${ownerAfter.status}`)
+    const demoStranger = await demoAs('customer')
+    const demoAfter = await fetch(`${BASE}${qDocUrl}`, { headers: { Cookie: Object.entries(demoStranger).map(([k, v]) => `${k}=${v}`).join('; ') } })
+    check('approved PDF still denied to non-owner non-staff (403)', demoAfter.status === 403, `status ${demoAfter.status}`)
+  }
+
+  section('Evidence files: participant-gated, never anonymous, scan status recorded')
+  const evUp = await uploadFile(realJar, PNG_SIG, 'chat-photo-regression.png', 'image/png', 'evidence')
+  check('evidence upload lands in PRIVATE storage with kind=EVIDENCE', evUp.status === 201 && String(evUp.json?.url).startsWith('/api/files/') && evUp.json?.kind === 'EVIDENCE', `status ${evUp.status} url=${evUp.json?.url}`)
+  const evUrl: string = evUp.json?.url ?? ''
+  if (evUrl) {
+    const ownerGet = await fetch(`${BASE}${evUrl}`, { headers: { Cookie: Object.entries(realJar).map(([k, v]) => `${k}=${v}`).join('; ') } })
+    check('evidence image (inert type) serves to its uploader', ownerGet.status === 200, `status ${ownerGet.status}`)
+    const stranger: Jar = {}
+    const EV_EMAIL = `ev.stranger.${Date.now()}@test.local`
+    let sreg = await req('POST', '/api/auth/register', stranger, { name: 'Evidence Stranger', email: EV_EMAIL, password: 'Stranger2025!x' })
+    if (sreg.status === 409) sreg = await req('POST', '/api/auth/login', stranger, { email: EV_EMAIL, password: 'Stranger2025!x' })
+    const strangerGet = await fetch(`${BASE}${evUrl}`, { headers: { Cookie: Object.entries(stranger).map(([k, v]) => `${k}=${v}`).join('; ') } })
+    check('evidence file DENIED to an unrelated authenticated user (not a case participant)', strangerGet.status === 403, `status ${strangerGet.status}`)
+    const evAnon = await fetch(`${BASE}${evUrl}`)
+    check('evidence file never served anonymously', evAnon.status === 401, `status ${evAnon.status}`)
+  }
+
+  section('Attachment references: server validates upload provenance')
+  // Demo conversations may not exist for the customer — create one (demo
+  // customer → demo business, allowed inside the demo sandbox).
+  const custConvJar = await demoAs('customer')
+  const dealerOrgMe2 = await req('GET', '/api/orgs/me', await demoAs('showroom-owner'))
+  const demoOrgId = dealerOrgMe2.json?.memberships?.[0]?.orgId
+  let convId = ((await req('GET', '/api/conversations', custConvJar)).json?.conversations ?? [])[0]?.id
+  if (!convId && demoOrgId) {
+    const created = await req('POST', '/api/conversations', custConvJar, { orgId: demoOrgId, message: 'Suite fixture thread for attachment validation.' })
+    convId = created.json?.conversation?.id ?? created.json?.id
+  }
+  if (convId) {
+    const externalAttach = await req('POST', `/api/conversations/${convId}`, custConvJar, { body: 'suite: trying to attach an external URL', attachments: ['https://evil.example/tracker.png'] })
+    check('chat attachment pointing OUTSIDE the upload store is rejected', externalAttach.status === 400, `status ${externalAttach.status} ${externalAttach.json?.error ?? ''}`)
+    const forgedFilesAttach = await req('POST', `/api/conversations/${convId}`, custConvJar, { body: 'suite: trying to reference a file path directly', attachments: ['/api/files/../../etc/passwd.png'] })
+    check('chat attachment with a traversal/invalid name is rejected', forgedFilesAttach.status === 400, `status ${forgedFilesAttach.status} ${forgedFilesAttach.json?.error ?? ''}`)
+  } else {
+    check('attachment provenance fixtures available', false, 'could not create a demo conversation thread')
+  }
+
+  section('Money-path idempotency: late or duplicate provider callbacks are honest no-ops')
+  const b2cUnknown = await req('POST', '/api/admin/settlements/payout/result', {}, {
+    Result: { ConversationID: 'suite-unknown-conv-1', OriginatorConversationID: 'suite-unknown-orig-1', ResultCode: 0, ResultDesc: 'The service request is processed successfully.', ResultParameters: { ResultParameter: [{ Key: 'TransactionAmount', Value: 100 }] } },
+  })
+  check('B2C payout result for an unknown conversation is acked without state change', b2cUnknown.status === 200, `status ${b2cUnknown.status}`)
+  const escrowReplay = await req('POST', '/api/supply/payments/webhook', {}, {
+    Body: { stkCallback: { CheckoutRequestID: 'ws_CO_FORGED_SUITE_SUP', ResultCode: 0, CallbackMetadata: { Item: [{ Name: 'Amount', Value: 50000 }] } } },
+  })
+  check('duplicate/success-after-failure escrow callback on unknown ref stays an acked no-op', escrowReplay.status === 200 && escrowReplay.json?.ResultCode === 0, `status ${escrowReplay.status}`)
+  const forgedBillingReplay = await req('POST', '/api/billing/mpesa/callback', {}, {
+    Body: { stkCallback: { MerchantRequestID: 'forge-mr-2', CheckoutRequestID: 'ws_CO_FORGED_SUITE_TEST', ResultCode: 0, ResultDesc: 'processed', CallbackMetadata: { Item: [{ Name: 'Amount', Value: 1000 }] } } },
+  })
+  check('replayed billing callback for unknown attempt is acked, nothing activated', forgedBillingReplay.status === 200 && forgedBillingReplay.json?.ResultDesc.includes('Accepted'), `status ${forgedBillingReplay.status}`)
 
 
   // ═══════════════ NEW: payment-integrity & forgery resistance ═══════════════
@@ -480,7 +598,7 @@ async function main() {
   if (transitJob) {
     let lastStatus = 0
     for (let i = 0; i < 6; i++) {  // limiter allows 5 per window; the 6th must be blocked
-      const attempt = await req('POST', `/api/logistics/jobs/${transitJob.id}`, freshDemo['logistics-owner'], { action: 'deliver', otp: '00000' + i, photos: ['https://example.local/p.png'] })
+      const attempt = await req('POST', `/api/logistics/jobs/${transitJob.id}`, freshDemo['logistics-owner'], { action: 'deliver', otp: '00000' + i, photos: ['/api/media/suitefixture.0123456789abcdef.png'] })
       lastStatus = attempt.status
       if (attempt.status === 429) break
     }

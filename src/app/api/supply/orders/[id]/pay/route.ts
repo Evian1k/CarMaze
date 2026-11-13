@@ -1,7 +1,8 @@
+import { Prisma } from '@prisma/client'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { route, ok, fail, parseBody, requireUser } from '@/lib/api'
+import { route, ok, fail, parseBody, requireUser, ApiError } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
 import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
@@ -62,48 +63,82 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const fees = await getFees()
   const estimatedCommission = computeCommission(order.subtotalMinor, fees.supplyCommissionPct, fees.minCommissionMinor)
 
-  // create / reuse the authorization record + platform invoice
-  const payment = order.payment ?? (await db.paymentAuthorization.create({
-    data: {
-      refCode: refCode('PAY', 6),
-      orderId: id,
-      provider: 'MPESA_DARAJA',
-      status: 'PENDING',
-      amountMinor: order.totalMinor,
-      currency: order.currency,
-    },
-  }))
-  // Money integrity: a retried attempt after a FAILED/PENDING authorization
-  // must charge what the CURRENT order total is AND refresh the stored
-  // authorization snapshot to the same value — the webhook verifies the
-  // callback against this exact amount, so a stale snapshot would strand
-  // real collected funds outside protection.
-  if (order.payment && ['PENDING', 'FAILED'].includes(order.payment.status) && order.payment.amountMinor !== order.totalMinor) {
-    await db.paymentAuthorization.update({ where: { id: payment.id }, data: { amountMinor: order.totalMinor } })
-    payment.amountMinor = order.totalMinor
-  }
-  let invoice = order.invoiceId ? await db.invoice.findUnique({ where: { id: order.invoiceId } }) : null
-  if (!invoice) {
-    invoice = await db.invoice.create({
-      data: {
-        refCode: refCode('INV', 6),
-        orgId: order.garageOrgId,
-        userId: user.id,
-        type: 'ORDER_PAYMENT',
-        description: `Protected payment for purchase order ${order.refCode} (products + delivery + tax)`,
-        amountMinor: order.totalMinor,
-        currency: order.currency,
-        status: 'PENDING',
-      },
+  // FINANCIAL CRITICAL SECTION: authorization + invoice creation/refresh and
+  // the PROCESSING flip happen in ONE transaction with conditional guards.
+  // Two concurrent "pay" clicks share the orderId-unique authorization row
+  // (the loser's create fails cleanly) and can never mint two ORDER_PAYMENT
+  // invoices for one order; the total snapshot stays consistent with the
+  // amount the webhook will verify.
+  const payment = await db.$transaction(async (tx) => {
+    // Re-read INSIDE the transaction: the authoritative state at write time.
+    const fresh = await tx.purchaseOrder.findUnique({ where: { id }, include: { payment: true, delivery: true } })
+    if (!fresh) throw new ApiError(404, 'NOT_FOUND', 'Order not found.')
+    if (fresh.status !== 'CONFIRMED') throw new ApiError(409, 'INVALID_STATE', `Payment opens after the order is confirmed (current: ${fresh.status}).`)
+    if (fresh.payment && ['PROTECTED', 'PROCESSING'].includes(fresh.payment.status)) {
+      throw new ApiError(409, 'ALREADY_PROTECTED', fresh.payment.status === 'PROTECTED' ? 'This order is already paid and protected.' : 'A payment is already in progress: check your phone.')
+    }
+
+    let auth = fresh.payment
+    if (!auth) {
+      try {
+        auth = await tx.paymentAuthorization.create({
+          data: {
+            refCode: refCode('PAY', 6),
+            orderId: id,
+            provider: 'MPESA_DARAJA',
+            status: 'PENDING',
+            amountMinor: fresh.totalMinor,
+            currency: fresh.currency,
+          },
+        })
+      } catch (e) {
+        // Concurrent pay created the authorization first (orderId unique).
+        if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e
+        auth = await tx.paymentAuthorization.findUnique({ where: { orderId: id } })
+        if (!auth) throw new ApiError(409, 'CONFLICT', 'Payment initialization raced another attempt; try again.')
+      }
+    }
+    // Money integrity: a retried attempt after a FAILED/PENDING authorization
+    // must charge what the CURRENT order total is AND refresh the stored
+    // authorization snapshot to the same value — the webhook verifies the
+    // callback against this exact amount, so a stale snapshot would strand
+    // real collected funds outside protection.
+    if (['PENDING', 'FAILED'].includes(auth.status) && auth.amountMinor !== fresh.totalMinor) {
+      await tx.paymentAuthorization.update({ where: { id: auth.id }, data: { amountMinor: fresh.totalMinor } })
+      auth.amountMinor = fresh.totalMinor
+    }
+    let invoice = fresh.invoiceId ? await tx.invoice.findUnique({ where: { id: fresh.invoiceId } }) : null
+    if (!invoice) {
+      invoice = await tx.invoice.create({
+        data: {
+          refCode: refCode('INV', 6),
+          orgId: fresh.garageOrgId,
+          userId: user.id,
+          type: 'ORDER_PAYMENT',
+          description: `Protected payment for purchase order ${fresh.refCode} (products + delivery + tax)`,
+          amountMinor: fresh.totalMinor,
+          currency: fresh.currency,
+          status: 'PENDING',
+        },
+      })
+      await tx.purchaseOrder.update({ where: { id }, data: { invoiceId: invoice.id, paymentStatus: 'PROCESSING' } })
+    } else if (invoice.amountMinor !== fresh.totalMinor && ['PENDING', 'FAILED'].includes(auth.status)) {
+      // Keep the invoice consistent with the refreshed authorization.
+      await tx.invoice.update({ where: { id: invoice.id }, data: { amountMinor: fresh.totalMinor } })
+      invoice.amountMinor = fresh.totalMinor
+    }
+    // Conditional PROCESSING flip: never clobbers a row that concurrently
+    // became PROTECTED/RELEASED/REFUNDED between our read and write.
+    const flipped = await tx.paymentAuthorization.updateMany({
+      where: { id: auth.id, status: { in: ['PENDING', 'FAILED'] } },
+      data: { status: 'PROCESSING', phone: body.phone },
     })
-    await db.purchaseOrder.update({ where: { id }, data: { invoiceId: invoice.id, paymentStatus: 'PROCESSING' } })
-  } else if (invoice.amountMinor !== order.totalMinor && ['PENDING', 'FAILED'].includes(order.payment?.status ?? 'PENDING')) {
-    // Keep the invoice consistent with the refreshed authorization.
-    await db.invoice.update({ where: { id: invoice.id }, data: { amountMinor: order.totalMinor } })
-    invoice.amountMinor = order.totalMinor
-  }
-  await db.paymentAuthorization.update({ where: { id: payment.id }, data: { status: 'PROCESSING', phone: body.phone } })
-  await db.purchaseOrder.update({ where: { id }, data: { paymentStatus: 'PROCESSING' } })
+    if (flipped.count === 0) {
+      throw new ApiError(409, 'ALREADY_PROTECTED', 'Payment state moved concurrently; no second payment was started.')
+    }
+    await tx.purchaseOrder.updateMany({ where: { id, paymentStatus: { notIn: ['PROTECTED', 'RELEASED', 'PARTIALLY_RELEASED', 'REFUNDED'] } }, data: { paymentStatus: 'PROCESSING' } })
+    return auth
+  })
 
   try {
     const push = await stkPush({ phone: body.phone, amountMinor: order.totalMinor, accountReference: order.refCode.replace(/-/g, '').slice(0, 12), description: `Order ${order.refCode}` })

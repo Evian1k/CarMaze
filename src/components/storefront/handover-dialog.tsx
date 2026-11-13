@@ -114,6 +114,7 @@ function HandoverForm({
       try {
         const fd = new FormData()
         fd.append('file', file)
+        fd.append('kind', 'evidence') // custody handover photos: private, participants only
         const res = await apiUpload<{ url: string }>('/api/upload', fd)
         if (res?.url) uploaded.push(res.url)
       } catch (e) {

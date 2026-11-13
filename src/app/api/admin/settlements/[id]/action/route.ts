@@ -2,9 +2,9 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { randomBytes } from 'crypto'
 import { db } from '@/lib/db'
-import { route, ok, fail, parseBody, requireRole } from '@/lib/api'
+import { route, ok, fail, parseBody, requireRole, ApiError } from '@/lib/api'
 import { demoStaffMutationGuard } from '@/lib/demo'
-import { audit } from '@/lib/audit'
+import { audit, auditTx } from '@/lib/audit'
 import { b2cPayout, mpesaB2cConfigured, mpesaB2cMissingVars } from '@/lib/mpesa'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -50,16 +50,23 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       return fail(400, 'NO_PAYOUT_PHONE', 'The supplier organisation has no payout phone number recorded.')
     }
     const originator = `STL-${settlement.refCode}-${randomBytes(4).toString('hex')}`
-    const updated = await db.settlement.update({
-      where: { id },
+    // Conditional transition: only a still-PENDING/FAILED settlement enters
+    // PROCESSING. Two concurrent finance operators cannot both start a payout
+    // for the same money — the second is rejected before any provider call.
+    const entered = await db.settlement.updateMany({
+      where: { id, status: { in: ['PENDING', 'FAILED'] } },
       data: {
         status: 'PROCESSING',
         provider: 'MPESA_B2C',
         attempts: { increment: 1 },
         lastError: null,
-        events: { create: { type: 'PAYOUT_ATTEMPT', actorId: user.id, actorName: user.name, actorSide: 'FINANCE', note: `Daraja B2C payout initiated (${originator})` } },
       },
     })
+    if (entered.count === 0) {
+      return fail(409, 'INVALID_STATE', 'Settlement state moved concurrently; payout not started.')
+    }
+    await db.settlementEvent.create({ data: { settlementId: id, type: 'PAYOUT_ATTEMPT', actorId: user.id, actorName: user.name, actorSide: 'FINANCE', note: `Daraja B2C payout initiated (${originator})` } })
+    const updated = await db.settlement.findUnique({ where: { id } })
     try {
       const result = await b2cPayout({
         phone: settlement.org.phone,
@@ -75,10 +82,13 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       return ok({ settlement: updated, providerAccepted: true, message: 'Payout request accepted by provider. Status becomes SETTLED only on the provider result callback.' })
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Payout request failed'
-      await db.settlement.update({
-        where: { id },
-        data: { status: 'FAILED', lastError: message.slice(0, 300), events: { create: { type: 'FAILED', actorSide: 'SYSTEM', note: message.slice(0, 300) } } },
+      // Failure is recorded only if the settlement is still the PROCESSING one
+      // we started — never clobbering a concurrent reconcile/cancel decision.
+      await db.settlement.updateMany({
+        where: { id, status: 'PROCESSING' },
+        data: { status: 'FAILED', lastError: message.slice(0, 300) },
       })
+      await db.settlementEvent.create({ data: { settlementId: id, type: 'FAILED', actorSide: 'SYSTEM', note: message.slice(0, 300) } }).catch(() => null)
       await audit({ actorId: user.id, actorName: user.name, action: 'SETTLEMENT_PAYOUT_FAILED', targetType: 'SETTLEMENT', targetId: id, metadata: { ref: settlement.refCode, error: message.slice(0, 200) } })
       return fail(502, 'PAYOUT_FAILED', `The provider rejected the payout request: ${message}`)
     }
@@ -95,21 +105,30 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       const openDispute = await db.dispute.findFirst({ where: { orderId: settlement.orderId, status: { in: ['OPEN', 'UNDER_REVIEW'] } } })
       if (openDispute) return fail(409, 'ORDER_DISPUTED', `Dispute ${openDispute.refCode} is still open on this order. Resolve the dispute first; settling now would bypass the dispute hold.`)
     }
-    const updated = await db.settlement.update({
-      where: { id },
-      data: {
-        status: 'SETTLED',
-        provider: 'MANUAL',
-        providerRef: body.reference,
-        reconciledById: user.id,
-        reconciledByName: user.name,
-        reconciledNote: body.note ?? null,
-        settledAt: new Date(),
-        lastError: null,
-        events: { create: { type: 'SETTLED', actorId: user.id, actorName: user.name, actorSide: 'FINANCE', note: `Manually reconciled with external reference ${body.reference}${body.note ? `: ${body.note}` : ''}` } },
-      },
+    // Conditional transition inside one transaction: the SETTLED flip and its
+    // audit row are atomic; a concurrent payout result or another operator's
+    // reconcile cannot double-settle the same money.
+    const updated = await db.$transaction(async (tx) => {
+      const moved = await tx.settlement.updateMany({
+        where: { id, status: { notIn: ['SETTLED', 'CANCELLED'] } },
+        data: {
+          status: 'SETTLED',
+          provider: 'MANUAL',
+          providerRef: body.reference,
+          reconciledById: user.id,
+          reconciledByName: user.name,
+          reconciledNote: body.note ?? null,
+          settledAt: new Date(),
+          lastError: null,
+        },
+      })
+      if (moved.count === 0) {
+        throw new ApiError(409, 'INVALID_STATE', 'Settlement was settled or cancelled concurrently; this reconciliation is rejected.')
+      }
+      await tx.settlementEvent.create({ data: { settlementId: id, type: 'SETTLED', actorId: user.id, actorName: user.name, actorSide: 'FINANCE', note: `Manually reconciled with external reference ${body.reference}${body.note ? `: ${body.note}` : ''}` } })
+      await auditTx(tx, { actorId: user.id, actorName: user.name, action: 'SETTLEMENT_RECONCILED', targetType: 'SETTLEMENT', targetId: id, metadata: { ref: settlement.refCode, providerRef: body.reference, netMinor: settlement.netMinor } })
+      return tx.settlement.findUnique({ where: { id } })
     })
-    await audit({ actorId: user.id, actorName: user.name, action: 'SETTLEMENT_RECONCILED', targetType: 'SETTLEMENT', targetId: id, metadata: { ref: settlement.refCode, providerRef: body.reference, netMinor: settlement.netMinor } })
     return ok({ settlement: updated, message: 'Settlement reconciled with an external payment reference.' })
   }
 

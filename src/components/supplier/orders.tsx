@@ -664,7 +664,7 @@ function DispatchSection({ order, busy, act }: {
     setUploading(true)
     try {
       for (const file of Array.from(files).slice(0, room)) {
-        const res = await uploadOne(file)
+        const res = await uploadOne(file, 'evidence')
         setEvidence((prev) => [...prev, res.url])
       }
       toast.success('Evidence uploaded')
@@ -842,7 +842,7 @@ function DisputeSection({ orderId, busy, act }: {
     setUploading(true)
     try {
       for (const file of Array.from(files).slice(0, room)) {
-        const res = await uploadOne(file)
+        const res = await uploadOne(file, 'evidence')
         setEvidence((prev) => [...prev, { url: res.url, name: res.name || file.name }])
       }
       toast.success('Evidence uploaded')

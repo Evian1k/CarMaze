@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { isUploadUrl } from '@/lib/upload-url'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
-import { route, ok, fail, parseBody, requireUser } from '@/lib/api'
+import { route, ok, fail, parseBody, requireUser, ApiError } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
 import { refCode, shareId, sixDigitCode } from '@/lib/ids'
+import { sha256Hex, seal } from '@/lib/secret-box'
 import { audit } from '@/lib/audit'
 import { notify, notifyMany } from '@/lib/notify'
 import { getMembership } from '@/lib/orgs'
@@ -14,8 +16,34 @@ import {
   releaseReservation, fulfillStock, computeCommission, getFees, jsonParse,
 } from '@/lib/supply'
 import { createSettlementForRelease, holdSettlementsForOrder } from '@/lib/settlements'
+import { auditTx } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
+
+// Absolute lifetime of a procurement handover OTP / QR token from dispatch.
+const PO_HANDOVER_OTP_TTL_MS = 72 * 60 * 60 * 1000
+
+/**
+ * Verify a presented QR token for a purchase-order delivery.
+ * Hardened rows: sha256 compare. Legacy plaintext rows: compare then lazily
+ * upgrade (hash + seal, plaintext cleared) so the plaintext window closes.
+ */
+async function verifyPoQrToken(
+  presented: string,
+  delivery: { id: string; qrTokenHash: string | null; qrTokenEnc: string | null; qrToken: string | null },
+): Promise<boolean> {
+  if (delivery.qrTokenHash) return sha256Hex(presented) === delivery.qrTokenHash
+  if (delivery.qrToken && presented === delivery.qrToken) {
+    await db.delivery
+      .update({
+        where: { id: delivery.id },
+        data: { qrTokenHash: sha256Hex(delivery.qrToken), qrTokenEnc: seal(delivery.qrToken), qrToken: null },
+      })
+      .catch(() => null)
+    return true
+  }
+  return false
+}
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -63,10 +91,10 @@ const schema = z.discriminatedUnion('action', [
     vehicleReg: z.string().max(20).optional().nullable(),
     deliveryRef: z.string().max(60).optional().nullable(),
     expectedHours: z.number().int().min(1).max(720).optional(),
-    evidence: z.array(z.string().max(300)).max(6).default([]),
+    evidence: z.array(z.string().max(300).refine(isUploadUrl, { message: 'Evidence must reference uploaded files' })).max(6).default([]),
   }),
   // STEP 6: handover confirmation (supplier marks handed over; garage verifies OTP/QR)
-  z.object({ action: z.literal('handover'), otp: z.string().length(6).optional(), qrToken: z.string().max(20).optional(), captureLocation: z.boolean().default(false), location: z.object({ lat: z.number(), lng: z.number() }).optional(), photos: z.array(z.string().max(300)).max(6).default([]) }),
+  z.object({ action: z.literal('handover'), otp: z.string().length(6).optional(), qrToken: z.string().max(20).optional(), captureLocation: z.boolean().default(false), location: z.object({ lat: z.number(), lng: z.number() }).optional(), photos: z.array(z.string().max(300).refine(isUploadUrl, { message: 'Photos must reference uploaded files' })).max(6).default([]) }),
   z.object({ action: z.literal('handover-confirm') }),
   // STEP 7: inspection
   z.object({
@@ -74,7 +102,7 @@ const schema = z.discriminatedUnion('action', [
     result: z.enum(['ACCEPT', 'PARTIAL', 'ISSUES']),
     items: z.array(z.object({ itemId: z.string(), qtyAccepted: z.number().int().min(0), note: z.string().max(300).optional() })).default([]),
     note: z.string().max(1000).optional(),
-    photos: z.array(z.string().max(300)).max(6).default([]),
+    photos: z.array(z.string().max(300).refine(isUploadUrl, { message: 'Photos must reference uploaded files' })).max(6).default([]),
   }),
   // STEP 8: payment release request (executed against protected funds)
   z.object({ action: z.literal('release'), note: z.string().max(300).optional() }),
@@ -83,7 +111,7 @@ const schema = z.discriminatedUnion('action', [
     action: z.literal('dispute'),
     reason: z.enum(['MISSING_ITEMS', 'DAMAGED', 'WRONG_ITEM', 'COUNTERFEIT', 'NOT_RECEIVED', 'OTHER']),
     details: z.string().min(10).max(2000),
-    evidence: z.array(z.object({ url: z.string().max(300), name: z.string().max(120) })).max(6).default([]),
+    evidence: z.array(z.object({ url: z.string().max(300).refine(isUploadUrl, { message: 'Evidence URL must reference an uploaded file' }), name: z.string().max(120) })).max(6).default([]),
   }),
   z.object({ action: z.literal('request-return'), reason: z.string().min(5).max(300), items: z.array(z.object({ productId: z.string(), qty: z.number().int().min(1) })).min(1) }),
   z.object({ action: z.literal('warranty'), productId: z.string(), issue: z.string().min(10).max(1000) }),
@@ -367,6 +395,11 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       const otp = sixDigitCode()
       const otpHash = await bcrypt.hash(otp, 10)
       const expectedAt = new Date(Date.now() + (body.expectedHours ?? 24) * 3600 * 1000)
+      // Handover credentials are single-use secrets: the OTP carries an
+      // absolute TTL from dispatch; the QR token is stored as a SHA-256 hash
+      // (verification consults only the hash) plus an AES-sealed copy for the
+      // garage-side QR rendering — the database never holds usable plaintext.
+      const qrToken = shareId(14)
       await db.delivery.update({
         where: { id: delivery.id },
         data: {
@@ -381,7 +414,9 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
           expectedAt,
           otpHash,
           otpHint: otp.slice(-2),
-          qrToken: shareId(14),
+          otpExpiresAt: new Date(Date.now() + PO_HANDOVER_OTP_TTL_MS),
+          qrTokenHash: sha256Hex(qrToken),
+          qrTokenEnc: seal(qrToken),
         },
       })
       await db.purchaseOrder.update({ where: { id }, data: { status: 'DISPATCHED' } })
@@ -400,13 +435,17 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         return fail(409, 'INVALID_STATE', 'Handover verification is available after dispatch.')
       }
       if (side !== 'GARAGE') return fail(403, 'PERMISSION_DENIED', 'The receiving party verifies the handover.')
+      // Absolute expiry: handover credentials die after their window from dispatch.
+      if (delivery.otpExpiresAt && delivery.otpExpiresAt.getTime() < Date.now()) {
+        return fail(400, 'OTP_EXPIRED', 'This handover code has expired (72-hour validity from dispatch). Contact the supplier to re-arrange handover.')
+      }
       // Brute-force guard: the 6-digit handover code is the last barrier before
       // inspection/payment. Five wrong attempts per 10 minutes per order.
       const rl = rateLimit(`po-handover:${id}:${user.id}`, 5, 10 * 60 * 1000)
       if (!rl.allowed) return fail(429, 'RATE_LIMITED', `Too many verification attempts. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
       let verified = false
       if (body.otp && delivery.otpHash) verified = await bcrypt.compare(body.otp, delivery.otpHash)
-      else if (body.qrToken && delivery.qrToken) verified = body.qrToken === delivery.qrToken
+      else if (body.qrToken) verified = await verifyPoQrToken(body.qrToken, delivery)
       if (!verified) return fail(403, 'BAD_CODE', 'That verification code does not match this delivery.')
 
       const handover = {
@@ -448,8 +487,30 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       if (['RELEASED', 'PARTIALLY_RELEASED', 'REFUNDED'].includes(order.paymentStatus) || order.status === 'COMPLETED') {
         return fail(409, 'PAYMENT_FINALISED', 'Funds for this order have already been released or refunded. Corrections after release go through platform finance, not a new inspection.')
       }
-      const items = await db.pOItem.findMany({ where: { orderId: id } })
-      const acceptedMap = new Map(body.items.map((i) => [i.itemId, i]))
+      if (order.status !== 'DELIVERED') {
+        return fail(409, 'INVALID_STATE', `This order has already been inspected (status ${order.status}).`)
+      }
+      // Conditional transition: exactly one concurrent inspection can flip the
+      // order DELIVERED → INSPECTED; the loser is rejected before it can write
+      // quantities, move stock, or queue a refund.
+      const items0 = await db.pOItem.findMany({ where: { orderId: id } })
+      const acceptedMap0 = new Map(body.items.map((i) => [i.itemId, i]))
+      const acceptedSubtotal0 = items0.reduce((s, i) => {
+        const reported = acceptedMap0.get(i.id)
+        const qtyAccepted = body.result === 'ACCEPT' ? i.qty : Math.min(reported?.qtyAccepted ?? 0, i.qty)
+        return s + qtyAccepted * i.unitPriceMinor
+      }, 0)
+      const acceptedTotal0 = acceptedSubtotal0 + order.taxMinor + order.deliveryFeeMinor
+      const inspectionStatus = body.result === 'ACCEPT' ? 'ACCEPTED' : body.result === 'PARTIAL' ? 'PARTIAL' : 'ISSUES'
+      const flipped = await db.purchaseOrder.updateMany({
+        where: { id, status: 'DELIVERED' },
+        data: { status: 'INSPECTED', inspectionStatus, acceptedTotalMinor: acceptedTotal0 },
+      })
+      if (flipped.count === 0) {
+        return fail(409, 'INVALID_STATE', 'This order has already been inspected (status changed concurrently).')
+      }
+      const items = items0
+      const acceptedMap = acceptedMap0
 
       for (const item of items) {
         const reported = acceptedMap.get(item.id)
@@ -467,16 +528,17 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       const freshItems = await db.pOItem.findMany({ where: { orderId: id } })
       const acceptedSubtotal = freshItems.reduce((s, i) => s + (i.qtyAccepted ?? 0) * i.unitPriceMinor, 0)
       const acceptedTotal = acceptedSubtotal + order.taxMinor + order.deliveryFeeMinor
-      const inspectionStatus = body.result === 'ACCEPT' ? 'ACCEPTED' : body.result === 'PARTIAL' ? 'PARTIAL' : 'ISSUES'
-      await db.purchaseOrder.update({
-        where: { id },
-        data: { status: 'INSPECTED', inspectionStatus, acceptedTotalMinor: acceptedTotal },
-      })
-      // refund due for unaccepted goods
+      if (acceptedTotal !== acceptedTotal0) {
+        await db.purchaseOrder.update({ where: { id }, data: { acceptedTotalMinor: acceptedTotal } })
+      }
+      // refund due for unaccepted goods — creation is transactional so two
+      // concurrent inspections can never queue two refund rows for one
+      // shortfall (the money ledger would double-count).
       if (acceptedTotal < order.totalMinor) {
-        const existing = await db.refund.findFirst({ where: { orderId: id, status: { in: ['REQUESTED', 'APPROVED'] } } })
-        if (!existing) {
-          await db.refund.create({
+        await db.$transaction(async (tx) => {
+          const existing = await tx.refund.findFirst({ where: { orderId: id, status: { in: ['REQUESTED', 'APPROVED'] } } })
+          if (existing) return
+          await tx.refund.create({
             data: {
               refCode: refCode('RFD', 6),
               orderId: id,
@@ -487,7 +549,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
               requestedById: user.id,
             },
           })
-        }
+        })
       }
       await poEvent(id, { type: 'INSPECTED', actorId: user.id, actorName: user.name, actorSide: 'GARAGE', note: `${body.note ?? `Inspection result: ${inspectionStatus}.`} Accepted value: ${(acceptedTotal / 100).toLocaleString()} KES. Photos: ${body.photos.length}` })
       await notifySupplierMembers(order.supplierOrgId, order.refCode, `Garage inspected ${order.refCode}: ${inspectionStatus}. Accepted ${(acceptedTotal / 100).toLocaleString()} KES.`, 'PO_INSPECTED')
@@ -505,55 +567,100 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       const accepted = order.acceptedTotalMinor ?? order.totalMinor
       const fees = await getFees()
       const commission = computeCommission(order.subtotalMinor, fees.supplyCommissionPct, fees.minCommissionMinor)
-      // Financial integrity: release can never exceed the funds actually
-      // protected in escrow (amount protected minus anything already refunded).
-      const escrowAvailable = Math.max(0, payment.amountMinor - (payment.refundedAmountMinor ?? 0))
-      if (accepted > escrowAvailable) {
-        return fail(409, 'RELEASE_EXCEEDS_ESCROW', `Inspection accepted ${(accepted / 100).toLocaleString()} KES but only ${(escrowAvailable / 100).toLocaleString()} KES is protected. Re-run inspection or open a dispute; release cannot exceed protected funds.`)
+
+      // FINANCIAL CRITICAL SECTION. Everything below runs in ONE transaction:
+      //  - the escrow row is re-read at write time and transitioned with a
+      //    conditional updateMany (status must still be PROTECTED) — two
+      //    concurrent releases can never both win, so a double payout is
+      //    impossible;
+      //  - the release cap is recomputed INSIDE the transaction against the
+      //    current refunded amount, so a release racing a refund can never
+      //    pay out more than was collected;
+      //  - the settlement row is created in the same transaction with the
+      //    database-unique (orderId, kind) guard — one payout queue per order;
+      //  - the audit row lands in the same transaction: money cannot move
+      //    without its audit trail.
+      let finalStatus = 'RELEASED'
+      try {
+        await db.$transaction(async (tx) => {
+          const escrow = await tx.paymentAuthorization.findUnique({ where: { id: payment.id } })
+          if (!escrow || escrow.status !== 'PROTECTED') {
+            throw new ApiError(409, 'NOT_PROTECTED', 'Funds are no longer in a protected state (a concurrent release, refund or dispute moved them).')
+          }
+          const escrowAvailable = Math.max(0, escrow.amountMinor - (escrow.refundedAmountMinor ?? 0))
+          if (accepted > escrowAvailable) {
+            throw new ApiError(409, 'RELEASE_EXCEEDS_ESCROW', `Inspection accepted ${(accepted / 100).toLocaleString()} KES but only ${(escrowAvailable / 100).toLocaleString()} KES is protected after refunds. Release cannot exceed protected funds.`)
+          }
+          finalStatus = accepted < order.totalMinor ? 'PARTIALLY_RELEASED' : 'RELEASED'
+          const moved = await tx.paymentAuthorization.updateMany({
+            where: { id: escrow.id, status: 'PROTECTED' },
+            data: {
+              status: finalStatus,
+              releasedAmountMinor: accepted,
+              releasedAt: new Date(),
+            },
+          })
+          if (moved.count === 0) {
+            throw new ApiError(409, 'NOT_PROTECTED', 'Funds were released or refunded concurrently; this release is rejected.')
+          }
+          const po = await tx.purchaseOrder.updateMany({
+            where: { id, status: 'INSPECTED' },
+            data: {
+              paymentStatus: finalStatus,
+              platformFeeMinor: commission,
+              commissionRatePct: fees.supplyCommissionPct,
+              status: 'COMPLETED',
+            },
+          })
+          if (po.count === 0) {
+            throw new ApiError(409, 'INVALID_STATE', 'Order state moved concurrently; release rejected — no money moved.')
+          }
+          if (order.invoiceId) {
+            await tx.invoice.updateMany({ where: { id: order.invoiceId, status: { not: 'PAID' } }, data: { status: 'PAID', paidAt: new Date() } })
+          }
+          await tx.pOEvent.create({
+            data: {
+              orderId: id,
+              type: 'RELEASED',
+              actorId: user.id,
+              actorName: user.name,
+              actorSide: side as 'GARAGE' | 'SUPPLIER' | 'SYSTEM' | 'ADMIN',
+              note: `Released ${(accepted / 100).toLocaleString()} KES to supplier. Platform commission: ${(commission / 100).toLocaleString()} KES recorded separately.`,
+            },
+          })
+          // Supplier settlement: money is now OWED to the supplier (PENDING) — it
+          // becomes SETTLED only on payout-provider confirmation or an audited
+          // FINANCE reconciliation. Never simulated here. The (orderId, kind)
+          // unique constraint inside this transaction makes a second payout row
+          // for the same order impossible.
+          await createSettlementForRelease({
+            supplierOrgId: order.supplierOrgId,
+            orderId: id,
+            releasedMinor: accepted,
+            commissionMinor: commission,
+          }, tx)
+          await auditTx(tx, {
+            actorId: user.id, actorName: user.name,
+            action: 'PAYMENT_RELEASED', targetType: 'PURCHASE_ORDER', targetId: id,
+            metadata: { released: accepted, commission, ref: order.refCode },
+          })
+        })
+      } catch (e) {
+        if (e instanceof ApiError) throw e
+        // Unique-constraint fallback: the settlement row already exists —
+        // means a concurrent release won; reject this one honestly.
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('Settlement_orderId_kind_key') || msg.includes('UNIQUE constraint failed: Settlement.orderId')) {
+          throw new ApiError(409, 'ALREADY_RELEASED', 'Payment for this order was already released concurrently; no second payout was created.')
+        }
+        throw e
       }
-      await db.paymentAuthorization.update({
-        where: { id: payment.id },
-        data: {
-          status: accepted < order.totalMinor ? 'PARTIALLY_RELEASED' : 'RELEASED',
-          releasedAmountMinor: accepted,
-          releasedAt: new Date(),
-        },
-      })
-      await db.purchaseOrder.update({
-        where: { id },
-        data: {
-          paymentStatus: accepted < order.totalMinor ? 'PARTIALLY_RELEASED' : 'RELEASED',
-          platformFeeMinor: commission,
-          commissionRatePct: fees.supplyCommissionPct,
-          status: 'COMPLETED',
-        },
-      })
-      if (order.invoiceId) {
-        await db.invoice.update({ where: { id: order.invoiceId }, data: { status: 'PAID', paidAt: new Date() } })
-      }
-      await poEvent(id, { type: 'RELEASED', actorId: user.id, actorName: user.name, actorSide: side, note: `Released ${(accepted / 100).toLocaleString()} KES to supplier. Platform commission: ${(commission / 100).toLocaleString()} KES recorded separately.` })
-      // Supplier settlement: money is now OWED to the supplier (PENDING) — it
-      // becomes SETTLED only on payout-provider confirmation or an audited
-      // FINANCE reconciliation. Never simulated here.
-      await createSettlementForRelease({
-        supplierOrgId: order.supplierOrgId,
-        orderId: id,
-        releasedMinor: accepted,
-        commissionMinor: commission,
-      })
-      await audit({
-        actorId: user.id, actorName: user.name,
-        action: 'PAYMENT_RELEASED', targetType: 'PURCHASE_ORDER', targetId: id,
-        metadata: { released: accepted, commission, ref: order.refCode },
-      })
       await notifySupplierMembers(order.supplierOrgId, order.refCode, `Payment released for ${order.refCode}: ${(accepted / 100).toLocaleString()} KES (commission ${(commission / 100).toLocaleString()} KES).`, 'PO_RELEASED')
       return ok({ releasedMinor: accepted, commissionMinor: commission, message: 'Payment released. Receipt generated in Billing.' })
     }
 
     // ─────────── STEP 9: dispute ───────────
     case 'dispute': {
-      const existing = await db.dispute.findFirst({ where: { orderId: id, status: { in: ['OPEN', 'UNDER_REVIEW'] } } })
-      if (existing) return fail(409, 'DISPUTE_EXISTS', 'An open dispute already exists for this order.')
       // Financial integrity: once funds are fully released (or refunded) the
       // escrow is gone — a later dispute could queue a refund on top of money
       // already paid to the supplier. Disputes on the remaining escrow of a
@@ -563,19 +670,26 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         return fail(409, 'PAYMENT_FINALISED', 'Payment for this order has already been released or refunded. Post-release complaints go through platform finance and incidents, not a new escrow dispute.')
       }
       const disputed = order.paymentStatus === 'PROTECTED' || order.paymentStatus === 'PARTIALLY_RELEASED'
-      const dispute = await db.dispute.create({
-        data: {
-          refCode: refCode('DSP', 6),
-          orderId: id,
-          openedById: user.id,
-          openedBySide: side,
-          reason: body.reason,
-          details: body.details,
-          evidence: body.evidence.length ? JSON.stringify(body.evidence) : null,
-          amountFrozenMinor: disputed ? (order.acceptedTotalMinor !== null ? order.totalMinor - order.acceptedTotalMinor : order.totalMinor) : null,
-          status: 'OPEN',
-          events: { create: { type: 'CREATED', actorId: user.id, actorName: user.name, note: `Dispute opened: ${body.reason}` } },
-        },
+      const amountFrozenMinor = disputed ? (order.acceptedTotalMinor !== null ? order.totalMinor - order.acceptedTotalMinor : order.totalMinor) : null
+      // Duplicate-dispute guard is transactional: two concurrent dispute
+      // opens on the same order can never both pass the open-dispute check.
+      const dispute = await db.$transaction(async (tx) => {
+        const existing = await tx.dispute.findFirst({ where: { orderId: id, status: { in: ['OPEN', 'UNDER_REVIEW'] } } })
+        if (existing) throw new ApiError(409, 'DISPUTE_EXISTS', 'An open dispute already exists for this order.')
+        return tx.dispute.create({
+          data: {
+            refCode: refCode('DSP', 6),
+            orderId: id,
+            openedById: user.id,
+            openedBySide: side,
+            reason: body.reason,
+            details: body.details,
+            evidence: body.evidence.length ? JSON.stringify(body.evidence) : null,
+            amountFrozenMinor,
+            status: 'OPEN',
+            events: { create: { type: 'CREATED', actorId: user.id, actorName: user.name, note: `Dispute opened: ${body.reason}` } },
+          },
+        })
       })
       await db.purchaseOrder.update({ where: { id }, data: { status: 'DISPUTED' } })
       // Hold any owed payout for this order until the dispute resolves.

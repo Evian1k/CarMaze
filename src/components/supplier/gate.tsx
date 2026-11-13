@@ -197,7 +197,7 @@ export function ApplyForm({ onDone, onExists }: { onDone: (orgName: string) => v
     setUploading(true)
     try {
       for (const file of Array.from(files)) {
-        const res = await uploadOne(file)
+        const res = await uploadOne(file, 'document')
         setDocs((prev) => [...prev, { name: res.name || file.name, url: res.url }])
       }
       toast.success('Document uploaded')

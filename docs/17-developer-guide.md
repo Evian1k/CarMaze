@@ -6,7 +6,7 @@ Real examples from this codebase. Read [03-project-structure.md](03-project-stru
 
 ```bash
 bun install                # after pulling dependency changes
-bun run db:push            # after pulling schema changes (destructive — check first)
+bun run db:deploy          # after pulling schema changes (prisma migrate deploy — versioned migrations)
 bun run dev                # http://localhost:3000 (logs: dev.log)
 bun run lint               # before every commit
 bunx tsc --noEmit          # optional strict type check (build ignores TS errors)
@@ -18,7 +18,7 @@ Sign in with demo accounts from the sign-in page for role testing; the admin dem
 ## 19.2 Making a database change
 
 1. Edit `prisma/schema.prisma` (keep conventions: `Minor` money, String enums + comment, JSON-as-String, event tables).
-2. `bun run db:generate && bun run db:push` (warns on data loss — **back up `db/custom.db` first**).
+2. `bun run db:generate && bun run db:migrate` (author the migration with `prisma migrate dev`; **back up `db/custom.db` first**). Production applies it with `bun run db:deploy`. `db:push` remains DEV-ONLY.
 3. Grep for literal status strings you introduced/renamed across `src/` (SQLite has no enum guard): `rg "PENDING_REVIEW" src/`.
 4. If you added a workflow state, extend the matching `*Event` writes and the UI badge maps (e.g. `VEHICLE_STATUS_LABELS` in `src/lib/format.ts`).
 
@@ -26,7 +26,7 @@ Example — adding a "vehicle.inspection" flag:
 ```prisma
 model Vehicle { … inspectedAt DateTime? }
 ```
-then `bun run db:push`, then surface it in `GET /api/admin/listings` and the listings table UI.
+then `bun run db:migrate` (migration), then surface it in `GET /api/admin/listings` and the listings table UI.
 
 ## 19.3 Adding a new API endpoint
 
@@ -104,7 +104,7 @@ bun run lint && bunx tsc --noEmit     # gates
 bun run build                          # standalone build
 bun run start                          # serve :3000 (logs → server.log)
 ```
-With schema changes: back up `db/custom.db` → `bun run db:push` → then build/start. Set production env (`AUTH_SECRET`, MPESA_*) and ensure `MPESA_CALLBACK_URL` is reachable.
+With schema changes: back up `db/custom.db` → `bun run db:migrate` → then build/start. Production DBs only ever receive `bun run db:deploy`. Set production env (`AUTH_SECRET`, MPESA_*) and ensure `MPESA_CALLBACK_URL` is reachable.
 
 ## 19.12 Rolling back a failed deployment
 

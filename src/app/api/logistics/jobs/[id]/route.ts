@@ -1,16 +1,23 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { isUploadUrl } from '@/lib/upload-url'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireUser, ApiError } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
 import { sixDigitCode, shareId } from '@/lib/ids'
+import { sha256Hex, seal, unseal } from '@/lib/secret-box'
 import { audit } from '@/lib/audit'
 import { notify } from '@/lib/notify'
 import { rateLimit } from '@/lib/rate-limit'
 import { assertNotDemoStaffRead } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
+
+// Absolute lifetime of a drop-off code / QR token, counted from acceptance.
+// A credential that outlives the delivery window is a standing risk (an
+// undelivered job would otherwise keep a valid handover secret forever).
+const DELIVERY_OTP_TTL_MS = 72 * 60 * 60 * 1000
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -28,6 +35,33 @@ function parseList(raw: string | null | undefined): string[] {
 
 function money(kesMinor: number): string {
   return (kesMinor / 100).toLocaleString('en-KE')
+}
+
+/**
+ * Verify a presented QR token against the delivery record.
+ * - Hardened rows: compare sha256(presented) with qrTokenHash (the only
+ *   authoritative check — the DB never stores the usable token).
+ * - Legacy rows (pre-hardening plaintext): constant-shape compare against the
+ *   legacy value, then lazily upgrade the row (hash + seal, plaintext cleared)
+ *   so the plaintext window closes after the first successful verification.
+ */
+async function verifyQrToken(
+  presented: string,
+  job: { id: string; qrTokenHash: string | null; qrTokenEnc: string | null; qrToken: string | null },
+): Promise<boolean> {
+  if (job.qrTokenHash) {
+    return sha256Hex(presented) === job.qrTokenHash
+  }
+  if (job.qrToken && presented === job.qrToken) {
+    await db.deliveryJob
+      .update({
+        where: { id: job.id },
+        data: { qrTokenHash: sha256Hex(job.qrToken), qrTokenEnc: seal(job.qrToken), qrToken: null },
+      })
+      .catch(() => null) // upgrade is best-effort; verification already succeeded
+    return true
+  }
+  return false
 }
 
 const JOB_INCLUDE = {
@@ -96,7 +130,9 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
       job: {
         ...base,
         otpHint: job.otpHint,
-        qrToken: job.qrToken,
+        // Raw token only for the requester's own QR rendering: unsealed from
+        // the sealed box (or the legacy plaintext row). NEVER the partner's.
+        qrToken: job.qrToken ?? unseal(job.qrTokenEnc),
         podPhotos: job.status === 'DELIVERED' && job.podPhotos ? parseList(job.podPhotos) : [],
       },
     })
@@ -123,7 +159,7 @@ const actionSchema = z.discriminatedUnion('action', [
     action: z.literal('deliver'),
     // 6-digit drop-off code OR the requester's QR token (12-14 alphanumeric)
     otp: z.string().trim().regex(/^(\d{6}|[A-Z0-9]{12,14})$/, 'Enter the 6-digit drop-off code or scan the requester QR'),
-    photos: z.array(z.string().trim().min(1).max(300)).min(1, 'Attach at least one proof-of-delivery photo').max(6, 'At most 6 photos'),
+    photos: z.array(z.string().trim().min(1).max(300).refine(isUploadUrl, { message: 'Photos must reference uploaded files' })).min(1, 'Attach at least one proof-of-delivery photo').max(6, 'At most 6 photos'),
   }),
   z.object({
     action: z.literal('fail'),
@@ -173,9 +209,12 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     // in-app notification only. The raw code is never returned to the partner.
     // A QR token is also issued: the requester renders it as a scannable code
     // and the partner can confirm delivery with either the 6-digit code or
-    // the scanned token.
+    // the scanned token. The token is stored SHA-256-hashed (verification
+    // consults only the hash) and AES-sealed for the requester's QR view —
+    // the database never holds a usable plaintext token.
     const otp = sixDigitCode()
     const otpHash = await bcrypt.hash(otp, 10)
+    const otpExpiresAt = new Date(Date.now() + DELIVERY_OTP_TTL_MS)
     const qrToken = shareId(12)
 
     const updated = await db.deliveryJob.update({
@@ -187,7 +226,9 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         status: 'ASSIGNED',
         otpHash,
         otpHint: otp.slice(-2),
-        qrToken,
+        otpExpiresAt,
+        qrTokenHash: sha256Hex(qrToken),
+        qrTokenEnc: seal(qrToken),
         events: {
           create: {
             type: 'ASSIGNED',
@@ -313,6 +354,12 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     if (!job.otpHash) {
       throw new ApiError(409, 'INVALID_STATE', 'This delivery has no verification code on record.')
     }
+    // Absolute expiry: a drop-off code / QR token is valid for a bounded
+    // window from acceptance. Past it, the credential is dead — the partner
+    // must contact the requester instead of retrying an expired secret.
+    if (job.otpExpiresAt && job.otpExpiresAt.getTime() < Date.now()) {
+      return fail(400, 'OTP_EXPIRED', 'This drop-off code has expired (72-hour validity from acceptance). Contact the requester to arrange handover.')
+    }
     // Brute-force guard: the drop-off code is the last proof of lawful handover.
     // Five attempts per 10 minutes per job+user.
     const rl = rateLimit(`delivery-otp:${id}:${user.id}`, 5, 10 * 60 * 1000)
@@ -321,7 +368,7 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     }
     const verified = /^\d{6}$/.test(body.otp)
       ? await bcrypt.compare(body.otp, job.otpHash)
-      : Boolean(job.qrToken) && body.otp === job.qrToken
+      : await verifyQrToken(body.otp, job)
     if (!verified) {
       return fail(400, 'OTP_INVALID', 'That drop-off code does not match this delivery. Ask the requester to read it from their notifications or QR.')
     }

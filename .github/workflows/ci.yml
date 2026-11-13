@@ -1,0 +1,64 @@
+# CARMAZE — CI checks (GitHub Actions)
+#
+# Runs the exact gate the founder asked for, on every push and PR:
+#   1. ESLint
+#   2. TypeScript (tsc --noEmit)
+#   3. Production build (next build — TypeScript errors fail the build)
+#   4. The live security suite (119+ checks) against a THROWAWAY server with
+#      an EPHEMERAL database — never any real data. The job creates a fresh
+#      SQLite file, applies versioned migrations (the same procedure as
+#      production: `prisma migrate deploy`), seeds the demo dataset (the suite
+#      tests demo isolation, which requires demo fixtures), boots the dev
+#      server and runs the suite. The database dies with the job.
+#
+# NOTE: this workflow needs the repository to be pushed to GitHub. Until that
+# happens, the same gate runs locally with `bun run verify`.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: file:/tmp/carmaze-ci.db
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: ESLint
+        run: bun run lint
+
+      - name: TypeScript
+        run: bunx tsc --noEmit
+
+      - name: Fresh database (versioned migrations — the production procedure)
+        run: |
+          rm -f /tmp/carmaze-ci.db
+          bunx prisma migrate deploy
+          bunx prisma db seed 2>/dev/null || bun run db:seed
+
+      - name: Boot dev server for the live security suite
+        run: |
+          bun run dev &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health > /dev/null; then echo "server up"; break; fi
+            sleep 2
+          done
+          curl -f http://localhost:3000/api/health
+
+      - name: Security suite (live checks against the ephemeral server)
+        run: bun verification/security-tests.ts
+
+      - name: Production build
+        run: bun run build

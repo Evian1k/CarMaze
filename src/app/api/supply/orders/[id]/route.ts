@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { route, ok, fail } from '@/lib/api'
 import { getMembership } from '@/lib/orgs'
 import { jsonParse } from '@/lib/supply'
+import { unseal } from '@/lib/secret-box'
 import { assertNotDemoStaffRead } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
@@ -101,8 +102,10 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
         expectedAt: order.delivery.expectedAt,
         otpHint: order.delivery.otpHint,
         // The QR token is a handover credential: only the receiving side may
-        // hold it. The supplier keeps their own confirmation channel.
-        qrToken: side === 'GARAGE' ? order.delivery.qrToken : null,
+        // hold it. The supplier keeps their own confirmation channel. The raw
+        // value is unsealed from the sealed box (or the legacy plaintext row) —
+        // the database itself stores only the hash.
+        qrToken: side === 'GARAGE' ? (order.delivery.qrToken ?? unseal(order.delivery.qrTokenEnc)) : null,
         deliveredAt: order.delivery.deliveredAt,
         handover: jsonParse<Record<string, unknown> | null>(order.delivery.handoverJson, null),
         garageConfirmAt: order.delivery.garageConfirmAt,

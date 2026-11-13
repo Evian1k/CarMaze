@@ -3,6 +3,7 @@ import { route, ok } from '@/lib/api'
 import { mpesaConfigured, mpesaB2cConfigured } from '@/lib/mpesa'
 import { emailProviderConfigured } from '@/lib/providers/email'
 import { smsProviderConfigured, smsProviderName } from '@/lib/providers/sms'
+import { detectScanner } from '@/lib/malware-scan'
 
 /** Health check: real DB connectivity + honest integration status. */
 export const GET = route(async () => {
@@ -12,6 +13,7 @@ export const GET = route(async () => {
   } catch {
     dbStatus = 'error'
   }
+  const scanner = await detectScanner()
   return ok({
     status: dbStatus === 'connected' ? 'ok' : 'degraded',
     service: 'carmaze',
@@ -22,6 +24,7 @@ export const GET = route(async () => {
       mpesa_b2c: mpesaB2cConfigured() ? 'configured' : 'not_configured',
       email: emailProviderConfigured() ? 'configured' : 'not_configured',
       sms: smsProviderConfigured() ? `configured (${smsProviderName()})` : 'not_configured',
+      malware_scanner: scanner ? `configured (${scanner.cmd})` : 'not_configured',
       ai: 'managed_sdk',
     },
   })

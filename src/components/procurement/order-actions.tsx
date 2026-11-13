@@ -266,7 +266,7 @@ function PhotoUploader({ photos, onChange, label, max = 6 }: {
     const next = [...photos]
     try {
       for (const f of Array.from(files).slice(0, max - photos.length)) {
-        const url = await uploadOne(f)
+        const url = await uploadOne(f, 'evidence')
         next.push(url)
       }
       onChange(next)

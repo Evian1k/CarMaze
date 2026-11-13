@@ -247,10 +247,12 @@ export function kesToMinor(input: string): number | null {
   return Number.isFinite(minor) && minor > 0 ? minor : null
 }
 
-/** POST /api/upload (FormData "file") → public media URL. */
-export async function uploadOne(file: File): Promise<string> {
+/** POST /api/upload (FormData "file") → URL. kind: 'image' (public media),
+ * 'document' (private, owner/staff) or 'evidence' (private, case participants). */
+export async function uploadOne(file: File, kind: 'image' | 'document' | 'evidence' = 'image'): Promise<string> {
   const fd = new FormData()
   fd.append('file', file)
+  fd.append('kind', kind)
   const res = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
   return res.url
 }

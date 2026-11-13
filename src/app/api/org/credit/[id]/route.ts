@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { route, ok, fail, parseBody, requireUser } from '@/lib/api'
+import { route, ok, fail, parseBody, requireUser, ApiError } from '@/lib/api'
 import { audit } from '@/lib/audit'
 import { notify, notifyMany } from '@/lib/notify'
 import { getMembership } from '@/lib/orgs'
@@ -107,36 +107,52 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     if (facility.status !== 'ACTIVE') return fail(409, 'INVALID_STATE', 'Facility is not active: charges are only possible on an active facility.')
   }
 
-  const entries = await db.creditEntry.findMany({ where: { facilityId: id } })
-  const outstanding = entries.reduce((bal, e) => bal + (e.paidAt ? 0 : e.amountMinor), 0)
+  // FINANCIAL CRITICAL SECTION: the outstanding balance is recomputed and the
+  // entry written in ONE transaction (SQLite serializes writers), so two
+  // concurrent charges cannot both pass the same limit check and over-lend.
+  const entry = await db.$transaction(async (tx) => {
+    const entries = await tx.creditEntry.findMany({ where: { facilityId: id } })
+    const outstanding = entries.reduce((bal, e) => bal + (e.paidAt ? 0 : e.amountMinor), 0)
 
-  const delta = body.kind === 'CHARGE' ? body.amountMinor : body.kind === 'REPAYMENT' ? -Math.min(body.amountMinor, Math.max(0, outstanding)) : body.amountMinor
+    const delta = body.kind === 'CHARGE' ? body.amountMinor : body.kind === 'REPAYMENT' ? -Math.min(body.amountMinor, Math.max(0, outstanding)) : body.amountMinor
 
-  const newBalance = outstanding + delta
-  if (body.kind === 'CHARGE' && newBalance > facility.limitMinor) {
-    return fail(409, 'LIMIT_EXCEEDED', `Charge would exceed the approved limit (${((facility.limitMinor - outstanding) / 100).toLocaleString()} KES available).`)
-  }
-  if (newBalance < 0) return fail(409, 'OVER_REPAYMENT', 'Repayment exceeds the outstanding balance.')
+    const newBalance = outstanding + delta
+    if (body.kind === 'CHARGE' && newBalance > facility.limitMinor) {
+      throw new ApiError(409, 'LIMIT_EXCEEDED', `Charge would exceed the approved limit (${((facility.limitMinor - outstanding) / 100).toLocaleString()} KES available).`)
+    }
+    if (newBalance < 0) throw new ApiError(409, 'OVER_REPAYMENT', 'Repayment exceeds the outstanding balance.')
 
-  const entry = await db.creditEntry.create({
-    data: {
-      facilityId: id,
-      kind: body.kind,
-      amountMinor: body.kind === 'REPAYMENT' ? -Math.abs(delta) : delta,
-      balanceAfterMinor: newBalance,
-      refType: body.kind === 'CHARGE' ? body.refType ?? null : null,
-      refId: body.kind === 'CHARGE' ? body.refId ?? null : null,
-      dueDate: body.kind === 'CHARGE' && body.dueDate ? new Date(body.dueDate) : null,
-      paidAt: body.kind === 'REPAYMENT' ? new Date() : null,
-      note: body.note ?? null,
-      actorId: user.id,
-      actorName: user.name,
-    },
+    const created = await tx.creditEntry.create({
+      data: {
+        facilityId: id,
+        kind: body.kind,
+        amountMinor: body.kind === 'REPAYMENT' ? -Math.abs(delta) : delta,
+        balanceAfterMinor: newBalance,
+        refType: body.kind === 'CHARGE' ? body.refType ?? null : null,
+        refId: body.kind === 'CHARGE' ? body.refId ?? null : null,
+        dueDate: body.kind === 'CHARGE' && body.dueDate ? new Date(body.dueDate) : null,
+        paidAt: body.kind === 'REPAYMENT' ? new Date() : null,
+        note: body.note ?? null,
+        actorId: user.id,
+        actorName: user.name,
+      },
+    })
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        actorName: user.name,
+        action: `CREDIT_${body.kind}`,
+        targetType: 'CREDIT_FACILITY',
+        targetId: id,
+        metadata: JSON.stringify({ amount: body.amountMinor, balanceAfter: newBalance }),
+      },
+    })
+    return { created, newBalance }
   })
-  await audit({ actorId: user.id, actorName: user.name, action: `CREDIT_${body.kind}`, targetType: 'CREDIT_FACILITY', targetId: id, metadata: { amount: body.amountMinor, balanceAfter: newBalance } })
+  const newBalance = entry.newBalance
   if (body.kind === 'REPAYMENT' && isCustomer) {
     const managers = await db.orgMember.findMany({ where: { orgId: facility.orgId, role: { in: ['OWNER', 'GM', 'FINANCE'] } }, select: { userId: true } })
     await notifyMany(managers.map((m) => m.userId), { type: 'CREDIT_REPAYMENT', title: 'Customer repayment recorded', body: `${user.name} repaid ${(body.amountMinor / 100).toLocaleString()} KES. Outstanding: ${(newBalance / 100).toLocaleString()} KES.`, link: '/garage-dashboard?tab=credit' })
   }
-  return ok({ entry, outstandingMinor: newBalance, availableMinor: Math.max(0, facility.limitMinor - newBalance) }, { status: 201 })
+  return ok({ entry: entry.created, outstandingMinor: newBalance, availableMinor: Math.max(0, facility.limitMinor - newBalance) }, { status: 201 })
 })

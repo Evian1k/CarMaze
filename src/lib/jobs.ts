@@ -6,6 +6,8 @@ import {
   runCampaignExpirySweep,
   cleanupExpiredVerificationCodes,
   runOfferExpirySweep,
+  runUploadQuarantineSweep,
+  runEvidenceRetentionSweep,
 } from '@/lib/sweeps'
 import { audit } from '@/lib/audit'
 
@@ -17,8 +19,11 @@ import { audit } from '@/lib/audit'
  *  - every 60 min: subscription expiry (3-day grace → PAST_DUE + owner notice)
  *  - every 60 min: campaign expiry (ACTIVE past endsAt → ENDED)
  *  - every 60 min: offer expiry (PENDING past expiresAt → EXPIRED)
+ *  - every 60 min: upload quarantine sweep (scanner installed later →
+ *    quarantined files get a real scan verdict; clean files released)
  *  - every 24 h: expired password-reset token cleanup
  *  - every 24 h: expired verification-code cleanup
+ *  - every 24 h: evidence retention sweep (expired EVIDENCE files deleted)
  *
  * Guards:
  *  - ENABLE_JOBS=false disables everything (e.g. secondary workers)
@@ -86,6 +91,14 @@ export function startScheduledJobs(): void {
     return JSON.stringify(stats)
   })
 
+  // Upload quarantine sweep: hourly (releases clean files once a scanner is
+  // available; never approves by itself — staff approval stays the other path).
+  register('upload-quarantine-sweep', 60 * 60 * 1000, async () => {
+    const stats = await runUploadQuarantineSweep()
+    if (stats.scanned > 0) await audit({ action: 'UPLOAD_QUARANTINE_SWEEP', metadata: { ...stats, source: 'scheduled-job' } })
+    return JSON.stringify(stats)
+  })
+
   // Expired password-reset token cleanup: daily.
   register('reset-token-cleanup', 24 * 60 * 60 * 1000, async () => {
     const removed = await cleanupExpiredResetTokens(7)
@@ -97,6 +110,14 @@ export function startScheduledJobs(): void {
   // this removes the leftover values so they never linger in storage).
   register('verification-code-cleanup', 24 * 60 * 60 * 1000, async () => {
     const stats = await cleanupExpiredVerificationCodes()
+    return JSON.stringify(stats)
+  })
+
+  // Evidence retention sweep: daily (EVIDENCE past expiry + 90-day grace →
+  // bytes deleted, record removed; non-evidence files are never touched).
+  register('evidence-retention-sweep', 24 * 60 * 60 * 1000, async () => {
+    const stats = await runEvidenceRetentionSweep(90)
+    if (stats.deleted > 0) await audit({ action: 'EVIDENCE_RETENTION_SWEEP', metadata: { ...stats, source: 'scheduled-job' } })
     return JSON.stringify(stats)
   })
 }

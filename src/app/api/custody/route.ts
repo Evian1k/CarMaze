@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { isUploadUrl } from '@/lib/upload-url'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, requireUser, parseBody } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
@@ -18,7 +19,7 @@ const createSchema = z.object({
   odometerKm: z.number().int().min(0).max(2_000_000).optional(),
   fuelLevel: z.enum(fuelLevels).optional(),
   conditionNotes: z.string().trim().max(2000).optional(),
-  photos: z.array(z.string().trim().min(1).max(500)).max(6).optional(),
+  photos: z.array(z.string().trim().min(1).max(500).refine(isUploadUrl, { message: 'Photos must reference uploaded files' })).max(6).optional(),
   valuables: z.string().trim().max(500).optional(),
   requestedWork: z.string().trim().min(10).max(4000),
   authorisedSpendMinor: z.number().int().min(0).max(9_999_999_999).optional(),

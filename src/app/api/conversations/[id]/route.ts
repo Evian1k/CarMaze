@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { isUploadUrl } from '@/lib/upload-url'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, requireUser, parseBody, type RouteCtx } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
@@ -112,7 +113,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
 const messageSchema = z.object({
   body: z.string().trim().min(1).max(4000),
   attachments: z
-    .array(z.string().trim().max(500).refine((v) => v.startsWith('/api/media/'), { message: 'Attachments must be /api/media/ URLs' }))
+    .array(z.string().trim().max(500).refine(isUploadUrl, { message: 'Attachments must reference a file uploaded through /api/upload (/api/media/ or /api/files/)' }))
     .max(5)
     .optional(),
 })

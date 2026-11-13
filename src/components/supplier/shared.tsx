@@ -484,9 +484,12 @@ export function availableAcrossStocks(stocks: ProductStockMini[]): number {
   return stocks.reduce((sum, s) => sum + Math.max(0, (s.qtyOnHand ?? 0) - (s.qtyReserved ?? 0)), 0)
 }
 
-export function uploadOne(file: File): Promise<{ url: string; name: string }> {
+/** POST /api/upload. kind: 'image' (public media), 'document' (private,
+ * owner/staff) or 'evidence' (private, case participants). */
+export function uploadOne(file: File, kind: 'image' | 'document' | 'evidence' = 'image'): Promise<{ url: string; name: string }> {
   const fd = new FormData()
   fd.append('file', file)
+  fd.append('kind', kind)
   return apiUpload<{ url: string; name: string }>('/api/upload', fd)
 }
 

@@ -286,7 +286,7 @@ function NewRequestDialog({ open, onOpenChange, orgId, onCreated }: {
     if (!file) return
     setUploading(true)
     try {
-      const url = await uploadOne(file)
+      const url = await uploadOne(file, 'evidence')
       setPhotoUrl(url)
       toast.success('Photo attached.')
     } catch (e) {

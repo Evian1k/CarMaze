@@ -10,21 +10,37 @@ export const DEMO_SESSION_MINUTES_DEFAULT = 14 * 24 * 60
 
 // Session signing secret.
 // PRODUCTION: AUTH_SECRET is mandatory and must be >= 32 characters — the
-// module fails fast at boot rather than silently running with a known value.
+// module fails fast at FIRST USE (session creation/verification) rather than
+// silently running with a known value. Resolution is lazy so `next build`
+// (which evaluates route modules with NODE_ENV=production to collect page
+// data) still succeeds on machines that legitimately hold no secret.
 // DEVELOPMENT: a clearly-named dev fallback keeps the sandbox usable.
-function resolveSessionSecret(): Uint8Array {
+let cachedAuthSecret: string | null = null
+function resolveAuthSecret(): string {
+  if (cachedAuthSecret) return cachedAuthSecret
   const provided = process.env.AUTH_SECRET
-  if (provided && provided.length >= 32) return new TextEncoder().encode(provided)
+  if (provided && provided.length >= 32) {
+    cachedAuthSecret = provided
+    return provided
+  }
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
       'AUTH_SECRET is not configured: set a strong (>= 32 character) AUTH_SECRET environment variable before running in production.'
     )
   }
   console.warn('[auth] AUTH_SECRET not set — using the development fallback secret. NEVER run in production like this.')
-  return new TextEncoder().encode('carmaze-dev-secret-change-in-production')
+  cachedAuthSecret = 'carmaze-dev-secret-change-in-production'
+  return cachedAuthSecret
 }
 
-const secret = resolveSessionSecret()
+/**
+ * Raw AUTH_SECRET string — also used to derive sub-keys (e.g. secret-box).
+ * Lazy: throws at first call in production when AUTH_SECRET is missing.
+ */
+export function authSecret(): string {
+  return resolveAuthSecret()
+}
+const secret = () => new TextEncoder().encode(resolveAuthSecret())
 
 export const ROLE = {
   CUSTOMER: 'CUSTOMER',
@@ -69,7 +85,7 @@ export async function createSession(userId: string, opts?: { maxAgeSeconds?: num
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${Math.floor(maxAgeSeconds)}s`)
-    .sign(secret)
+    .sign(secret())
   const store = await cookies()
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -110,7 +126,7 @@ export async function getSessionDemoInfo(): Promise<SessionDemoInfo> {
     const store = await cookies()
     const token = store.get(SESSION_COOKIE)?.value
     if (!token) return null
-    const { payload } = await jwtVerify(token, secret)
+    const { payload } = await jwtVerify(token, secret())
     if (typeof payload.demo !== 'string' || !payload.exp) return null
     return { active: true, roleKey: payload.demo, expiresAt: new Date(payload.exp * 1000).toISOString() }
   } catch {
@@ -123,7 +139,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     const store = await cookies()
     const token = store.get(SESSION_COOKIE)?.value
     if (!token) return null
-    const { payload } = await jwtVerify(token, secret)
+    const { payload } = await jwtVerify(token, secret())
     const userId = payload.sub
     if (!userId) return null
     const user = await db.user.findUnique({ where: { id: userId } })

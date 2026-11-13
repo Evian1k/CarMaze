@@ -103,6 +103,7 @@ model User {
 
   // ── Uploads ──
   uploads UploadRecord[] @relation("UploadOwner")
+  fileAccessLogs FileAccessLog[] @relation("FileAccessViewer")
 }
 
 // ───────────────────── Identity & security ─────────────────────
@@ -211,7 +212,10 @@ model DeliveryJob {
   feeMinor           Int      @default(0) // quoted by the partner at acceptance
   otpHash            String? // bcrypt hash of the drop-off handover OTP
   otpHint            String? // last 2 digits for UX
-  qrToken            String? @unique // requester-side QR alternative to the OTP
+  otpExpiresAt       DateTime? // absolute TTL for the drop-off code (issued at acceptance)
+  qrToken            String? @unique // LEGACY plaintext token — pre-hardening rows only; never written by new code
+  qrTokenHash        String? @unique // sha256(qrToken) — the only field verification consults
+  qrTokenEnc         String? // AES-256-GCM sealed raw token — requester QR rendering only
   podPhotos          String? // JSON string[] — proof-of-delivery evidence
   failReason         String?
   pickupAt           DateTime?
@@ -1522,7 +1526,10 @@ model Delivery {
   expectedAt        DateTime?
   otpHash           String?  // bcrypt hash of 6-digit handover OTP
   otpHint           String?  // last 2 digits for UX
-  qrToken           String?  @unique
+  otpExpiresAt      DateTime? // absolute TTL for the handover OTP (issued at dispatch)
+  qrToken           String?  @unique // LEGACY plaintext token — pre-hardening rows only; never written by new code
+  qrTokenHash       String?  @unique // sha256(qrToken) — the only field verification consults
+  qrTokenEnc        String?  // AES-256-GCM sealed raw token — garage-side QR rendering only
   deliveredAt       DateTime?
   handoverJson      String?  // JSON {garageConfirmedAt, supplierConfirmedAt, captureLocation, location, photos[]}
   garageConfirmAt   DateTime?
@@ -1630,6 +1637,7 @@ model Settlement {
   updatedAt        DateTime  @updatedAt
   events           SettlementEvent[]
 
+  @@unique([orderId, kind]) // one payout row per (order, kind) — DB-enforced idempotency for release/settlement
   @@index([orgId, status])
   @@index([status, createdAt])
   @@index([orderId])
@@ -1806,6 +1814,7 @@ model BusinessMembership {
 
   redemptions MembershipRedemption[]
 
+  @@unique([orgId, customerId]) // DB-enforced: one membership per customer per business
   @@index([customerId, status])
   @@index([orgId, status])
 }
@@ -2052,6 +2061,7 @@ model CustomerOrder {
   invoice          Invoice? @relation("CustomerOrderInvoice", fields: [invoiceId], references: [id])
   otpHash          String?
   otpHint          String?
+  otpExpiresAt     DateTime? // absolute TTL for the collection code (issued at dispatch)
   courierName      String?
   fulfillmentBranchId String?
   rejectedReason   String?
@@ -2106,13 +2116,48 @@ model UploadRecord {
   owner       User     @relation("UploadOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   fileName    String   @unique // server-generated <userId>.<16hex>.<ext> — matches both serving routes
   url         String   // /api/media/<name> (PUBLIC) or /api/files/<name> (PRIVATE)
-  kind        String   // IMAGE | DOCUMENT
+  kind        String   // IMAGE | DOCUMENT | EVIDENCE
   visibility  String   // PUBLIC | PRIVATE
+  // Access class. PUBLIC  → /api/media, unauthenticated by design (listing photos etc).
+  // PRIVATE_DOC           → /api/files, owner-or-staff.
+  // EVIDENCE              → /api/files, owner-or-staff-or-entity-participant (chat,
+  //                         protection incidents, POD photos, custody photos, disputes),
+  //                         access expires (expiresAt), every non-owner view audit-logged.
+  accessKind  String   @default("PUBLIC") // PUBLIC | PRIVATE_DOC | EVIDENCE
+  scanStatus  String   @default("UNSCANNED") // UNSCANNED | CLEAN | INFECTED | SCANNER_UNAVAILABLE | APPROVED_MANUAL
+  scannedAt   DateTime?
+  // Documents (PDF — active content) upload fail-closed: quarantined=true until a
+  // malware scan reports clean or a staff member approves after review (audited).
+  // Legacy rows (pre-quarantine) are false and keep serving.
+  quarantined Boolean  @default(false)
+  // Absolute access expiry for EVIDENCE files — serving refuses non-staff after it.
+  expiresAt   DateTime?
   mimeType    String   // verified actual (magic-byte) type, never the client-declared one
   sizeBytes   Int
   purpose     String?  // optional free text from the uploading flow (truncated)
   createdAt   DateTime @default(now())
+  accessLogs  FileAccessLog[]
 
   @@index([ownerUserId, createdAt])
   @@index([visibility, createdAt])
+  @@index([accessKind, expiresAt])
+  @@index([scanStatus, quarantined])
+}
+
+// Audit trail of every view of a PRIVATE_DOC / EVIDENCE file by someone other
+// than its owner (and denials). Data-protection evidence: who saw what, when.
+model FileAccessLog {
+  id           String       @id @default(cuid())
+  uploadRecord UploadRecord @relation(fields: [uploadRecordId], references: [id], onDelete: Cascade)
+  uploadRecordId String
+  fileName     String
+  viewerId     String
+  viewer       User         @relation("FileAccessViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  viewerName   String
+  verdict      String       // ALLOWED | DENIED
+  reason       String?      // e.g. STAFF_REVIEW | EVIDENCE_PARTICIPANT | NOT_AUTHORISED | EXPIRED
+  createdAt    DateTime     @default(now())
+
+  @@index([uploadRecordId, createdAt])
+  @@index([viewerId, createdAt])
 }

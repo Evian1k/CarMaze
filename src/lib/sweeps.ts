@@ -201,3 +201,71 @@ export async function runOfferExpirySweep(): Promise<{ expired: number }> {
   }
   return { expired: due.length }
 }
+
+/**
+ * Upload quarantine sweep (hourly): when a malware scanner is available (it
+ * may have been installed after files were uploaded), re-scan quarantined
+ * documents/evidence and release the clean ones. Files stay locked until a
+ * real scan verdict or a staff approval — the sweep never approves by itself.
+ */
+export async function runUploadQuarantineSweep(): Promise<{ scanned: number; released: number; infected: number }> {
+  const { detectScanner, scanStoredFile } = await import('@/lib/malware-scan')
+  const scanner = await detectScanner()
+  if (!scanner) return { scanned: 0, released: 0, infected: 0 }
+
+  const pending = await db.uploadRecord.findMany({
+    where: { quarantined: true, scanStatus: { notIn: ['CLEAN', 'APPROVED_MANUAL'] } },
+    select: { id: true, fileName: true, scanStatus: true },
+  })
+  const { rename, unlink, access } = await import('fs/promises')
+  const path = await import('path')
+  let scanned = 0
+  let released = 0
+  let infected = 0
+  for (const rec of pending) {
+    const qPath = path.join(process.cwd(), 'data', 'quarantine', rec.fileName)
+    const pPath = path.join(process.cwd(), 'data', 'uploads', rec.fileName)
+    try {
+      await access(qPath)
+    } catch {
+      continue // bytes not in quarantine (already moved or removed)
+    }
+    const verdict = await scanStoredFile(qPath)
+    scanned++
+    if (verdict.status === 'CLEAN') {
+      await rename(qPath, pPath).catch(() => null)
+      await db.uploadRecord.update({ where: { id: rec.id }, data: { scanStatus: 'CLEAN', scannedAt: new Date(), quarantined: false } })
+      released++
+    } else if (verdict.status === 'INFECTED') {
+      await unlink(qPath).catch(() => null)
+      await db.uploadRecord.update({ where: { id: rec.id }, data: { scanStatus: 'INFECTED', scannedAt: new Date(), quarantined: false } })
+      infected++
+    }
+    // SCAN_ERROR / SCANNER_UNAVAILABLE: stay quarantined; retried next sweep.
+  }
+  return { scanned, released, infected }
+}
+
+/**
+ * Evidence retention sweep (daily): EVIDENCE files whose access expired more
+ * than the grace window ago are deleted from disk and their record removed —
+ * sensitive evidence does not linger forever after access has ended.
+ * Non-evidence files are never touched by this sweep.
+ */
+export async function runEvidenceRetentionSweep(graceDays = 90): Promise<{ deleted: number }> {
+  const cutoff = new Date(Date.now() - graceDays * 24 * 60 * 60 * 1000)
+  const due = await db.uploadRecord.findMany({
+    where: { accessKind: 'EVIDENCE', expiresAt: { lt: cutoff } },
+    select: { id: true, fileName: true },
+  })
+  const { unlink } = await import('fs/promises')
+  const path = await import('path')
+  let deleted = 0
+  for (const rec of due) {
+    await unlink(path.join(process.cwd(), 'data', 'uploads', rec.fileName)).catch(() => null)
+    await db.fileAccessLog.deleteMany({ where: { uploadRecordId: rec.id } })
+    await db.uploadRecord.delete({ where: { id: rec.id } }).catch(() => null)
+    deleted++
+  }
+  return { deleted }
+}

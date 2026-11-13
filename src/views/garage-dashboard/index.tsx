@@ -1977,6 +1977,7 @@ function ReadyForCollectionDialog({ open, busy, onCancel, onSubmit }: {
     try {
       const fd = new FormData()
       fd.append('file', file)
+      fd.append('kind', 'evidence') // custody completion photos: private, participants only
       const d = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
       setPhotos((prev) => [...prev, { url: d.url, name: d.name || file.name }])
     } catch (e) {

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { isUploadUrl } from '@/lib/upload-url'
 import { db } from '@/lib/db'
 import { route, ok, ApiError, requireUser, parseBody, type RouteCtx } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
@@ -90,7 +91,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
 
 const patchSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('note'), note: z.string().trim().min(1).max(4000) }),
-  z.object({ action: z.literal('evidence'), evidence: z.array(z.string().trim().min(1).max(500)).min(1).max(6) }),
+  z.object({ action: z.literal('evidence'), evidence: z.array(z.string().trim().min(1).max(500).refine(isUploadUrl, { message: 'Evidence must reference an uploaded file' })).min(1).max(6) }),
   z.object({
     action: z.literal('status'),
     status: z.enum(['UNDER_REVIEW', 'ESCALATED', 'RESOLVED', 'DISMISSED']),

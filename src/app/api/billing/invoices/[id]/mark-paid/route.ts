@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, ApiError, parseBody, requireRole } from '@/lib/api'
 import { assertNotDemoActor } from '@/lib/demo'
-import { activatePaidInvoice, auditPaymentConfirmed } from '../../../_activate'
+import { activatePaidInvoice } from '../../../_activate'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -41,18 +41,11 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     return fail(409, 'INVALID_STATE', `Invoice ${invoice.refCode} is ${invoice.status} and cannot be marked paid.`)
   }
 
-  const result = await activatePaidInvoice(invoice.id, 'MANUAL', body.note)
-
-  await auditPaymentConfirmed({
-    actorId: user.id,
-    actorName: user.name,
-    refCode: invoice.refCode,
-    amountMinor: invoice.amountMinor,
-    paidVia: 'MANUAL',
-    note: body.note,
-    campaignActivated: result.activatedCampaign,
-    subscriptionActivated: result.activatedSubscription,
-  })
+  // Transactional activation: the invoice flip, entitlement activation and
+  // the INVOICE_PAID audit row (with this actor) land atomically. A race with
+  // a provider callback resolves inside the transaction as alreadyPaid —
+  // no duplicate activation and no duplicate audit rows.
+  const result = await activatePaidInvoice(invoice.id, 'MANUAL', body.note, { id: user.id, name: user.name })
 
   return ok({
     invoice: result.invoice,

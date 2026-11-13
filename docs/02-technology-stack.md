@@ -60,7 +60,7 @@ Every technology below was identified by reading `package.json`, config files an
 - **Why**: zero-ops persistence suitable for the current pilot scale; trivially backed up by file copy.
 - **Where**: `src/lib/db.ts` creates one `PrismaClient` (cached on `globalThis` in dev to survive hot reload).
 - **Failure mode**: DB errors surface as 500 `INTERNAL_ERROR`; `/api/health` runs `SELECT 1` and reports `degraded`.
-- **Status**: fully implemented. **No `prisma/migrations` folder exists** — the workflow is `prisma db push --accept-data-loss` (script `db:push`). Migration scripts exist in `package.json` (`db:migrate`, `db:reset`) but are unused. This is a documented deployment risk (Part 18/20).
+- **Status**: fully implemented. **Versioned migrations are the source of truth** (`prisma/migrations/`, applied with `bun run db:deploy` / `prisma migrate deploy`). `db:push` survives only as a DEV-ONLY convenience for the sandbox database and is never used in production (see docs/CARMAZE_FRESH_DATABASE_INIT.md).
 
 ## 2.5 Authentication & authorization
 

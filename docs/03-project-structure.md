@@ -19,7 +19,7 @@ Verified tree (node_modules/.next omitted). After the tree: what each area contr
 │   ├── schema.prisma             # 99 models — the single source of database truth
 │   ├── seed.ts                   # full demo world (22 users, 8 orgs, 12 vehicles, …)
 │   └── seed-supply.ts            # supply network seed (categories, products, stock, POs)
-│   (no migrations/ folder — db push workflow)
+│   migrations/           # versioned Prisma migrations (source of truth)
 │
 ├── db/
 │   └── custom.db                 # SQLite database file (~1.6 MB)
@@ -172,7 +172,7 @@ Verified tree (node_modules/.next omitted). After the tree: what each area contr
 1. **Locate the vertical slice**: view → components → API folder → models. Example: "garage custody" = `views/garage-dashboard` (custody tab) + `components/protection/vehicle-protection.tsx` + `api/custody/**` + models `VehicleCustody`, `CustodyEvent`, `RoadTest`, `CollectionAuthorisation`.
 2. **Change the API contract first** (zod schema + response shape), keep error codes stable (`{error: CODE}`), then update the view's TypeScript types (they mirror API payloads by hand, e.g. `components/storefront/types.ts`).
 3. **Respect the kernels**: never bypass `route()`, `requireUser/requireRole`, `getMembership/requireOrgMember`; never write "paid/verified/active" states outside the designated transitions (e.g. activation only via `_activate.ts`).
-4. **Schema changes**: edit `prisma/schema.prisma` → `bun run db:push` (destructive! confirm first) → if you touched enums/status strings, grep for the literal strings across `src/`.
+4. **Schema changes**: edit `prisma/schema.prisma` → `bun run db:migrate` (versioned migration; `db:push` is DEV-ONLY and must never touch production — see docs/CARMAZE_FRESH_DATABASE_INIT.md) → if you touched enums/status strings, grep for the literal strings across `src/`.
 5. **Frontend-only rules**: keep role visibility logic in `view-guard.ts` + app-shell conditions, and remember it is UX, not security; keep all money math in minor units; use `parseJson` for JSON columns; use `sonner` toasts; respect `useReducedMotion` via `components/motion`.
 6. **Demo safety**: if you add a feature touching user/org data, decide how the demo sandbox applies (`assertDemoResourceGuard` / `demoStaffMutationGuard`) and add a case to `verification/security-tests.ts`.
 7. **Lint after every change**: `bun run lint` (the only automated gate).

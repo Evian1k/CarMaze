@@ -1048,6 +1048,7 @@ function ReportIncidentDialog({ open, onClose, onReported }: {
     try {
       const fd = new FormData()
       fd.append('file', file)
+      fd.append('kind', 'evidence') // incident evidence: private, case participants only
       const d = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
       setEvidence((prev) => [...prev, { url: d.url, name: d.name || file.name }])
     } catch (e) {

@@ -158,21 +158,6 @@ export const POST = route(async (req: NextRequest) => {
     return fail(404, 'PACKAGE_NOT_FOUND', 'That promotion package does not exist or is no longer offered.')
   }
 
-  // One pending/active promotion per listing: prevents paying twice for the same slot.
-  const existing = await db.campaign.findFirst({
-    where: { vehicleId: vehicle.id, status: { in: ['PENDING_PAYMENT', 'ACTIVE'] } },
-    select: { refCode: true, status: true },
-  })
-  if (existing) {
-    return fail(
-      409,
-      'CAMPAIGN_EXISTS',
-      existing.status === 'PENDING_PAYMENT'
-        ? `This listing already has an unpaid promotion (${existing.refCode}): complete or cancel it first.`
-        : `This listing already has an active promotion (${existing.refCode}).`
-    )
-  }
-
   const orgId = vehicle.orgId
   const orgType = managed.find((m) => m.org.id === orgId)?.org.type ?? 'DEALER'
   const title = `${vehicle.make} ${vehicle.model} ${vehicle.year}`
@@ -180,8 +165,23 @@ export const POST = route(async (req: NextRequest) => {
   const dueDate = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
   const dashboardLink = orgType === 'GARAGE' ? '/garage-dashboard?tab=profile' : '/dealer?tab=billing'
 
-  // One transaction: PENDING_PAYMENT campaign + linked PENDING invoice.
+  // One transaction: the one-promotion-per-listing check is INSIDE the
+  // transaction, so two concurrent "promote" clicks can never both pass and
+  // both mint payable invoices for the same slot.
   const { campaign, invoice } = await db.$transaction(async (tx) => {
+    const existing = await tx.campaign.findFirst({
+      where: { vehicleId: vehicle.id, status: { in: ['PENDING_PAYMENT', 'ACTIVE'] } },
+      select: { refCode: true, status: true },
+    })
+    if (existing) {
+      throw new ApiError(
+        409,
+        'CAMPAIGN_EXISTS',
+        existing.status === 'PENDING_PAYMENT'
+          ? `This listing already has an unpaid promotion (${existing.refCode}): complete or cancel it first.`
+          : `This listing already has an active promotion (${existing.refCode}).`,
+      )
+    }
     const invoice = await tx.invoice.create({
       data: {
         refCode: refCode('INV', 6),

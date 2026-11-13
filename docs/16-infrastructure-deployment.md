@@ -9,7 +9,7 @@ Exactly how CARMAZE runs, with real commands from `package.json` / `scripts/`. S
 ```bash
 bun install                       # install dependencies
 # .env must contain DATABASE_URL (e.g. "file:./db/custom.db" — relative to prisma/ or absolute)
-bun run db:push                   # apply prisma/schema.prisma to SQLite (--accept-data-loss)
+bun run db:deploy                 # apply versioned migrations (prisma migrate deploy) — the ONLY production DB command
 bun run db:seed                   # optional: full demo world (bun prisma/seed.ts)
 bun run dev                       # next dev -p 3000, logs tee'd to dev.log
 bun run lint                      # ESLint (the only automated gate)
@@ -38,7 +38,7 @@ bun run lint                      # ESLint (the only automated gate)
 ## 18.3 Database setup, migrations & reset
 
 - Schema: single file `prisma/schema.prisma` (99 models). **No migrations folder exists.**
-- `bun run db:push` — applies the schema (`--accept-data-loss` is in the script: **read before running on real data**).
+- `bun run db:deploy` — applies versioned migrations (safe, ordered, repeatable). `bun run db:push` is DEV-ONLY (--accept-data-loss) and must never run against a real database.
 - `bun run db:generate` — regenerate the Prisma client after schema edits.
 - `bun run db:seed` — rebuilds the demo world: `deleteMany` on users/orgs (invalidating all demo sessions by orphaning JWT subjects) then inserts 22 users, 8 orgs, branches, 12 vehicles, 30 categories, 18 products, stock, POs, invoices, custody, incidents, logistics jobs, community, settings, 8 demo accounts.
 - `db:migrate` / `db:reset` scripts exist but are unused; adopting real migrations is a recommended change (Part 20).
@@ -76,6 +76,6 @@ Nothing in the repo configures a production host. The sandbox layout is: Caddy (
 ## 18.10 Recovery runbook (recommended minimum)
 
 1. Stop the server; copy `db/custom.db` (corrupted?) aside.
-2. Restore the latest backup file; `bun run db:push` only if the schema changed since the backup.
+2. Restore the latest backup file; `bun run db:deploy` brings the schema fully up to date (migrations are ordered and idempotent-in-effect).
 3. Restart; verify `GET /api/health`; spot-check `GET /api/vehicles/home`.
 4. If Daraja callbacks failed during downtime: reconcile unpaid invoices via Admin → Billing (FINANCE mark-paid with note) after confirming receipts with the provider.

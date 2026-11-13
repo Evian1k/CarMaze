@@ -49,6 +49,20 @@ export const POST = route(async (req: NextRequest) => {
     return fail(409, 'INVALID_STATE', `Invoice ${invoice.refCode} is ${invoice.status} and cannot be paid.`)
   }
 
+  // DOUBLE-CHARGE GUARD: an invoice with an in-flight payment attempt cannot
+  // start another push. Two concurrent pushes could otherwise both complete
+  // and charge the customer twice for one invoice (the second success had no
+  // overpayment handling). Stale FAILED attempts do not block.
+  const inflight = await db.paymentAttempt.findFirst({
+    where: { invoiceId: invoice.id, status: { in: ['INITIATED', 'PENDING'] } },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (inflight) {
+    return fail(409, 'PAYMENT_IN_FLIGHT',
+      `A payment for invoice ${invoice.refCode} is already in flight (started ${inflight.createdAt.toISOString().slice(0, 16).replace('T', ' ')} UTC). Complete it on your phone or wait for it to time out before trying again.`,
+      { attemptId: inflight.id })
+  }
+
   const attempt = await db.paymentAttempt.create({
     data: {
       invoiceId: invoice.id,
