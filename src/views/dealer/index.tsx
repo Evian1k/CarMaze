@@ -162,6 +162,7 @@ type EnquiryItem = {
   message: string
   phoneShare?: boolean
   phone?: string | null
+  assignedToId?: string | null
   createdAt: string
   user?: { name?: string }
   vehicle?: { id: string; make: string; model: string; year: number; priceMinor: number; currency: string }
@@ -1267,11 +1268,15 @@ function InventoryTab({ orgId, dash }: { orgId: string; dash: FetchState<Dashboa
   )
 }
 
-function EnquiriesTab({ orgId }: { orgId: string }) {
+function EnquiriesTab({ orgId, viewerRole }: { orgId: string; viewerRole: string }) {
   const enquiries = useFetch<{ enquiries: EnquiryItem[] }>('/api/enquiries?forOrg=1')
+  const canAssign = viewerRole === 'OWNER' || viewerRole === 'MANAGER'
+  const staff = useFetch<{ members: { userId: string; name: string; role: string }[] }>(canAssign ? `/api/orgs/staff?orgId=${orgId}` : null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [reply, setReply] = useState('')
   const [sending, setSending] = useState(false)
+  const [assignee, setAssignee] = useState('')
+  const [assigning, setAssigning] = useState(false)
 
   const moduleMissing = enquiries.error?.status === 404
   const list = enquiries.data?.enquiries ?? []
@@ -1295,6 +1300,20 @@ function EnquiriesTab({ orgId }: { orgId: string }) {
       toast.error(e instanceof Error ? e.message : 'Could not send the reply.')
     } finally {
       setSending(false)
+    }
+  }
+
+  async function assignEnquiry() {
+    if (!selected) return
+    setAssigning(true)
+    try {
+      await apiSend(`/api/enquiries/${selected.id}`, 'PATCH', { action: 'assign', assignedToId: assignee || null })
+      toast.success(assignee ? 'Enquiry assigned.' : 'Assignment cleared.')
+      enquiries.reload()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not assign the enquiry.')
+    } finally {
+      setAssigning(false)
     }
   }
 
@@ -1357,6 +1376,30 @@ function EnquiriesTab({ orgId }: { orgId: string }) {
                   {selected.vehicle ? <>Listed at {money(selected.vehicle.priceMinor, selected.vehicle.currency)}</> : null}
                   {selected.phoneShare && selected.phone ? <> · Customer phone: <a className="underline" href={`tel:${selected.phone}`}>{selected.phone}</a></> : ' · Customer has not shared a phone number'}
                 </CardDescription>
+                {canAssign && staff.data?.members?.length ? (
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <span className="text-xs text-muted-foreground">Handle by:</span>
+                    <select
+                      value={selected.assignedToId ?? ''}
+                      onChange={(e) => setAssignee(e.target.value)}
+                      aria-label="Assign this enquiry to a team member"
+                      className="h-8 max-w-52 rounded-md border bg-card px-2 text-xs"
+                    >
+                      <option value="">Unassigned (team inbox)</option>
+                      {staff.data.members.map((m) => (
+                        <option key={m.userId} value={m.userId}>{m.name} · {m.role}</option>
+                      ))}
+                    </select>
+                    <Button size="sm" variant="outline" className="h-8" disabled={assigning || (selected.assignedToId ?? '') === assignee} onClick={assignEnquiry}>
+                      {assigning ? 'Saving…' : 'Assign'}
+                    </Button>
+                    {selected.assignedToId ? (
+                      <span className="text-xs text-muted-foreground">
+                        → {staff.data.members.find((m) => m.userId === selected.assignedToId)?.name ?? 'team member'}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </CardHeader>
               <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
                 <div className="max-h-72 min-h-40 flex-1 space-y-3 overflow-y-auto rounded-lg bg-muted/40 p-3 scrollbar-thin">
@@ -2317,7 +2360,7 @@ function DealerDashboard({ memberships, activeOrgId, onOrgChange, onRefresh }: {
           <FadeIn><MembershipsManager orgId={activeOrgId} orgType="DEALER" /></FadeIn>
         </TabsContent>
         <TabsContent value="enquiries" className="mt-4">
-          <EnquiriesTab key={activeOrgId} orgId={activeOrgId} />
+          <EnquiriesTab key={activeOrgId} orgId={activeOrgId} viewerRole={viewerRole} />
         </TabsContent>
         <TabsContent value="inbox" className="mt-4">
           <FadeIn><MessagesTab key={activeOrgId} scope="org" /></FadeIn>

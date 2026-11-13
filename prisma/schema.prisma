@@ -51,6 +51,7 @@ model User {
   totpSecret    String?  // base32 TOTP secret for MFA (null = MFA disabled)
   mfaEnabled    Boolean  @default(false)
   isDemo        Boolean  @default(false) // demo-experience account: sandboxed from real users/orgs, excluded from real notifications & payments
+  marketingConsent Boolean @default(true) // DPA: marketing-consent flag withdrawn via privacy delete-request (scope MARKETING_ONLY)
   status        String   @default("ACTIVE") // ACTIVE | SUSPENDED
   sessionVersion Int     @default(0) // bumped on password reset / MFA disable → all existing session JWTs invalid
   referralCode  String?  @unique // this user's own shareable referral code
@@ -634,6 +635,8 @@ model Vehicle {
   @@index([status, priceMinor])
   @@index([status, county])
   @@index([status, createdAt])
+  @@index([ownerId])
+  @@index([orgId])
 }
 
 model VehiclePhoto {
@@ -690,10 +693,15 @@ model Enquiry {
   phoneShare Boolean  @default(true)
   phone      String?
   status     String   @default("OPEN") // OPEN|ANSWERED|CLOSED
+  assignedToId String? // dealership/garage staff member handling this enquiry (org member userId)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   messages EnquiryMessage[]
+
+  @@index([vehicleId])
+  @@index([userId])
+  @@index([status, createdAt])
 }
 
 model EnquiryMessage {
@@ -1031,6 +1039,10 @@ model Invoice {
   payments    PaymentAttempt[]
   memberships BusinessMembership[]
   customerOrders CustomerOrder[]   @relation("CustomerOrderInvoice")
+
+  @@index([orgId, status])
+  @@index([userId, status])
+  @@index([dueDate])
 }
 
 model PaymentAttempt {
@@ -1048,6 +1060,9 @@ model PaymentAttempt {
   callbackRaw       String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  @@index([invoiceId])
+  @@index([status, createdAt])
 }
 
 model CampaignPackage {
@@ -1088,6 +1103,9 @@ model SupportTicket {
   status    String    @default("OPEN") // OPEN|IN_PROGRESS|RESOLVED
   response  String?
   createdAt DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([userId])
 }
 
 // ───────────────────────── Ops & auditing ─────────────────────────

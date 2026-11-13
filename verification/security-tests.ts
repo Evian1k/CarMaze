@@ -386,6 +386,125 @@ async function main() {
   r = await req('POST', '/api/privacy/delete-request', revJar2, { reason: 'Automated verification of the erasure workflow.', scope: 'MARKETING_ONLY' })
   check('erasure request recorded as a DPO ticket', r.status === 201 && String(r.json?.ref ?? '').startsWith('DPO-'), `status ${r.status} ref=${r.json?.ref}`)
 
+
+  // ═══════════════ NEW: payment-integrity & forgery resistance ═══════════════
+  section('Payment integrity: forgery resistance, demo money block, FINANCE-only reconciliation')
+  // The demo-reset section above rotates every demo session: re-authenticate
+  // fresh demo jars for the remaining sections.
+  const freshDemo: Record<string, Jar> = {}
+  for (const role of ['customer', 'private-seller', 'showroom-owner', 'showroom-staff', 'garage-owner', 'garage-staff', 'supplier-owner', 'logistics-owner', 'platform-support', 'platform-admin']) {
+    freshDemo[role] = await demoAs(role)
+  }
+  const forgedCb = await req('POST', '/api/billing/mpesa/callback', {}, {
+    Body: { stkCallback: {
+      MerchantRequestID: 'forge-mr', CheckoutRequestID: 'ws_CO_FORGED_SUITE_TEST',
+      ResultCode: 0, ResultDesc: 'The service request is processed successfully.',
+      CallbackMetadata: { Item: [{ Name: 'Amount', Value: 999999 }, { Name: 'MpesaReceiptNumber', Value: 'FORGED1' }] },
+    } },
+  })
+  check('forged success callback for unknown reference is acked, never activates money', forgedCb.status === 200 && forgedCb.json?.ResultCode === 0, `status ${forgedCb.status}`)
+  const brokenCb = await req('POST', '/api/billing/mpesa/callback', {}, { nonsense: true })
+  check('unparseable callback payload is acked without a 500', brokenCb.status === 200, `status ${brokenCb.status}`)
+  const supplyWh = await req('POST', '/api/supply/payments/webhook', {}, {
+    Body: { stkCallback: { CheckoutRequestID: 'ws_CO_FORGED_SUITE_SUP', ResultCode: 0, CallbackMetadata: { Item: [{ Name: 'Amount', Value: 999999 }] } } },
+  })
+  check('forged supply-escrow webhook for unknown reference is acked, no escrow set', supplyWh.status === 200, `status ${supplyWh.status}`)
+  const demoPay = await req('POST', '/api/billing/mpesa/stkpush', freshDemo['customer'], { invoiceId: 'any', phone: '+254700000001' })
+  check('demo account can never trigger a real M-Pesa push', demoPay.status === 403 && demoPay.json?.error === 'DEMO_SANDBOXED', `status ${demoPay.status} ${demoPay.json?.error ?? ''}`)
+  const demoOrderPay = await req('POST', '/api/supply/orders/cmw-none/pay', freshDemo['garage-owner'], { phone: '+254700000001' })
+  check('demo account can never push an escrow order payment', demoOrderPay.status === 403 && demoOrderPay.json?.error === 'DEMO_SANDBOXED', `status ${demoOrderPay.status} ${demoOrderPay.json?.error ?? ''}`)
+  const custMarkPaid = await req('POST', '/api/billing/invoices/whatever/mark-paid', realJar, { note: 'trying to self-confirm money' })
+  check('non-FINANCE user can never mark an invoice paid', custMarkPaid.status === 403, `status ${custMarkPaid.status}`)
+  const demoAdminReconcile = await req('POST', '/api/admin/supply', freshDemo['platform-admin'], { action: 'reconcile-payment', orderId: 'whatever', providerRef: 'REF123' })
+  check('demo staff can never reconcile real payments', demoAdminReconcile.status === 403, `status ${demoAdminReconcile.status} ${demoAdminReconcile.json?.error ?? ''}`)
+  const refundByCustomer = await req('POST', '/api/admin/supply', freshDemo['supplier-owner'], { action: 'process-refund', refundId: 'whatever', decision: 'PROCESSED', providerRef: 'R1' })
+  check('non-FINANCE staff cannot process refunds', refundByCustomer.status === 403 || refundByCustomer.status === 404, `status ${refundByCustomer.status}`)
+
+  // ═══════════════ NEW: procurement tenant isolation ═══════════════
+  section('Procurement tenant isolation: orders and custody are membership-scoped')
+  const supMe = await req('GET', '/api/orgs/me', freshDemo['supplier-owner'])
+  const supOrgId = supMe.json?.memberships?.[0]?.orgId ?? 'none'
+  const supOrders = await req('GET', `/api/supply/orders?orgId=${supOrgId}`, freshDemo['supplier-owner'])
+  check('supplier sees own purchase orders', supOrders.status === 200 && Array.isArray(supOrders.json?.orders) && supOrders.json.orders.length > 0, `status ${supOrders.status}, orders=${(supOrders.json?.orders ?? []).length}`)
+  const custSupOrders = await req('GET', `/api/supply/orders?orgId=${supOrgId}`, freshDemo['customer'])
+  check('customer cannot read a supplier order ledger', custSupOrders.status === 403 || (custSupOrders.status === 200 && (custSupOrders.json?.orders ?? []).length === 0), `status ${custSupOrders.status}`)
+  const dealerSupOrders = await req('GET', `/api/supply/orders?orgId=${supOrgId}`, freshDemo['showroom-owner'])
+  check('dealer (non-member) cannot read the supplier order ledger', dealerSupOrders.status === 403 || dealerSupOrders.json?.error === 'FORBIDDEN' || (dealerSupOrders.status === 200 && (dealerSupOrders.json?.orders ?? []).length === 0), `status ${dealerSupOrders.status}`)
+  const custCustodyOrg = await req('GET', '/api/custody?org=1', freshDemo['customer'])
+  check('customer cannot read a garage custody board via org scope', custCustodyOrg.status === 403 || (custCustodyOrg.status === 200 && (custCustodyOrg.json?.custodies ?? []).length === 0), `status ${custCustodyOrg.status}`)
+
+  // ═══════════════ NEW: marketplace moderation RBAC ═══════════════
+  section('Marketplace moderation RBAC: only reviewers moderate listings')
+  const sellerModerate = await req('PATCH', '/api/admin/listings', freshDemo['private-seller'], { id: 'whatever', action: 'approve' })
+  check('private seller cannot approve listings', sellerModerate.status === 403, `status ${sellerModerate.status}`)
+  const custModerate = await req('PATCH', '/api/admin/listings', freshDemo['customer'], { id: 'whatever', action: 'approve' })
+  check('customer cannot approve listings', custModerate.status === 403, `status ${custModerate.status}`)
+  const staffModerate = await req('PATCH', '/api/admin/listings', freshDemo['showroom-staff'], { id: 'whatever', action: 'suspend' })
+  check('showroom staff cannot moderate platform listings', staffModerate.status === 403, `status ${staffModerate.status}`)
+
+  // ═══════════════ NEW: demo sandbox mutation hardening (this audit) ═══════════════
+  section('Demo sandbox hardening: no real accounts, no real PII, marketing consent withdrawal')
+  const demoInvite = await req('POST', '/api/orgs/staff', freshDemo['showroom-owner'], { orgId: 'any', email: 'minted.by.demo@test.local', name: 'Demo Minted User', role: 'SALES' })
+  check('demo session can never mint real user accounts via staff invites', demoInvite.status === 403 && demoInvite.json?.error === 'DEMO_SANDBOXED', `status ${demoInvite.status} ${demoInvite.json?.error ?? ''}`)
+  const demoAdminListings = await req('GET', '/api/admin/listings?status=ALL', freshDemo['platform-admin'])
+  const demoListingEmails = JSON.stringify(demoAdminListings.json?.listings?.slice(0, 12).map((l: any) => l.owner?.email) ?? [])
+  check('demo moderator never sees real owner emails in the moderation queue', demoAdminListings.status === 200 && !demoListingEmails.includes('@carmaze.co.ke') && !demoListingEmails.includes('@test.local'), `status ${demoAdminListings.status}, emails=${demoListingEmails.slice(0, 60)}`)
+  const revokedMeAfterDpa = await req('GET', '/api/auth/me', revJar2)
+  check('MARKETING_ONLY erasure actually withdraws marketing consent', revokedMeAfterDpa.json?.user?.marketingConsent === false, `marketingConsent=${revokedMeAfterDpa.json?.user?.marketingConsent}`)
+
+  // ═══════════════ NEW: enquiry assignment (DealerOS) ═══════════════
+  section('DealerOS enquiry assignment: owner assigns, staff cannot, customer cannot')
+  const dealerOrgMe = await req('GET', '/api/orgs/me', freshDemo['showroom-owner'])
+  const dealerOrgId = dealerOrgMe.json?.memberships?.[0]?.orgId ?? 'none'
+  const dealerEnquiries = await req('GET', '/api/enquiries?forOrg=1', freshDemo['showroom-owner'])
+  const enquiryToAssign = dealerEnquiries.json?.enquiries?.[0]?.id
+  const dealerStaff = await req('GET', `/api/orgs/staff?orgId=${dealerOrgId}`, freshDemo['showroom-owner'])
+  const staffUserId = dealerStaff.json?.members?.find((m: any) => m.role !== 'OWNER')?.userId
+  if (enquiryToAssign && staffUserId) {
+    const assignByOwner = await req('PATCH', `/api/enquiries/${enquiryToAssign}`, freshDemo['showroom-owner'], { action: 'assign', assignedToId: staffUserId })
+    check('dealership owner can assign an enquiry to a staff member', assignByOwner.status === 200 && assignByOwner.json?.enquiry?.assignedToId === staffUserId, `status ${assignByOwner.status} assigned=${assignByOwner.json?.enquiry?.assignedToId === staffUserId}`)
+    const assignByStaff = await req('PATCH', `/api/enquiries/${enquiryToAssign}`, freshDemo['showroom-staff'], { action: 'assign', assignedToId: staffUserId })
+    check('showroom staff cannot (re)assign enquiries', assignByStaff.status === 403, `status ${assignByStaff.status}`)
+    const assignByCustomer = await req('PATCH', `/api/enquiries/${enquiryToAssign}`, freshDemo['customer'], { action: 'assign', assignedToId: staffUserId })
+    check('the enquiring customer cannot assign dealership staff', assignByCustomer.status === 403, `status ${assignByCustomer.status}`)
+    const unassign = await req('PATCH', `/api/enquiries/${enquiryToAssign}`, freshDemo['showroom-owner'], { action: 'assign', assignedToId: null })
+    check('assignment can be cleared back to the team inbox', unassign.status === 200 && unassign.json?.enquiry?.assignedToId === null, `status ${unassign.status}`)
+  } else {
+    check('enquiry assignment fixtures available', false, `enquiry=${enquiryToAssign ?? 'none'} staff=${staffUserId ?? 'none'}`)
+  }
+
+  // ═══════════════ NEW: delivery OTP brute-force guard ═══════════════
+  section('Logistics drop-off code: brute-force attempts are rate-limited')
+  const partnerJobs = await req('GET', '/api/logistics/jobs?scope=partner', freshDemo['logistics-owner'])
+  const transitJob = (partnerJobs.json?.jobs ?? []).find((j: any) => j.status === 'PICKED_UP' || j.status === 'IN_TRANSIT')
+  if (transitJob) {
+    let lastStatus = 0
+    for (let i = 0; i < 6; i++) {  // limiter allows 5 per window; the 6th must be blocked
+      const attempt = await req('POST', `/api/logistics/jobs/${transitJob.id}`, freshDemo['logistics-owner'], { action: 'deliver', otp: '00000' + i, photos: ['https://example.local/p.png'] })
+      lastStatus = attempt.status
+      if (attempt.status === 429) break
+    }
+    check('repeated wrong drop-off codes hit the brute-force limiter (400s then 429)', lastStatus === 429, `final status ${lastStatus} after ≤5 wrong codes`)
+    const jobAfter = await req('GET', '/api/logistics/jobs?scope=partner', freshDemo['logistics-owner'])
+    const stillNotDelivered = (jobAfter.json?.jobs ?? []).find((j: any) => j.id === transitJob.id)?.status !== 'DELIVERED'
+    check('wrong-code attempts never mark the delivery delivered', stillNotDelivered, 'job status unchanged')
+  } else {
+    check('delivery OTP limiter fixtures available', false, 'no PICKED_UP/IN_TRANSIT job for the demo partner')
+  }
+
+  // ═══════════════ NEW: custody work-approval state machine ═══════════════
+  section('GarageOS additional-work approval: only the customer can authorise over-cap work')
+  const custJobs = await req('GET', '/api/custody?mine=1', freshDemo['customer'])
+  const anyCustodyId = (custJobs.json?.custodies ?? [])[0]?.id
+  if (anyCustodyId) {
+    const garageApprove = await req('PATCH', `/api/custody/${anyCustodyId}`, freshDemo['garage-owner'], { action: 'approve-work' })
+    check('the garage team can never self-approve additional work', garageApprove.status === 403, `status ${garageApprove.status}`)
+    const custApprove = await req('PATCH', `/api/custody/${anyCustodyId}`, freshDemo['customer'], { action: 'approve-work' })
+    check('work approval only valid while an approval is pending', custApprove.status === 400 || custApprove.status === 409, `status ${custApprove.status} (state guard on non-pending job)`)
+  } else {
+    check('custody work-approval fixtures available', false, 'no custody rows for the demo customer')
+  }
+
   // ── Summary ──
   console.log(`\n${'═'.repeat(70)}`)
   console.log(`RESULTS: ${pass} passed, ${fail} failed`)

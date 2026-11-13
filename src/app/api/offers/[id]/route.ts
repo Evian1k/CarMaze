@@ -53,6 +53,12 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     throw new ApiError(403, 'FORBIDDEN', 'Only the seller can decide on this offer.')
   }
   if (offer.status !== 'PENDING') return fail(409, 'NOT_PENDING', `This offer was already ${offer.status.toLowerCase()}.`)
+  // Expiry is enforced server-side: an offer past its expiresAt is dead even
+  // though a sweep has not yet flipped the row.
+  if (offer.expiresAt && offer.expiresAt.getTime() < Date.now()) {
+    await db.offer.updateMany({ where: { id, status: 'PENDING' }, data: { status: 'EXPIRED' } })
+    return fail(409, 'OFFER_EXPIRED', 'This offer has expired and can no longer be accepted.')
+  }
 
   if (action === 'reject') {
     const updated = await db.offer.update({ where: { id }, data: { status: 'REJECTED' } })

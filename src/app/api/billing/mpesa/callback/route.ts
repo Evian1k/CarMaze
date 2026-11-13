@@ -64,9 +64,11 @@ export const POST = route(async (req: NextRequest) => {
 
   if (parsed.resultCode === 0) {
     // Amount integrity check: the callback amount (KES) must match what was
-    // actually initiated for this attempt. A mismatch means a tampered or
+    // actually initiated for this attempt. A MISSING amount is unverifiable
+    // and is treated as a mismatch (fail-closed) — we never activate a payment
+    // whose value the provider did not state. A mismatch means a tampered or
     // mismatched callback: we refuse activation and flag it for ops.
-    if (parsed.amount != null && Math.round(parsed.amount) !== Math.round(attempt.amountMinor / 100)) {
+    if (parsed.amount == null || Math.round(parsed.amount) !== Math.round(attempt.amountMinor / 100)) {
       await db.paymentAttempt.update({
         where: { id: attempt.id },
         data: {

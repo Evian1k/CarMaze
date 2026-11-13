@@ -5,6 +5,7 @@ import {
   runSubscriptionExpirySweep,
   runCampaignExpirySweep,
   cleanupExpiredVerificationCodes,
+  runOfferExpirySweep,
 } from '@/lib/sweeps'
 import { audit } from '@/lib/audit'
 
@@ -15,6 +16,7 @@ import { audit } from '@/lib/audit'
  *  - every 60 min: application SLA sweep (same rules as the admin endpoint)
  *  - every 60 min: subscription expiry (3-day grace → PAST_DUE + owner notice)
  *  - every 60 min: campaign expiry (ACTIVE past endsAt → ENDED)
+ *  - every 60 min: offer expiry (PENDING past expiresAt → EXPIRED)
  *  - every 24 h: expired password-reset token cleanup
  *  - every 24 h: expired verification-code cleanup
  *
@@ -74,6 +76,13 @@ export function startScheduledJobs(): void {
   register('campaign-expiry-sweep', 60 * 60 * 1000, async () => {
     const stats = await runCampaignExpirySweep()
     if (stats.ended > 0) await audit({ action: 'CAMPAIGN_EXPIRY_SWEEP', metadata: { ...stats, source: 'scheduled-job' } })
+    return JSON.stringify(stats)
+  })
+
+  // Offer expiry: hourly (PENDING past expiresAt → EXPIRED; dealership notified).
+  register('offer-expiry-sweep', 60 * 60 * 1000, async () => {
+    const stats = await runOfferExpirySweep()
+    if (stats.expired > 0) await audit({ action: 'OFFER_EXPIRY_SWEEP', metadata: { ...stats, source: 'scheduled-job' } })
     return JSON.stringify(stats)
   })
 

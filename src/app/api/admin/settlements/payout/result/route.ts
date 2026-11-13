@@ -48,6 +48,20 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   if (result.resultCode === 0) {
+    // Amount integrity: the provider-confirmed payout must match what we sent.
+    // A missing or mismatched amount stays PROCESSING for FINANCE review
+    // rather than being marked SETTLED.
+    if (result.amount == null || Math.round(result.amount) !== Math.round(settlement.netMinor / 100)) {
+      await db.settlement.update({
+        where: { id: settlement.id },
+        data: {
+          lastError: `B2C result amount unverifiable: provider ${result.amount ?? 'missing'} vs net ${(settlement.netMinor / 100).toLocaleString()} KES — kept PROCESSING for review`,
+          events: { create: { type: 'EVENT', actorSide: 'SYSTEM', note: 'Payout result amount mismatch/missing: not auto-settled. FINANCE review required.' } },
+        },
+      })
+      await audit({ action: 'SETTLEMENT_PAYOUT_AMOUNT_MISMATCH', targetType: 'SETTLEMENT', targetId: settlement.id, metadata: { ref: settlement.refCode, providerAmount: result.amount, netMinor: settlement.netMinor } })
+      return NextResponse.json({ ResultCode: 0, ResultDesc: 'Accepted (flagged for review)' })
+    }
     await db.settlement.update({
       where: { id: settlement.id },
       data: {

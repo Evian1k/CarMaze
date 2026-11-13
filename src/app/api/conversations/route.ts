@@ -202,6 +202,7 @@ export const GET = route(async (req: NextRequest) => {
     const conversations = await db.conversation.findMany({
       where: { customerId: user.id, ...(includeArchived ? {} : { customerArchived: false }) },
       orderBy: { lastMessageAt: 'desc' },
+      take: 200,
       include: { org: { select: { name: true, type: true } } },
     })
     return ok({
@@ -222,6 +223,7 @@ export const GET = route(async (req: NextRequest) => {
     const conversations = await db.conversation.findMany({
       where: { orgId: { in: orgIds }, ...(includeArchived ? {} : { orgArchived: false }) },
       orderBy: { lastMessageAt: 'desc' },
+      take: 200,
       include: {
         org: { select: { name: true, type: true } },
         customer: { select: { name: true } },

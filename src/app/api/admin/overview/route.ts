@@ -23,7 +23,7 @@ export const GET = route(async (req: NextRequest) => {
     dealerAppsPending, garageAppsPending,
     listingsPublished, listingsPending, listingsSold, listingsRejected, listingsDrafts,
     enquiriesTotal, enquiriesOpen,
-    invoices,
+    invoiceGroups,
     campaignsActive, campaignsPendingPayment,
     failedNotifications, failedPayments, openReports, openTickets, escalatedApplications,
     recentAudit, listingStatusGroups,
@@ -44,7 +44,7 @@ export const GET = route(async (req: NextRequest) => {
     db.vehicle.count({ where: { status: 'DRAFT' } }),
     db.enquiry.count(),
     db.enquiry.count({ where: { status: 'OPEN' } }),
-    db.invoice.findMany({ select: { type: true, status: true, amountMinor: true } }),
+    db.invoice.groupBy({ by: ['type', 'status'], _sum: { amountMinor: true }, _count: { _all: true } }),
     db.campaign.count({ where: { status: 'ACTIVE' } }),
     db.campaign.count({ where: { status: 'PENDING_PAYMENT' } }),
     db.notificationDelivery.count({ where: { status: 'FAILED' } }),
@@ -56,18 +56,20 @@ export const GET = route(async (req: NextRequest) => {
     db.vehicle.groupBy({ by: ['status'], _count: { _all: true } }),
   ])
 
-  // Revenue aggregates from real invoice rows only.
+  // Revenue aggregates from real invoice rows only (SQL groupBy — the
+  // invoice ledger grows forever, never scan it in full).
   const types = ['SUBSCRIPTION', 'CAMPAIGN', 'LEAD_FEE']
   let paidTotalMinor = 0
   let pendingTotalMinor = 0
   let pendingCount = 0
   const byType = types.map((type) => {
-    const rows = invoices.filter((i) => i.type === type)
-    const paidMinor = rows.filter((i) => i.status === 'PAID').reduce((s, i) => s + i.amountMinor, 0)
-    const pendingMinor = rows.filter((i) => i.status === 'PENDING' || i.status === 'OVERDUE').reduce((s, i) => s + i.amountMinor, 0)
+    const rows = invoiceGroups.filter((g) => g.type === type)
+    const paidMinor = rows.filter((g) => g.status === 'PAID').reduce((s, g) => s + (g._sum.amountMinor ?? 0), 0)
+    const pendingRows = rows.filter((g) => g.status === 'PENDING' || g.status === 'OVERDUE')
+    const pendingMinor = pendingRows.reduce((s, g) => s + (g._sum.amountMinor ?? 0), 0)
     paidTotalMinor += paidMinor
     pendingTotalMinor += pendingMinor
-    pendingCount += rows.filter((i) => i.status === 'PENDING' || i.status === 'OVERDUE').length
+    pendingCount += pendingRows.reduce((s, g) => s + (g._count._all ?? 0), 0)
     return { type, paidMinor, pendingMinor }
   })
 

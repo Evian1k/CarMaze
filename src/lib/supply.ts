@@ -163,7 +163,10 @@ export async function setFees(fees: SupplyFees): Promise<void> {
 export function computeCommission(subtotalMinor: number, ratePct: number, minMinor: number): number {
   const raw = Math.round((subtotalMinor * ratePct) / 100)
   if (subtotalMinor <= 0) return 0
-  return Math.max(Math.min(raw, subtotalMinor), minMinor)
+  // The minimum commission can never exceed the base it is charged on —
+  // otherwise a tiny order would leave the supplier with negative proceeds.
+  const floor = Math.min(minMinor, subtotalMinor)
+  return Math.max(Math.min(raw, subtotalMinor), floor)
 }
 
 // ───────────────────────── Money helpers ─────────────────────────

@@ -7,6 +7,7 @@ import { hasRole, STAFF_ROLES } from '@/lib/auth'
 import { refCode, sixDigitCode } from '@/lib/ids'
 import { notify, notifyMany } from '@/lib/notify'
 import { audit } from '@/lib/audit'
+import { rateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -386,6 +387,11 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
     case 'delivered': {
       if (order.status !== 'DISPATCHED') {
         return fail(409, 'INVALID_STATE', `Only dispatched orders can be marked delivered; this order is ${order.status}.`)
+      }
+      // Brute-force guard on the buyer's 6-digit collection code.
+      const rl = rateLimit(`order-code:${order.id}:${user.id}`, 5, 10 * 60 * 1000)
+      if (!rl.allowed) {
+        return fail(429, 'RATE_LIMITED', `Too many verification attempts. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
       }
       if (!order.otpHash || !bcrypt.compareSync(body.code, order.otpHash)) {
         throw new ApiError(403, 'INVALID_CODE', 'That collection code does not match. Ask the customer for the code from their notification.')

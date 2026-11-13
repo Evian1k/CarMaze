@@ -358,6 +358,9 @@ function DocUploader({ docs, onChange, max = 8 }: {
     for (const file of Array.from(files).slice(0, room)) {
       const fd = new FormData()
       fd.set('file', file)
+      // Identity/business/insurance documents are PRIVATE: kind=document routes
+      // them to /api/files (owner-or-staff only), never to public /api/media.
+      fd.set('kind', 'document')
       try {
         const res = await apiUpload<{ url: string; name: string }>('/api/upload', fd)
         onChange([...docs, { name: file.name, url: res.url }])

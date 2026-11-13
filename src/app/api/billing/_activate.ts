@@ -142,6 +142,26 @@ export async function activatePaidInvoice(
     }
   }
 
+  // Consumer parts order: the buyer pays the PARTS_ORDER invoice directly
+  // (M-Pesa). Without this branch the money was collected while the order
+  // stayed UNPAID forever — the supplier had no honest signal to dispatch.
+  if (invoice.type === 'PARTS_ORDER') {
+    const consumerOrder = await db.customerOrder.findFirst({ where: { invoiceId: invoice.id } })
+    if (consumerOrder && consumerOrder.paymentStatus === 'UNPAID') {
+      await db.customerOrder.update({
+        where: { id: consumerOrder.id },
+        data: { paymentStatus: 'PAID' },
+      })
+      const supplierMembers = await db.orgMember.findMany({ where: { orgId: consumerOrder.supplierOrgId }, select: { userId: true } })
+      await notifyMany(supplierMembers.map((m) => m.userId), {
+        type: 'ORDER_PAYMENT',
+        title: `Payment received: ${consumerOrder.refCode}`,
+        body: 'The buyer paid the invoice via M-Pesa. You can dispatch and collect the verified handover code on delivery.',
+        link: '/supplier?tab=consumer-orders',
+      })
+    }
+  }
+
   // Notify org members about the confirmed payment
   if (invoice.orgId) {
     const members = await db.orgMember.findMany({ where: { orgId: invoice.orgId }, select: { userId: true } })

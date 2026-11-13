@@ -1,0 +1,252 @@
+/home/z/my-project/src/components/branches/branch-manager.tsx:335:  const latNum = form.lat.trim() === '' ? null : Number(form.lat)
+/home/z/my-project/src/components/branches/branch-manager.tsx:336:  const lngNum = form.lng.trim() === '' ? null : Number(form.lng)
+/home/z/my-project/src/components/branches/branch-manager.tsx:367:          lat: form.lat.trim() === '' ? null : Number(form.lat),
+/home/z/my-project/src/components/branches/branch-manager.tsx:368:          lng: form.lng.trim() === '' ? null : Number(form.lng),
+/home/z/my-project/src/components/branches/branch-manager.tsx:386:          lat: form.lat.trim() === '' ? undefined : Number(form.lat),
+/home/z/my-project/src/components/branches/branch-manager.tsx:387:          lng: form.lng.trim() === '' ? undefined : Number(form.lng),
+/home/z/my-project/src/components/branches/branch-manager.tsx:931:  const odometerKm = odometer.trim() === '' ? undefined : Number(odometer)
+/home/z/my-project/src/components/auth/demo-accounts.tsx:123:                      transition={{ delay: i * 0.04, duration: 0.3, ease: 'easeOut' }}
+/home/z/my-project/src/components/motion/reveal.tsx:48:  gap = 0.07,
+/home/z/my-project/src/components/motion/reveal.tsx:113:    const dur = reduce ? 1 : duration * 1000
+/home/z/my-project/src/components/motion/reveal.tsx:185:  gap = 0.055,
+/home/z/my-project/src/components/motion/reveal.tsx:198:        <span key={i} className="inline-block overflow-hidden pb-[0.08em] -mb-[0.08em] align-bottom">
+/home/z/my-project/src/components/admin/revenue-dashboard.tsx:92:    Subscriptions: Math.round(m.subs / 100),
+/home/z/my-project/src/components/admin/revenue-dashboard.tsx:93:    Commissions: Math.round(m.commission / 100),
+/home/z/my-project/src/components/admin/revenue-dashboard.tsx:94:    Promotions: Math.round(m.promo / 100),
+/home/z/my-project/src/components/admin/revenue-dashboard.tsx:142:                    <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${Number(v) >= 1000 ? `${(Number(v) / 1000).toFixed(1)}k` : v}`} />
+/home/z/my-project/src/components/admin/revenue-dashboard.tsx:143:                    <Tooltip formatter={(value) => `KES ${Number(value).toLocaleString()}`} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
+/home/z/my-project/src/components/admin/revenue-dashboard.tsx:232:                    onChange={(e) => setFees({ ...fees, [key]: Number(e.target.value) || 0 })}
+/home/z/my-project/src/components/admin/revenue-dashboard.tsx:241:                  value={String(fees.minCommissionMinor / 100)}
+/home/z/my-project/src/components/admin/revenue-dashboard.tsx:242:                  onChange={(e) => setFees({ ...fees, minCommissionMinor: Math.round((Number(e.target.value) || 0) * 100) })}
+/home/z/my-project/src/components/admin/supply-console.tsx:284:                                if (score !== null) act(`risk-${s.id}`, { action: 'risk-score', orgId: s.id, score: Math.max(0, Math.min(100, Number(score) || 0)), note: 'Manual risk update from admin console' })
+/home/z/my-project/src/components/admin/supply-console.tsx:522:                ...(disputeResolution === 'REFUND_PARTIAL' && refundAmount ? { refundAmountMinor: Math.round(Number(refundAmount) * 100) } : {}),
+/home/z/my-project/src/components/admin/verification-center.tsx:325:                        <Button size="sm" variant="outline" disabled={busy !== '' || note.trim().length < 10} onClick={() => act('request_info', { note, dueDays: Number(dueDays) || 7 })} title={note.trim().length < 10 ? 'State what is missing (min 10 chars)' : ''}>
+/home/z/my-project/src/components/protection/vehicle-protection.tsx:513:                transition={{ duration: reduce ? 0 : 0.6, delay: reduce ? 0 : 0.08 * i, ease: 'easeOut' }}
+/home/z/my-project/src/components/biz/memberships-manager.tsx:76:  const n = Number(input)
+/home/z/my-project/src/components/biz/memberships-manager.tsx:78:  return Math.round(n * 100)
+/home/z/my-project/src/components/biz/memberships-manager.tsx:451:    priceMonthly: tier ? String(tier.priceMonthlyMinor / 100) : '',
+/home/z/my-project/src/components/biz/memberships-manager.tsx:452:    priceYearly: tier?.priceYearlyMinor != null ? String(tier.priceYearlyMinor / 100) : '',
+/home/z/my-project/src/components/biz/memberships-manager.tsx:475:  const limitNum = form.memberLimit.trim() === '' ? null : Number(form.memberLimit)
+/home/z/my-project/src/components/biz/memberships-manager.tsx:476:  const capNum = form.discountCapPct.trim() === '' ? null : Number(form.discountCapPct)
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:93:  const n = Number(input)
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:95:  return Math.round(n * 100)
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:815:            <Input id="charge-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(facility.availableMinor / 100).toLocaleString()} />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:818:                Enter between 1 and {(facility.availableMinor / 100).toLocaleString()} KES.
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:884:          <Input id="biz-repay-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(facility.outstandingMinor / 100).toLocaleString()} />
+/home/z/my-project/src/components/biz/trust-credit-manager.tsx:887:              Enter between 1 and {(facility.outstandingMinor / 100).toLocaleString()} KES.
+/home/z/my-project/src/components/customizer/presets.ts:19:  /** -0.06..0.10 visual body offset; wheels stay grounded */
+/home/z/my-project/src/components/customizer/presets.ts:97:  if (c.glassTint > 0.16) parts.push(`Glass tint ${Math.round(c.glassTint * 100)}%`)
+/home/z/my-project/src/components/customizer/presets.ts:98:  if (c.rideHeight > 0.005) parts.push(`Lifted +${c.rideHeight.toFixed(2)}`)
+/home/z/my-project/src/components/customizer/presets.ts:99:  else if (c.rideHeight < -0.005) parts.push(`Lowered ${c.rideHeight.toFixed(2)}`)
+/home/z/my-project/src/components/customizer/car-scene.tsx:35:const FINISH_METALNESS: Record<CarConfig['finish'], number> = { gloss: 0.35, matte: 0.05, metallic: 0.85 }
+/home/z/my-project/src/components/customizer/car-scene.tsx:55:  const spokeT = rimStyle === 'sport' ? 0.075 : rimStyle === 'classic' ? 0.045 : 0.032
+/home/z/my-project/src/components/customizer/car-scene.tsx:62:        <meshStandardMaterial color="#151716" roughness={0.95} metalness={0.05} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:81:          <cylinderGeometry args={[0.06, 0.06, 0.34, 16]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:86:          <torusGeometry args={[0.17, 0.02, 10, 36]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:105:        clearcoatRoughness: 0.06,
+/home/z/my-project/src/components/customizer/car-scene.tsx:126:        roughness: 0.06,
+/home/z/my-project/src/components/customizer/car-scene.tsx:150:        shadow-bias={-0.0004}
+/home/z/my-project/src/components/customizer/car-scene.tsx:170:        position={[0, 0.004, 0]}
+/home/z/my-project/src/components/customizer/car-scene.tsx:187:          radius={0.05}
+/home/z/my-project/src/components/customizer/car-scene.tsx:190:          rotation={[0, 0, -0.055]}
+/home/z/my-project/src/components/customizer/car-scene.tsx:195:          args={[1.05, 0.09, 1.8]}
+/home/z/my-project/src/components/customizer/car-scene.tsx:196:          radius={0.045}
+/home/z/my-project/src/components/customizer/car-scene.tsx:199:          rotation={[0, 0, 0.05]}
+/home/z/my-project/src/components/customizer/car-scene.tsx:207:          <boxGeometry args={[0.07, 0.6, 1.5]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:210:          <boxGeometry args={[0.07, 0.55, 1.45]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:213:          <boxGeometry args={[1.55, 0.4, 0.05]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:216:          <boxGeometry args={[1.55, 0.4, 0.05]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:221:          <boxGeometry args={[0.08, 0.13, 0.32]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:225:          <boxGeometry args={[0.08, 0.13, 0.32]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:229:          <boxGeometry args={[0.06, 0.12, 0.38]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:233:          <boxGeometry args={[0.06, 0.12, 0.38]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:238:          <boxGeometry args={[0.06, 0.16, 0.95]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:245:            <mesh position={[-2.02, 1.2, 0]} rotation={[0, 0, 0.08]} material={paintMaterial} castShadow>
+/home/z/my-project/src/components/customizer/car-scene.tsx:246:              <boxGeometry args={[0.38, 0.05, 1.55]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:249:              <boxGeometry args={[0.16, 0.16, 0.07]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:253:              <boxGeometry args={[0.16, 0.16, 0.07]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:263:              <boxGeometry args={[0.05, 0.12, 0.05]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:267:              <boxGeometry args={[0.05, 0.12, 0.05]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:271:              <boxGeometry args={[0.05, 0.12, 0.05]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:275:              <boxGeometry args={[0.05, 0.12, 0.05]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:279:              <boxGeometry args={[2.05, 0.045, 0.08]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:283:              <boxGeometry args={[2.05, 0.045, 0.08]} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:301:        <ContactShadows position={[0, 0.02, 0]} scale={11} blur={2.4} opacity={0.55} far={4} resolution={512} />
+/home/z/my-project/src/components/customizer/car-scene.tsx:310:        dampingFactor={0.08}
+/home/z/my-project/src/components/account/subscriptions-panel.tsx:584:  const parsed = Math.round(Number(kes) * 100)
+/home/z/my-project/src/components/account/subscriptions-panel.tsx:604:            placeholder={`Max ${(facility.outstandingMinor / 100).toLocaleString()}`}
+/home/z/my-project/src/components/account/subscriptions-panel.tsx:607:            <p className="text-xs text-rose-600 dark:text-rose-400">Enter an amount between 1 and {(facility.outstandingMinor / 100).toLocaleString()} KES.</p>
+/home/z/my-project/src/components/messaging/conversation-panel.tsx:441:                  transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3), ease: 'easeOut' }}
+/home/z/my-project/src/components/billing/promotions-section.tsx:95:  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)))
+/home/z/my-project/src/components/billing/promotions-section.tsx:354:          <Reveal delay={0.05}>
+/home/z/my-project/src/components/storefront/settings-dialog.tsx:101:      responseMinutes: responseMinutes === 'none' ? null : parseInt(responseMinutes, 10),
+/home/z/my-project/src/components/layout/app-shell.tsx:92:          scrolled && 'border-border/70 shadow-[0_1px_12px_rgba(0,0,0,0.06)]'
+/home/z/my-project/src/components/storefront/parts.tsx:22:    <span className={cn('flex', className)} role="img" aria-label={`Rated ${avg.toFixed(1)} out of 5`}>
+/home/z/my-project/src/components/storefront/parts.tsx:37:  const [h, m] = hhmm.split(':').map((n) => parseInt(n, 10))
+/home/z/my-project/src/components/storefront/parts.tsx:51:  let h = parseInt(get('hour'), 10)
+/home/z/my-project/src/components/storefront/parts.tsx:53:  return { day: get('weekday').toLowerCase().slice(0, 3), minutes: h * 60 + parseInt(get('minute'), 10) }
+/home/z/my-project/src/components/storefront/parts.tsx:199:              whileInView={{ width: total ? `${(n / total) * 100}%` : '0%' }}
+/home/z/my-project/src/components/layout/intro.tsx:92:      gain.gain.linearRampToValueAtTime(0.055, t + 1.2) // subtle
+/home/z/my-project/src/components/storefront/dialogs.tsx:112:    return slot.getTime() >= Date.now() + bufferMinutes * 60 * 1000
+/home/z/my-project/src/components/storefront/dialogs.tsx:454:          {service.priceFromMinor != null && <p className="text-xs text-muted-foreground">Fixed price from KES {(service.priceFromMinor / 100).toLocaleString()}</p>}
+/home/z/my-project/src/components/supplier/products.tsx:409:    const minQty = form.wholesaleMinQty.trim() ? Number(form.wholesaleMinQty) : 0
+/home/z/my-project/src/components/supplier/products.tsx:411:    const tax = form.taxRatePct.trim() ? Number(form.taxRatePct) : 0
+/home/z/my-project/src/components/supplier/products.tsx:413:    const warranty = form.warrantyMonths.trim() ? Number(form.warrantyMonths) : 0
+/home/z/my-project/src/components/supplier/products.tsx:448:          wholesaleMinQty: form.wholesaleMinQty.trim() ? Number(form.wholesaleMinQty) : 0,
+/home/z/my-project/src/components/supplier/products.tsx:449:          taxRatePct: form.taxRatePct.trim() ? Number(form.taxRatePct) : 0,
+/home/z/my-project/src/components/supplier/products.tsx:450:          warrantyMonths: form.warrantyMonths.trim() ? Number(form.warrantyMonths) : 0,
+/home/z/my-project/src/components/supplier/products.tsx:471:          wholesaleMinQty: form.wholesaleMinQty.trim() ? Number(form.wholesaleMinQty) : 0,
+/home/z/my-project/src/components/supplier/products.tsx:472:          taxRatePct: form.taxRatePct.trim() ? Number(form.taxRatePct) : 0,
+/home/z/my-project/src/components/supplier/products.tsx:473:          warrantyMonths: form.warrantyMonths.trim() ? Number(form.warrantyMonths) : 0,
+/home/z/my-project/src/components/supplier/products.tsx:741:    const yf = form.yearFrom.trim() ? Number(form.yearFrom) : null
+/home/z/my-project/src/components/supplier/products.tsx:742:    const yt = form.yearTo.trim() ? Number(form.yearTo) : null
+/home/z/my-project/src/components/supplier/quotes.tsx:184:  const [amount, setAmount] = useState(existing ? String(existing.amountMinor / 100) : '')
+/home/z/my-project/src/components/supplier/quotes.tsx:198:      const d = Number(leadDays)
+/home/z/my-project/src/components/supplier/quotes.tsx:203:      const q = Number(l.qty)
+/home/z/my-project/src/components/supplier/quotes.tsx:222:        leadDays: leadDays.trim() ? Number(leadDays) : undefined,
+/home/z/my-project/src/components/supplier/quotes.tsx:225:          ? lines.map((l) => ({ name: l.name.trim(), partNumber: l.partNumber.trim() || undefined, qty: Number(l.qty), unitPriceMinor: kesToMinor(l.unitPrice)! }))
+/home/z/my-project/src/components/supplier/shared.tsx:468:  const n = Number(cleaned)
+/home/z/my-project/src/components/supplier/shared.tsx:470:  return Math.round(n * 100)
+/home/z/my-project/src/components/supplier/shared.tsx:476:  return String(minor / 100)
+/home/z/my-project/src/components/supplier/orders.tsx:438:      const qty = Number(l.qty)
+/home/z/my-project/src/components/supplier/orders.tsx:451:      const qty = Number(a.qty)
+/home/z/my-project/src/components/supplier/orders.tsx:464:      const qty = Number(l.qty)
+/home/z/my-project/src/components/supplier/orders.tsx:469:      const qty = Number(a.qty)
+/home/z/my-project/src/components/supplier/orders.tsx:591:  return String(minor / 100)
+/home/z/my-project/src/components/supplier/orders.tsx:622:          onAdd({ productId: p.id, qty: '1', unit: String(p.unitPriceMinor / 100) })
+/home/z/my-project/src/components/supplier/orders.tsx:806:                      expectedHours: expectedHours.trim() ? Number(expectedHours) : undefined,
+/home/z/my-project/src/components/supplier/overview.tsx:194:              <Star className="h-3.5 w-3.5 text-primary" /> {s.rating.toFixed(1)} ({s.reviewCount})
+/home/z/my-project/src/components/supplier/warehouses.tsx:172:                  {b.lat != null && b.lng != null && <p className="font-mono text-[10px]">{b.lat.toFixed(4)}, {b.lng.toFixed(4)}</p>}
+/home/z/my-project/src/components/supplier/warehouses.tsx:283:      const lat = Number(form.lat)
+/home/z/my-project/src/components/supplier/warehouses.tsx:287:      const lng = Number(form.lng)
+/home/z/my-project/src/components/supplier/warehouses.tsx:310:        lat: form.lat.trim() ? Number(form.lat) : null,
+/home/z/my-project/src/components/supplier/warehouses.tsx:311:        lng: form.lng.trim() ? Number(form.lng) : null,
+/home/z/my-project/src/components/supplier/inventory.tsx:175:    const q = Number(qty)
+/home/z/my-project/src/components/supplier/inventory.tsx:176:    const rl = Number(reorder)
+/home/z/my-project/src/components/storefront/handover-dialog.tsx:94:      if (spendCap.trim() && (!/^\d+$/.test(spendCap.trim()) || parseInt(spendCap, 10) < 100)) return 'Spending cap must be a KES amount of at least 100'
+/home/z/my-project/src/components/storefront/handover-dialog.tsx:144:      odometerKm: odometerKm.trim() ? parseInt(odometerKm.replace(/[^\d]/g, ''), 10) || undefined : undefined,
+/home/z/my-project/src/components/storefront/handover-dialog.tsx:151:      ...(spendCap.trim() ? { authorisedSpendMinor: parseInt(spendCap, 10) * 100 } : {}),
+/home/z/my-project/src/components/storefront/handover-dialog.tsx:181:  const progressPct = ((step + 1) / 3) * 100
+/home/z/my-project/src/components/storefront/handover-dialog.tsx:334:                  <dt className="text-muted-foreground">Odometer</dt><dd>{odometerKm ? `${parseInt(odometerKm, 10).toLocaleString()} km` : 'Not provided'} · {FUEL_LEVELS.find((f) => f.value === fuelLevel)?.label ?? 'Not provided'}</dd>
+/home/z/my-project/src/components/storefront/handover-dialog.tsx:337:                  <dt className="text-muted-foreground">Cap</dt><dd>{spendCap ? `KES ${parseInt(spendCap, 10).toLocaleString()}` : 'No cap set'}</dd>
+/home/z/my-project/src/components/supply/supplier-storefront.tsx:166:                    {s.rating.toFixed(1)} ({s.reviewCount})
+/home/z/my-project/src/components/supply/supplier-storefront.tsx:368:              <Stars avg={s.rating} /> {s.rating.toFixed(1)} from {s.reviewCount} review{s.reviewCount === 1 ? '' : 's'}
+/home/z/my-project/src/components/supply/supplier-directory.tsx:131:                    {s.reviewCount > 0 ? `${(s.rating ?? 0).toFixed(1)} (${s.reviewCount})` : 'No reviews yet'}
+/home/z/my-project/src/components/supply/product-detail.tsx:306:              <span className="text-sm text-muted-foreground">{p.ratingAvg.toFixed(1)} · {p.ratingCount} review{p.ratingCount === 1 ? '' : 's'}</span>
+/home/z/my-project/src/components/supply/product-detail.tsx:346:                    const n = Number(e.target.value)
+/home/z/my-project/src/components/supply/product-detail.tsx:428:                    <span className="text-xs text-muted-foreground">{p.supplier.supplierRating.toFixed(1)} supplier rating</span>
+/home/z/my-project/src/components/supply/product-detail.tsx:635:  const qtyNum = Number(qty)
+/home/z/my-project/src/components/supply/product-detail.tsx:790:            <Stars avg={ratingAvg} /> {ratingAvg.toFixed(1)} from {ratingCount} review{ratingCount === 1 ? '' : 's'}
+/home/z/my-project/src/components/supply/shared.tsx:173:    <span className={cn('flex items-center', className)} role="img" aria-label={`Rated ${avg.toFixed(1)} out of 5`}>
+/home/z/my-project/src/app/global-error.tsx:41:        .ge-card { background: #ffffff; border: 1px solid #e5e3de; box-shadow: 0 1px 12px rgba(0,0,0,0.06); }
+/home/z/my-project/src/components/procurement/spend-tab.tsx:128:                    const pct = analysis.maxMonth > 0 ? Math.max(2, Math.round((m.total / analysis.maxMonth) * 100)) : 0
+/home/z/my-project/src/components/procurement/spend-tab.tsx:160:                      const pct = analysis.totalSpend > 0 ? Math.round((s.total / analysis.totalSpend) * 100) : 0
+/home/z/my-project/src/components/procurement/quotes-tab.tsx:212:            <span className="flex items-center gap-0.5 text-xs text-muted-foreground"><Star className="h-3 w-3" aria-hidden="true" />{o.supplier.supplierRating.toFixed(1)}</span>
+/home/z/my-project/src/components/procurement/quotes-tab.tsx:278:      setTitle(''); setDescription(''); setPartNumber(''); setPhotoUrl('')
+/home/z/my-project/src/components/procurement/quotes-tab.tsx:312:            ...(year ? { year: Number(year) } : {}),
+/home/z/my-project/src/components/procurement/quotes-tab.tsx:325:        expiresInDays: Number(expiresIn),
+/home/z/my-project/src/components/procurement/quotes-tab.tsx:359:              <Input id="qr-part" value={partNumber} onChange={(e) => setPartNumber(e.target.value)} placeholder="Optional" maxLength={60} />
+/home/z/my-project/src/components/procurement/shared.tsx:246:  const minor = Math.round(parseFloat(v) * 100)
+/home/z/my-project/src/components/procurement/shared.tsx:392:        onChange={(e) => onChange(clamp(Number(e.target.value)))}
+/home/z/my-project/src/components/procurement/order-detail.tsx:391:          {d.meetup?.address && <p className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Handover point: {d.meetup.address}{d.meetup.lat != null && d.meetup.lng != null ? ` (${d.meetup.lat.toFixed(5)}, ${d.meetup.lng.toFixed(5)})` : ''}</p>}
+/home/z/my-project/src/components/procurement/order-detail.tsx:485:  const [fee, setFee] = useState(order.delivery ? String(order.delivery.feeMinor / 100) : '0')
+/home/z/my-project/src/components/procurement/order-detail.tsx:506:        setLat(pos.coords.latitude.toFixed(6))
+/home/z/my-project/src/components/procurement/order-detail.tsx:507:        setLng(pos.coords.longitude.toFixed(6))
+/home/z/my-project/src/components/procurement/order-detail.tsx:525:      const latNum = Number(lat)
+/home/z/my-project/src/components/procurement/order-detail.tsx:526:      const lngNum = Number(lng)
+/home/z/my-project/src/components/procurement/catalogue-tab.tsx:266:              <span className="text-xs text-muted-foreground">★ {p.ratingAvg.toFixed(1)} ({p.ratingCount})</span>
+/home/z/my-project/src/app/globals.css:211:  100% { transform: translateX(0) scaleX(0.02); opacity: 0; }
+/home/z/my-project/src/app/globals.css:217:  100% { transform: translateX(0) scaleX(0.02); opacity: 0; }
+/home/z/my-project/src/app/globals.css:295:  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.16) 48%, rgba(255, 255, 255, 0.05) 54%, transparent 62%);
+/home/z/my-project/src/app/globals.css:500:    animation-duration: 0.01s !important;
+/home/z/my-project/src/lib/supply.ts:164:  const raw = Math.round((subtotalMinor * ratePct) / 100)
+/home/z/my-project/src/lib/supply.ts:172:  return `${currency} ${(minor / 100).toLocaleString('en-KE', { maximumFractionDigits: 2 })}`
+/home/z/my-project/src/lib/auth.ts:114:    return { active: true, roleKey: payload.demo, expiresAt: new Date(payload.exp * 1000).toISOString() }
+/home/z/my-project/src/lib/ids.ts:26:  const max = 900000 // 100000..999999
+/home/z/my-project/src/lib/settlements.ts:40:            ?? `Payout owed after protected payment release (net ${(Math.max(0, params.releasedMinor - params.commissionMinor) / 100).toLocaleString('en-KE')} KES). Settlement requires provider confirmation or manual reconciliation.`,
+/home/z/my-project/src/lib/entitlements.ts:35:const GRACE_MS = 3 * 24 * 60 * 60 * 1000
+/home/z/my-project/src/lib/entitlements.ts:61:    if (m) return Math.max(0, parseInt(m[1], 10))
+/home/z/my-project/src/lib/format.ts:4:  const value = amountMinor / 100
+/home/z/my-project/src/lib/format.ts:17:  const value = amountMinor / 100
+/home/z/my-project/src/lib/format.ts:18:  if (value >= 1_000_000) return `${currency} ${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`
+/home/z/my-project/src/lib/rate-limit.ts:34:    return { allowed: false, retryAfterSec: Math.max(1, Math.ceil((windowMs - (now - oldest)) / 1000)) }
+/home/z/my-project/src/lib/rate-limit.ts:44:const cleanup = setInterval(() => prune(Date.now(), 60 * 60 * 1000), 5 * 60 * 1000)
+/home/z/my-project/src/lib/jobs.ts:60:  register('application-sla-sweep', 60 * 60 * 1000, async () => {
+/home/z/my-project/src/lib/jobs.ts:67:  register('subscription-expiry-sweep', 60 * 60 * 1000, async () => {
+/home/z/my-project/src/lib/jobs.ts:74:  register('campaign-expiry-sweep', 60 * 60 * 1000, async () => {
+/home/z/my-project/src/lib/jobs.ts:81:  register('reset-token-cleanup', 24 * 60 * 60 * 1000, async () => {
+/home/z/my-project/src/lib/jobs.ts:89:  register('verification-code-cleanup', 24 * 60 * 60 * 1000, async () => {
+/home/z/my-project/src/lib/mpesa.ts:99:  const amount = Math.max(1, Math.round(params.amountMinor / 100))
+/home/z/my-project/src/lib/mpesa.ts:225:  const amount = Math.max(1, Math.round(params.amountMinor / 100))
+/home/z/my-project/src/lib/demo.ts:185:    expiresAt: new Date(Date.now() + maxAgeSeconds * 1000).toISOString(),
+/home/z/my-project/src/app/api/support/route.ts:17:  const rl = rateLimit(`support:${getIp(req)}`, 5, 60 * 60 * 1000)
+/home/z/my-project/src/lib/sweeps.ts:40:    const reminderDue = now - lastReminder > 12 * 60 * 60 * 1000 // 12h idempotency window
+/home/z/my-project/src/lib/sweeps.ts:109:  const cutoff = new Date(Date.now() - graceDays * 24 * 60 * 60 * 1000)
+/home/z/my-project/src/lib/sweeps.ts:125:  const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) // matches entitlement grace
+/home/z/my-project/src/lib/sweeps.ts:165:  const cutoff = new Date(Date.now() - 60 * 60 * 1000) // 1h past expiry
+/home/z/my-project/src/lib/totp.ts:86:  const counter = Math.floor(Date.now() / 1000 / TOTP_STEP_SEC)
+/home/z/my-project/src/app/api/enquiries/route.ts:75:  const rl = rateLimit(`enquiry:${user.id}:${getIp(req)}`, 20, 60 * 60 * 1000)
+/home/z/my-project/src/views/admin/demo-tab.tsx:179:                      onValueChange={(v) => patchRole(a.roleKey, { sessionMinutes: Number(v) })}
+/home/z/my-project/src/views/admin/index.tsx:630:    Paid: t.paidMinor / 100,
+/home/z/my-project/src/views/admin/index.tsx:631:    Pending: t.pendingMinor / 100,
+/home/z/my-project/src/views/admin/index.tsx:668:                <YAxis tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}K` : String(v))} axisLine={false} tickLine={false} />
+/home/z/my-project/src/views/admin/index.tsx:669:                <Tooltip formatter={(value) => money(Number(value) * 100)} contentStyle={{ borderRadius: 10, border: '1px solid var(--border)', background: 'var(--popover)', color: 'var(--popover-foreground)', fontSize: 13 }} itemStyle={{ color: 'var(--popover-foreground)' }} labelStyle={{ color: 'var(--muted-foreground)', marginBottom: 4 }} />
+/home/z/my-project/src/views/admin/index.tsx:769:      className={`rounded-xl border p-3 text-left transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05] ${count > 0 ? 'border-[#c9a94e]/60 bg-[#d9b878]/10' : 'border-border bg-card'}`}
+/home/z/my-project/src/views/admin/index.tsx:1095:                  act({ action: 'request_info', infoMessage: infoMsg.trim(), correctionDays: Number(infoDays) }, 'Information request sent to the applicant.', false)
+/home/z/my-project/src/views/admin/index.tsx:1576:              <div className="flex flex-wrap gap-2 border-t bg-black/[0.015] px-4 py-2.5 dark:bg-white/[0.03]">
+/home/z/my-project/src/views/admin/index.tsx:2686:            <Detail label="Rating" value={partner.rating !== null ? `${partner.rating.toFixed(1)} / 5` : 'No ratings yet'} />
+/home/z/my-project/src/views/memberships/index.tsx:343:  const savingPct = saving !== null && monthly > 0 ? Math.round((saving / (monthly * 12)) * 100) : null
+/home/z/my-project/src/views/customizer/index.tsx:68:  if (v > 0.005) return `Lifted +${v.toFixed(2)}`
+/home/z/my-project/src/views/customizer/index.tsx:69:  if (v < -0.005) return `Lowered ${v.toFixed(2)}`
+/home/z/my-project/src/views/customizer/index.tsx:425:                      <span className="text-xs font-medium">{Math.round(config.glassTint * 100)}%</span>
+/home/z/my-project/src/views/customizer/index.tsx:431:                      step={0.05}
+/home/z/my-project/src/views/customizer/index.tsx:467:                      min={-0.06}
+/home/z/my-project/src/views/customizer/index.tsx:469:                      step={0.01}
+/home/z/my-project/src/views/customizer/index.tsx:582:              <Badge variant="outline">Tint {Math.round(config.glassTint * 100)}%</Badge>
+/home/z/my-project/src/app/api/auth/verify-email/route.ts:16:const CODE_TTL_MS = 10 * 60 * 1000 // codes always expire
+/home/z/my-project/src/app/api/auth/verify-email/route.ts:38:    const rl = rateLimit(`verify-email:${user.id}`, 5, 60 * 60 * 1000)
+/home/z/my-project/src/app/api/auth/verify-email/route.ts:75:  const rl = rateLimit(`verify-email-confirm:${user.id}`, 10, 60 * 60 * 1000)
+/home/z/my-project/src/views/partners/index.tsx:349:              <span className="text-xs font-medium tabular-nums">{p.rating.toFixed(1)}</span>
+/home/z/my-project/src/views/my-garage/index.tsx:747:    const km = parseInt(value, 10)
+/home/z/my-project/src/views/my-garage/index.tsx:819:      year: year ? parseInt(year, 10) : undefined,
+/home/z/my-project/src/views/my-garage/index.tsx:822:      mileageKm: mileage ? parseInt(mileage, 10) : undefined,
+/home/z/my-project/src/views/my-garage/index.tsx:824:      purchasePriceMinor: purchasePrice ? Math.round(parseFloat(purchasePrice) * 100) : undefined,
+/home/z/my-project/src/views/my-garage/index.tsx:882:              <Input id="v-price" type="number" min={0} step="0.01" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} placeholder="950000" />
+/home/z/my-project/src/views/my-garage/index.tsx:929:      costMinor: cost ? Math.round(parseFloat(cost) * 100) : undefined,
+/home/z/my-project/src/views/my-garage/index.tsx:930:      mileageKm: mileage ? parseInt(mileage, 10) : undefined,
+/home/z/my-project/src/views/my-garage/index.tsx:975:              <Input id="r-cost" type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="3200" />
+/home/z/my-project/src/views/my-garage/index.tsx:1033:      intervalDays: recurring ? parseInt(interval, 10) : undefined,
+/home/z/my-project/src/app/api/auth/reset-password/route.ts:18:  const rl = rateLimit(`reset-password:${ip}`, 10, 60 * 60 * 1000)
+/home/z/my-project/src/views/dealer/index.tsx:1043:                    <Progress value={d.listingUsage.limit ? Math.min(100, Math.round((d.listingUsage.used / d.listingUsage.limit) * 100)) : 0} />
+/home/z/my-project/src/views/dealer/index.tsx:1162:          <Progress className="mt-1" value={usage?.limit ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0} />
+/home/z/my-project/src/views/dealer/index.tsx:1499:      const budgetValue = parseFloat(form.budget)
+/home/z/my-project/src/views/dealer/index.tsx:1503:        yearFrom: form.yearFrom ? parseInt(form.yearFrom, 10) : undefined,
+/home/z/my-project/src/views/dealer/index.tsx:1504:        yearTo: form.yearTo ? parseInt(form.yearTo, 10) : undefined,
+/home/z/my-project/src/views/dealer/index.tsx:1505:        budgetMinor: Number.isFinite(budgetValue) ? Math.round(budgetValue * 100) : undefined,
+/home/z/my-project/src/views/dealer/index.tsx:2742:  const km = parseInt(odometer.trim(), 10)
+/home/z/my-project/src/views/dealer/index.tsx:2822:  const km = parseInt(odometer.trim(), 10)
+/home/z/my-project/src/app/api/auth/verify-phone/route.ts:16:const CODE_TTL_MS = 10 * 60 * 1000 // codes always expire
+/home/z/my-project/src/app/api/auth/verify-phone/route.ts:39:    const rl = rateLimit(`verify-phone:${user.id}`, 5, 60 * 60 * 1000)
+/home/z/my-project/src/app/api/auth/verify-phone/route.ts:72:  const rl = rateLimit(`verify-phone-confirm:${user.id}`, 10, 60 * 60 * 1000)
+/home/z/my-project/src/views/logistics/index.tsx:1267:  const feeMinor = Math.round((parseFloat(fee) || 0) * 100)
+/home/z/my-project/src/app/api/auth/login/route.ts:19:  const rl = rateLimit(`login:${ip}:${body.email}`, 10, 15 * 60 * 1000)
+/home/z/my-project/src/views/org-storefront/index.tsx:228:              <Reveal delay={0.08}>
+/home/z/my-project/src/views/org-storefront/index.tsx:367:                    {rating.count > 0 ? rating.avg.toFixed(1) : 'No ratings yet'}
+/home/z/my-project/src/views/org-storefront/index.tsx:395:                  <Stagger className="mt-6 space-y-3" gap={0.05}>
+/home/z/my-project/src/views/org-storefront/index.tsx:675:                  <span className="font-semibold text-white">{rating.count > 0 ? rating.avg.toFixed(1) : 'New'}</span>
+/home/z/my-project/src/views/marketplace/index.tsx:83:    const n = Number(raw)
+/home/z/my-project/src/views/marketplace/index.tsx:84:    return Number.isFinite(n) && n > 0 ? String(Math.round(n / 100)) : ''
+/home/z/my-project/src/views/marketplace/index.tsx:111:    const n = Number(s)
+/home/z/my-project/src/views/marketplace/index.tsx:125:    minPrice: num(d.minPrice) ? Math.round(Number(d.minPrice) * 100) : undefined,
+/home/z/my-project/src/views/marketplace/index.tsx:126:    maxPrice: num(d.maxPrice) ? Math.round(Number(d.maxPrice) * 100) : undefined,
+/home/z/my-project/src/views/marketplace/index.tsx:643:        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur">
+/home/z/my-project/src/views/sell/index.tsx:118:          price: String(Math.round(v.priceMinor / 100)),
+/home/z/my-project/src/views/sell/index.tsx:130:    const n = Number(form.price)
+/home/z/my-project/src/views/sell/index.tsx:131:    return form.price !== '' && Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null
+/home/z/my-project/src/views/sell/index.tsx:172:      const y = Number(form.year)
+/home/z/my-project/src/views/sell/index.tsx:185:      const m = Number(form.mileage)
+/home/z/my-project/src/views/sell/index.tsx:209:      year: Number(form.year),
+/home/z/my-project/src/views/sell/index.tsx:211:      mileageKm: Number(form.mileage),
+/home/z/my-project/src/views/sell/index.tsx:219:      engineCc: form.engineCc ? Number(form.engineCc) : undefined,
+
+[Showing results with pagination = limit: 250]

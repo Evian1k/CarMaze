@@ -7,6 +7,7 @@ import { hasRole, STAFF_ROLES } from '@/lib/auth'
 import { sixDigitCode, shareId } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notify } from '@/lib/notify'
+import { rateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -306,6 +307,12 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     }
     if (!job.otpHash) {
       throw new ApiError(409, 'INVALID_STATE', 'This delivery has no verification code on record.')
+    }
+    // Brute-force guard: the drop-off code is the last proof of lawful handover.
+    // Five attempts per 10 minutes per job+user.
+    const rl = rateLimit(`delivery-otp:${id}:${user.id}`, 5, 10 * 60 * 1000)
+    if (!rl.allowed) {
+      return fail(429, 'RATE_LIMITED', `Too many verification attempts. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
     }
     const verified = /^\d{6}$/.test(body.otp)
       ? await bcrypt.compare(body.otp, job.otpHash)

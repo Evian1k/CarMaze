@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/api'
 import { route, ok, fail, parseBody } from '@/lib/api'
@@ -38,9 +39,11 @@ export const POST = route(async (req: NextRequest) => {
     const rl = rateLimit(`verify-email:${user.id}`, 5, 60 * 60 * 1000)
     if (!rl.allowed) return fail(429, 'RATE_LIMITED', `Too many verification requests. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
     const code = sixDigitCode()
+    // Codes are hashed at rest like every other secret (bcrypt, cost 10): a
+    // database leak must not expose live verification codes.
     await db.user.update({
       where: { id: user.id },
-      data: { emailCode: code, emailCodeExpiresAt: new Date(Date.now() + CODE_TTL_MS), emailCodeAttempts: 0 },
+      data: { emailCode: await bcrypt.hash(code, 10), emailCodeExpiresAt: new Date(Date.now() + CODE_TTL_MS), emailCodeAttempts: 0 },
     })
 
     if (emailProviderConfigured()) {
@@ -87,7 +90,8 @@ export const POST = route(async (req: NextRequest) => {
     return fail(400, 'TOO_MANY_ATTEMPTS', 'Too many incorrect attempts. Request a new verification code.')
   }
 
-  if (record.emailCode !== body.code.trim()) {
+  const codeMatches = await bcrypt.compare(body.code.trim(), record.emailCode)
+  if (!codeMatches) {
     await db.user.update({ where: { id: user.id }, data: { emailCodeAttempts: { increment: 1 } } })
     const left = Math.max(0, MAX_ATTEMPTS - record.emailCodeAttempts - 1)
     return fail(400, 'INVALID_CODE', `That verification code is not correct. ${left} attempt${left === 1 ? '' : 's'} remaining.`)

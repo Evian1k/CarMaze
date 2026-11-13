@@ -174,3 +174,30 @@ export async function cleanupExpiredVerificationCodes(): Promise<{ cleared: numb
   })
   return { cleared: stale.count }
 }
+
+/**
+ * Offer expiry sweep: PENDING dealer offers past expiresAt become EXPIRED.
+ * The accept endpoint also checks expiry at decision time, so this sweep only
+ * keeps the listing board honest between decisions. Idempotent.
+ */
+export async function runOfferExpirySweep(): Promise<{ expired: number }> {
+  const now = new Date()
+  const due = await db.offer.findMany({
+    where: { status: 'PENDING', expiresAt: { lt: now } },
+    select: { id: true, orgId: true },
+  })
+  for (const o of due) {
+    await db.offer.update({ where: { id: o.id }, data: { status: 'EXPIRED' } })
+    const members = await db.orgMember.findMany({
+      where: { orgId: o.orgId, role: { in: ['OWNER', 'MANAGER', 'SALES'] } },
+      select: { userId: true },
+    })
+    await notifyMany(members.map((m) => m.userId), {
+      type: 'OFFER_UPDATE',
+      title: 'Your offer expired',
+      body: 'A seller did not respond to your offer before it expired. You can send a new offer at any time.',
+      link: '/dealer',
+    })
+  }
+  return { expired: due.length }
+}

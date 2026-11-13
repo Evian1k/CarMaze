@@ -277,6 +277,27 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     await db.listingEvent.create({
       data: { vehicleId: id, from: vehicle.status, to: 'SOLD', actorId: user.id, actorName: user.name, note: 'Marked as sold by seller' },
     })
+    // Everyone who engaged with this listing must learn it is no longer
+    // available: open enquirers, the dealer holding the reservation, and any
+    // dealership with a pending offer.
+    const enquirers = await db.enquiry.findMany({ where: { vehicleId: id, status: 'OPEN' }, select: { userId: true } })
+    await notifyMany(enquirers.map((e) => e.userId).filter((uid) => uid !== user.id), {
+      type: 'LISTING_UPDATE',
+      title: `A vehicle you enquired about was sold: ${vehicle.make} ${vehicle.model} ${vehicle.year}`,
+      body: `${vehicle.refCode} has been marked as sold. Browse similar vehicles on CARMAZE.`,
+      link: '/cars',
+    })
+    const pendingOffers = await db.offer.findMany({ where: { vehicleId: id, status: 'PENDING' }, select: { orgId: true } })
+    await db.offer.updateMany({ where: { vehicleId: id, status: 'PENDING' }, data: { status: 'EXPIRED' } })
+    for (const po of pendingOffers) {
+      const members = await db.orgMember.findMany({ where: { orgId: po.orgId, role: { in: ['OWNER', 'MANAGER', 'SALES'] } }, select: { userId: true } })
+      await notifyMany(members.map((m) => m.userId), {
+        type: 'OFFER_UPDATE',
+        title: `A vehicle you offered on was sold: ${vehicle.make} ${vehicle.model} ${vehicle.year}`,
+        body: `${vehicle.refCode} was marked sold by the seller; your pending offer was closed.`,
+        link: '/dealer',
+      })
+    }
     await audit({
       actorId: user.id,
       actorName: user.name,

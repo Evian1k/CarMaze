@@ -48,11 +48,16 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (processed.includes(eventKey)) return ok({ ResultCode: 0, ResultDesc: 'Already processed' })
 
   if (parsed.resultCode === 0) {
-    const amountOk = parsed.amount === null || parsed.amount * 100 >= payment.order.totalMinor
+    // Amount integrity: compare the provider-stated amount against the
+    // immutable escrow snapshot (payment.amountMinor — the amount that was
+    // actually initiated), not the mutable order total. A MISSING amount is
+    // unverifiable and fails closed; overpayments are rejected (exact match).
+    const amountOk = parsed.amount !== null && Math.round(parsed.amount * 100) === payment.amountMinor
     if (!amountOk) {
+      const initiatedKes = (payment.amountMinor / 100).toLocaleString()
       await db.paymentAuthorization.update({
         where: { id: payment.id },
-        data: { status: 'FAILED', resultDesc: `Underpayment: received ${parsed.amount}`, webhookEvents: JSON.stringify([...processed, eventKey]) },
+        data: { status: 'FAILED', resultDesc: parsed.amount === null ? 'Callback carried no verifiable amount' : `Amount mismatch: received KES ${parsed.amount}, initiated KES ${initiatedKes}`, webhookEvents: JSON.stringify([...processed, eventKey]) },
       })
       await audit({ actorName: 'M-Pesa callback', action: 'ORDER_PAYMENT_FAILED', targetType: 'PURCHASE_ORDER', targetId: payment.orderId, metadata: { reason: 'amount mismatch', amount: parsed.amount } })
       return ok({ ResultCode: 0, ResultDesc: 'Accepted' })

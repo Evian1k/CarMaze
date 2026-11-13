@@ -38,8 +38,11 @@ async function requireMember(orgId: string, userId: string, roles: string[]) {
 
 /** Resolve the staff seat limit from the org's subscription plan (default 2). */
 async function staffLimitFor(orgId: string): Promise<number> {
+  // Entitlement integrity mirrors lib/entitlements.ts: an expired subscription
+  // (past the 3-day grace) must not keep granting paid seat limits.
   const subscription = await db.subscription.findUnique({ where: { orgId } })
-  if (!subscription) return 2
+  if (!subscription || subscription.status !== 'ACTIVE') return 2
+  if (subscription.currentPeriodEnd.getTime() + 3 * 24 * 60 * 60 * 1000 < Date.now()) return 2
   const plan = await db.plan.findUnique({ where: { code: subscription.planCode } })
   return plan?.staffLimit ?? 2
 }
@@ -101,6 +104,13 @@ export const GET = route(async (req: NextRequest) => {
 export const POST = route(async (req: NextRequest) => {
   const user = await requireUser()
   const body = await parseBody(req, postSchema)
+
+  // DEMO SANDBOX: staff invites provision REAL user accounts (with a real,
+  // one-time password). Demo sessions must never mint real credentials or
+  // attach real people to an organisation.
+  if (user.isDemo) {
+    return fail(403, 'DEMO_SANDBOXED', 'Demo mode: staff invites are disabled because they create real user accounts. Use an authorised dealership owner account to invite your team.')
+  }
 
   const rl = rateLimit(`staff-create:${body.orgId}:${getIp(req)}:${user.id}`, 10, 60 * 60 * 1000)
   if (!rl.allowed) {

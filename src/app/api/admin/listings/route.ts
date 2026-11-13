@@ -15,7 +15,7 @@ const PAGE_SIZE = 12
  * Includes photos, owner and org for real review decisions.
  */
 export const GET = route(async (req: NextRequest) => {
-  await requireRole('REVIEWER', 'MODERATOR', 'ADMIN', 'FOUNDER', 'SUPPORT', 'FINANCE')
+  const viewer = await requireRole('REVIEWER', 'MODERATOR', 'ADMIN', 'FOUNDER', 'SUPPORT', 'FINANCE')
   const rl = rateLimit(`admin-listings:${getIp(req)}`, 60, 60 * 1000)
   if (!rl.allowed) return fail(429, 'RATE_LIMITED', 'Too many requests. Slow down.')
 
@@ -39,7 +39,12 @@ export const GET = route(async (req: NextRequest) => {
       },
     }),
   ])
-  return ok({ listings: rows, total, page, pageSize: PAGE_SIZE })
+  // DEMO SANDBOX: moderation is demo-safe, but owner contact details (email,
+  // phone) are real personal data the demo catalog promises to hide.
+  const listings = viewer.isDemo
+    ? rows.map((r) => ({ ...r, owner: r.owner ? { ...r.owner, email: null, phone: null } : r.owner }))
+    : rows
+  return ok({ listings, total, page, pageSize: PAGE_SIZE })
 })
 
 const patchSchema = z.object({

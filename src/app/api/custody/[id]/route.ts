@@ -154,6 +154,8 @@ const patchSchema = z.discriminatedUnion('action', [
   }),
   z.object({ action: z.literal('authorize-roadtest'), roadTestId: z.string().min(1) }),
   z.object({ action: z.literal('decline-roadtest'), roadTestId: z.string().min(1), note: z.string().trim().max(1000).optional() }),
+  z.object({ action: z.literal('approve-work'), note: z.string().trim().max(1000).optional() }),
+  z.object({ action: z.literal('decline-work'), note: z.string().trim().max(1000).optional() }),
   z.object({ action: z.literal('collect-self') }),
   z.object({ action: z.literal('dispute'), note: z.string().trim().min(10).max(4000) }),
 ])
@@ -234,6 +236,47 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       requireOrg()
       if (!(STATUS_ACTION_FROM as readonly string[]).includes(custody.status)) {
         invalid(`Cannot change status while the custody record is ${custody.status}.`)
+      }
+      // Money authorisation integrity: cost figures are OWNER/MANAGER data.
+      if (body.costMinor !== undefined && !['OWNER', 'MANAGER'].includes(membership?.role ?? '')) {
+        throw new ApiError(403, 'PERMISSION_DENIED', 'Recording the final cost requires an owner or manager account.')
+      }
+      // Additional-work approval (customer protection): work beyond the
+      // customer's authorised spend cap requires the customer's explicit
+      // approval before work proceeds. The garage cannot self-proceed past
+      // AWAITING_APPROVAL, and an over-cap cost forces the approval step.
+      const overCap =
+        custody.authorisedSpendMinor != null &&
+        body.costMinor !== undefined &&
+        body.costMinor > custody.authorisedSpendMinor
+      if (custody.status === 'AWAITING_APPROVAL' && body.status === 'WORK_IN_PROGRESS') {
+        invalid('Work beyond the authorised spend cap is awaiting the customer\'s approval. The customer must approve (or decline) it from their Vehicle Protection page before work resumes.')
+      }
+      if (overCap && (body.status === 'WORK_IN_PROGRESS' || body.status === 'READY_FOR_COLLECTION')) {
+        await db.$transaction([
+          db.vehicleCustody.update({ where: { id }, data: { status: 'AWAITING_APPROVAL', costMinor: body.costMinor } }),
+          db.custodyEvent.create({
+            data: {
+              custodyId: id,
+              type: 'STATUS_CHANGE',
+              fromStatus: custody.status,
+              toStatus: 'AWAITING_APPROVAL',
+              actorId: user.id,
+              actorName: user.name,
+              actorSide: 'ORG',
+              note: body.note ?? 'Quoted cost exceeds the authorised spend cap: customer approval required before work proceeds.',
+            },
+          }),
+        ])
+        await notify({
+          userId: custody.customerId,
+          type: 'CUSTODY_UPDATE',
+          title: `Approval needed: ${custody.refCode}`,
+          body: `${custody.org.name} quoted work above your authorised spend cap. Approve or decline it in Vehicle Protection before work proceeds.`,
+          link: '/account?tab=protection',
+        })
+        await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_AWAITING_APPROVAL', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, costMinor: body.costMinor, authorisedSpendMinor: custody.authorisedSpendMinor } })
+        return ok({ custody: { id, refCode: custody.refCode, status: 'AWAITING_APPROVAL' }, message: 'The quoted cost exceeds the authorised spend cap: customer approval is required. The customer has been notified.' })
       }
       if (
         body.status === 'READY_FOR_COLLECTION' &&
@@ -329,6 +372,9 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     // ─────────────────────── ORG: start-roadtest ───────────────────────
     case 'start-roadtest': {
       requireOrg()
+      if (custody.status === 'DISPUTED') {
+        invalid('This custody record is disputed: road tests are frozen while a security incident is open.')
+      }
       const rt = await loadRoadTest(body.roadTestId)
       if (rt.status !== 'AUTHORISED') invalid('Only an authorised road test can be started.')
       await db.$transaction([
@@ -354,6 +400,9 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     // ─────────────────────── ORG: end-roadtest ───────────────────────
     case 'end-roadtest': {
       requireOrg()
+      if (custody.status === 'DISPUTED') {
+        invalid('This custody record is disputed: road tests are frozen while a security incident is open.')
+      }
       const rt = await loadRoadTest(body.roadTestId)
       if (rt.status !== 'IN_PROGRESS') invalid('Only an in-progress road test can be ended.')
       const incident = body.incident ?? false
@@ -466,6 +515,68 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       })
       await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_ROADTEST_DECLINED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, roadTestId: rt.id } })
       return ok({ custody: { id, refCode: custody.refCode, status: 'WORK_IN_PROGRESS' }, roadTest: { id: rt.id, status: 'DECLINED' } })
+    }
+
+    // ─────────────────── CUSTOMER: approve-work / decline-work ───────────────
+    // Additional-work approval: the ONLY path out of AWAITING_APPROVAL for the
+    // garage to resume work. The garage cannot self-proceed (enforced in the
+    // 'status' case above).
+    case 'approve-work': {
+      requireCustomer()
+      if (custody.status !== 'AWAITING_APPROVAL') {
+        invalid('There is no work approval pending on this custody record.')
+      }
+      await db.$transaction([
+        db.vehicleCustody.update({ where: { id }, data: { status: 'WORK_IN_PROGRESS' } }),
+        db.custodyEvent.create({
+          data: {
+            custodyId: id,
+            type: 'STATUS_CHANGE',
+            fromStatus: custody.status,
+            toStatus: 'WORK_IN_PROGRESS',
+            actorId: user.id,
+            actorName: user.name,
+            actorSide: 'CUSTOMER',
+            note: body.note ? `Customer approved the additional work: ${body.note}` : 'Customer approved the additional work. Work may proceed at the quoted cost.',
+          },
+        }),
+      ])
+      await notifyOrgMembers(custody.orgId, {
+        ...orgLink,
+        title: `Additional work approved: ${custody.refCode}`,
+        body: `${user.name} approved the quoted work on the ${custody.vehicleDesc}. Work may proceed.`,
+      })
+      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_WORK_APPROVED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, costMinor: custody.costMinor } })
+      return ok({ custody: { id, refCode: custody.refCode, status: 'WORK_IN_PROGRESS' } })
+    }
+
+    case 'decline-work': {
+      requireCustomer()
+      if (custody.status !== 'AWAITING_APPROVAL') {
+        invalid('There is no work approval pending on this custody record.')
+      }
+      await db.$transaction([
+        db.vehicleCustody.update({ where: { id }, data: { status: 'INSPECTION' } }),
+        db.custodyEvent.create({
+          data: {
+            custodyId: id,
+            type: 'STATUS_CHANGE',
+            fromStatus: custody.status,
+            toStatus: 'INSPECTION',
+            actorId: user.id,
+            actorName: user.name,
+            actorSide: 'CUSTOMER',
+            note: body.note ? `Customer declined the additional work: ${body.note}` : 'Customer declined the additional work. Continue with the originally authorised scope only.',
+          },
+        }),
+      ])
+      await notifyOrgMembers(custody.orgId, {
+        ...orgLink,
+        title: `Additional work declined: ${custody.refCode}`,
+        body: `${user.name} declined the quoted work on the ${custody.vehicleDesc}. Continue with the originally authorised scope only.`,
+      })
+      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_WORK_DECLINED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode } })
+      return ok({ custody: { id, refCode: custody.refCode, status: 'INSPECTION' } })
     }
 
     // ─────────────────── CUSTOMER: collect-self ───────────────────

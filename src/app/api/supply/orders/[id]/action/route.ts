@@ -3,6 +3,7 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireUser } from '@/lib/api'
+import { rateLimit } from '@/lib/rate-limit'
 import { refCode, shareId, sixDigitCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notify, notifyMany } from '@/lib/notify'
@@ -111,7 +112,12 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const isStaff = user.roles.some((r) => ['FINANCE', 'ADMIN', 'FOUNDER'].includes(r))
   if (!garageMember && !supplierMember && !isStaff) return fail(403, 'FORBIDDEN', 'You are not authorised on this order.')
   const side: 'GARAGE' | 'SUPPLIER' = supplierMember ? 'SUPPLIER' : 'GARAGE'
-  const memberRole = side === 'SUPPLIER' ? supplierMember!.role : garageMember!.role
+  // Platform FINANCE/ADMIN/FOUNDER with no membership on either org are legitimate
+  // reconciliation actors: they have no OrgMember row, so there is no role to
+  // resolve here. roleCan denies an empty role (safe); the isStaff bypass below
+  // authorises the FINANCE tools. The previous code dereferenced a null
+  // membership and 500'd on every staff action taken outside an org.
+  const memberRole: string = side === 'SUPPLIER' ? (supplierMember?.role ?? '') : (garageMember?.role ?? '')
 
   // permission matrix check per action
   const actionPerm: Record<string, Parameters<typeof roleCan>[2]> = {
@@ -245,6 +251,11 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         return fail(409, 'INVALID_STATE', `Delivery is arranged after acceptance (current: ${order.status}).`)
       }
       const method = body.method
+      // Money integrity: once payment is moving (PROCESSING/PROTECTED) the
+      // delivery fee can no longer change the escrowed total — a late fee
+      // bump must not create payout value above what was actually collected.
+      const feeFrozen = !!order.payment && ['PROCESSING', 'PROTECTED'].includes(order.payment.status)
+      const deliveryFee = feeFrozen ? (order.delivery?.feeMinor ?? order.deliveryFeeMinor) : body.feeMinor
       let supplierBranchId: string | null = order.delivery?.supplierBranchId ?? null
       let meetupJson: string | null = order.delivery?.meetupJson ?? null
       let agreedByGarage = order.delivery?.meetupAgreedByGarage ?? false
@@ -285,22 +296,22 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
           refCode: refCode('DLV', 6),
           orderId: id, method, status, supplierBranchId, meetupJson,
           meetupAgreedByGarage: agreedByGarage, meetupAgreedBySupplier: agreedBySupplier,
-          scheduledFor, windowLabel: body.windowLabel ?? null, feeMinor: body.feeMinor,
+          scheduledFor, windowLabel: body.windowLabel ?? null, feeMinor: deliveryFee,
           events: { create: { type: 'ARRANGED', actorId: user.id, actorName: user.name, actorSide: side, note: `${method} delivery arranged.` } },
         },
         update: {
           method, status, supplierBranchId, meetupJson,
           meetupAgreedByGarage: agreedByGarage, meetupAgreedBySupplier: agreedBySupplier,
           scheduledFor, windowLabel: body.windowLabel !== undefined ? (body.windowLabel ?? null) : (order.delivery?.windowLabel ?? null),
-          feeMinor: body.feeMinor,
+          feeMinor: deliveryFee,
         },
       })
       await db.purchaseOrder.update({
         where: { id },
         data: {
           deliveryMethod: method,
-          deliveryFeeMinor: body.feeMinor,
-          totalMinor: order.subtotalMinor + order.taxMinor + body.feeMinor,
+          deliveryFeeMinor: deliveryFee,
+          totalMinor: order.subtotalMinor + order.taxMinor + deliveryFee,
           status: status === 'AGREED' ? 'CONFIRMED' : order.status,
         },
       })
@@ -378,6 +389,10 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         return fail(409, 'INVALID_STATE', 'Handover verification is available after dispatch.')
       }
       if (side !== 'GARAGE') return fail(403, 'PERMISSION_DENIED', 'The receiving party verifies the handover.')
+      // Brute-force guard: the 6-digit handover code is the last barrier before
+      // inspection/payment. Five wrong attempts per 10 minutes per order.
+      const rl = rateLimit(`po-handover:${id}:${user.id}`, 5, 10 * 60 * 1000)
+      if (!rl.allowed) return fail(429, 'RATE_LIMITED', `Too many verification attempts. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
       let verified = false
       if (body.otp && delivery.otpHash) verified = await bcrypt.compare(body.otp, delivery.otpHash)
       else if (body.qrToken && delivery.qrToken) verified = body.qrToken === delivery.qrToken
@@ -473,6 +488,12 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       const accepted = order.acceptedTotalMinor ?? order.totalMinor
       const fees = await getFees()
       const commission = computeCommission(order.subtotalMinor, fees.supplyCommissionPct, fees.minCommissionMinor)
+      // Financial integrity: release can never exceed the funds actually
+      // protected in escrow (amount protected minus anything already refunded).
+      const escrowAvailable = Math.max(0, payment.amountMinor - (payment.refundedAmountMinor ?? 0))
+      if (accepted > escrowAvailable) {
+        return fail(409, 'RELEASE_EXCEEDS_ESCROW', `Inspection accepted ${(accepted / 100).toLocaleString()} KES but only ${(escrowAvailable / 100).toLocaleString()} KES is protected. Re-run inspection or open a dispute; release cannot exceed protected funds.`)
+      }
       await db.paymentAuthorization.update({
         where: { id: payment.id },
         data: {

@@ -45,6 +45,12 @@ export const POST = route(async (req: NextRequest) => {
   if (org.status !== 'ACTIVE') {
     throw new ApiError(400, 'ORG_INACTIVE', 'This garage is not currently accepting handovers.')
   }
+  // DEMO SANDBOX: a demo session must not attach custody rows to a real
+  // garage's operational dashboard. Handovers inside the demo garage
+  // ecosystem (org flagged isDemo) remain fully explorable.
+  if (user.isDemo && !org.isDemo) {
+    return fail(403, 'DEMO_SANDBOXED', 'Demo mode: handover requests can only be created for garages inside the demo ecosystem.')
+  }
 
   if (body.myVehicleId) {
     const myVehicle = await db.myVehicle.findUnique({ where: { id: body.myVehicleId } })
@@ -101,6 +107,7 @@ export const GET = route(async (req: NextRequest) => {
     const custodies = await db.vehicleCustody.findMany({
       where: { customerId: user.id },
       orderBy: { createdAt: 'desc' },
+      take: 200,
       include: { org: { select: { name: true } } },
     })
     return ok({
@@ -124,6 +131,7 @@ export const GET = route(async (req: NextRequest) => {
     const custodies = await db.vehicleCustody.findMany({
       where: { orgId: { in: memberships.map((m) => m.orgId) } },
       orderBy: { createdAt: 'desc' },
+      take: 200,
       include: { customer: { select: { name: true } } },
     })
     return ok({

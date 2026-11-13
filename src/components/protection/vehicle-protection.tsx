@@ -552,6 +552,21 @@ function CustodyDetailBody({ detail, onChanged, onCollectSelf, onAuthoriseOther,
     }
   }
 
+  async function respondWork(action: 'approve-work' | 'decline-work') {
+    setBusyRoadTest(true)
+    try {
+      await apiSend(`/api/custody/${detail.id}`, 'PATCH', { action })
+      toast.success(action === 'approve-work'
+        ? 'Additional work approved: the garage may proceed at the quoted cost.'
+        : 'Additional work declined: the garage continues with the authorised scope only.')
+      onChanged()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Action failed.')
+    } finally {
+      setBusyRoadTest(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <DialogHeader>
@@ -564,6 +579,29 @@ function CustodyDetailBody({ detail, onChanged, onCollectSelf, onAuthoriseOther,
           {detail.orgName} · <span className="font-mono">{detail.refCode}</span> · in custody since {dateLabel(detail.createdAt)}
         </DialogDescription>
       </DialogHeader>
+
+      {/* Additional-work approval: quoted cost beyond the authorised cap */}
+      {detail.status === 'AWAITING_APPROVAL' && (
+        <div className="rounded-xl border border-amber-300 bg-amber-500/10 p-4" role="alert">
+          <h4 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+            <CircleAlert className="h-4 w-4" /> The garage quoted work beyond your authorised spend cap
+          </h4>
+          <p className="mt-1 text-sm text-amber-900/90 dark:text-amber-200/90">
+            {detail.costMinor != null && <>Quoted cost: <strong>{money(detail.costMinor)}</strong>. </>}
+            {detail.authorisedSpendMinor != null && <>Your authorised cap: <strong>{money(detail.authorisedSpendMinor)}</strong>. </>}
+            Nothing proceeds until you decide. Declining keeps the originally agreed scope only.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" className="min-h-9 gap-1.5" disabled={busyRoadTest} onClick={() => respondWork('approve-work')}>
+              {busyRoadTest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              Approve additional work
+            </Button>
+            <Button size="sm" variant="ghost" className="min-h-9 text-destructive hover:text-destructive" disabled={busyRoadTest} onClick={() => respondWork('decline-work')}>
+              <X className="h-3.5 w-3.5" /> Decline
+            </Button>
+          </div>
+        </div>
+      )}
 
       {disputed && (
         <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive" role="alert">

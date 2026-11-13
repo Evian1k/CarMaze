@@ -38,6 +38,17 @@ export const POST = route(async (req: NextRequest) => {
   const rl = rateLimit(`privacy-delete:${user.id}`, 3, 24 * 60 * 60 * 1000)
   if (!rl.allowed) return fail(429, 'RATE_LIMITED', 'You have already submitted a data request recently. The team is processing it.')
 
+  // MARKETING_ONLY is genuinely automatic and safe: withdraw the account's
+  // marketing-consent flag right now (User.marketingConsent → false). FULL
+  // ACCOUNT erasure stays a human-reviewed workflow (see below).
+  let marketingWithdrawn = false
+  if (body.scope === 'MARKETING_ONLY') {
+    if (user.marketingConsent !== false) {
+      await db.user.update({ where: { id: user.id }, data: { marketingConsent: false } })
+    }
+    marketingWithdrawn = true
+  }
+
   const ticket = await db.supportTicket.create({
     data: {
       refCode: refCode('DPO', 6),
@@ -73,8 +84,11 @@ export const POST = route(async (req: NextRequest) => {
   return ok(
     {
       ref: ticket.refCode,
+      ...(marketingWithdrawn ? { marketingConsentWithdrawn: true } : {}),
       message:
-        'Your request is recorded and routed to the platform team. Deletion is reviewed by a person because financial, dispute and legal records must be retained where the law requires it. You will be contacted at your account email with the outcome.',
+        body.scope === 'MARKETING_ONLY'
+          ? 'Your marketing consent has been withdrawn with immediate effect and the request is recorded. You may still receive transactional messages (order updates, security notices).'
+          : 'Your request is recorded and routed to the platform team. Deletion is reviewed by a person because financial, dispute and legal records must be retained where the law requires it. You will be contacted at your account email with the outcome.',
     },
     { status: 201 }
   )

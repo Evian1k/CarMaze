@@ -24,10 +24,12 @@ async function loadEnquiry(id: string) {
           refCode: true, ownerId: true, orgId: true, status: true,
         },
       },
-      messages: { orderBy: { createdAt: 'asc' as const } },
+      messages: { orderBy: { createdAt: 'desc' as const }, take: 300 },
     },
   })
   if (!enquiry) throw new ApiError(404, 'NOT_FOUND', 'Enquiry not found.')
+  // Cap long threads (newest 300) and restore chronological order for the UI.
+  enquiry.messages.reverse()
   return enquiry
 }
 
@@ -116,7 +118,56 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const enquiry = await loadEnquiry(id)
   await assertParticipant(enquiry, user.id, user.roles)
 
-  const { status } = await parseBody(req, z.object({ status: z.literal('CLOSED') }))
+  const body = await parseBody(req, z.union([
+    z.object({ status: z.literal('CLOSED') }),
+    z.object({ action: z.literal('assign'), assignedToId: z.string().min(1).nullable() }),
+  ]))
+
+  // Enquiry assignment (DealerOS): org OWNER/MANAGER route an enquiry to a
+  // team member. The assignee must be an ACTIVE member of the selling org.
+  if ('action' in body && body.action === 'assign') {
+    if (!enquiry.vehicle.orgId) {
+      return fail(400, 'NO_ORG', 'Private listings have no team to assign to.')
+    }
+    const manager = await db.orgMember.findFirst({
+      where: { orgId: enquiry.vehicle.orgId, userId: user.id, role: { in: ['OWNER', 'MANAGER'] } },
+      select: { id: true },
+    })
+    if (!manager) {
+      return fail(403, 'FORBIDDEN', 'Only the dealership owner or a manager can assign enquiries.')
+    }
+    if (body.assignedToId) {
+      const assignee = await db.orgMember.findFirst({
+        where: { orgId: enquiry.vehicle.orgId, userId: body.assignedToId },
+        select: { userId: true },
+      })
+      if (!assignee) return fail(400, 'NOT_MEMBER', 'The assignee is not part of this dealership.')
+    }
+    const updated = await db.enquiry.update({
+      where: { id: enquiry.id },
+      data: { assignedToId: body.assignedToId },
+    })
+    if (body.assignedToId && body.assignedToId !== user.id) {
+      await notify({
+        userId: body.assignedToId,
+        type: 'ENQUIRY_ASSIGNED',
+        title: `Enquiry assigned to you: ${enquiry.refCode}`,
+        body: `${enquiry.vehicle.make} ${enquiry.vehicle.model} ${enquiry.vehicle.year}: a customer enquiry was assigned to you.`,
+        link: '/dealer?tab=enquiries',
+      })
+    }
+    await audit({
+      actorId: user.id,
+      actorName: user.name,
+      action: 'enquiry.assigned',
+      targetType: 'ENQUIRY',
+      targetId: enquiry.id,
+      metadata: { refCode: enquiry.refCode, assignedToId: body.assignedToId },
+    })
+    return ok({ enquiry: { id: updated.id, assignedToId: updated.assignedToId } })
+  }
+
+  const { status } = body as { status: 'CLOSED' }
 
   const updated = await db.enquiry.update({
     where: { id: enquiry.id },

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { demoStaffMutationGuard } from '@/lib/demo'
+import { demoStaffMutationGuard, assertNotDemoStaffRead } from '@/lib/demo'
 import { route, ok, fail, requireUser, ApiError, parseBody } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
 import { audit } from '@/lib/audit'
@@ -58,6 +58,10 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const isOwner = doc.ownerUserId === user.id
   const isStaff = hasRole(user, ...STAFF_ROLES)
   if (!isOwner && !isStaff) throw new ApiError(403, 'FORBIDDEN', 'You are not authorised to view this document.')
+  // DEMO SANDBOX: demo staff must never open real customer identity/KYC
+  // documents — the demo catalog explicitly promises personal-document views
+  // are hidden (same guard as the private file route and the PATCH below).
+  if (!isOwner) await assertNotDemoStaffRead(user, 'identity documents')
 
   // Viewing by anyone other than the owner is an auditable access event.
   if (!isOwner) {

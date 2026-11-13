@@ -24,6 +24,9 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   if (!request) return fail(404, 'NOT_FOUND', 'Quote request not found.')
   const garage = await db.org.findUnique({ where: { id: request.garageOrgId }, select: { id: true, name: true, county: true, verified: true } })
   const membership = await getMembership(request.garageOrgId, user.id)
+  // Bidding confidentiality: a supplier viewer may only ever see their own
+  // offer. Rival bids (and their prices) are visible to the buyer garage only.
+  let viewerSupplierOrgId: string | null = null
   if (!membership) {
     // Suppliers may view a request only when it is inside their commercial
     // scope (mirrors GET /api/supply/quotes): the request is broadcast to
@@ -34,6 +37,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
       select: { orgId: true },
     })
     if (!supplierOrg) return fail(403, 'FORBIDDEN', 'Not authorised.')
+    viewerSupplierOrgId = supplierOrg.orgId
     const hasOffer = await db.quoteOffer.findFirst({ where: { requestId: id, supplierOrgId: supplierOrg.orgId }, select: { id: true } })
     if (!hasOffer) {
       const branchAreas = await db.orgBranch.findMany({ where: { orgId: supplierOrg.orgId, status: 'ACTIVE' }, select: { deliveryAreas: true } })
@@ -49,7 +53,9 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
       vehicle: request.vehicleJson ? JSON.parse(request.vehicleJson) : null,
       budgetMinor: request.budgetMinor, deliveryCounty: request.deliveryCounty,
       status: request.status, garage, createdAt: request.createdAt, expiresAt: request.expiresAt,
-      offers: request.offers.map((o) => ({ ...o, items: o.itemsJson ? JSON.parse(o.itemsJson) : [] })),
+      offers: request.offers
+        .filter((o) => !viewerSupplierOrgId || o.supplierOrgId === viewerSupplierOrgId)
+        .map((o) => ({ ...o, items: o.itemsJson ? JSON.parse(o.itemsJson) : [] })),
     },
   })
 })

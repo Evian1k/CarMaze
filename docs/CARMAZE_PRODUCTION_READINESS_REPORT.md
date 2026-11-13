@@ -244,3 +244,183 @@ checks). Known cosmetic issue: Radix logs a dev-mode-only
 static audit confirms every DialogContent file contains a DialogTitle and
 every dialog observed at runtime exposed an accessible name — no
 functional or screen-reader-visible defect identified.
+
+---
+
+# 2026-11-13 — FINAL PRODUCTION READINESS AUDIT (all phases)
+
+## Verdict
+
+**CONDITIONALLY READY — controlled production launch.**
+
+The application code is technically sound: every blocker found in this audit was
+either fixed (25 issues) or is external to the codebase (credentials,
+infrastructure, founder actions). Nothing in the launch path requires new
+application features. CARMAZE is NOT "production-ready" today in the plain sense:
+no real Daraja/email/SMS credentials are configured in this environment, and per
+the standing rule nothing was simulated to pretend otherwise. What IS true: with
+the external setup in `docs/CARMAZE_PRODUCTION_RELEASE_CHECKLIST.md` §6, the
+platform is launchable as-is.
+
+## What this audit did
+
+Five independent code-audit passes (remediation verification, adversarial
+security, financial integrity, workflow integrity, infrastructure) over the
+entire API surface, followed by fixes, a rewritten test suite, a controlled
+production build, a backup/restore drill and a load test.
+
+## Confirmed working (verified, not assumed)
+
+- Authentication/session: fail-fast AUTH_SECRET in production, sessionVersion
+  revocation, DB re-read per request, instant demotion, hashed verification
+  codes with attempt caps, hashed reset tokens with single-use + TTL.
+- Uploads: auth, allowlist, magic-byte anti-spoof, size caps, server filenames,
+  private/public split, private serving gated + audit-logged.
+- Money: complete lifecycle map — the ONLY paths to PAID/PROTECTED/SETTLED are
+  provider callbacks (signature-gated, fail-closed) or audited FINANCE
+  reconciliation with demo hard-block. Idempotency via unique checkout refs +
+  terminal-state checks. No simulation path exists anywhere.
+- Settlements: PENDING = owed, never "moved"; SETTLED only on provider
+  confirmation or referenced manual reconciliation.
+- RBAC matrix (roleCan) enforced server-side for every procurement action;
+  platform-role vs org-role separation holds; no route grants ADMIN/FOUNDER.
+- Demo sandbox: demo accounts cannot reach real payments, real KYC documents,
+  real account minting, or real users' notifications.
+- Workflows: all 13 audited flows are server-enforced (details in the
+  checklist §3).
+
+## Fixed in this audit (25 confirmed issues; all verified by the suite)
+
+CRITICAL/HIGH (8):
+1. Logistics partner identity/business/insurance documents were uploaded to
+   PUBLIC media → now private documents (owner-or-staff only).
+2. Dealer/garage listing limits were never enforced server-side → central
+   entitlements now gate POST /api/vehicles (PAST_DUE/expired → free tier).
+3. Escrow release could pay out more than was protected (post-protection
+   delivery-fee inflation) → fee frozen once PROCESSING/PROTECTED; release
+   capped at amountMinor − refundedAmountMinor (409 otherwise).
+4. A dispute resolution with a refund still allowed the garage to release the
+   escrow afterwards → refund decisions now strip the escrow value (FULL →
+   authorization REFUNDED).
+5. OTP verification endpoints (custody release, PO handover, delivery drop-off,
+   consumer-order collection) had no brute-force guard → rate-limited 5/10min
+   each, suite-verified (429 after 5 wrong codes).
+6. FINANCE/ADMIN acting on a supply order without membership crashed with a 500
+   (null-deref) → null-safe resolution; staff bypass now reachable.
+7. Demo staff could read REAL customer KYC documents via GET /api/documents/[id]
+   → guarded; owner emails stripped from demo moderation/supply queues.
+8. Privacy MARKETING_ONLY erasure was claimed automatic but not implemented →
+   now genuinely automatic (User.marketingConsent withdrawn, verified by suite).
+
+MEDIUM (12):
+9. Demo sessions could mint REAL user accounts via org staff invites → blocked.
+10. Demo customers could attach custody rows to real garages → blocked for
+    non-demo orgs (demo-ecosystem handovers still explorable).
+11. M-Pesa billing callback failed OPEN when the callback carried no amount →
+    fails closed (attempt FAILED, never activated).
+12. Supply escrow webhook accepted overpayments and compared against the
+    mutable order total → exact equality vs immutable authorization snapshot.
+13. PARTS_ORDER invoices were collected while the consumer order stayed UNPAID
+    forever → activation now flips the order to PAID and notifies the supplier.
+14. PO payment initiation ignored the role matrix (any member incl. STAFF could
+    push money) → requireOrgMember(payment.initiate).
+15. Staff-seat cap ignored subscription expiry → PAST_DUE falls back to 2 seats.
+16. Email/phone verification codes stored plaintext → bcrypt-hashed at rest.
+17. Custody collection verified the code but not the collector's name → both
+    verified (matches the UI contract).
+18. Suppliers could see rival suppliers' offers (amounts) on quote detail →
+    bid confidentiality enforced.
+19. Handover QR token was exposed to both sides → receiving side only.
+20. Suspended-org members kept acting via getMembership → org status now
+    required everywhere.
+
+LOW/workflow (5):
+21. Offer expiry was never enforced → rejected at accept + hourly sweep.
+22. mark_sold was silent → open enquirers and pending-offer dealers notified;
+    pending offers auto-expire.
+23. Dispute resolution notified staff only → both parties notified; upheld
+    orders un-hold ON_HOLD settlements; reconciliation blocked on DISPUTED orders.
+24. GarageOS additional-work approval was decorative → over-cap cost now forces
+    AWAITING_APPROVAL, garage cannot self-proceed, customer gets
+    approve/decline actions (UI + server), cost figures OWNER/MANAGER-only.
+25. Custody had no path out of DISPUTED → incident resolution returns the job
+    to the workflow and notifies both sides.
+
+Also: rate-limit key spoofing via forged X-Forwarded-For (first-hop trust) →
+last trusted hop used; hot-path indexes added (9); unbounded admin/custody/
+conversation queries bounded (SQL aggregates for revenue reporting); commission
+floor can no longer exceed the base; B2C payout result amount-verified; refunds
+PROCESSED require a provider reference and cannot exceed collected funds;
+self-dealing guard on garage quotes; MPESA_BASE_URL documented.
+
+## Per-issue record (severity / root cause / files / verification)
+
+Every fix above: severity per phase agent report, root cause in the file
+citation of the agent audit, fix = minimal server-side change with the existing
+helper patterns (no module rewrites, no schema breaks), verification = the
+extended suite (119/119) plus targeted API probes. Representative evidence:
+- Escrow cap: release case, supply/orders/[id]/action/route.ts → suite §payment
+  integrity passes; walkthrough data intact.
+- OTP limiter: custody/[id]/collect, logistics/jobs/[id], supply orders action,
+  orders/[id] → suite §brute-force: 429 after 5 wrong codes, job never delivered.
+- Demo hardening: orgs/staff POST, custody POST, documents GET, admin listings
+  GET → suite §demo sandbox hardening all green.
+- Enquiry assignment: schema + enquiries/[id] PATCH + dealer EnquiriesTab UI →
+  suite §assignment (owner assigns, staff/customer 403, clear works).
+- Work approval: custody/[id] route + vehicle-protection.tsx → suite §work
+  approval (garage 403, state guard 400).
+
+## Tests
+
+- `bun verification/security-tests.ts`: **119 passed, 0 failed** (26 new checks
+  beyond the previous 93; requires a fresh dev-server process for in-memory
+  limiter buckets).
+- `bun run lint`: clean. `bunx tsc --noEmit`: clean.
+- Production build: `next build` compiles successfully (Turbopack, 29.8s; all
+  154 API routes + all views). First attempt failed at page-data collection
+  because AUTH_SECRET was absent — the fail-fast guard working as designed;
+  completed with a throwaway build-only secret (never committed).
+- Production smoke: `next start` served / 200, /api/health honest (providers
+  not_configured), /api/admin/users 401 anonymous.
+- Backup/restore: `scripts/backup-db.sh` + new `scripts/db-restore-test.sh` —
+  restore drill PASSED (integrity ok, full row counts) against a temp copy.
+- Load: 1200 requests, 20 concurrent, 0 errors; second-pass RSS lower than
+  first-pass (no app-tier leak).
+
+## OOM incident analysis (Phase 6)
+
+The single OOM (next-server RSS ~1.8 GB on a 4 GB sandbox, multi-hour dev
+session) was Next.js dev-mode accumulation: per-route compile caches, HMR
+state and module graphs for 154 routes + 28 views, with no memory cap. It is a
+dev-workload property, not an application leak: the post-fix load test shows RSS
+plateauing and DECLINING on repeat passes. Requirements documented:
+- Production must run `next start` (lean; no on-demand compilation).
+- Dev/CI comfortable minimum: 4 GB RAM (2 vCPU); production runtime minimum:
+  2 GB RAM with a process supervisor (systemd/Docker) and restart policy.
+- A supervisor memory cap + restart protects against any future regressions.
+
+## External services still required (nothing invented)
+
+- M-Pesa Daraja STK + B2C credentials (MPESA_CONSUMER_KEY/SECRET/SHORTCODE/
+  PASSKEY/CALLBACK_URL/ENV, MPESA_WEBHOOK_SECRET, MPESA_INITIATOR_NAME/
+  SECURITY_CREDENTIAL/B2C_RESULT_URL). Until configured: honest 501s, attempts
+  FAILED, settlements PENDING. No simulation, by design.
+- Email (SMTP_URL, MAIL_FROM) and SMS (SMS_PROVIDER/API_KEY/USERNAME/SENDER_ID):
+  integrations are real (nodemailer / Africa's Talking / Twilio); unconfigured
+  deployments record honest FAILED notification-delivery rows and return 503
+  for verification sends in production.
+- Domain/DNS/TLS, error monitoring, off-box backups, AV scanning for public
+  media, multi-instance rate-limit store if scaling horizontally.
+
+## Outstanding critical issues
+
+None in application code. The remaining launch blockers are exactly the
+external items above.
+
+## Outstanding high-priority issues (non-blocking, tracked)
+
+- FULL_ACCOUNT erasure runbook (human workflow) to be written by the founder's
+  team — the request path is complete and honest.
+- Multi-instance rate limiting store (only if horizontal scaling is chosen).
+- Malware scanning integration for public media uploads.
+- Configurable per-org enquiry SLA (currently fixed 24 h insight).

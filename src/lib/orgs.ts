@@ -5,7 +5,9 @@ import { notifyMany, type NotifyInput } from '@/lib/notify'
 export const INBOX_NOTIFY_ROLES = ['OWNER', 'MANAGER', 'SALES', 'STAFF'] as const
 
 export async function getMembership(orgId: string, userId: string) {
-  return db.orgMember.findFirst({ where: { orgId, userId } })
+  // A suspended/inactive org's members are not acting members: every
+  // getMembership consumer treats null as "not authorised on this org".
+  return db.orgMember.findFirst({ where: { orgId, userId, org: { status: 'ACTIVE' } } })
 }
 
 /** Notify the members of an org (optionally restricted to roles). */

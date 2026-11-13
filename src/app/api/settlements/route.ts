@@ -22,13 +22,25 @@ export const GET = route(async (req: NextRequest) => {
   const where: Record<string, unknown> = {}
   if (isStaff && scope === 'all') {
     if (orgParam) where.orgId = orgParam
-  } else {
-    const memberships = await db.orgMember.findMany({ where: { userId: user.id }, select: { orgId: true } })
-    const orgIds = memberships.map((m) => m.orgId)
-    const visible = orgParam && orgIds.includes(orgParam) ? [orgParam] : orgIds
-    where.orgId = { in: visible }
   }
   if (status) where.status = status
+
+  // The payout ledger is financial data: supplier viewers follow the roleCan
+  // finance.read matrix (OWNER/OPERATIONS/ACCOUNTANT), not every org role.
+  if (!isStaff || scope !== 'all') {
+    const memberships = await db.orgMember.findMany({
+      where: { userId: user.id },
+      select: { orgId: true, role: true, org: { select: { type: true, status: true } } },
+    })
+    const financeVisible = memberships
+      .filter((m) => m.org.status === 'ACTIVE')
+      .filter((m) => (m.org.type === 'SUPPLIER'
+        ? ['OWNER', 'OPERATIONS', 'ACCOUNTANT'].includes(m.role)
+        : ['OWNER', 'GM', 'ACCOUNTANT', 'FINANCE'].includes(m.role)))
+      .map((m) => m.orgId)
+    const visible = orgParam && financeVisible.includes(orgParam) ? [orgParam] : financeVisible
+    where.orgId = { in: visible }
+  }
 
   const settlements = await db.settlement.findMany({
     where,

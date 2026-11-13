@@ -81,5 +81,13 @@ export async function parseBody<T>(req: NextRequest, schema: ZodType<T>): Promis
 }
 
 export function getIp(req: NextRequest): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'local'
+  // Rate-limit keys must not be spoofable: a client can forge its own first
+  // X-Forwarded-For entry, but the LAST entry is appended by our own trusted
+  // edge proxy. Prefer it; fall back to x-real-ip, then to 'local'.
+  const xff = req.headers.get('x-forwarded-for')
+  if (xff) {
+    const parts = xff.split(',').map((p) => p.trim()).filter(Boolean)
+    if (parts.length > 0) return parts[parts.length - 1]
+  }
+  return req.headers.get('x-real-ip') || 'local'
 }

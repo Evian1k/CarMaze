@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic'
  * counterfeit reports, disputes, order/payment monitoring, low-risk scores.
  */
 export const GET = route(async (req: NextRequest) => {
-  await requireRole(ROLE.SUPPORT, ROLE.REVIEWER, ROLE.MODERATOR, ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
+  const user = await requireRole(ROLE.SUPPORT, ROLE.REVIEWER, ROLE.MODERATOR, ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
   const sp = req.nextUrl.searchParams
 
   const [applications, suppliers, pendingProducts, disputedOrders, openDisputes, recentOrders, counterfeitReports, refunds] = await Promise.all([
@@ -75,8 +75,14 @@ export const GET = route(async (req: NextRequest) => {
     }),
   ])
 
+  // DEMO SANDBOX: applicant contact details (email) are real personal data the
+  // demo catalog promises to hide — strip them for demo staff viewers.
   return ok({
-    applications: applications.map((a) => ({ ...a, documents: jsonParse<{ name: string; url: string }[]>(a.documents, []) })),
+    applications: applications.map((a) => ({
+      ...a,
+      documents: jsonParse<{ name: string; url: string }[]>(a.documents, []),
+      user: user.isDemo && a.user ? { ...a.user, email: null } : a.user,
+    })),
     suppliers,
     pendingProducts,
     disputedOrders,
@@ -369,16 +375,41 @@ export const POST = route(async (req: NextRequest) => {
         if (dispute.order.paymentStatus === 'PROTECTED') {
           await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { paymentStatus: body.resolution === 'REFUND_FULL' ? 'REFUNDED' : 'PARTIALLY_RELEASED' } })
         }
+        // Financial integrity: a refund decision must remove the escrow value it
+        // covers. FULL → the authorization can no longer be released against;
+        // PARTIAL → the released amount is capped at the remaining escrow by the
+        // release gate (amountMinor − refundedAmountMinor). Without this, a
+        // garage could release protected funds AND keep a queued refund.
+        const auth = await db.paymentAuthorization.findUnique({ where: { orderId: dispute.orderId! } })
+        if (auth && amount > 0 && ['PROTECTED', 'PENDING'].includes(auth.status)) {
+          const totalRefunded = Math.min(auth.amountMinor, (auth.refundedAmountMinor ?? 0) + amount)
+          await db.paymentAuthorization.update({
+            where: { id: auth.id },
+            data: {
+              refundedAmountMinor: totalRefunded,
+              ...(body.resolution === 'REFUND_FULL' && totalRefunded >= auth.amountMinor ? { status: 'REFUNDED' } : {}),
+            },
+          })
+        }
       }
       await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { status: body.resolution === 'REJECTED' ? 'COMPLETED' : 'INSPECTED' } })
+      // A dispute resolution that upholds the order (no refund) un-holds the
+      // supplier settlement: the funds were protected and delivery stood.
+      if (body.resolution === 'REJECTED') {
+        await db.settlement.updateMany({ where: { orderId: dispute.orderId!, status: 'ON_HOLD' }, data: { status: 'PENDING' } })
+      }
       await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_RESOLVED', targetType: 'DISPUTE', targetId: dispute.id, metadata: { resolution: body.resolution, note: body.note } })
       await notifyMany(await staffUserIds('ADMIN', 'SUPPORT'), { type: 'DISPUTE_RESOLVED', title: `Dispute ${dispute.refCode} resolved`, body: body.resolution, link: '/admin?tab=disputes' })
+      // Both parties must learn the outcome: previously only staff were told.
+      await notifyMany((await db.orgMember.findMany({ where: { orgId: dispute.order!.garageOrgId }, select: { userId: true } })).map((m) => m.userId), { type: 'DISPUTE_RESOLVED', title: `Dispute ${dispute.refCode} resolved`, body: `${body.resolution.replaceAll('_', ' ').toLowerCase()}: ${body.note}`, link: '/procurement?tab=orders' })
+      await notifyMany((await db.orgMember.findMany({ where: { orgId: dispute.order!.supplierOrgId }, select: { userId: true } })).map((m) => m.userId), { type: 'DISPUTE_RESOLVED', title: `Dispute ${dispute.refCode} resolved`, body: `${body.resolution.replaceAll('_', ' ').toLowerCase()}: ${body.note}`, link: '/supplier?tab=orders' })
       return ok({ message: `Dispute resolved (${body.resolution}).${body.resolution.includes('REFUND') ? ' Refund queued for finance processing.' : ''}` })
     }
     case 'reconcile-payment': {
       const order = await db.purchaseOrder.findUnique({ where: { id: body.orderId }, include: { payment: true } })
       if (!order) return fail(404, 'NOT_FOUND', 'Order not found.')
       if (order.paymentStatus === 'PROTECTED') return fail(409, 'ALREADY_PROTECTED', 'Order payment already protected.')
+      if (order.status === 'DISPUTED') return fail(409, 'ORDER_DISPUTED', 'The order is under dispute: resolve the dispute first; reconciliation while frozen would bypass the dispute hold.')
       const fees = await getFees()
       await db.paymentAuthorization.upsert({
         where: { orderId: order.id },
@@ -396,12 +427,23 @@ export const POST = route(async (req: NextRequest) => {
       const refund = await db.refund.findUnique({ where: { id: body.refundId }, include: { order: true } })
       if (!refund) return fail(404, 'NOT_FOUND', 'Refund not found.')
       if (refund.status === 'PROCESSED') return fail(409, 'ALREADY_PROCESSED', 'Refund already processed.')
+      // Money integrity: PROCESSED states money left the platform — it requires
+      // the external reference of the actual reversal (provider statement,
+      // M-Pesa reversal code, bank ref). And bookkeeping can never refund more
+      // than the payment collected.
+      if (body.decision === 'PROCESSED' && (!body.providerRef || body.providerRef.trim().length < 3)) {
+        return fail(400, 'PROVIDER_REF_REQUIRED', 'Recording a refund as PROCESSED requires the external provider reference of the actual reversal.')
+      }
+      const auth = await db.paymentAuthorization.findUnique({ where: { orderId: refund.orderId } })
+      if (body.decision === 'PROCESSED' && auth && (auth.refundedAmountMinor ?? 0) + refund.amountMinor > auth.amountMinor) {
+        return fail(409, 'REFUND_EXCEEDS_PAYMENT', `Refund of ${(refund.amountMinor / 100).toLocaleString()} KES would exceed the ${(auth.amountMinor / 100).toLocaleString()} KES collected for this order.`)
+      }
       await db.refund.update({
         where: { id: refund.id },
         data: { status: body.decision, processedBy: user.name, processedAt: new Date(), providerRef: body.providerRef ?? null },
       })
       if (body.decision === 'PROCESSED') {
-        const payment = await db.paymentAuthorization.findUnique({ where: { orderId: refund.orderId } })
+        const payment = auth ?? await db.paymentAuthorization.findUnique({ where: { orderId: refund.orderId } })
         if (payment) {
           const totalRefunded = payment.refundedAmountMinor + refund.amountMinor
           await db.paymentAuthorization.update({

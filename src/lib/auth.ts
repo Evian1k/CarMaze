@@ -97,6 +97,7 @@ export type SessionUser = {
   roles: string[]
   status: string
   isDemo: boolean
+  marketingConsent: boolean
   createdAt: Date
 }
 
@@ -142,6 +143,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       roles: user.roles.split(',').filter(Boolean),
       status: user.status,
       isDemo: user.isDemo,
+      marketingConsent: user.marketingConsent,
       createdAt: user.createdAt,
     }
   } catch {

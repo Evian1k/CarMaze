@@ -55,10 +55,13 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
     await db.conversation.update({ where: { id }, data: { unreadForOrg: false } })
   }
 
-  const messages = await db.conversationMessage.findMany({
+  // Long threads are capped: the newest 500 messages, re-ordered chronologically.
+  const messageRows = await db.conversationMessage.findMany({
     where: { conversationId: id },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: 'desc' },
+    take: 500,
   })
+  const messages = [...messageRows].reverse()
 
   // serviceId is a plain reference (no Prisma relation): resolve the title manually.
   const service = conversation.serviceId

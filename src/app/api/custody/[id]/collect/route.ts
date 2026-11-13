@@ -3,6 +3,7 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { route, ok, ApiError, requireUser, parseBody, type RouteCtx } from '@/lib/api'
+import { rateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/audit'
 import { notify } from '@/lib/notify'
 
@@ -48,17 +49,27 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     )
   }
 
+  // Brute-force guard: the 6-digit code is the last barrier before a vehicle
+  // leaves the workshop. Five attempts per 10 minutes per custody job+user.
+  const rl = rateLimit(`custody-collect:${custody.id}:${user.id}`, 5, 10 * 60 * 1000)
+  if (!rl.allowed) {
+    throw new ApiError(429, 'RATE_LIMITED', `Too many collection attempts. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
+  }
+
+  // The dialog collects BOTH the code and the collector's name: the code alone
+  // would let any valid code release the vehicle to an unvetted person.
+  const nameOk = auth.collectorName.trim().toLowerCase() === body.collectorName.trim().toLowerCase()
   const codeOk = await bcrypt.compare(body.authCode, auth.authCodeHash)
-  if (!codeOk) {
+  if (!codeOk || !nameOk) {
     await audit({
       actorId: user.id,
       actorName: user.name,
       action: 'COLLECTION_CODE_FAILED',
       targetType: 'VEHICLE_CUSTODY',
       targetId: custody.id,
-      metadata: { refCode: custody.refCode, collectorName: body.collectorName },
+      metadata: { refCode: custody.refCode, collectorName: body.collectorName, nameMismatch: !nameOk },
     })
-    throw new ApiError(400, 'INVALID_CODE', 'Incorrect collection code. Ask the customer for the current code.')
+    throw new ApiError(400, 'INVALID_CODE', 'Incorrect collection details. Check the collector name matches the customer\'s authorisation and the current code.')
   }
 
   const now = new Date()

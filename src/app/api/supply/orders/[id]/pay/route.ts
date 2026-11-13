@@ -7,6 +7,7 @@ import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notify, notifyMany } from '@/lib/notify'
 import { getMembership } from '@/lib/orgs'
+import { requireOrgMember } from '@/lib/supply'
 import { assertNotDemoActor } from '@/lib/demo'
 import { stkPush, MpesaNotConfiguredError, mpesaConfigured } from '@/lib/mpesa'
 import { getFees, computeCommission, poEvent } from '@/lib/supply'
@@ -46,6 +47,10 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
 
   const order = await db.purchaseOrder.findUnique({ where: { id }, include: { payment: true, delivery: true } })
   if (!order) return fail(404, 'NOT_FOUND', 'Order not found.')
+  // Money integrity: payment initiation follows the role matrix
+  // (payment.initiate = garage OWNER/GM/PROCUREMENT/ACCOUNTANT), not merely
+  // any org membership.
+  await requireOrgMember(user, order.garageOrgId, 'payment.initiate')
   const member = await getMembership(order.garageOrgId, user.id)
   if (!member) return fail(403, 'FORBIDDEN', 'Only the purchasing garage can pay for this order.')
 

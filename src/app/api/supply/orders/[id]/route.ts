@@ -44,9 +44,10 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   }
 
   const side = supplierMembership ? 'SUPPLIER' : 'GARAGE'
+  const viewerRole = side === 'SUPPLIER' ? supplierMembership?.role ?? '' : membership?.role ?? ''
   return ok({
     side,
-    role: side === 'SUPPLIER' ? supplierMembership!.role : membership!.role,
+    role: viewerRole,
     order: {
       id: order.id,
       refCode: order.refCode,
@@ -94,7 +95,9 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
         dispatchedAt: order.delivery.dispatchedAt,
         expectedAt: order.delivery.expectedAt,
         otpHint: order.delivery.otpHint,
-        qrToken: order.delivery.qrToken,
+        // The QR token is a handover credential: only the receiving side may
+        // hold it. The supplier keeps their own confirmation channel.
+        qrToken: side === 'GARAGE' ? order.delivery.qrToken : null,
         deliveredAt: order.delivery.deliveredAt,
         handover: jsonParse<Record<string, unknown> | null>(order.delivery.handoverJson, null),
         garageConfirmAt: order.delivery.garageConfirmAt,

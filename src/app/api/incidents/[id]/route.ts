@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { route, ok, ApiError, requireUser, parseBody, type RouteCtx } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
 import { audit } from '@/lib/audit'
+import { notify } from '@/lib/notify'
+import { notifyOrgMembers } from '@/lib/orgs'
 import { parseJson } from '@/lib/json'
 
 export const dynamic = 'force-dynamic'
@@ -175,6 +177,45 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     },
   })
   await audit({ actorId: user.id, actorName: user.name, action: 'INCIDENT_STATUS_CHANGED', targetType: 'SECURITY_INCIDENT', targetId: id, metadata: { refCode: incident.refCode, from: incident.status, to: body.status } })
+
+  // Custody lifecycle exit: a disputed custody record previously had NO path
+  // back into the workflow once its incident was resolved/dismissed. When the
+  // linked incident is closed, return the custody record to work in progress
+  // (the customer/garage can re-run inspection or mark ready as usual) and
+  // tell both sides.
+  if ((body.status === 'RESOLVED' || body.status === 'DISMISSED') && incident.custodyId) {
+    const custody = await db.vehicleCustody.findUnique({ where: { id: incident.custodyId } })
+    if (custody && custody.status === 'DISPUTED') {
+      await db.$transaction([
+        db.vehicleCustody.update({ where: { id: custody.id }, data: { status: 'WORK_IN_PROGRESS' } }),
+        db.custodyEvent.create({
+          data: {
+            custodyId: custody.id,
+            type: 'STATUS_CHANGE',
+            fromStatus: 'DISPUTED',
+            toStatus: 'WORK_IN_PROGRESS',
+            actorId: user.id,
+            actorName: user.name,
+            actorSide: 'STAFF',
+            note: `Security incident ${incident.refCode} ${body.status.toLowerCase()}: custody returned to the normal workflow.`,
+          },
+        }),
+      ])
+      await notify({
+        userId: custody.customerId,
+        type: 'CUSTODY_UPDATE',
+        title: `Custody review closed: ${custody.refCode}`,
+        body: `The security review of your vehicle was ${body.status.toLowerCase()}. The job resumes its normal workflow.`,
+        link: '/account?tab=protection',
+      })
+      await notifyOrgMembers(custody.orgId, {
+        type: 'CUSTODY_UPDATE',
+        link: '/garage-dashboard?tab=custody',
+        title: `Custody review closed: ${custody.refCode}`,
+        body: `Security incident ${incident.refCode} was ${body.status.toLowerCase()}: the custody job resumes its normal workflow.`,
+      })
+    }
+  }
 
   return ok({ incident: { id: updated.id, refCode: updated.refCode, status: updated.status, resolvedAt: updated.resolvedAt ? iso(updated.resolvedAt) : null } })
 })

@@ -71,6 +71,17 @@ export const POST = route(async (req: NextRequest) => {
     throw new ApiError(409, 'CATEGORY_NOT_OFFERED', `Add an active "${request.category.replaceAll('_', ' ').toLowerCase()}" service to your garage before quoting on this request.`)
   }
 
+  // Self-dealing guard: a garage cannot quote (or later auto-accept against)
+  // a service request created by its own team member — the customer-accepts
+  // flow assumes an independent customer.
+  const staffOnRequest = await db.orgMember.findFirst({
+    where: { orgId: org.id, userId: request.customerId },
+    select: { id: true },
+  })
+  if (staffOnRequest) {
+    throw new ApiError(409, 'OWN_REQUEST', 'This request was created by a member of your own team: it cannot be quoted by the same garage.')
+  }
+
   // One quote per org per request; upsert keeps our own quote current.
   const existing = await db.quote.findUnique({
     where: { requestId_orgId: { requestId: request.id, orgId: org.id } },

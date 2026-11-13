@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notify, notifyMany } from '@/lib/notify'
+import { getEntitlements, assertWithinLimit } from '@/lib/entitlements'
 
 // ───────────────────────── helpers ─────────────────────────
 
@@ -280,6 +281,22 @@ export const POST = route(async (req: NextRequest) => {
   const body = await parseBody(req, vehicleSchema)
   const memberOrgIds = await sellerOrgIds(user.id)
   const { orgId, sellerType } = resolveOrgInput(user.roles, body.orgId, memberOrgIds)
+
+  // Plan entitlement: dealer/garage listing limits are enforced SERVER-side
+  // from the seeded plan terms (entitlements.ts). An expired (PAST_DUE) or
+  // unsubscribed org falls back to the small free-tier limit — never unlimited.
+  // Private sellers (no orgId) are covered by the rate limit above.
+  if (orgId) {
+    const ent = await getEntitlements(orgId)
+    const currentListings = await db.vehicle.count({ where: { orgId } })
+    assertWithinLimit({
+      current: currentListings,
+      limit: ent.listingLimit,
+      label: 'Vehicle listings',
+      planName: ent.planName,
+      upgradeLink: '/account?tab=subscriptions',
+    })
+  }
 
   const vehicle = await db.vehicle.create({
     data: {

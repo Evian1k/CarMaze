@@ -26,20 +26,28 @@ export const GET = route(async (req: NextRequest) => {
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const yearStart = new Date(now.getFullYear(), 0, 1)
 
   // ── Business subscriptions ──
-  const [subsActive, subInvoicesAll, subInvoicesMonth] = await Promise.all([
+  // All money totals use SQL aggregates (never unbounded table scans — the
+  // ledger grows forever and this is a staff-facing hot endpoint).
+  const [subsActive, subPaidSum, subPaidMonthSum] = await Promise.all([
     db.subscription.findMany({ where: { status: 'ACTIVE' }, include: { org: { select: { type: true, name: true, county: true } } } }),
-    db.invoice.findMany({ where: { type: 'SUBSCRIPTION', status: 'PAID' } }),
-    db.invoice.findMany({ where: { type: 'SUBSCRIPTION', status: 'PAID', paidAt: { gte: monthStart } } }),
+    db.invoice.aggregate({ where: { type: 'SUBSCRIPTION', status: 'PAID' }, _sum: { amountMinor: true } }),
+    db.invoice.aggregate({ where: { type: 'SUBSCRIPTION', status: 'PAID', paidAt: { gte: monthStart } }, _sum: { amountMinor: true } }),
   ])
-  const mrr = subsActive.reduce((sum, s) => {
-    const plan = subInvoicesAll.filter((i) => i.orgId === s.orgId).sort((a, b) => (b.paidAt?.getTime() ?? 0) - (a.paidAt?.getTime() ?? 0))[0]
-    if (!plan) return sum
+  const subPaidTotalMinor = subPaidSum._sum.amountMinor ?? 0
+  const subPaidMonthMinor = subPaidMonthSum._sum.amountMinor ?? 0
+  // MRR: latest paid subscription invoice per active subscription (bounded:
+  // one indexed query per active sub — active subs are a small, finite set).
+  const mrr = (await Promise.all(subsActive.map(async (s) => {
+    const plan = await db.invoice.findFirst({
+      where: { orgId: s.orgId, type: 'SUBSCRIPTION', status: 'PAID' },
+      orderBy: { paidAt: 'desc' },
+    })
+    if (!plan) return 0
     const months = Math.max(1, plan.periodStart && plan.periodEnd ? Math.round((plan.periodEnd.getTime() - plan.periodStart.getTime()) / (30 * 24 * 3600 * 1000)) : 1)
-    return sum + Math.round(plan.amountMinor / months)
-  }, 0)
+    return Math.round(plan.amountMinor / months)
+  }))).reduce((a, b) => a + b, 0)
   const byAudience = { DEALER: 0, GARAGE: 0, SUPPLIER: 0 }
   for (const s of subsActive) {
     if (s.org.type === 'DEALER') byAudience.DEALER++
@@ -48,27 +56,33 @@ export const GET = route(async (req: NextRequest) => {
   }
 
   // ── Supply commissions (recorded at release; never supplier GMV) ──
-  const ordersMonth = await db.purchaseOrder.findMany({ where: { paymentStatus: { in: ['RELEASED', 'PARTIALLY_RELEASED'] }, updatedAt: { gte: monthStart } }, select: { platformFeeMinor: true, subtotalMinor: true } })
-  const allReleased = await db.purchaseOrder.findMany({ where: { paymentStatus: { in: ['RELEASED', 'PARTIALLY_RELEASED'] } }, select: { platformFeeMinor: true, subtotalMinor: true, updatedAt: true } })
-  const commissionTotal = allReleased.reduce((s, o) => s + o.platformFeeMinor, 0)
-  const commissionMonth = ordersMonth.reduce((s, o) => s + o.platformFeeMinor, 0)
-  const supplyGmv = allReleased.reduce((s, o) => s + o.subtotalMinor, 0)
+  const [commissionAllAgg, gmvAgg, releasedCount, commissionMonthAgg] = await Promise.all([
+    db.purchaseOrder.aggregate({ where: { paymentStatus: { in: ['RELEASED', 'PARTIALLY_RELEASED'] } }, _sum: { platformFeeMinor: true } }),
+    db.purchaseOrder.aggregate({ where: { paymentStatus: { in: ['RELEASED', 'PARTIALLY_RELEASED'] } }, _sum: { subtotalMinor: true } }),
+    db.purchaseOrder.count({ where: { paymentStatus: { in: ['RELEASED', 'PARTIALLY_RELEASED'] } } }),
+    db.purchaseOrder.aggregate({ where: { paymentStatus: { in: ['RELEASED', 'PARTIALLY_RELEASED'] }, updatedAt: { gte: monthStart } }, _sum: { platformFeeMinor: true } }),
+  ])
+  const commissionTotal = commissionAllAgg._sum.platformFeeMinor ?? 0
+  const commissionMonth = commissionMonthAgg._sum.platformFeeMinor ?? 0
+  const supplyGmv = gmvAgg._sum.subtotalMinor ?? 0
 
   // ── Promotions ──
-  const [campaignPaid, campaignPaidMonth] = await Promise.all([
-    db.invoice.findMany({ where: { type: 'CAMPAIGN', status: 'PAID' } }),
-    db.invoice.findMany({ where: { type: 'CAMPAIGN', status: 'PAID', paidAt: { gte: monthStart } } }),
+  const [campaignTotalAgg, campaignMonthAgg, campaignCount] = await Promise.all([
+    db.invoice.aggregate({ where: { type: 'CAMPAIGN', status: 'PAID' }, _sum: { amountMinor: true } }),
+    db.invoice.aggregate({ where: { type: 'CAMPAIGN', status: 'PAID', paidAt: { gte: monthStart } }, _sum: { amountMinor: true } }),
+    db.invoice.count({ where: { type: 'CAMPAIGN', status: 'PAID' } }),
   ])
-  const campaignTotal = campaignPaid.reduce((s, i) => s + i.amountMinor, 0)
+  const campaignTotal = campaignTotalAgg._sum.amountMinor ?? 0
+  const campaignMonthMinor = campaignMonthAgg._sum.amountMinor ?? 0
 
   // ── Memberships (gross to businesses + platform fee portion) ──
-  const membershipPaid = await db.invoice.findMany({ where: { type: 'MEMBERSHIP', status: 'PAID' } })
+  const membershipAgg = await db.invoice.aggregate({ where: { type: 'MEMBERSHIP', status: 'PAID' }, _sum: { amountMinor: true } })
   const fees = await getFees()
-  const membershipGross = membershipPaid.reduce((s, i) => s + i.amountMinor, 0)
+  const membershipGross = membershipAgg._sum.amountMinor ?? 0
   const membershipPlatformFee = Math.round(membershipGross * fees.membershipPlatformFeePct / 100)
 
-  const platformRevenueTotal = subInvoicesAll.reduce((s, i) => s + i.amountMinor, 0) + commissionTotal + campaignTotal + membershipPlatformFee
-  const platformRevenueMonth = subInvoicesMonth.reduce((s, i) => s + i.amountMinor, 0) + commissionMonth + campaignPaidMonth.reduce((s, i) => s + i.amountMinor, 0)
+  const platformRevenueTotal = subPaidTotalMinor + commissionTotal + campaignTotal + membershipPlatformFee
+  const platformRevenueMonth = subPaidMonthMinor + commissionMonth + campaignMonthMinor
 
   // ── Churn & trials ──
   const [cancelledSubs, pastDueSubs] = await Promise.all([
@@ -77,7 +91,7 @@ export const GET = route(async (req: NextRequest) => {
   ])
 
   // ── Failed renewals (overdue invoices) ──
-  const overdueInvoices = await db.invoice.findMany({ where: { type: { in: ['SUBSCRIPTION'] }, status: 'PENDING', dueDate: { lt: now } }, select: { refCode: true, amountMinor: true, dueDate: true, org: { select: { name: true, type: true } } } })
+  const overdueInvoices = await db.invoice.findMany({ where: { type: { in: ['SUBSCRIPTION'] }, status: 'PENDING', dueDate: { lt: now } }, select: { refCode: true, amountMinor: true, dueDate: true, org: { select: { name: true, type: true } } }, orderBy: { dueDate: 'asc' }, take: 100 })
 
   // ── Receivables ──
   const pendingInvoices = await db.invoice.aggregate({ where: { status: 'PENDING' }, _sum: { amountMinor: true }, _count: { amountMinor: true } })
@@ -106,9 +120,9 @@ export const GET = route(async (req: NextRequest) => {
       platformRevenueMonthMinor: platformRevenueMonth,
       arrMinor: mrr * 12,
       mrrMinor: mrr,
-      subscriptions: { activeCount: subsActive.length, byAudience, paidInvoiceTotalMinor: subInvoicesAll.reduce((s, i) => s + i.amountMinor, 0), monthMinor: subInvoicesMonth.reduce((s, i) => s + i.amountMinor, 0) },
-      commissions: { totalMinor: commissionTotal, monthMinor: commissionMonth, supplyGmvMinor: supplyGmv, releasedOrders: allReleased.length, note: 'Commission is platform revenue; GMV is supplier transaction value, never booked as platform revenue.' },
-      promotions: { totalMinor: campaignTotal, monthMinor: campaignPaidMonth.reduce((s, i) => s + i.amountMinor, 0), count: campaignPaid.length },
+      subscriptions: { activeCount: subsActive.length, byAudience, paidInvoiceTotalMinor: subPaidTotalMinor, monthMinor: subPaidMonthMinor },
+      commissions: { totalMinor: commissionTotal, monthMinor: commissionMonth, supplyGmvMinor: supplyGmv, releasedOrders: releasedCount, note: 'Commission is platform revenue; GMV is supplier transaction value, never booked as platform revenue.' },
+      promotions: { totalMinor: campaignTotal, monthMinor: campaignMonthMinor, count: campaignCount },
       memberships: { grossMinor: membershipGross, platformFeeMinor: membershipPlatformFee, feePct: fees.membershipPlatformFeePct, note: 'Membership fees belong to the businesses; only the platform fee is platform revenue.' },
     },
     retention: {
