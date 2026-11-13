@@ -424,3 +424,33 @@ external items above.
 - Multi-instance rate limiting store (only if horizontal scaling is chosen).
 - Malware scanning integration for public media uploads.
 - Configurable per-org enquiry SLA (currently fixed 24 h insight).
+
+---
+
+# 2026-11-13 — FINAL FOUNDER HANDOVER PASS (independent re-review)
+
+Triggered by the founder instruction to prepare a controlled launch and to re-review the 25 fixes rather than trust them.
+
+**Verdict unchanged: CONDITIONALLY READY.** The re-review CONFIRMED the audit's 25 fixes and found bypasses the audit missed; all were fixed this session. Docs: `CARMAZE_FOUNDER_PRODUCTION_HANDOVER.md` (founder runbook), `CARMAZE_DARAJA_PAYMENT_SETUP.md`, `CARMAZE_EMAIL_SMS_SETUP.md`, `CARMAZE_DATA_PROTECTION_COMPLIANCE.md`, updated `CARMAZE_DEPLOYMENT_GUIDE.md` + `CARMAZE_PRODUCTION_RELEASE_CHECKLIST.md` (addendum).
+
+## What the independent re-review found and fixed (all server-side, minimal diffs)
+
+1. HIGH — demo escrow reach: a public demo platform-admin session could release/inspect/dispute REAL purchase orders through the platform-staff bypass (`supply/orders/[id]/action`). Fixed: `demoStaffMutationGuard` + `isStaff && !isDemo`. Probed live: demo admin → release → 403.
+2. HIGH — refund-after-release double payout: re-inspection (PARTIAL with qtyAccepted 0) or a post-release dispute could queue a full refund on top of released funds; the finance cap counted only prior refunds. Fixed: inspect/dispute terminal once `paymentStatus ∈ RELEASED/REFUNDED` (dispute on remaining PARTIALLY_RELEASED escrow stays possible); finance `process-refund` cap now counts `refunded + released`; dispute resolutions cap the queued refund to the remaining escrow and record an honest note when nothing remains; escrow strip now applies to released authorizations too.
+3. HIGH — additional-work approval escape: org-side status detours (`INSPECTION` → `WORK_IN_PROGRESS`, straight `READY_FOR_COLLECTION`, road-test request) bypassed `AWAITING_APPROVAL`, and `overCap` ignored the stored cost. Fixed: AWAITING_APPROVAL is a full stop for every org transition; over-cap uses `body.costMinor ?? custody.costMinor`; road-test requests blocked while approval pending.
+4. HIGH — demo incident mutation: demo platform-support could resolve REAL incidents (flipping real custody `DISPUTED → WORK_IN_PROGRESS`). Fixed: `demoStaffMutationGuard` on status changes.
+5. MEDIUM — settlement reconcile/hold-release defeated dispute holds → blocked while the linked order has an OPEN/UNDER_REVIEW dispute.
+6. MEDIUM — demo PII reads: applications queue/detail, incidents queue, staff-view of real supply orders / customer orders / delivery jobs (otpHint, qrToken, POD, buyer phone) → `assertNotDemoStaffRead` everywhere; M-Pesa attempts ledger + query guarded (query could previously mutate attempt rows from a demo session).
+7. MEDIUM — application documents could point at PUBLIC media or external URLs → `PRIVATE_DOCUMENT_REQUIRED` enforcement on submit and resubmit.
+8. MEDIUM — demo POs could bind real suppliers → demo sessions restricted to demo supplier orgs.
+9. MEDIUM — suspended-org enforcement extended to 12 mutating routes (vehicles, staff invites, bookings, garage services, custody + collection, consumer orders, enquiries, test drives, offer withdraw, org profile, logistics job requests) with a new `ORG_SUSPENDED` error where the org row is loaded.
+10. MEDIUM — procurement self-dealing: supplier members of the REQUESTING garage could quote their own garage's RFQ → `OWN_REQUEST` guard mirrored from the customer side; demo suppliers restricted to demo requests.
+11. MEDIUM — stale escrow snapshot: fee changes were possible while an authorization was PENDING and pay retries reused the stale amount → fee frozen whenever a non-FAILED authorization exists; retry refreshes authorization + invoice to the current total (callback equality intact, collected funds never stranded).
+12. LOW — release settlement dedup (one `PO_RELEASE` settlement per order), copilot billing-gated listing-limit insight, offer accept narrowed to moderation-tier roles, custody cost fields redacted from non-management garage roles (+ `GM`/`BRANCH_MANAGER` aligned with the real garage role names), malformed record ids → 404 instead of 500.
+
+## Verification battery (this session)
+
+- Fresh-server suite: **119/119**. `bunx tsc --noEmit`: clean. `bun run lint`: clean.
+- `next build`: exit 0 (throwaway build-only AUTH_SECRET, never committed). Production smoke: `/ 200`, `/api/health` honest (`not_configured` for mpesa/b2c/email/sms), `/api/admin/users` anonymous → 401.
+- Git: working tree clean except runtime `db/custom.db`; secret scan (credential-pattern sweep over 774 tracked files): clean; `.env` tracked but contains only a local `DATABASE_URL` path (no secrets) — production deployments must replace it and keep real values out of git.
+- Targeted probes: demo admin blocked from escrow action/PO detail/incidents queue/applications queue/M-Pesa ledger (403 `DEMO_SANDBOXED`); demo-on-demo incident resolution still works (control); real FOUNDER unaffected (controls 200); malformed id → clean 404.

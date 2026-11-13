@@ -21,6 +21,13 @@ export async function createSettlementForRelease(params: {
   commissionMinor: number
   note?: string
 }): Promise<string> {
+  // Idempotency: release and settlement creation are not yet wrapped in a
+  // single transaction. Two near-simultaneous releases on the same order
+  // (or a retried request) must never create a second PENDING payout for
+  // money the supplier is only owed once — one PO_RELEASE settlement per
+  // order, ever.
+  const existing = await db.settlement.findFirst({ where: { orderId: params.orderId, kind: 'PO_RELEASE' } })
+  if (existing) return existing.id
   const settlement = await db.settlement.create({
     data: {
       refCode: refCode('STL', 6),

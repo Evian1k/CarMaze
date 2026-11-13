@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { route, ok, fail, parseBody, requireUser, getIp } from '@/lib/api'
+import { route, ok, fail, parseBody, requireUser, getIp, ApiError } from '@/lib/api'
 import { rateLimit } from '@/lib/rate-limit'
 import { refCode } from '@/lib/ids'
 import { notify, notifyMany } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 import { getSessionUser, hasRole, STAFF_ROLES } from '@/lib/auth'
+import { assertNotDemoStaffRead } from '@/lib/demo'
 
 const submitSchema = z.object({
   type: z.enum(['DEALER', 'GARAGE', 'SELLER', 'LOGISTICS']),
@@ -29,6 +30,19 @@ const submitSchema = z.object({
 
 const REVIEWABLE = ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'RESUBMITTED']
 
+/** Identity/business/insurance documents are private by contract: an
+ * application document MUST point at the private /api/files serving route —
+ * never the public /api/media store or an arbitrary external URL. Without
+ * this, a licence or insurance scan uploaded as an image could end up
+ * publicly fetchable. */
+function assertPrivateDocumentUrls(documents: { name: string; url: string }[], where: string): void {
+  for (const d of documents) {
+    if (!d.url.startsWith('/api/files/')) {
+      throw new ApiError(400, 'PRIVATE_DOCUMENT_REQUIRED', `${where}: "${d.name}" must be a private document upload (/api/files/…). Identity and compliance documents are never accepted from public media or external links.`)
+    }
+  }
+}
+
 async function reviewerIds(): Promise<string[]> {
   const staff = await db.user.findMany({
     where: { OR: [{ roles: { contains: 'REVIEWER' } }, { roles: { contains: 'ADMIN' } }, { roles: { contains: 'FOUNDER' } }], status: 'ACTIVE' },
@@ -44,6 +58,9 @@ export const GET = route(async (req: NextRequest) => {
 
   if (url.searchParams.get('scope') === 'queue') {
     if (!hasRole(user, ...STAFF_ROLES)) return fail(403, 'FORBIDDEN', 'Reviewer access required.')
+    // The review queue lists real applicants with their contact details —
+    // closed to demo sessions like the KYC document views.
+    assertNotDemoStaffRead(user, 'the partner application review queue')
     const apps = await db.application.findMany({
       where: { status: { in: REVIEWABLE } },
       orderBy: { submittedAt: 'asc' },
@@ -71,6 +88,10 @@ export const POST = route(async (req: NextRequest) => {
   if (!rl.allowed) return fail(429, 'RATE_LIMITED', 'Too many submissions. Please wait before trying again.')
 
   const body = await parseBody(req, submitSchema)
+  // Private-document contract: identity/business/insurance files must be
+  // private uploads (validated for both DRAFT and SUBMITTED — a draft can
+  // later be submitted without a second client pass).
+  if (body.documents.length > 0) assertPrivateDocumentUrls(body.documents, body.type === 'SELLER' ? 'Personal identity documents' : 'Application documents')
   if (body.status === 'SUBMITTED' && !body.consent) {
     return fail(400, 'CONSENT_REQUIRED', 'You must accept the terms and privacy notice.')
   }

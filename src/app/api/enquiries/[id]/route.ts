@@ -56,8 +56,9 @@ async function assertParticipant(
   if (enquiry.userId === userId) return 'CUSTOMER'
   if (enquiry.vehicle.ownerId === userId) return 'SELLER'
   if (enquiry.vehicle.orgId) {
+    // A suspended dealership's team does not act (reply) on enquiries.
     const membership = await db.orgMember.findFirst({
-      where: { orgId: enquiry.vehicle.orgId, userId },
+      where: { orgId: enquiry.vehicle.orgId, userId, org: { status: 'ACTIVE' } },
       select: { id: true },
     })
     if (membership) return 'SELLER'
@@ -130,7 +131,7 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
       return fail(400, 'NO_ORG', 'Private listings have no team to assign to.')
     }
     const manager = await db.orgMember.findFirst({
-      where: { orgId: enquiry.vehicle.orgId, userId: user.id, role: { in: ['OWNER', 'MANAGER'] } },
+      where: { orgId: enquiry.vehicle.orgId, userId: user.id, role: { in: ['OWNER', 'MANAGER'] }, org: { status: 'ACTIVE' } },
       select: { id: true },
     })
     if (!manager) {

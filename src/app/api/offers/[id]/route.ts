@@ -12,6 +12,14 @@ function isStaffRole(roles: string[]): boolean {
   return STAFF_ROLES.some((r) => roles.includes(r))
 }
 
+/** Listing moderation authority for accept/reject: platform staff may act on
+ * offers, but only the moderation-tier roles — SUPPORT/FINANCE are read-only
+ * elsewhere and must not reserve/sell vehicles platform-wide. */
+const OFFER_MODERATOR_ROLES = ['REVIEWER', 'MODERATOR', 'ADMIN', 'FOUNDER']
+function isOfferModerator(roles: string[]): boolean {
+  return OFFER_MODERATOR_ROLES.some((r) => roles.includes(r))
+}
+
 // ───────────────────────── PATCH /api/offers/[id] ─────────────────────────
 export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const { id } = await ctx.params
@@ -27,10 +35,10 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   })
   if (!offer) throw new ApiError(404, 'NOT_FOUND', 'Offer not found.')
 
-  // ── Withdraw: the offering dealer org (OWNER/MANAGER) ──
+  // ── Withdraw: the offering dealer org (OWNER/MANAGER of an ACTIVE org) ──
   if (action === 'withdraw') {
     const membership = await db.orgMember.findFirst({
-      where: { orgId: offer.orgId, userId: user.id, role: { in: ['OWNER', 'MANAGER'] } },
+      where: { orgId: offer.orgId, userId: user.id, role: { in: ['OWNER', 'MANAGER'] }, org: { status: 'ACTIVE' } },
       select: { id: true },
     })
     if (!membership) throw new ApiError(403, 'FORBIDDEN', 'Only the dealership that made this offer can withdraw it.')
@@ -48,8 +56,8 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     return ok({ offer: updated })
   }
 
-  // ── Accept / reject: the vehicle owner (or staff) ──
-  if (!isStaffRole(user.roles) && offer.vehicle.ownerId !== user.id) {
+  // ── Accept / reject: the vehicle owner (or listing-moderation staff) ──
+  if (!isOfferModerator(user.roles) && offer.vehicle.ownerId !== user.id) {
     throw new ApiError(403, 'FORBIDDEN', 'Only the seller can decide on this offer.')
   }
   if (offer.status !== 'PENDING') return fail(409, 'NOT_PENDING', `This offer was already ${offer.status.toLowerCase()}.`)

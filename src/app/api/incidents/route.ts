@@ -8,6 +8,7 @@ import { refCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notifyMany } from '@/lib/notify'
 import { staffUserIds } from '@/lib/orgs'
+import { assertNotDemoStaffRead } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
@@ -198,6 +199,9 @@ export const GET = route(async (req: NextRequest) => {
     if (!hasRole(user, ...STAFF_ROLES)) {
       throw new ApiError(403, 'FORBIDDEN', 'Only CARMAZE staff can view the incident queue.')
     }
+    // The queue surfaces real reporters' names and real business incidents —
+    // closed to demo sessions like every other real-PII staff view.
+    assertNotDemoStaffRead(user, 'the security incident queue')
     const incidents = await db.securityIncident.findMany({
       orderBy: [{ createdAt: 'desc' }],
       include: { reporter: { select: { name: true } } },

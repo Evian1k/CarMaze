@@ -217,8 +217,9 @@ export const GET = route(async (req: NextRequest) => {
     })
   }
 
-  // 7) Listing limit reached.
-  if (plan && activeListingCount >= plan.listingLimit) {
+  // 7) Listing limit reached — commercial plan terms stay billing-only
+  // (same visibility contract as the subscription/invoice insights above).
+  if (canSeeBilling && plan && activeListingCount >= plan.listingLimit) {
     insights.push({
       id: 'listing-limit',
       severity: 'urgent',

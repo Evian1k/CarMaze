@@ -8,6 +8,7 @@ import { sixDigitCode, shareId } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notify } from '@/lib/notify'
 import { rateLimit } from '@/lib/rate-limit'
+import { assertNotDemoStaffRead } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,6 +85,10 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   if (!isRequester && !isPartnerOwner && !isStaff) {
     throw new ApiError(403, 'FORBIDDEN', 'You cannot view this delivery.')
   }
+  // A REAL delivery's drop-off code, QR token and POD photos must never reach
+  // a demo session via the staff branch (demo deliveries are demo-owned and
+  // keep working through the requester path).
+  if (isStaff && !isRequester) assertNotDemoStaffRead(user, 'delivery verification details')
 
   const base = baseJob(job)
   if (isRequester || isStaff) {

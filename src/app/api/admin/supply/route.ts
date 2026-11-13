@@ -366,10 +366,20 @@ export const POST = route(async (req: NextRequest) => {
       })
       await db.disputeEvent.create({ data: { disputeId: dispute.id, type: 'RESOLUTION', actorId: user.id, actorName: user.name, note: `${body.resolution}: ${body.note}` } })
       if (body.resolution === 'REFUND_FULL' || body.resolution === 'REFUND_PARTIAL') {
-        const amount = body.resolution === 'REFUND_FULL' ? dispute.order.totalMinor : (body.refundAmountMinor ?? 0)
-        if (amount > 0) {
+        const requested = body.resolution === 'REFUND_FULL' ? dispute.order.totalMinor : (body.refundAmountMinor ?? 0)
+        const auth = await db.paymentAuthorization.findUnique({ where: { orderId: dispute.orderId! } })
+        // Financial integrity: a refund decision can only ever claim what has
+        // NOT already left the escrow. Funds already released to the supplier
+        // or refunded earlier are counted, so a released order can never have
+        // a full refund queued on top of the payout (double payout).
+        const alreadyOut = auth ? (auth.refundedAmountMinor ?? 0) + (auth.releasedAmountMinor ?? 0) : 0
+        const refundable = Math.max(0, (auth?.amountMinor ?? dispute.order.totalMinor) - alreadyOut)
+        const amount = Math.min(requested, refundable)
+        if (requested > 0 && amount <= 0) {
+          await db.disputeEvent.create({ data: { disputeId: dispute.id, type: 'NOTE', actorId: user.id, actorName: user.name, note: `No refund queued: funds for this order have already been released or refunded (${(alreadyOut / 100).toLocaleString()} of ${((auth?.amountMinor ?? dispute.order.totalMinor) / 100).toLocaleString()} KES). Any further compensation is a manual finance decision outside escrow.` } })
+        } else if (amount > 0) {
           await db.refund.create({
-            data: { refCode: refCode('RFD', 6), orderId: dispute.orderId!, paymentAuthId: (await db.paymentAuthorization.findUnique({ where: { orderId: dispute.orderId! } }))?.id, amountMinor: amount, kind: body.resolution === 'REFUND_FULL' ? 'FULL' : 'PARTIAL', reason: `Dispute ${dispute.refCode}: ${body.note.slice(0, 200)}`, status: 'REQUESTED', requestedById: user.id },
+            data: { refCode: refCode('RFD', 6), orderId: dispute.orderId!, paymentAuthId: auth?.id, amountMinor: amount, kind: body.resolution === 'REFUND_FULL' ? 'FULL' : 'PARTIAL', reason: `Dispute ${dispute.refCode}: ${body.note.slice(0, 200)}`, status: 'REQUESTED', requestedById: user.id },
           })
         }
         if (dispute.order.paymentStatus === 'PROTECTED') {
@@ -378,18 +388,21 @@ export const POST = route(async (req: NextRequest) => {
         // Financial integrity: a refund decision must remove the escrow value it
         // covers. FULL → the authorization can no longer be released against;
         // PARTIAL → the released amount is capped at the remaining escrow by the
-        // release gate (amountMinor − refundedAmountMinor). Without this, a
-        // garage could release protected funds AND keep a queued refund.
-        const auth = await db.paymentAuthorization.findUnique({ where: { orderId: dispute.orderId! } })
-        if (auth && amount > 0 && ['PROTECTED', 'PENDING'].includes(auth.status)) {
+        // release gate (amountMinor − refundedAmountMinor − releasedAmountMinor).
+        // Without this, a garage could release protected funds AND keep a queued refund.
+        if (auth && amount > 0) {
           const totalRefunded = Math.min(auth.amountMinor, (auth.refundedAmountMinor ?? 0) + amount)
+          const fullyConsumed = totalRefunded + (auth.releasedAmountMinor ?? 0) >= auth.amountMinor
           await db.paymentAuthorization.update({
             where: { id: auth.id },
             data: {
               refundedAmountMinor: totalRefunded,
-              ...(body.resolution === 'REFUND_FULL' && totalRefunded >= auth.amountMinor ? { status: 'REFUNDED' } : {}),
+              ...(body.resolution === 'REFUND_FULL' && fullyConsumed ? { status: 'REFUNDED' } : {}),
             },
           })
+          if (fullyConsumed && dispute.order.paymentStatus !== 'PROTECTED') {
+            await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { paymentStatus: 'REFUNDED' } })
+          }
         }
       }
       await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { status: body.resolution === 'REJECTED' ? 'COMPLETED' : 'INSPECTED' } })
@@ -435,8 +448,13 @@ export const POST = route(async (req: NextRequest) => {
         return fail(400, 'PROVIDER_REF_REQUIRED', 'Recording a refund as PROCESSED requires the external provider reference of the actual reversal.')
       }
       const auth = await db.paymentAuthorization.findUnique({ where: { orderId: refund.orderId } })
-      if (body.decision === 'PROCESSED' && auth && (auth.refundedAmountMinor ?? 0) + refund.amountMinor > auth.amountMinor) {
-        return fail(409, 'REFUND_EXCEEDS_PAYMENT', `Refund of ${(refund.amountMinor / 100).toLocaleString()} KES would exceed the ${(auth.amountMinor / 100).toLocaleString()} KES collected for this order.`)
+      // Money integrity: PROCESSED states money left the platform. The cap
+      // counts EVERYTHING that has already left the escrow — refunds recorded
+      // earlier AND proceeds released to the supplier — so the combination of
+      // a release and a refund can never exceed what was actually collected.
+      if (body.decision === 'PROCESSED' && auth && (auth.refundedAmountMinor ?? 0) + (auth.releasedAmountMinor ?? 0) + refund.amountMinor > auth.amountMinor) {
+        const out = (auth.refundedAmountMinor ?? 0) + (auth.releasedAmountMinor ?? 0)
+        return fail(409, 'REFUND_EXCEEDS_PAYMENT', `Refund of ${(refund.amountMinor / 100).toLocaleString()} KES would exceed the ${(auth.amountMinor / 100).toLocaleString()} KES collected for this order — ${(out / 100).toLocaleString()} KES has already been released to the supplier or refunded.`)
       }
       await db.refund.update({
         where: { id: refund.id },

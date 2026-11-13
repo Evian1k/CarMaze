@@ -12,6 +12,7 @@ import { SERVICE_CATEGORIES } from '@/lib/format'
 async function requireGarageAdmin(userId: string, orgId: string) {
   const org = await db.org.findUnique({ where: { id: orgId } })
   if (!org || org.type !== 'GARAGE') throw new ApiError(404, 'NOT_FOUND', 'Garage not found.')
+  if (org.status !== 'ACTIVE') throw new ApiError(403, 'ORG_SUSPENDED', 'This garage account is currently suspended. Service management is unavailable.')
   const membership = await db.orgMember.findFirst({
     where: { orgId, userId, role: { in: ['OWNER', 'MANAGER'] } },
   })

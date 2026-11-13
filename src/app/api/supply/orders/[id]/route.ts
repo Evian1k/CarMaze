@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { route, ok, fail } from '@/lib/api'
 import { getMembership } from '@/lib/orgs'
 import { jsonParse } from '@/lib/supply'
+import { assertNotDemoStaffRead } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,10 +39,14 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
 
   const membership = await getMembership(order.garageOrgId, user.id)
   const supplierMembership = await getMembership(order.supplierOrgId, user.id)
-  const isStaff = user.roles.some((r) => ['SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER'].includes(r))
+  const isStaff = !user.isDemo && user.roles.some((r) => ['SUPPORT', 'REVIEWER', 'MODERATOR', 'FINANCE', 'ADMIN', 'FOUNDER'].includes(r))
   if (!membership && !supplierMembership && !isStaff) {
     return fail(403, 'FORBIDDEN', 'You are not authorised to view this order.')
   }
+  // A demo staff session reaching a REAL order only via the platform-staff
+  // branch must be blocked: the payload carries payment, commission and
+  // OTP-hint data for real procurement.
+  if (!membership && !supplierMembership) assertNotDemoStaffRead(user, 'purchase order records')
 
   const side = supplierMembership ? 'SUPPLIER' : 'GARAGE'
   const viewerRole = side === 'SUPPLIER' ? supplierMembership?.role ?? '' : membership?.role ?? ''

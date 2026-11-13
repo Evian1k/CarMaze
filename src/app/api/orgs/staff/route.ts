@@ -30,6 +30,10 @@ async function requireMember(orgId: string, userId: string, roles: string[]) {
   if (!membership || membership.org.type !== 'DEALER') {
     throw new ApiError(404, 'NOT_FOUND', 'Dealership not found for your account.')
   }
+  // A suspended dealership cannot manage staff (seat changes, invites).
+  if (membership.org.status !== 'ACTIVE') {
+    throw new ApiError(403, 'ORG_SUSPENDED', 'This dealership account is currently suspended. Staff management is unavailable.')
+  }
   if (!roles.includes(membership.role)) {
     throw new ApiError(403, 'FORBIDDEN', 'Only the dealership owner or a manager can manage staff.')
   }

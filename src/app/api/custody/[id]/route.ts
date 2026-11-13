@@ -44,10 +44,16 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   const custody = await loadCustody(id)
 
   const isCustomer = custody.customerId === user.id
+  let orgRole: string | null = null
   if (!isCustomer) {
     const membership = await db.orgMember.findFirst({ where: { orgId: custody.orgId, userId: user.id } })
     if (!membership) throw new ApiError(403, 'FORBIDDEN', 'You are not part of this custody record.')
+    orgRole = membership.role
   }
+  // Money confidentiality: final cost and the authorised-spend cap are the
+  // customer's and the garage's commercial data — visible to the customer and
+  // to garage OWNER/GM management, not to every technician/mechanic role.
+  const canSeeCost = isCustomer || ['OWNER', 'GM', 'BRANCH_MANAGER', 'MANAGER'].includes(orgRole ?? '')
 
   return ok({
     custody: {
@@ -66,7 +72,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
       photos: parseJson<string[]>(custody.photos, []),
       valuables: custody.valuables,
       requestedWork: custody.requestedWork,
-      authorisedSpendMinor: custody.authorisedSpendMinor,
+      authorisedSpendMinor: canSeeCost ? custody.authorisedSpendMinor : null,
       roadTestAllowed: custody.roadTestAllowed,
       status: custody.status,
       receivedAt: custody.receivedAt ? iso(custody.receivedAt) : null,
@@ -76,7 +82,7 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
       finalOdometerKm: custody.finalOdometerKm,
       finalNotes: custody.finalNotes,
       completionPhotos: parseJson<string[]>(custody.completionPhotos, []),
-      costMinor: custody.costMinor,
+      costMinor: canSeeCost ? custody.costMinor : null,
       collectedAt: custody.collectedAt ? iso(custody.collectedAt) : null,
       collectedByName: custody.collectedByName,
       returnedAt: custody.returnedAt ? iso(custody.returnedAt) : null,
@@ -175,7 +181,9 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   const custody = await loadCustody(id)
 
   const isCustomer = custody.customerId === user.id
-  const membership = isCustomer ? null : await db.orgMember.findFirst({ where: { orgId: custody.orgId, userId: user.id } })
+  // Org-side actions require an ACTIVE org: a suspended garage's team can
+  // no longer move custody states (receive, progress, collect).
+  const membership = isCustomer ? null : await db.orgMember.findFirst({ where: { orgId: custody.orgId, userId: user.id, org: { status: 'ACTIVE' } } })
   if (!isCustomer && !membership) throw new ApiError(403, 'FORBIDDEN', 'You are not part of this custody record.')
 
   const requireOrg = () => {
@@ -238,20 +246,27 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
         invalid(`Cannot change status while the custody record is ${custody.status}.`)
       }
       // Money authorisation integrity: cost figures are OWNER/MANAGER data.
-      if (body.costMinor !== undefined && !['OWNER', 'MANAGER'].includes(membership?.role ?? '')) {
+      if (body.costMinor !== undefined && !['OWNER', 'GM', 'BRANCH_MANAGER', 'MANAGER'].includes(membership?.role ?? '')) {
         throw new ApiError(403, 'PERMISSION_DENIED', 'Recording the final cost requires an owner or manager account.')
       }
-      // Additional-work approval (customer protection): work beyond the
-      // customer's authorised spend cap requires the customer's explicit
-      // approval before work proceeds. The garage cannot self-proceed past
-      // AWAITING_APPROVAL, and an over-cap cost forces the approval step.
+      // Additional-work approval (customer protection): while an approval is
+      // pending, the ONLY way out of AWAITING_APPROVAL is the customer's own
+      // approve-work / decline-work action. Every org-side route out (a
+      // status detour via INSPECTION/ROAD_TEST_REQUESTED, or a jump straight
+      // to READY_FOR_COLLECTION) previously bypassed the approval — all are
+      // now blocked until the customer decides.
+      if (custody.status === 'AWAITING_APPROVAL') {
+        invalid('Work beyond the authorised spend cap is awaiting the customer\'s approval. The customer must approve (or decline) it from their Vehicle Protection page before any further progress is recorded.')
+      }
+      // The over-cap check considers the cost that WILL be on record — the
+      // incoming one when given, otherwise the already-stored cost — so a
+      // follow-up transition without a cost field cannot dodge the cap.
+      const effectiveCost = body.costMinor !== undefined ? body.costMinor : custody.costMinor
       const overCap =
         custody.authorisedSpendMinor != null &&
-        body.costMinor !== undefined &&
-        body.costMinor > custody.authorisedSpendMinor
-      if (custody.status === 'AWAITING_APPROVAL' && body.status === 'WORK_IN_PROGRESS') {
-        invalid('Work beyond the authorised spend cap is awaiting the customer\'s approval. The customer must approve (or decline) it from their Vehicle Protection page before work resumes.')
-      }
+        effectiveCost !== null &&
+        effectiveCost !== undefined &&
+        effectiveCost > custody.authorisedSpendMinor
       if (overCap && (body.status === 'WORK_IN_PROGRESS' || body.status === 'READY_FOR_COLLECTION')) {
         await db.$transaction([
           db.vehicleCustody.update({ where: { id }, data: { status: 'AWAITING_APPROVAL', costMinor: body.costMinor } }),
@@ -333,6 +348,9 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     // ─────────────────────── ORG: request-roadtest ───────────────────────
     case 'request-roadtest': {
       requireOrg()
+      if (custody.status === 'AWAITING_APPROVAL') {
+        invalid('This job is awaiting the customer\'s approval on additional work: no road test can be requested until the customer approves or declines it.')
+      }
       if (!(WORK_STATUSES as readonly string[]).includes(custody.status)) {
         invalid('A road test can only be requested while the vehicle is under inspection or work.')
       }

@@ -106,9 +106,12 @@ export const POST = route(async (req: NextRequest) => {
   if (!branch) return fail(400, 'BAD_BRANCH', 'Choose a valid destination branch for the delivery.')
 
   // group items per supplier
+  // Demo isolation: a demo garage's purchase orders may only bind to demo
+  // suppliers — without this a demo session planted real PO rows in a real
+  // supplier's queue.
   const productIds = body.items.map((i) => i.productId)
   const products = await db.product.findMany({
-    where: { id: { in: productIds }, status: 'PUBLISHED', supplier: { type: 'SUPPLIER', status: 'ACTIVE', verified: true } },
+    where: { id: { in: productIds }, status: 'PUBLISHED', supplier: { type: 'SUPPLIER', status: 'ACTIVE', verified: true, ...(user.isDemo ? { isDemo: true } : {}) } },
     include: { stocks: { include: { branch: { select: { id: true, status: true } } } } },
   })
   if (products.length !== new Set(productIds).size) {

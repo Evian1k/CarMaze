@@ -8,6 +8,7 @@ import { refCode, sixDigitCode } from '@/lib/ids'
 import { notify, notifyMany } from '@/lib/notify'
 import { audit } from '@/lib/audit'
 import { rateLimit } from '@/lib/rate-limit'
+import { assertNotDemoStaffRead } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,6 +83,9 @@ export const GET = route<Ctx>(async (_req: NextRequest, ctx: Ctx) => {
   if (!isBuyer && !isStaff && !supplierMembership) {
     return fail(403, 'FORBIDDEN', 'You are not authorised to view this order.')
   }
+  // Staff view of a REAL customer order exposes the buyer's phone/address —
+  // closed to demo sessions.
+  if (isStaff && !isBuyer) assertNotDemoStaffRead(user, 'customer order records')
 
   return ok({
     side: isBuyer ? 'BUYER' : isStaff ? 'STAFF' : 'SUPPLIER',
@@ -188,7 +192,8 @@ export const POST = route<Ctx>(async (req: NextRequest, ctx: Ctx) => {
   if (!order) return fail(404, 'NOT_FOUND', 'Order not found.')
 
   const isBuyer = order.buyerUserId === user.id
-  const supplierMembership = await db.orgMember.findFirst({ where: { orgId: order.supplierOrgId, userId: user.id } })
+  // Supplier fulfilment actions require an ACTIVE supplier org.
+  const supplierMembership = await db.orgMember.findFirst({ where: { orgId: order.supplierOrgId, userId: user.id, org: { status: 'ACTIVE' } } })
 
   // Authorisation: supplier actions need membership of order.supplierOrgId
   // AND a fulfilment-capable role (mirrors the supply role matrix

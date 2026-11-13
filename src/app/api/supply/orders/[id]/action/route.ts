@@ -8,6 +8,7 @@ import { refCode, shareId, sixDigitCode } from '@/lib/ids'
 import { audit } from '@/lib/audit'
 import { notify, notifyMany } from '@/lib/notify'
 import { getMembership } from '@/lib/orgs'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import {
   requireOrgMember, roleCan, poEvent, deliveryEvent,
   releaseReservation, fulfillStock, computeCommission, getFees, jsonParse,
@@ -106,10 +107,17 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   })
   if (!order) return fail(404, 'NOT_FOUND', 'Order not found.')
 
+  // Demo isolation: a demo session may only act on orders owned by the demo
+  // ecosystem (verified from the database, never from client input). Without
+  // this guard a public demo platform-admin could release, inspect or dispute
+  // REAL escrow-protected purchase orders via the platform-staff bypass.
+  await demoStaffMutationGuard(user, { subjectOrgId: order.garageOrgId })
+
   // resolve side + membership
   const garageMember = await getMembership(order.garageOrgId, user.id)
   const supplierMember = await getMembership(order.supplierOrgId, user.id)
-  const isStaff = user.roles.some((r) => ['FINANCE', 'ADMIN', 'FOUNDER'].includes(r))
+  // Demo accounts never exercise the platform-staff bypass, even on demo data.
+  const isStaff = !user.isDemo && user.roles.some((r) => ['FINANCE', 'ADMIN', 'FOUNDER'].includes(r))
   if (!garageMember && !supplierMember && !isStaff) return fail(403, 'FORBIDDEN', 'You are not authorised on this order.')
   const side: 'GARAGE' | 'SUPPLIER' = supplierMember ? 'SUPPLIER' : 'GARAGE'
   // Platform FINANCE/ADMIN/FOUNDER with no membership on either org are legitimate
@@ -251,10 +259,13 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
         return fail(409, 'INVALID_STATE', `Delivery is arranged after acceptance (current: ${order.status}).`)
       }
       const method = body.method
-      // Money integrity: once payment is moving (PROCESSING/PROTECTED) the
-      // delivery fee can no longer change the escrowed total — a late fee
-      // bump must not create payout value above what was actually collected.
-      const feeFrozen = !!order.payment && ['PROCESSING', 'PROTECTED'].includes(order.payment.status)
+      // Money integrity: once a payment authorization exists (PENDING,
+      // PROCESSING or PROTECTED) the delivery fee can no longer change the
+      // escrowed total. A late fee bump would otherwise make the provider
+      // charge a total that no longer matches the authorization snapshot,
+      // stranding collected funds outside protection. Re-arranging after a
+      // FAILED authorization is still possible.
+      const feeFrozen = !!order.payment && order.payment.status !== 'FAILED'
       const deliveryFee = feeFrozen ? (order.delivery?.feeMinor ?? order.deliveryFeeMinor) : body.feeMinor
       let supplierBranchId: string | null = order.delivery?.supplierBranchId ?? null
       let meetupJson: string | null = order.delivery?.meetupJson ?? null
@@ -431,6 +442,12 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       if (side !== 'GARAGE') return fail(403, 'PERMISSION_DENIED', 'Only the receiving garage inspects.')
       const delivery = order.delivery
       if (!delivery || delivery.status !== 'DELIVERED') return fail(409, 'INVALID_STATE', 'Inspection opens after verified handover.')
+      // Financial integrity: inspection is closed once money has moved. A
+      // re-inspection after release/reset would mint a fresh refund claim on
+      // top of funds already paid out to the supplier (double payout).
+      if (['RELEASED', 'PARTIALLY_RELEASED', 'REFUNDED'].includes(order.paymentStatus) || order.status === 'COMPLETED') {
+        return fail(409, 'PAYMENT_FINALISED', 'Funds for this order have already been released or refunded. Corrections after release go through platform finance, not a new inspection.')
+      }
       const items = await db.pOItem.findMany({ where: { orderId: id } })
       const acceptedMap = new Map(body.items.map((i) => [i.itemId, i]))
 
@@ -537,6 +554,14 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     case 'dispute': {
       const existing = await db.dispute.findFirst({ where: { orderId: id, status: { in: ['OPEN', 'UNDER_REVIEW'] } } })
       if (existing) return fail(409, 'DISPUTE_EXISTS', 'An open dispute already exists for this order.')
+      // Financial integrity: once funds are fully released (or refunded) the
+      // escrow is gone — a later dispute could queue a refund on top of money
+      // already paid to the supplier. Disputes on the remaining escrow of a
+      // PARTIALLY_RELEASED order stay possible; the finance refund cap below
+      // counts released funds.
+      if (['RELEASED', 'REFUNDED'].includes(order.paymentStatus)) {
+        return fail(409, 'PAYMENT_FINALISED', 'Payment for this order has already been released or refunded. Post-release complaints go through platform finance and incidents, not a new escrow dispute.')
+      }
       const disputed = order.paymentStatus === 'PROTECTED' || order.paymentStatus === 'PARTIALLY_RELEASED'
       const dispute = await db.dispute.create({
         data: {

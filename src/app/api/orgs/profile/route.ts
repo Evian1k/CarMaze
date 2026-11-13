@@ -32,6 +32,10 @@ export const PATCH = route(async (req: NextRequest) => {
   if (!membership || membership.org.type !== 'DEALER') {
     throw new ApiError(404, 'NOT_FOUND', 'Dealership not found for your account.')
   }
+  // A suspended dealership's profile is frozen (moderation control).
+  if (membership.org.status !== 'ACTIVE') {
+    throw new ApiError(403, 'ORG_SUSPENDED', 'This dealership account is currently suspended. Profile edits are unavailable.')
+  }
   if (!['OWNER', 'MANAGER'].includes(membership.role)) {
     throw new ApiError(403, 'FORBIDDEN', 'Only the dealership owner or a manager can edit the profile.')
   }

@@ -26,8 +26,11 @@ async function canManageVehicle(userId: string, roles: string[], vehicle: { owne
   if (vehicle.ownerId === userId) return true
   if (isModeratorRole(roles)) return true
   if (!vehicle.orgId) return false
+  // Tenant integrity: an org-side manager can only act while the org itself
+  // is ACTIVE (suspended dealerships lose write access, mirroring
+  // getMembership/requireOrgMember).
   const membership = await db.orgMember.findFirst({
-    where: { orgId: vehicle.orgId, userId, role: { in: ['OWNER', 'MANAGER', 'SALES'] } },
+    where: { orgId: vehicle.orgId, userId, role: { in: ['OWNER', 'MANAGER', 'SALES'] }, org: { status: 'ACTIVE' } },
     select: { id: true },
   })
   return Boolean(membership)

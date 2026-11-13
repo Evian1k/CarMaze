@@ -1,0 +1,462 @@
+     1→import { NextRequest } from 'next/server'
+     2→import { z } from 'zod'
+     3→import { db } from '@/lib/db'
+     4→import { route, ok, fail, parseBody, requireRole } from '@/lib/api'
+     5→import { ROLE, hasRole } from '@/lib/auth'
+     6→import { refCode } from '@/lib/ids'
+     7→import { audit } from '@/lib/audit'
+     8→import { notify, notifyMany } from '@/lib/notify'
+     9→import { staffUserIds } from '@/lib/orgs'
+    10→import { jsonParse, getFees, poEvent } from '@/lib/supply'
+    11→import { assertDemoResourceGuard } from '@/lib/demo'
+    12→
+    13→export const dynamic = 'force-dynamic'
+    14→
+    15→/**
+    16→ * GET /api/admin/supply: platform staff console for the Automotive Supply
+    17→ * Network: supplier applications, verification queue, product moderation,
+    18→ * counterfeit reports, disputes, order/payment monitoring, low-risk scores.
+    19→ */
+    20→export const GET = route(async (req: NextRequest) => {
+    21→  const user = await requireRole(ROLE.SUPPORT, ROLE.REVIEWER, ROLE.MODERATOR, ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
+    22→  const sp = req.nextUrl.searchParams
+    23→
+    24→  const [applications, suppliers, pendingProducts, disputedOrders, openDisputes, recentOrders, counterfeitReports, refunds] = await Promise.all([
+    25→    db.application.findMany({
+    26→      where: { type: 'SUPPLIER', status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'RESUBMITTED'] } },
+    27→      include: { user: { select: { name: true, email: true } } },
+    28→      orderBy: { submittedAt: 'asc' },
+    29→      take: 50,
+    30→    }),
+    31→    db.org.findMany({
+    32→      where: { type: 'SUPPLIER', status: 'ACTIVE' },
+    33→      select: {
+    34→        id: true, name: true, regNo: true, county: true, verified: true, supplierRiskScore: true, createdAt: true, status: true,
+    35→        _count: { select: { products: true, branches: true, poAsSupplier: true, reviews: true } },
+    36→        subscription: { select: { planCode: true, status: true, currentPeriodEnd: true } },
+    37→      },
+    38→      orderBy: { createdAt: 'desc' },
+    39→      take: 100,
+    40→    }),
+    41→    db.product.findMany({
+    42→      where: { status: 'PUBLISHED', authenticityVerified: false },
+    43→      select: { id: true, refCode: true, name: true, sku: true, brand: true, provenance: true, createdAt: true, supplier: { select: { id: true, name: true, verified: true } } },
+    44→      orderBy: { createdAt: 'desc' },
+    45→      take: 40,
+    46→    }),
+    47→    db.purchaseOrder.findMany({
+    48→      where: { status: 'DISPUTED' },
+    49→      select: { id: true, refCode: true, totalMinor: true, paymentStatus: true, updatedAt: true, garage: { select: { name: true } }, supplier: { select: { name: true } }, disputes: { where: { status: { in: ['OPEN', 'UNDER_REVIEW'] } }, select: { refCode: true, reason: true, amountFrozenMinor: true } } },
+    50→      orderBy: { updatedAt: 'desc' },
+    51→      take: 30,
+    52→    }),
+    53→    db.dispute.findMany({
+    54→      where: { status: { in: ['OPEN', 'UNDER_REVIEW'] } },
+    55→      include: {
+    56→        order: { select: { refCode: true, totalMinor: true, paymentStatus: true, garage: { select: { name: true } }, supplier: { select: { name: true } } } },
+    57→        customerOrder: { select: { refCode: true, totalMinor: true, paymentStatus: true, status: true, buyer: { select: { name: true } }, supplier: { select: { name: true } }, invoice: { select: { refCode: true, status: true } } } },
+    58→        events: { orderBy: { createdAt: 'asc' } },
+    59→      },
+    60→      orderBy: { createdAt: 'desc' },
+    61→      take: 30,
+    62→    }),
+    63→    db.purchaseOrder.findMany({
+    64→      where: sp.get('orders') === 'all' ? {} : { status: { in: ['SUBMITTED', 'AWAITING_APPROVAL', 'CONFIRMED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'INSPECTED'] } },
+    65→      select: { id: true, refCode: true, status: true, paymentStatus: true, totalMinor: true, createdAt: true, garage: { select: { name: true } }, supplier: { select: { name: true } } },
+    66→      orderBy: { createdAt: 'desc' },
+    67→      take: 40,
+    68→    }),
+    69→    db.securityIncident.count({ where: { category: 'OTHER', status: { in: ['OPEN', 'UNDER_REVIEW'] } } }).catch(() => 0),
+    70→    db.refund.findMany({
+    71→      where: { status: { in: ['REQUESTED', 'APPROVED'] } },
+    72→      include: { order: { select: { refCode: true, totalMinor: true, paymentStatus: true } } },
+    73→      orderBy: { createdAt: 'desc' },
+    74→      take: 30,
+    75→    }),
+    76→  ])
+    77→
+    78→  // DEMO SANDBOX: applicant contact details (email) are real personal data the
+    79→  // demo catalog promises to hide — strip them for demo staff viewers.
+    80→  return ok({
+    81→    applications: applications.map((a) => ({
+    82→      ...a,
+    83→      documents: jsonParse<{ name: string; url: string }[]>(a.documents, []),
+    84→      user: user.isDemo && a.user ? { ...a.user, email: null } : a.user,
+    85→    })),
+    86→    suppliers,
+    87→    pendingProducts,
+    88→    disputedOrders,
+    89→    openDisputes,
+    90→    recentOrders,
+    91→    refundQueue: refunds,
+    92→    counterfeitSignalCount: counterfeitReports,
+    93→  })
+    94→})
+    95→
+    96→const actionSchema = z.discriminatedUnion('action', [
+    97→  // supplier verification: never automatic
+    98→  z.object({ action: z.literal('verify-supplier'), orgId: z.string().min(1), note: z.string().max(500).optional() }),
+    99→  z.object({ action: z.literal('unverify-supplier'), orgId: z.string().min(1), note: z.string().max(500) }),
+   100→  z.object({ action: z.literal('suspend-supplier'), orgId: z.string().min(1), note: z.string().max(500) }),
+   101→  z.object({ action: z.literal('restore-supplier'), orgId: z.string().min(1), note: z.string().max(500).optional() }),
+   102→  z.object({ action: z.literal('risk-score'), orgId: z.string().min(1), score: z.number().int().min(0).max(100), note: z.string().max(300) }),
+   103→  // supplier application decisions
+   104→  z.object({ action: z.literal('approve-application'), applicationId: z.string().min(1), note: z.string().max(500).optional() }),
+   105→  z.object({ action: z.literal('reject-application'), applicationId: z.string().min(1), note: z.string().max(500) }),
+   106→  // product moderation & authenticity (independent from business verification)
+   107→  z.object({ action: z.literal('verify-authenticity'), productId: z.string().min(1), note: z.string().max(500) }),
+   108→  z.object({ action: z.literal('revoke-authenticity'), productId: z.string().min(1), note: z.string().max(500) }),
+   109→  z.object({ action: z.literal('suspend-product'), productId: z.string().min(1), note: z.string().max(500) }),
+   110→  z.object({ action: z.literal('republish-product'), productId: z.string().min(1), note: z.string().max(300).optional() }),
+   111→  // disputes
+   112→  z.object({ action: z.literal('dispute-note'), disputeId: z.string().min(1), note: z.string().max(1000) }),
+   113→  z.object({ action: z.literal('dispute-status'), disputeId: z.string().min(1), status: z.enum(['UNDER_REVIEW', 'OPEN']) }),
+   114→  z.object({
+   115→    action: z.literal('resolve-dispute'),
+   116→    disputeId: z.string().min(1),
+   117→    resolution: z.enum(['REFUND_FULL', 'REFUND_PARTIAL', 'REPLACEMENT', 'REJECTED']),
+   118→    note: z.string().max(1000),
+   119→    refundAmountMinor: z.number().int().min(0).optional(),
+   120→  }),
+   121→  // payments
+   122→  z.object({ action: z.literal('reconcile-payment'), orderId: z.string().min(1), providerRef: z.string().min(3).max(80), note: z.string().max(300).optional() }),
+   123→  z.object({ action: z.literal('process-refund'), refundId: z.string().min(1), decision: z.enum(['APPROVED', 'PROCESSED', 'REJECTED']), providerRef: z.string().max(80).optional(), note: z.string().max(300).optional() }),
+   124→])
+   125→
+   126→/** Resolve the demo-ecosystem subject of a supply-console action from the
+   127→ * database (owner user or owning org). Returns null when the record does not
+   128→ * exist: demo sessions are then blocked rather than trusted. */
+   129→async function supplyActionSubject(body: { action: string; orgId?: string; applicationId?: string; productId?: string; disputeId?: string; orderId?: string; refundId?: string }): Promise<{ ownerId?: string | null; orgId?: string | null } | null> {
+   130→  switch (body.action) {
+   131→    case 'verify-supplier':
+   132→    case 'unverify-supplier':
+   133→    case 'suspend-supplier':
+   134→    case 'restore-supplier':
+   135→    case 'risk-score':
+   136→      return { orgId: body.orgId ?? null }
+   137→    case 'approve-application':
+   138→    case 'reject-application': {
+   139→      const app = body.applicationId ? await db.application.findUnique({ where: { id: body.applicationId }, select: { userId: true } }) : null
+   140→      return app ? { ownerId: app.userId } : null
+   141→    }
+   142→    case 'verify-authenticity':
+   143→    case 'revoke-authenticity':
+   144→    case 'suspend-product':
+   145→    case 'republish-product': {
+   146→      const product = body.productId ? await db.product.findUnique({ where: { id: body.productId }, select: { supplierOrgId: true } }) : null
+   147→      return product ? { orgId: product.supplierOrgId } : null
+   148→    }
+   149→    case 'dispute-note':
+   150→    case 'dispute-status':
+   151→    case 'resolve-dispute': {
+   152→      const dispute = body.disputeId ? await db.dispute.findUnique({ where: { id: body.disputeId }, select: { orderId: true, customerOrderId: true, order: { select: { garageOrgId: true, supplierOrgId: true } }, customerOrder: { select: { buyerUserId: true, supplierOrgId: true } } } }) : null
+   153→      if (!dispute) return null
+   154→      if (dispute.order) return { orgId: dispute.order.garageOrgId || dispute.order.supplierOrgId }
+   155→      if (dispute.customerOrder) return { ownerId: dispute.customerOrder.buyerUserId, orgId: dispute.customerOrder.supplierOrgId }
+   156→      return null
+   157→    }
+   158→    case 'reconcile-payment': {
+   159→      const order = body.orderId ? await db.purchaseOrder.findUnique({ where: { id: body.orderId }, select: { garageOrgId: true, supplierOrgId: true } }) : null
+   160→      return order ? { orgId: order.garageOrgId || order.supplierOrgId } : null
+   161→    }
+   162→    case 'process-refund': {
+   163→      const refund = body.refundId ? await db.refund.findUnique({ where: { id: body.refundId }, include: { order: { select: { garageOrgId: true, supplierOrgId: true } } } }) : null
+   164→      return refund?.order ? { orgId: refund.order.garageOrgId || refund.order.supplierOrgId } : null
+   165→    }
+   166→    default:
+   167→      return null
+   168→  }
+   169→}
+   170→
+   171→/** POST: all sensitive actions are logged to the audit trail. */
+   172→export const POST = route(async (req: NextRequest) => {
+   173→  const user = await requireRole(ROLE.SUPPORT, ROLE.REVIEWER, ROLE.MODERATOR, ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)
+   174→  const body = await parseBody(req, actionSchema)
+   175→  const staffSide = 'ADMIN' as const
+   176→
+   177→  // FINANCE SPLIT: reconciling a payment marks an invoice PAID and processing
+   178→  // a refund moves money state: restricted to FINANCE/ADMIN/FOUNDER instead
+   179→  // of every staff role.
+   180→  if ((body.action === 'reconcile-payment' || body.action === 'process-refund') && !hasRole(user, ROLE.FINANCE, ROLE.ADMIN, ROLE.FOUNDER)) {
+   181→    return fail(403, 'FINANCE_ONLY', 'Payment reconciliation and refunds are restricted to the Finance department.')
+   182→  }
+   183→
+   184→  // DEMO SANDBOX: demo staff may only run console actions whose subject
+   185→  // belongs to the demo ecosystem. The subject is resolved from the database,
+   186→  // never from client-supplied ownership claims.
+   187→  if (user.isDemo) {
+   188→    const subject = await supplyActionSubject(body)
+   189→    if (!subject) return fail(403, 'DEMO_SANDBOXED', 'Demo mode: the record for this action could not be resolved, so it has been blocked.')
+   190→    await assertDemoResourceGuard(user, subject)
+   191→  }
+   192→
+   193→  switch (body.action) {
+   194→    case 'verify-supplier': {
+   195→      const org = await db.org.findFirst({ where: { id: body.orgId, type: 'SUPPLIER' } })
+   196→      if (!org) return fail(404, 'NOT_FOUND', 'Supplier not found.')
+   197→      if (org.verified) return fail(409, 'ALREADY_VERIFIED', 'Supplier is already verified.')
+   198→      await db.org.update({ where: { id: org.id }, data: { verified: true } })
+   199→      const members = await db.orgMember.findMany({ where: { orgId: org.id }, select: { userId: true } })
+   200→      await notifyMany(members.map((m) => m.userId), { type: 'SUPPLIER_VERIFIED', title: 'Supplier verification approved', body: 'Your business is now verified on the Automotive Supply Network.', link: '/supplier' })
+   201→      await audit({ actorId: user.id, actorName: user.name, action: 'SUPPLIER_VERIFIED', targetType: 'ORG', targetId: org.id, metadata: { note: body.note } })
+   202→      return ok({ message: `${org.name} is now verified.` })
+   203→    }
+   204→    case 'unverify-supplier': {
+   205→      const org = await db.org.findFirst({ where: { id: body.orgId, type: 'SUPPLIER' } })
+   206→      if (!org) return fail(404, 'NOT_FOUND', 'Supplier not found.')
+   207→      await db.org.update({ where: { id: org.id }, data: { verified: false } })
+   208→      await audit({ actorId: user.id, actorName: user.name, action: 'SUPPLIER_VERIFICATION_REVOKED', targetType: 'ORG', targetId: org.id, metadata: { note: body.note } })
+   209→      return ok({ message: 'Verification revoked.' })
+   210→    }
+   211→    case 'suspend-supplier': {
+   212→      const org = await db.org.findFirst({ where: { id: body.orgId, type: 'SUPPLIER' } })
+   213→      if (!org) return fail(404, 'NOT_FOUND', 'Supplier not found.')
+   214→      await db.org.update({ where: { id: org.id }, data: { status: 'SUSPENDED', verified: false } })
+   215→      await db.product.updateMany({ where: { supplierOrgId: org.id, status: 'PUBLISHED' }, data: { status: 'SUSPENDED' } })
+   216→      await audit({ actorId: user.id, actorName: user.name, action: 'SUPPLIER_SUSPENDED', targetType: 'ORG', targetId: org.id, metadata: { note: body.note } })
+   217→      return ok({ message: `${org.name} suspended and delisted.` })
+   218→    }
+   219→    case 'restore-supplier': {
+   220→      const org = await db.org.findFirst({ where: { id: body.orgId, type: 'SUPPLIER' } })
+   221→      if (!org) return fail(404, 'NOT_FOUND', 'Supplier not found.')
+   222→      await db.org.update({ where: { id: org.id }, data: { status: 'ACTIVE' } })
+   223→      await audit({ actorId: user.id, actorName: user.name, action: 'SUPPLIER_RESTORED', targetType: 'ORG', targetId: org.id, metadata: { note: body.note } })
+   224→      return ok({ message: 'Supplier restored (products require manual republish review).' })
+   225→    }
+   226→    case 'risk-score': {
+   227→      await db.org.update({ where: { id: body.orgId }, data: { supplierRiskScore: body.score } })
+   228→      await audit({ actorId: user.id, actorName: user.name, action: 'SUPPLIER_RISK_UPDATED', targetType: 'ORG', targetId: body.orgId, metadata: { score: body.score, note: body.note } })
+   229→      return ok({ message: `Risk score set to ${body.score}.` })
+   230→    }
+   231→    case 'approve-application': {
+   232→      const app = await db.application.findUnique({ where: { id: body.applicationId } })
+   233→      if (!app || app.type !== 'SUPPLIER') return fail(404, 'NOT_FOUND', 'Application not found.')
+   234→      if (app.orgId) return fail(409, 'ALREADY_APPROVED', 'Application already approved.')
+   235→      let org = await db.org.findFirst({ where: { name: app.orgName, type: 'SUPPLIER' } })
+   236→      if (!org) {
+   237→        org = await db.org.create({
+   238→          data: {
+   239→            type: 'SUPPLIER', name: app.orgName, regNo: app.regNo, county: app.county, town: app.town,
+   240→            location: app.physicalAddress, phone: app.phone, email: app.email,
+   241→            description: app.notes, verified: false,
+   242→            specialities: app.categories,
+   243→          },
+   244→        })
+   245→      }
+   246→      await db.orgMember.upsert({
+   247→        where: { orgId_userId: { orgId: org.id, userId: app.userId } },
+   248→        create: { orgId: org.id, userId: app.userId, role: 'OWNER' },
+   249→        update: {},
+   250→      })
+   251→      const buyer = await db.user.findUnique({ where: { id: app.userId } })
+   252→      if (buyer && !buyer.roles.split(',').includes('SUPPLIER_OWNER')) {
+   253→        await db.user.update({ where: { id: buyer.id }, data: { roles: `${buyer.roles},SUPPLIER_OWNER` } })
+   254→      }
+   255→      await db.application.update({
+   256→        where: { id: app.id },
+   257→        data: { status: 'APPROVED', orgId: org.id, decisionNote: body.note ?? null, events: { create: { type: 'APPROVED', actorId: user.id, actorName: user.name, note: body.note ?? 'Documents reviewed. Business account created: verification (listing) follows separately.' } } },
+   258→      })
+   259→      await notify({ userId: app.userId, type: 'SUPPLIER_APPROVED', title: 'Supplier application approved', body: `${app.orgName} is registered. Add your warehouses and products in the Supplier Portal. Verification status shows once platform review completes.`, link: '/supplier' })
+   260→      await audit({ actorId: user.id, actorName: user.name, action: 'SUPPLIER_APPLICATION_APPROVED', targetType: 'APPLICATION', targetId: app.id, metadata: { orgId: org.id } })
+   261→      return ok({ message: 'Application approved. Supplier business account created (unverified until listing review).' })
+   262→    }
+   263→    case 'reject-application': {
+   264→      const app = await db.application.findUnique({ where: { id: body.applicationId } })
+   265→      if (!app || app.type !== 'SUPPLIER') return fail(404, 'NOT_FOUND', 'Application not found.')
+   266→      await db.application.update({
+   267→        where: { id: app.id },
+   268→        data: { status: 'REJECTED', decisionNote: body.note, events: { create: { type: 'REJECTED', actorId: user.id, actorName: user.name, note: body.note } } },
+   269→      })
+   270→      await notify({ userId: app.userId, type: 'SUPPLIER_REJECTED', title: `Application ${app.refCode} rejected`, body: body.note, link: '/supply' })
+   271→      await audit({ actorId: user.id, actorName: user.name, action: 'SUPPLIER_APPLICATION_REJECTED', targetType: 'APPLICATION', targetId: app.id, metadata: { note: body.note } })
+   272→      return ok({ message: 'Application rejected.' })
+   273→    }
+   274→    case 'verify-authenticity': {
+   275→      const product = await db.product.findUnique({ where: { id: body.productId } })
+   276→      if (!product) return fail(404, 'NOT_FOUND', 'Product not found.')
+   277→      await db.product.update({
+   278→        where: { id: product.id },
+   279→        data: {
+   280→          authenticityVerified: true,
+   281→          provenance: JSON.stringify({ ...(jsonParse<Record<string, unknown>>(product.provenance, {})), authenticator: 'ADMIN', verifiedAt: new Date().toISOString(), note: body.note }),
+   282→        },
+   283→      })
+   284→      await audit({ actorId: user.id, actorName: user.name, action: 'PRODUCT_AUTHENTICITY_VERIFIED', targetType: 'PRODUCT', targetId: product.id, metadata: { note: body.note } })
+   285→      return ok({ message: 'Product authenticity independently verified by CARMAZE.' })
+   286→    }
+   287→    case 'revoke-authenticity': {
+   288→      const product = await db.product.findUnique({ where: { id: body.productId } })
+   289→      if (!product) return fail(404, 'NOT_FOUND', 'Product not found.')
+   290→      await db.product.update({ where: { id: product.id }, data: { authenticityVerified: false } })
+   291→      await audit({ actorId: user.id, actorName: user.name, action: 'PRODUCT_AUTHENTICITY_REVOKED', targetType: 'PRODUCT', targetId: product.id, metadata: { note: body.note } })
+   292→      return ok({ message: 'Authenticity mark removed.' })
+   293→    }
+   294→    case 'suspend-product': {
+   295→      await db.product.update({ where: { id: body.productId }, data: { status: 'SUSPENDED' } })
+   296→      await audit({ actorId: user.id, actorName: user.name, action: 'PRODUCT_SUSPENDED', targetType: 'PRODUCT', targetId: body.productId, metadata: { note: body.note } })
+   297→      return ok({ message: 'Product suspended from the catalogue.' })
+   298→    }
+   299→    case 'republish-product': {
+   300→      await db.product.update({ where: { id: body.productId }, data: { status: 'PUBLISHED' } })
+   301→      await audit({ actorId: user.id, actorName: user.name, action: 'PRODUCT_REPUBLISHED', targetType: 'PRODUCT', targetId: body.productId })
+   302→      return ok({ message: 'Product republished.' })
+   303→    }
+   304→    case 'dispute-note': {
+   305→      const dispute = await db.dispute.findUnique({ where: { id: body.disputeId } })
+   306→      if (!dispute) return fail(404, 'NOT_FOUND', 'Dispute not found.')
+   307→      await db.disputeEvent.create({ data: { disputeId: dispute.id, type: 'NOTE', actorId: user.id, actorName: user.name, note: body.note } })
+   308→      await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_NOTE', targetType: 'DISPUTE', targetId: dispute.id })
+   309→      return ok({ message: 'Note added to the dispute file.' })
+   310→    }
+   311→    case 'dispute-status': {
+   312→      await db.dispute.update({ where: { id: body.disputeId }, data: { status: body.status } })
+   313→      await db.disputeEvent.create({ data: { disputeId: body.disputeId, type: 'STATUS_CHANGE', actorId: user.id, actorName: user.name, note: `Status set to ${body.status}` } })
+   314→      await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_STATUS_CHANGED', targetType: 'DISPUTE', targetId: body.disputeId, metadata: { status: body.status } })
+   315→      return ok({ message: 'Dispute status updated.' })
+   316→    }
+   317→    case 'resolve-dispute': {
+   318→      const dispute = await db.dispute.findUnique({ where: { id: body.disputeId }, include: { order: true, customerOrder: { include: { supplier: { select: { id: true, name: true } } } } } })
+   319→      if (!dispute) return fail(404, 'NOT_FOUND', 'Dispute not found.')
+   320→      if (dispute.status === 'RESOLVED' || dispute.status === 'CLOSED') return fail(409, 'ALREADY_RESOLVED', 'Dispute already resolved.')
+   321→
+   322→      // ── Consumer (B2C) parts-order dispute ──
+   323→      if (dispute.customerOrderId) {
+   324→        const order = dispute.customerOrder
+   325→        if (!order) return fail(404, 'NOT_FOUND', 'Dispute has no linked consumer order.')
+   326→        await db.dispute.update({
+   327→          where: { id: dispute.id },
+   328→          data: { status: 'RESOLVED', resolution: body.resolution, resolutionNote: body.note, resolvedBy: user.name, resolvedAt: new Date() },
+   329→        })
+   330→        await db.disputeEvent.create({ data: { disputeId: dispute.id, type: 'RESOLUTION', actorId: user.id, actorName: user.name, note: `${body.resolution}: ${body.note}` } })
+   331→        if (body.resolution === 'REJECTED') {
+   332→          // Complaint not upheld: the delivered order stands as completed.
+   333→          await db.customerOrder.update({ where: { id: order.id }, data: { status: 'COMPLETED', completedAt: order.completedAt ?? new Date() } })
+   334→          await db.customerOrderEvent.create({ data: { orderId: order.id, type: 'NOTE', actorSide: 'SYSTEM', actorName: user.name, note: `Dispute ${dispute.refCode} not upheld: ${body.note}` } })
+   335→        } else if (body.resolution === 'REPLACEMENT') {
+   336→          // Re-enters fulfilment: the supplier re-dispatches, the buyer confirms receipt again.
+   337→          await db.customerOrder.update({ where: { id: order.id }, data: { status: 'CONFIRMED' } })
+   338→          await db.customerOrderEvent.create({ data: { orderId: order.id, type: 'NOTE', actorSide: 'SYSTEM', actorName: user.name, note: `Dispute ${dispute.refCode} resolved by replacement. The supplier re-dispatches; confirm receipt when it arrives.` } })
+   339→        }
+   340→        // REFUND_FULL / REFUND_PARTIAL: the decision is recorded; the money
+   341→        // movement itself happens when FINANCE refunds the linked invoice via
+   342→        // the invoice refund endpoint (which completes the order). We never
+   343→        // mark a refund as done here.
+   344→        await notify({
+   345→          userId: order.buyerUserId,
+   346→          type: 'DISPUTE_RESOLVED',
+   347→          title: `Dispute ${dispute.refCode} resolved: ${body.resolution.replaceAll('_', ' ').toLowerCase()}`,
+   348→          body: body.note,
+   349→          link: '/account?tab=orders',
+   350→        })
+   351→        await notifyMany((await db.orgMember.findMany({ where: { orgId: order.supplierOrgId }, select: { userId: true } })).map((m) => m.userId), {
+   352→          type: 'DISPUTE_RESOLVED',
+   353→          title: `Dispute ${dispute.refCode} resolved`,
+   354→          body: `${body.resolution}: ${body.note}`,
+   355→          link: '/supplier?tab=consumer-orders',
+   356→        })
+   357→        await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_RESOLVED', targetType: 'DISPUTE', targetId: dispute.id, metadata: { resolution: body.resolution, note: body.note, customerOrder: order.refCode } })
+   358→        return ok({ message: `Dispute resolved (${body.resolution}).${body.resolution.includes('REFUND') ? ' Finance will process the refund on the order invoice.' : ''}` })
+   359→      }
+   360→
+   361→      // ── Garage↔Supplier purchase-order dispute ──
+   362→      if (!dispute.order) return fail(404, 'NOT_FOUND', 'Dispute has no linked order.')
+   363→      await db.dispute.update({
+   364→        where: { id: dispute.id },
+   365→        data: { status: 'RESOLVED', resolution: body.resolution, resolutionNote: body.note, resolvedBy: user.name, resolvedAt: new Date() },
+   366→      })
+   367→      await db.disputeEvent.create({ data: { disputeId: dispute.id, type: 'RESOLUTION', actorId: user.id, actorName: user.name, note: `${body.resolution}: ${body.note}` } })
+   368→      if (body.resolution === 'REFUND_FULL' || body.resolution === 'REFUND_PARTIAL') {
+   369→        const amount = body.resolution === 'REFUND_FULL' ? dispute.order.totalMinor : (body.refundAmountMinor ?? 0)
+   370→        if (amount > 0) {
+   371→          await db.refund.create({
+   372→            data: { refCode: refCode('RFD', 6), orderId: dispute.orderId!, paymentAuthId: (await db.paymentAuthorization.findUnique({ where: { orderId: dispute.orderId! } }))?.id, amountMinor: amount, kind: body.resolution === 'REFUND_FULL' ? 'FULL' : 'PARTIAL', reason: `Dispute ${dispute.refCode}: ${body.note.slice(0, 200)}`, status: 'REQUESTED', requestedById: user.id },
+   373→          })
+   374→        }
+   375→        if (dispute.order.paymentStatus === 'PROTECTED') {
+   376→          await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { paymentStatus: body.resolution === 'REFUND_FULL' ? 'REFUNDED' : 'PARTIALLY_RELEASED' } })
+   377→        }
+   378→        // Financial integrity: a refund decision must remove the escrow value it
+   379→        // covers. FULL → the authorization can no longer be released against;
+   380→        // PARTIAL → the released amount is capped at the remaining escrow by the
+   381→        // release gate (amountMinor − refundedAmountMinor). Without this, a
+   382→        // garage could release protected funds AND keep a queued refund.
+   383→        const auth = await db.paymentAuthorization.findUnique({ where: { orderId: dispute.orderId! } })
+   384→        if (auth && amount > 0 && ['PROTECTED', 'PENDING'].includes(auth.status)) {
+   385→          const totalRefunded = Math.min(auth.amountMinor, (auth.refundedAmountMinor ?? 0) + amount)
+   386→          await db.paymentAuthorization.update({
+   387→            where: { id: auth.id },
+   388→            data: {
+   389→              refundedAmountMinor: totalRefunded,
+   390→              ...(body.resolution === 'REFUND_FULL' && totalRefunded >= auth.amountMinor ? { status: 'REFUNDED' } : {}),
+   391→            },
+   392→          })
+   393→        }
+   394→      }
+   395→      await db.purchaseOrder.update({ where: { id: dispute.orderId! }, data: { status: body.resolution === 'REJECTED' ? 'COMPLETED' : 'INSPECTED' } })
+   396→      // A dispute resolution that upholds the order (no refund) un-holds the
+   397→      // supplier settlement: the funds were protected and delivery stood.
+   398→      if (body.resolution === 'REJECTED') {
+   399→        await db.settlement.updateMany({ where: { orderId: dispute.orderId!, status: 'ON_HOLD' }, data: { status: 'PENDING' } })
+   400→      }
+   401→      await audit({ actorId: user.id, actorName: user.name, action: 'DISPUTE_RESOLVED', targetType: 'DISPUTE', targetId: dispute.id, metadata: { resolution: body.resolution, note: body.note } })
+   402→      await notifyMany(await staffUserIds('ADMIN', 'SUPPORT'), { type: 'DISPUTE_RESOLVED', title: `Dispute ${dispute.refCode} resolved`, body: body.resolution, link: '/admin?tab=disputes' })
+   403→      // Both parties must learn the outcome: previously only staff were told.
+   404→      await notifyMany((await db.orgMember.findMany({ where: { orgId: dispute.order!.garageOrgId }, select: { userId: true } })).map((m) => m.userId), { type: 'DISPUTE_RESOLVED', title: `Dispute ${dispute.refCode} resolved`, body: `${body.resolution.replaceAll('_', ' ').toLowerCase()}: ${body.note}`, link: '/procurement?tab=orders' })
+   405→      await notifyMany((await db.orgMember.findMany({ where: { orgId: dispute.order!.supplierOrgId }, select: { userId: true } })).map((m) => m.userId), { type: 'DISPUTE_RESOLVED', title: `Dispute ${dispute.refCode} resolved`, body: `${body.resolution.replaceAll('_', ' ').toLowerCase()}: ${body.note}`, link: '/supplier?tab=orders' })
+   406→      return ok({ message: `Dispute resolved (${body.resolution}).${body.resolution.includes('REFUND') ? ' Refund queued for finance processing.' : ''}` })
+   407→    }
+   408→    case 'reconcile-payment': {
+   409→      const order = await db.purchaseOrder.findUnique({ where: { id: body.orderId }, include: { payment: true } })
+   410→      if (!order) return fail(404, 'NOT_FOUND', 'Order not found.')
+   411→      if (order.paymentStatus === 'PROTECTED') return fail(409, 'ALREADY_PROTECTED', 'Order payment already protected.')
+   412→      if (order.status === 'DISPUTED') return fail(409, 'ORDER_DISPUTED', 'The order is under dispute: resolve the dispute first; reconciliation while frozen would bypass the dispute hold.')
+   413→      const fees = await getFees()
+   414→      await db.paymentAuthorization.upsert({
+   415→        where: { orderId: order.id },
+   416→        create: { refCode: refCode('PAY', 6), orderId: order.id, provider: 'MANUAL_RECONCILED', status: 'PROTECTED', amountMinor: order.totalMinor, checkoutRef: body.providerRef, protectedAt: new Date(), resultDesc: body.note ?? 'Reconciled against provider statement' },
+   417→        update: { provider: 'MANUAL_RECONCILED', status: 'PROTECTED', checkoutRef: body.providerRef, protectedAt: new Date(), resultDesc: body.note ?? 'Reconciled against provider statement' },
+   418→      })
+   419→      await db.purchaseOrder.update({ where: { id: order.id }, data: { paymentStatus: 'PROTECTED' } })
+   420→      if (order.invoiceId) await db.invoice.update({ where: { id: order.invoiceId }, data: { status: 'PAID', paidAt: new Date(), paidVia: 'MANUAL' } })
+   421→      await poEvent(order.id, { type: 'PAYMENT', actorId: user.id, actorName: user.name, actorSide: staffSide, note: `Payment reconciled (provider ref ${body.providerRef}). Funds protected pending inspection.` })
+   422→      await audit({ actorId: user.id, actorName: user.name, action: 'ORDER_PAYMENT_RECONCILED', targetType: 'PURCHASE_ORDER', targetId: order.id, metadata: { providerRef: body.providerRef } })
+   423→      await notifyMany((await db.orgMember.findMany({ where: { orgId: order.garageOrgId }, select: { userId: true } })).map((m) => m.userId), { type: 'ORDER_PAYMENT', title: `Payment protected: ${order.refCode}`, body: 'Finance confirmed the payment. The supplier can now dispatch; funds release after your inspection.', link: '/procurement?tab=orders' })
+   424→      return ok({ message: 'Payment reconciled and protected. Supplier can dispatch.' })
+   425→    }
+   426→    case 'process-refund': {
+   427→      const refund = await db.refund.findUnique({ where: { id: body.refundId }, include: { order: true } })
+   428→      if (!refund) return fail(404, 'NOT_FOUND', 'Refund not found.')
+   429→      if (refund.status === 'PROCESSED') return fail(409, 'ALREADY_PROCESSED', 'Refund already processed.')
+   430→      // Money integrity: PROCESSED states money left the platform — it requires
+   431→      // the external reference of the actual reversal (provider statement,
+   432→      // M-Pesa reversal code, bank ref). And bookkeeping can never refund more
+   433→      // than the payment collected.
+   434→      if (body.decision === 'PROCESSED' && (!body.providerRef || body.providerRef.trim().length < 3)) {
+   435→        return fail(400, 'PROVIDER_REF_REQUIRED', 'Recording a refund as PROCESSED requires the external provider reference of the actual reversal.')
+   436→      }
+   437→      const auth = await db.paymentAuthorization.findUnique({ where: { orderId: refund.orderId } })
+   438→      if (body.decision === 'PROCESSED' && auth && (auth.refundedAmountMinor ?? 0) + refund.amountMinor > auth.amountMinor) {
+   439→        return fail(409, 'REFUND_EXCEEDS_PAYMENT', `Refund of ${(refund.amountMinor / 100).toLocaleString()} KES would exceed the ${(auth.amountMinor / 100).toLocaleString()} KES collected for this order.`)
+   440→      }
+   441→      await db.refund.update({
+   442→        where: { id: refund.id },
+   443→        data: { status: body.decision, processedBy: user.name, processedAt: new Date(), providerRef: body.providerRef ?? null },
+   444→      })
+   445→      if (body.decision === 'PROCESSED') {
+   446→        const payment = auth ?? await db.paymentAuthorization.findUnique({ where: { orderId: refund.orderId } })
+   447→        if (payment) {
+   448→          const totalRefunded = payment.refundedAmountMinor + refund.amountMinor
+   449→          await db.paymentAuthorization.update({
+   450→            where: { id: payment.id },
+   451→            data: { refundedAmountMinor: totalRefunded, status: totalRefunded >= payment.amountMinor ? 'REFUNDED' : payment.status },
+   452→          })
+   453→        }
+   454→        await audit({ actorId: user.id, actorName: user.name, action: 'REFUND_PROCESSED', targetType: 'PURCHASE_ORDER', targetId: refund.orderId, metadata: { amount: refund.amountMinor, providerRef: body.providerRef } })
+   455→      } else {
+   456→        await audit({ actorId: user.id, actorName: user.name, action: `REFUND_${body.decision}`, targetType: 'PURCHASE_ORDER', targetId: refund.orderId, metadata: { note: body.note } })
+   457→      }
+   458→      return ok({ message: `Refund ${body.decision.toLowerCase()}.` })
+   459→    }
+   460→  }
+   461→})
+   462→

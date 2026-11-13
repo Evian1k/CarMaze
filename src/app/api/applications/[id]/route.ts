@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireUser, ApiError } from '@/lib/api'
 import { hasRole, STAFF_ROLES } from '@/lib/auth'
-import { demoStaffMutationGuard } from '@/lib/demo'
+import { demoStaffMutationGuard, assertNotDemoStaffRead } from '@/lib/demo'
 import { refCode } from '@/lib/ids'
 import { notify, notifyMany } from '@/lib/notify'
 import { audit } from '@/lib/audit'
@@ -28,6 +28,9 @@ export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
   if (app.userId !== user.id && !hasRole(user, ...STAFF_ROLES)) {
     throw new ApiError(403, 'FORBIDDEN', 'You cannot view this application.')
   }
+  // Staff view of a real application exposes the applicant's phone, email and
+  // ID/reg numbers — closed to demo sessions (mirrors the queue guard).
+  if (app.userId !== user.id) assertNotDemoStaffRead(user, 'partner application details')
   return ok({ application: app })
 })
 
@@ -59,6 +62,14 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
     if (!isOwner) throw new ApiError(403, 'FORBIDDEN', 'Only the applicant can resubmit.')
     if (app.status !== 'MORE_INFO_REQUIRED') {
       throw new ApiError(409, 'INVALID_STATE', 'This application is not awaiting corrections.')
+    }
+    // Private-document contract on resubmission too (mirrors POST /api/applications).
+    if (body.documents && body.documents.length > 0) {
+      for (const d of body.documents) {
+        if (!d.url.startsWith('/api/files/')) {
+          throw new ApiError(400, 'PRIVATE_DOCUMENT_REQUIRED', `"${d.name}" must be a private document upload (/api/files/…). Identity and compliance documents are never accepted from public media or external links.`)
+        }
+      }
     }
     const updated = await db.application.update({
       where: { id },

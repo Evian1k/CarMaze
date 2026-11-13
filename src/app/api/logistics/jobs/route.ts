@@ -230,8 +230,10 @@ export const POST = route(async (req: NextRequest) => {
   let requesterOrgId: string | null = null
   let requesterOrgName: string | null = null
   if (body.requesterOrgId) {
+    // Filing a request on a business's behalf is an org action: requires an
+    // ACTIVE org (a suspended business cannot raise new logistics requests).
     const membership = await db.orgMember.findFirst({
-      where: { orgId: body.requesterOrgId, userId: user.id },
+      where: { orgId: body.requesterOrgId, userId: user.id, org: { status: 'ACTIVE' } },
       select: { id: true },
     })
     if (!membership) throw new ApiError(403, 'NOT_A_MEMBER', 'You are not a member of that business, so the request cannot be filed on its behalf.')

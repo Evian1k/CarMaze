@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, ok, fail, parseBody, requireRole } from '@/lib/api'
 import { audit } from '@/lib/audit'
+import { assertNotDemoActor } from '@/lib/demo'
 import { stkQuery, mpesaConfigured, MpesaNotConfiguredError } from '@/lib/mpesa'
 
 const schema = z.object({
@@ -18,6 +19,9 @@ const schema = z.object({
  */
 export const POST = route(async (req: NextRequest) => {
   const user = await requireRole('FINANCE', 'ADMIN', 'FOUNDER')
+  // Demo sessions never touch the real payment-attempt ledger: the query
+  // endpoint writes provider results onto REAL PaymentAttempt rows.
+  assertNotDemoActor(user, 'M-Pesa provider status queries')
   const body = await parseBody(req, schema)
 
   if (!mpesaConfigured()) {

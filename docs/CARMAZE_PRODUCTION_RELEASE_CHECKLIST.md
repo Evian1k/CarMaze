@@ -99,3 +99,23 @@ complete, reviewed and honest (it never fakes success).
 - In-memory rate limits reset on restart (single-instance trade-off).
 - Audit writes are best-effort (non-transactional with the mutation) — acceptable for this scale; transactional audit is future work.
 - Vehicle.featured flag is wired to paid campaigns but featured slots are not yet granted anywhere (dead flag — cosmetic).
+
+---
+
+## Addendum — 13 Nov 2026: independent re-review (25 fixes re-verified + 20 hardening fixes)
+
+Three independent adversarial reviews re-verified the 25 audited fixes (they hold) and found bypasses the audit missed. All were fixed this session and proven by targeted live probes (403/404/409 responses verified) plus the 119-check suite on a fresh server:
+
+**HIGH (fixed):**
+- Demo sessions could release/inspect/dispute REAL escrow via the platform-staff bypass in `supply/orders/[id]/action` → demo guard + `isStaff && !isDemo` (probed: 403).
+- Refund-after-release double payout: re-inspection or dispute after a release could queue a refund on top of paid-out funds → inspect/dispute now terminal once money moves; finance refund cap counts released proceeds; dispute resolutions capped to remaining escrow.
+- Additional-work approval escape via state detours (INSPECTION/ROAD_TEST_REQUESTED/READY jumps) → AWAITING_APPROVAL is now a full stop for every org-side transition; over-cap computed against the stored cost too.
+- Demo sessions could mutate REAL incidents (and flip real custody rows) → `demoStaffMutationGuard` on incident status changes.
+
+**MEDIUM (fixed):** settlement reconcile/release respect OPEN dispute holds; demo staff blocked from applications queue/detail, incidents queue, M-Pesa attempt ledger + query, and staff-view of real orders/jobs/customer orders; application documents forced to private `/api/files/` storage; demo POs bind only to demo suppliers; suspended-org members lose write access on 12 mutating routes; procurement quote offers get the OWN_REQUEST self-dealing guard; stale authorization amounts refresh on payment retry (no stranded collected funds); release-fee frozen whenever a live authorization exists; one PO_RELEASE settlement per order (dedup).
+
+**LOW (fixed):** demo admin blocked from the M-Pesa attempts ledger; copilot listing-limit insight billing-gated; offer accept/reject narrowed to moderation-tier roles; custody cost fields redacted from non-management garage roles; malformed record ids return 404 (was 500 noise).
+
+**Documented accepted risks (not fixed by decision):** operational OTP codes have no absolute TTL (single-use + per-target 5/10min limiter mitigate); QR token stored plaintext (single-use); read-then-write checks not transactional (SQLite single-writer, FINANCE-only roles); per-IP rate-limit keys require the proxy to own X-Forwarded-For (deployment requirement, documented in the deployment guide).
+
+Final state this session: `119/119` suite (fresh process) · `tsc --noEmit` clean · `eslint` clean · `next build` exit 0 · production smoke honest · secret scan clean · demo walkthrough flows intact (demo-on-demo control probes pass).

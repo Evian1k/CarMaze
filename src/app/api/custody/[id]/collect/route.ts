@@ -27,7 +27,8 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   const custody = await db.vehicleCustody.findUnique({ where: { id } })
   if (!custody) throw new ApiError(404, 'NOT_FOUND', 'Custody record not found.')
 
-  const membership = await db.orgMember.findFirst({ where: { orgId: custody.orgId, userId: user.id } })
+  // Recording a collection is an org action: suspended garages cannot act.
+  const membership = await db.orgMember.findFirst({ where: { orgId: custody.orgId, userId: user.id, org: { status: 'ACTIVE' } } })
   if (!membership) {
     throw new ApiError(403, 'FORBIDDEN', 'Only the garage team can record a collection.')
   }

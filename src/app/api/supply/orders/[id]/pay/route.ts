@@ -73,6 +73,15 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       currency: order.currency,
     },
   }))
+  // Money integrity: a retried attempt after a FAILED/PENDING authorization
+  // must charge what the CURRENT order total is AND refresh the stored
+  // authorization snapshot to the same value — the webhook verifies the
+  // callback against this exact amount, so a stale snapshot would strand
+  // real collected funds outside protection.
+  if (order.payment && ['PENDING', 'FAILED'].includes(order.payment.status) && order.payment.amountMinor !== order.totalMinor) {
+    await db.paymentAuthorization.update({ where: { id: payment.id }, data: { amountMinor: order.totalMinor } })
+    payment.amountMinor = order.totalMinor
+  }
   let invoice = order.invoiceId ? await db.invoice.findUnique({ where: { id: order.invoiceId } }) : null
   if (!invoice) {
     invoice = await db.invoice.create({
@@ -88,6 +97,10 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
       },
     })
     await db.purchaseOrder.update({ where: { id }, data: { invoiceId: invoice.id, paymentStatus: 'PROCESSING' } })
+  } else if (invoice.amountMinor !== order.totalMinor && ['PENDING', 'FAILED'].includes(order.payment?.status ?? 'PENDING')) {
+    // Keep the invoice consistent with the refreshed authorization.
+    await db.invoice.update({ where: { id: invoice.id }, data: { amountMinor: order.totalMinor } })
+    invoice.amountMinor = order.totalMinor
   }
   await db.paymentAuthorization.update({ where: { id: payment.id }, data: { status: 'PROCESSING', phone: body.phone } })
   await db.purchaseOrder.update({ where: { id }, data: { paymentStatus: 'PROCESSING' } })

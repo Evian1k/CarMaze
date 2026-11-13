@@ -5,6 +5,7 @@ import { route, ok, fail, parseBody, requireUser } from '@/lib/api'
 import { audit } from '@/lib/audit'
 import { notifyMany } from '@/lib/notify'
 import { getMembership } from '@/lib/orgs'
+import { demoStaffMutationGuard } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,11 +88,18 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
   if (!request) return fail(404, 'NOT_FOUND', 'Quote request not found.')
 
   if (body.action === 'offer') {
+    // Demo isolation: demo suppliers quote demo-ecosystem requests only.
+    await demoStaffMutationGuard(user, { subjectOrgId: request.garageOrgId })
     const membership = await db.orgMember.findFirst({
       where: { userId: user.id, org: { type: 'SUPPLIER', status: 'ACTIVE', verified: true } },
       include: { org: { select: { id: true, name: true } } },
     })
     if (!membership) return fail(403, 'FORBIDDEN', 'Only verified suppliers can offer quotations.')
+    // Self-dealing guard (mirrors the customer-side OWN_REQUEST guard): a
+    // member of the REQUESTING garage must not quote its own organisation's
+    // request — that is fake competition with insider control of both sides.
+    const selfDealing = await db.orgMember.findFirst({ where: { userId: user.id, orgId: request.garageOrgId } })
+    if (selfDealing) return fail(409, 'OWN_REQUEST', 'This request was created by a member of your own team: you cannot quote it.')
     if (request.status === 'CLOSED') return fail(409, 'CLOSED', 'This request is closed.')
     const offer = await db.quoteOffer.upsert({
       where: { requestId_supplierOrgId: { requestId: id, supplierOrgId: membership.orgId } },

@@ -42,6 +42,6 @@
 
 1. Set `AUTH_SECRET` + `NEXT_PUBLIC_SITE_URL` on the host (boot refuses without them).
 2. Complete blockers 1–4 above with real credentials and one live proof each.
-3. Deploy per `CARMAZE_DEPLOYMENT_GUIDE.md`; run `bun verification/security-tests.ts` against staging (expect 93/93).
+3. Deploy per `CARMAZE_DEPLOYMENT_GUIDE.md`; run `bun verification/security-tests.ts` against staging (expect 119/119).
 4. Legal sign-off on §2 items; publish privacy notice.
 5. Schedule daily `db:backup` + pre-deploy backups; keep one drill per quarter.

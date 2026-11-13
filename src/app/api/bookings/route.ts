@@ -97,7 +97,8 @@ async function loadBooking(id: string) {
 }
 
 async function requireOrgMember(userId: string, orgId: string) {
-  const membership = await db.orgMember.findFirst({ where: { orgId, userId } })
+  // Suspended garage: members may still VIEW bookings but not act on them.
+  const membership = await db.orgMember.findFirst({ where: { orgId, userId, org: { status: 'ACTIVE' } } })
   if (!membership) throw new ApiError(403, 'FORBIDDEN', 'Garage membership required for this action.')
   return membership
 }
@@ -109,7 +110,7 @@ export const PATCH = route(async (req: NextRequest) => {
 
   const booking = await loadBooking(id)
   const body = await parseBody(req, patchSchema)
-  const isGarageSide = Boolean(await db.orgMember.findFirst({ where: { orgId: booking.orgId, userId: user.id } }))
+  const isGarageSide = Boolean(await db.orgMember.findFirst({ where: { orgId: booking.orgId, userId: user.id, org: { status: 'ACTIVE' } } }))
   const isCustomer = booking.request.customerId === user.id
 
   switch (body.action) {

@@ -6,6 +6,7 @@ import { hasRole, STAFF_ROLES } from '@/lib/auth'
 import { audit } from '@/lib/audit'
 import { notify } from '@/lib/notify'
 import { notifyOrgMembers } from '@/lib/orgs'
+import { demoStaffMutationGuard } from '@/lib/demo'
 import { parseJson } from '@/lib/json'
 
 export const dynamic = 'force-dynamic'
@@ -146,6 +147,10 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   if (!isStaff) {
     throw new ApiError(403, 'FORBIDDEN', 'Only CARMAZE security staff can change an incident status.')
   }
+  // Demo isolation: a demo support session must never mutate a REAL incident
+  // (or the real custody record its resolution would move back into the
+  // workflow). Demo-owned incidents remain workable for the demo tour.
+  await demoStaffMutationGuard(user, { subjectUserId: incident.reporterId, subjectOrgId: incident.orgId })
   if (incident.status === 'RESOLVED' || incident.status === 'DISMISSED') {
     throw new ApiError(400, 'INVALID_TRANSITION', `This incident is already ${incident.status.toLowerCase()} and cannot be reopened here.`)
   }

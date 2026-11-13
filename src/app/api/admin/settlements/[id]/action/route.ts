@@ -88,6 +88,13 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
     if (['SETTLED', 'CANCELLED'].includes(settlement.status)) {
       return fail(409, 'INVALID_STATE', `Settlement is already ${settlement.status}.`)
     }
+    // Dispute integrity: a settlement held because of an OPEN dispute must not
+    // be settled out from under that dispute — resolve the dispute first
+    // (mirrors the ORDER_DISPUTED guard on payment reconciliation).
+    if (settlement.orderId && settlement.status === 'ON_HOLD') {
+      const openDispute = await db.dispute.findFirst({ where: { orderId: settlement.orderId, status: { in: ['OPEN', 'UNDER_REVIEW'] } } })
+      if (openDispute) return fail(409, 'ORDER_DISPUTED', `Dispute ${openDispute.refCode} is still open on this order. Resolve the dispute first; settling now would bypass the dispute hold.`)
+    }
     const updated = await db.settlement.update({
       where: { id },
       data: {
@@ -120,6 +127,12 @@ export const POST = route(async (req: NextRequest, ctx: Ctx) => {
 
   if (body.action === 'release') {
     if (settlement.status !== 'ON_HOLD') return fail(409, 'INVALID_STATE', 'Only a settlement on hold can be released back to PENDING.')
+    // Same dispute integrity as reconcile: an ON_HOLD settlement caused by an
+    // open dispute cannot be un-held while that dispute is undecided.
+    if (settlement.orderId) {
+      const openDispute = await db.dispute.findFirst({ where: { orderId: settlement.orderId, status: { in: ['OPEN', 'UNDER_REVIEW'] } } })
+      if (openDispute) return fail(409, 'ORDER_DISPUTED', `Dispute ${openDispute.refCode} is still open on this order; the hold stays until the dispute is resolved.`)
+    }
     const updated = await db.settlement.update({
       where: { id },
       data: { status: 'PENDING', holdReason: null, events: { create: { type: 'HOLD_RELEASED', actorId: user.id, actorName: user.name, actorSide: 'FINANCE', note: 'Hold released: settlement returned to PENDING.' } } },

@@ -1,0 +1,676 @@
+     1→     1→import { NextRequest } from 'next/server'
+     2→     2→import { z } from 'zod'
+     3→     3→import { db } from '@/lib/db'
+     4→     4→import type { Prisma } from '@prisma/client'
+     5→     5→import { route, ok, fail, ApiError, requireUser, parseBody, type RouteCtx } from '@/lib/api'
+     6→     6→import { rateLimit } from '@/lib/rate-limit'
+     7→     7→import { refCode } from '@/lib/ids'
+     8→     8→import { audit } from '@/lib/audit'
+     9→     9→import { notify, notifyMany } from '@/lib/notify'
+    10→    10→import { notifyOrgMembers, staffUserIds } from '@/lib/orgs'
+    11→    11→import { parseJson } from '@/lib/json'
+    12→    12→
+    13→    13→export const dynamic = 'force-dynamic'
+    14→    14→
+    15→    15→type Ctx = RouteCtx
+    16→    16→
+    17→    17→function invalid(message: string): never {
+    18→    18→  throw new ApiError(400, 'INVALID_TRANSITION', message)
+    19→    19→}
+    20→    20→
+    21→    21→async function loadCustody(id: string) {
+    22→    22→  const custody = await db.vehicleCustody.findUnique({
+    23→    23→    where: { id },
+    24→    24→    include: {
+    25→    25→      org: { select: { id: true, name: true } },
+    26→    26→      customer: { select: { id: true, name: true } },
+    27→    27→      events: { orderBy: { createdAt: 'asc' } },
+    28→    28→      roadTests: { orderBy: { requestedAt: 'asc' } },
+    29→    29→      collectionAuth: true,
+    30→    30→    },
+    31→    31→  })
+    32→    32→  if (!custody) throw new ApiError(404, 'NOT_FOUND', 'Custody record not found.')
+    33→    33→  return custody
+    34→    34→}
+    35→    35→
+    36→    36→function iso(d: Date): string {
+    37→    37→  return d.toISOString()
+    38→    38→}
+    39→    39→
+    40→    40→/** GET: full custody record for participants (customer owner or garage member). */
+    41→    41→export const GET = route(async (_req: NextRequest, ctx: Ctx) => {
+    42→    42→  const user = await requireUser()
+    43→    43→  const { id } = await ctx.params
+    44→    44→  const custody = await loadCustody(id)
+    45→    45→
+    46→    46→  const isCustomer = custody.customerId === user.id
+    47→    47→  if (!isCustomer) {
+    48→    48→    const membership = await db.orgMember.findFirst({ where: { orgId: custody.orgId, userId: user.id } })
+    49→    49→    if (!membership) throw new ApiError(403, 'FORBIDDEN', 'You are not part of this custody record.')
+    50→    50→  }
+    51→    51→
+    52→    52→  return ok({
+    53→    53→    custody: {
+    54→    54→      id: custody.id,
+    55→    55→      refCode: custody.refCode,
+    56→    56→      orgId: custody.orgId,
+    57→    57→      orgName: custody.org.name,
+    58→    58→      customerId: custody.customerId,
+    59→    59→      customerName: custody.customer.name,
+    60→    60→      myVehicleId: custody.myVehicleId,
+    61→    61→      vehicleDesc: custody.vehicleDesc,
+    62→    62→      plate: custody.plate,
+    63→    63→      odometerKm: custody.odometerKm,
+    64→    64→      fuelLevel: custody.fuelLevel,
+    65→    65→      conditionNotes: custody.conditionNotes,
+    66→    66→      photos: parseJson<string[]>(custody.photos, []),
+    67→    67→      valuables: custody.valuables,
+    68→    68→      requestedWork: custody.requestedWork,
+    69→    69→      authorisedSpendMinor: custody.authorisedSpendMinor,
+    70→    70→      roadTestAllowed: custody.roadTestAllowed,
+    71→    71→      status: custody.status,
+    72→    72→      receivedAt: custody.receivedAt ? iso(custody.receivedAt) : null,
+    73→    73→      receivedByStaffName: custody.receivedByStaffName,
+    74→    74→      readyAt: custody.readyAt ? iso(custody.readyAt) : null,
+    75→    75→      completedWork: custody.completedWork,
+    76→    76→      finalOdometerKm: custody.finalOdometerKm,
+    77→    77→      finalNotes: custody.finalNotes,
+    78→    78→      completionPhotos: parseJson<string[]>(custody.completionPhotos, []),
+    79→    79→      costMinor: custody.costMinor,
+    80→    80→      collectedAt: custody.collectedAt ? iso(custody.collectedAt) : null,
+    81→    81→      collectedByName: custody.collectedByName,
+    82→    82→      returnedAt: custody.returnedAt ? iso(custody.returnedAt) : null,
+    83→    83→      createdAt: iso(custody.createdAt),
+    84→    84→      updatedAt: iso(custody.updatedAt),
+    85→    85→      events: custody.events.map((e) => ({
+    86→    86→        id: e.id,
+    87→    87→        type: e.type,
+    88→    88→        fromStatus: e.fromStatus,
+    89→    89→        toStatus: e.toStatus,
+    90→    90→        actorId: e.actorId,
+    91→    91→        actorName: e.actorName,
+    92→    92→        actorSide: e.actorSide,
+    93→    93→        note: e.note,
+    94→    94→        createdAt: iso(e.createdAt),
+    95→    95→      })),
+    96→    96→      roadTests: custody.roadTests.map((rt) => ({
+    97→    97→        id: rt.id,
+    98→    98→        purpose: rt.purpose,
+    99→    99→        driverName: rt.driverName,
+   100→   100→        startOdometerKm: rt.startOdometerKm,
+   101→   101→        endOdometerKm: rt.endOdometerKm,
+   102→   102→        requestedAt: iso(rt.requestedAt),
+   103→   103→        authorisedAt: rt.authorisedAt ? iso(rt.authorisedAt) : null,
+   104→   104→        startedAt: rt.startedAt ? iso(rt.startedAt) : null,
+   105→   105→        endedAt: rt.endedAt ? iso(rt.endedAt) : null,
+   106→   106→        status: rt.status,
+   107→   107→        notes: rt.notes,
+   108→   108→        incident: rt.incident,
+   109→   109→      })),
+   110→   110→      // authCodeHash is NEVER exposed: only metadata for verification UX.
+   111→   111→      collectionAuth: custody.collectionAuth
+   112→   112→        ? {
+   113→   113→            collectorName: custody.collectionAuth.collectorName,
+   114→   114→            collectorPhone: custody.collectionAuth.collectorPhone,
+   115→   115→            codeHint: custody.collectionAuth.codeHint,
+   116→   116→            expiresAt: iso(custody.collectionAuth.expiresAt),
+   117→   117→            usedAt: custody.collectionAuth.usedAt ? iso(custody.collectionAuth.usedAt) : null,
+   118→   118→            revokedAt: custody.collectionAuth.revokedAt ? iso(custody.collectionAuth.revokedAt) : null,
+   119→   119→          }
+   120→   120→        : null,
+   121→   121→    },
+   122→   122→  })
+   123→   123→})
+   124→   124→
+   125→   125→const patchSchema = z.discriminatedUnion('action', [
+   126→   126→  z.object({ action: z.literal('receive'), staffName: z.string().trim().min(2).max(120) }),
+   127→   127→  z.object({
+   128→   128→    action: z.literal('status'),
+   129→   129→    status: z.enum(['INSPECTION', 'AWAITING_APPROVAL', 'WORK_IN_PROGRESS', 'READY_FOR_COLLECTION']),
+   130→   130→    note: z.string().trim().max(2000).optional(),
+   131→   131→    completedWork: z.string().trim().max(4000).optional(),
+   132→   132→    finalOdometerKm: z.number().int().min(0).max(2_000_000).optional(),
+   133→   133→    finalNotes: z.string().trim().max(2000).optional(),
+   134→   134→    completionPhotos: z.array(z.string().trim().min(1).max(500)).max(6).optional(),
+   135→   135→    costMinor: z.number().int().min(0).max(9_999_999_999).optional(),
+   136→   136→  }),
+   137→   137→  z.object({ action: z.literal('note'), note: z.string().trim().min(1).max(2000) }),
+   138→   138→  z.object({
+   139→   139→    action: z.literal('request-roadtest'),
+   140→   140→    purpose: z.string().trim().min(3).max(300),
+   141→   141→    driverName: z.string().trim().min(2).max(120),
+   142→   142→  }),
+   143→   143→  z.object({
+   144→   144→    action: z.literal('start-roadtest'),
+   145→   145→    roadTestId: z.string().min(1),
+   146→   146→    startOdometerKm: z.number().int().min(0).max(2_000_000),
+   147→   147→  }),
+   148→   148→  z.object({
+   149→   149→    action: z.literal('end-roadtest'),
+   150→   150→    roadTestId: z.string().min(1),
+   151→   151→    endOdometerKm: z.number().int().min(0).max(2_000_000),
+   152→   152→    notes: z.string().trim().max(2000).optional(),
+   153→   153→    incident: z.boolean().optional(),
+   154→   154→  }),
+   155→   155→  z.object({ action: z.literal('authorize-roadtest'), roadTestId: z.string().min(1) }),
+   156→   156→  z.object({ action: z.literal('decline-roadtest'), roadTestId: z.string().min(1), note: z.string().trim().max(1000).optional() }),
+   157→   157→  z.object({ action: z.literal('approve-work'), note: z.string().trim().max(1000).optional() }),
+   158→   158→  z.object({ action: z.literal('decline-work'), note: z.string().trim().max(1000).optional() }),
+   159→   159→  z.object({ action: z.literal('collect-self') }),
+   160→   160→  z.object({ action: z.literal('dispute'), note: z.string().trim().min(10).max(4000) }),
+   161→   161→])
+   162→   162→
+   163→   163→const WORK_STATUSES = ['INSPECTION', 'AWAITING_APPROVAL', 'WORK_IN_PROGRESS'] as const
+   164→   164→const STATUS_ACTION_FROM = ['RECEIVED', 'INSPECTION', 'AWAITING_APPROVAL', 'WORK_IN_PROGRESS', 'ROAD_TEST_REQUESTED'] as const
+   165→   165→
+   166→   166→/**
+   167→   167→ * PATCH: custody lifecycle transitions.
+   168→   168→ * ORG actions: receive, status, note, request-roadtest, start-roadtest, end-roadtest.
+   169→   169→ * CUSTOMER actions: authorize-roadtest, decline-roadtest, collect-self, dispute.
+   170→   170→ * Every transition is guarded; violations return 400 INVALID_TRANSITION.
+   171→   171→ */
+   172→   172→export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
+   173→   173→  const user = await requireUser()
+   174→   174→  const { id } = await ctx.params
+   175→   175→  const custody = await loadCustody(id)
+   176→   176→
+   177→   177→  const isCustomer = custody.customerId === user.id
+   178→   178→  const membership = isCustomer ? null : await db.orgMember.findFirst({ where: { orgId: custody.orgId, userId: user.id } })
+   179→   179→  if (!isCustomer && !membership) throw new ApiError(403, 'FORBIDDEN', 'You are not part of this custody record.')
+   180→   180→
+   181→   181→  const requireOrg = () => {
+   182→   182→    if (!membership) throw new ApiError(403, 'FORBIDDEN', 'Only the garage team can perform this action.')
+   183→   183→  }
+   184→   184→  const requireCustomer = () => {
+   185→   185→    if (!isCustomer) throw new ApiError(403, 'FORBIDDEN', 'Only the vehicle owner can perform this action.')
+   186→   186→  }
+   187→   187→
+   188→   188→  const body = await parseBody(req, patchSchema)
+   189→   189→  const now = new Date()
+   190→   190→  const orgLink = { type: 'CUSTODY_UPDATE' as const, link: '/garage-dashboard?tab=custody' }
+   191→   191→
+   192→   192→  const loadRoadTest = async (roadTestId: string) => {
+   193→   193→    const rt = await db.roadTest.findUnique({ where: { id: roadTestId } })
+   194→   194→    if (!rt || rt.custodyId !== id) throw new ApiError(404, 'NOT_FOUND', 'Road test not found.')
+   195→   195→    return rt
+   196→   196→  }
+   197→   197→
+   198→   198→  switch (body.action) {
+   199→   199→    // ─────────────────────────── ORG: receive ───────────────────────────
+   200→   200→    case 'receive': {
+   201→   201→      requireOrg()
+   202→   202→      if (custody.status !== 'HANDOVER_REQUESTED') {
+   203→   203→        invalid('The vehicle can only be received once, from a handover request.')
+   204→   204→      }
+   205→   205→      await db.$transaction([
+   206→   206→        db.vehicleCustody.update({
+   207→   207→          where: { id },
+   208→   208→          data: { status: 'RECEIVED', receivedAt: now, receivedByStaffName: body.staffName },
+   209→   209→        }),
+   210→   210→        db.custodyEvent.create({
+   211→   211→          data: {
+   212→   212→            custodyId: id,
+   213→   213→            type: 'STATUS_CHANGE',
+   214→   214→            fromStatus: custody.status,
+   215→   215→            toStatus: 'RECEIVED',
+   216→   216→            actorId: user.id,
+   217→   217→            actorName: user.name,
+   218→   218→            actorSide: 'ORG',
+   219→   219→            note: `Vehicle received by ${body.staffName}.`,
+   220→   220→          },
+   221→   221→        }),
+   222→   222→      ])
+   223→   223→      await notify({
+   224→   224→        userId: custody.customerId,
+   225→   225→        type: 'CUSTODY_UPDATE',
+   226→   226→        title: `Your vehicle was received: ${custody.refCode}`,
+   227→   227→        body: `${custody.org.name} received your ${custody.vehicleDesc}. Track progress in Vehicle Protection.`,
+   228→   228→        link: '/account?tab=protection',
+   229→   229→      })
+   230→   230→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_RECEIVED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, staffName: body.staffName } })
+   231→   231→      return ok({ custody: { id, refCode: custody.refCode, status: 'RECEIVED' } })
+   232→   232→    }
+   233→   233→
+   234→   234→    // ─────────────────────────── ORG: status ───────────────────────────
+   235→   235→    case 'status': {
+   236→   236→      requireOrg()
+   237→   237→      if (!(STATUS_ACTION_FROM as readonly string[]).includes(custody.status)) {
+   238→   238→        invalid(`Cannot change status while the custody record is ${custody.status}.`)
+   239→   239→      }
+   240→   240→      // Money authorisation integrity: cost figures are OWNER/MANAGER data.
+   241→   241→      if (body.costMinor !== undefined && !['OWNER', 'MANAGER'].includes(membership?.role ?? '')) {
+   242→   242→        throw new ApiError(403, 'PERMISSION_DENIED', 'Recording the final cost requires an owner or manager account.')
+   243→   243→      }
+   244→   244→      // Additional-work approval (customer protection): work beyond the
+   245→   245→      // customer's authorised spend cap requires the customer's explicit
+   246→   246→      // approval before work proceeds. The garage cannot self-proceed past
+   247→   247→      // AWAITING_APPROVAL, and an over-cap cost forces the approval step.
+   248→   248→      const overCap =
+   249→   249→        custody.authorisedSpendMinor != null &&
+   250→   250→        body.costMinor !== undefined &&
+   251→   251→        body.costMinor > custody.authorisedSpendMinor
+   252→   252→      if (custody.status === 'AWAITING_APPROVAL' && body.status === 'WORK_IN_PROGRESS') {
+   253→   253→        invalid('Work beyond the authorised spend cap is awaiting the customer\'s approval. The customer must approve (or decline) it from their Vehicle Protection page before work resumes.')
+   254→   254→      }
+   255→   255→      if (overCap && (body.status === 'WORK_IN_PROGRESS' || body.status === 'READY_FOR_COLLECTION')) {
+   256→   256→        await db.$transaction([
+   257→   257→          db.vehicleCustody.update({ where: { id }, data: { status: 'AWAITING_APPROVAL', costMinor: body.costMinor } }),
+   258→   258→          db.custodyEvent.create({
+   259→   259→            data: {
+   260→   260→              custodyId: id,
+   261→   261→              type: 'STATUS_CHANGE',
+   262→   262→              fromStatus: custody.status,
+   263→   263→              toStatus: 'AWAITING_APPROVAL',
+   264→   264→              actorId: user.id,
+   265→   265→              actorName: user.name,
+   266→   266→              actorSide: 'ORG',
+   267→   267→              note: body.note ?? 'Quoted cost exceeds the authorised spend cap: customer approval required before work proceeds.',
+   268→   268→            },
+   269→   269→          }),
+   270→   270→        ])
+   271→   271→        await notify({
+   272→   272→          userId: custody.customerId,
+   273→   273→          type: 'CUSTODY_UPDATE',
+   274→   274→          title: `Approval needed: ${custody.refCode}`,
+   275→   275→          body: `${custody.org.name} quoted work above your authorised spend cap. Approve or decline it in Vehicle Protection before work proceeds.`,
+   276→   276→          link: '/account?tab=protection',
+   277→   277→        })
+   278→   278→        await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_AWAITING_APPROVAL', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, costMinor: body.costMinor, authorisedSpendMinor: custody.authorisedSpendMinor } })
+   279→   279→        return ok({ custody: { id, refCode: custody.refCode, status: 'AWAITING_APPROVAL' }, message: 'The quoted cost exceeds the authorised spend cap: customer approval is required. The customer has been notified.' })
+   280→   280→      }
+   281→   281→      if (
+   282→   282→        body.status === 'READY_FOR_COLLECTION' &&
+   283→   283→        (!body.completedWork || body.completedWork.trim().length < 5)
+   284→   284→      ) {
+   285→   285→        invalid('A completed work summary (min 5 characters) is required to mark the vehicle ready for collection.')
+   286→   286→      }
+   287→   287→      const data: Prisma.VehicleCustodyUpdateInput = { status: body.status }
+   288→   288→      if (body.status === 'READY_FOR_COLLECTION') data.readyAt = now
+   289→   289→      if (body.completedWork !== undefined) data.completedWork = body.completedWork
+   290→   290→      if (body.finalOdometerKm !== undefined) data.finalOdometerKm = body.finalOdometerKm
+   291→   291→      if (body.finalNotes !== undefined) data.finalNotes = body.finalNotes
+   292→   292→      if (body.completionPhotos !== undefined) data.completionPhotos = JSON.stringify(body.completionPhotos)
+   293→   293→      if (body.costMinor !== undefined) data.costMinor = body.costMinor
+   294→   294→
+   295→   295→      await db.$transaction([
+   296→   296→        db.vehicleCustody.update({ where: { id }, data }),
+   297→   297→        db.custodyEvent.create({
+   298→   298→          data: {
+   299→   299→            custodyId: id,
+   300→   300→            type: 'STATUS_CHANGE',
+   301→   301→            fromStatus: custody.status,
+   302→   302→            toStatus: body.status,
+   303→   303→            actorId: user.id,
+   304→   304→            actorName: user.name,
+   305→   305→            actorSide: 'ORG',
+   306→   306→            note: body.note ?? (body.status === 'READY_FOR_COLLECTION' ? 'Work completed: ready for collection.' : null),
+   307→   307→          },
+   308→   308→        }),
+   309→   309→      ])
+   310→   310→      if (body.status === 'READY_FOR_COLLECTION') {
+   311→   311→        await notify({
+   312→   312→          userId: custody.customerId,
+   313→   313→          type: 'CUSTODY_UPDATE',
+   314→   314→          title: `Ready for collection: ${custody.refCode}`,
+   315→   315→          body: `Your ${custody.vehicleDesc} is ready for collection at ${custody.org.name}.`,
+   316→   316→          link: '/account?tab=protection',
+   317→   317→        })
+   318→   318→      }
+   319→   319→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_STATUS_CHANGED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, from: custody.status, to: body.status } })
+   320→   320→      return ok({ custody: { id, refCode: custody.refCode, status: body.status } })
+   321→   321→    }
+   322→   322→
+   323→   323→    // ─────────────────────────── ORG: note ───────────────────────────
+   324→   324→    case 'note': {
+   325→   325→      requireOrg()
+   326→   326→      await db.custodyEvent.create({
+   327→   327→        data: { custodyId: id, type: 'NOTE', actorId: user.id, actorName: user.name, actorSide: 'ORG', note: body.note },
+   328→   328→      })
+   329→   329→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_NOTE_ADDED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode } })
+   330→   330→      return ok({ custody: { id, refCode: custody.refCode, status: custody.status } })
+   331→   331→    }
+   332→   332→
+   333→   333→    // ─────────────────────── ORG: request-roadtest ───────────────────────
+   334→   334→    case 'request-roadtest': {
+   335→   335→      requireOrg()
+   336→   336→      if (!(WORK_STATUSES as readonly string[]).includes(custody.status)) {
+   337→   337→        invalid('A road test can only be requested while the vehicle is under inspection or work.')
+   338→   338→      }
+   339→   339→      const active = await db.roadTest.findFirst({
+   340→   340→        where: { custodyId: id, status: { in: ['REQUESTED', 'AUTHORISED', 'IN_PROGRESS'] } },
+   341→   341→      })
+   342→   342→      if (active) invalid('There is already an active road test for this vehicle.')
+   343→   343→      await db.$transaction([
+   344→   344→        db.roadTest.create({
+   345→   345→          data: { custodyId: id, purpose: body.purpose, driverName: body.driverName, status: 'REQUESTED' },
+   346→   346→        }),
+   347→   347→        db.vehicleCustody.update({ where: { id }, data: { status: 'ROAD_TEST_REQUESTED' } }),
+   348→   348→        db.custodyEvent.create({
+   349→   349→          data: {
+   350→   350→            custodyId: id,
+   351→   351→            type: 'ROAD_TEST',
+   352→   352→            fromStatus: custody.status,
+   353→   353→            toStatus: 'ROAD_TEST_REQUESTED',
+   354→   354→            actorId: user.id,
+   355→   355→            actorName: user.name,
+   356→   356→            actorSide: 'ORG',
+   357→   357→            note: `Road test requested: ${body.purpose} (driver: ${body.driverName}).`,
+   358→   358→          },
+   359→   359→        }),
+   360→   360→      ])
+   361→   361→      await notify({
+   362→   362→        userId: custody.customerId,
+   363→   363→        type: 'CUSTODY_UPDATE',
+   364→   364→        title: `Road test requested: ${custody.refCode}`,
+   365→   365→        body: `${custody.org.name} asks permission to road test your ${custody.vehicleDesc}: ${body.purpose}.`,
+   366→   366→        link: '/account?tab=protection',
+   367→   367→      })
+   368→   368→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_ROADTEST_REQUESTED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, purpose: body.purpose } })
+   369→   369→      return ok({ custody: { id, refCode: custody.refCode, status: 'ROAD_TEST_REQUESTED' } })
+   370→   370→    }
+   371→   371→
+   372→   372→    // ─────────────────────── ORG: start-roadtest ───────────────────────
+   373→   373→    case 'start-roadtest': {
+   374→   374→      requireOrg()
+   375→   375→      if (custody.status === 'DISPUTED') {
+   376→   376→        invalid('This custody record is disputed: road tests are frozen while a security incident is open.')
+   377→   377→      }
+   378→   378→      const rt = await loadRoadTest(body.roadTestId)
+   379→   379→      if (rt.status !== 'AUTHORISED') invalid('Only an authorised road test can be started.')
+   380→   380→      await db.$transaction([
+   381→   381→        db.roadTest.update({
+   382→   382→          where: { id: rt.id },
+   383→   383→          data: { status: 'IN_PROGRESS', startedAt: now, startOdometerKm: body.startOdometerKm },
+   384→   384→        }),
+   385→   385→        db.custodyEvent.create({
+   386→   386→          data: {
+   387→   387→            custodyId: id,
+   388→   388→            type: 'ROAD_TEST',
+   389→   389→            actorId: user.id,
+   390→   390→            actorName: user.name,
+   391→   391→            actorSide: 'ORG',
+   392→   392→            note: `Road test started (odometer ${body.startOdometerKm} km, driver: ${rt.driverName}).`,
+   393→   393→          },
+   394→   394→        }),
+   395→   395→      ])
+   396→   396→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_ROADTEST_STARTED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, roadTestId: rt.id } })
+   397→   397→      return ok({ custody: { id, refCode: custody.refCode, status: custody.status }, roadTest: { id: rt.id, status: 'IN_PROGRESS' } })
+   398→   398→    }
+   399→   399→
+   400→   400→    // ─────────────────────── ORG: end-roadtest ───────────────────────
+   401→   401→    case 'end-roadtest': {
+   402→   402→      requireOrg()
+   403→   403→      if (custody.status === 'DISPUTED') {
+   404→   404→        invalid('This custody record is disputed: road tests are frozen while a security incident is open.')
+   405→   405→      }
+   406→   406→      const rt = await loadRoadTest(body.roadTestId)
+   407→   407→      if (rt.status !== 'IN_PROGRESS') invalid('Only an in-progress road test can be ended.')
+   408→   408→      const incident = body.incident ?? false
+   409→   409→      await db.$transaction([
+   410→   410→        db.roadTest.update({
+   411→   411→          where: { id: rt.id },
+   412→   412→          data: {
+   413→   413→            status: 'COMPLETED',
+   414→   414→            endedAt: now,
+   415→   415→            endOdometerKm: body.endOdometerKm,
+   416→   416→            notes: body.notes ?? undefined,
+   417→   417→            incident,
+   418→   418→          },
+   419→   419→        }),
+   420→   420→        db.vehicleCustody.update({ where: { id }, data: { status: 'WORK_IN_PROGRESS' } }),
+   421→   421→        db.custodyEvent.create({
+   422→   422→          data: {
+   423→   423→            custodyId: id,
+   424→   424→            type: 'ROAD_TEST',
+   425→   425→            fromStatus: custody.status,
+   426→   426→            toStatus: 'WORK_IN_PROGRESS',
+   427→   427→            actorId: user.id,
+   428→   428→            actorName: user.name,
+   429→   429→            actorSide: 'ORG',
+   430→   430→            note: incident ? 'Road test ended: incident reported.' : `Road test ended (odometer ${body.endOdometerKm} km).`,
+   431→   431→          },
+   432→   432→        }),
+   433→   433→      ])
+   434→   434→      if (incident) {
+   435→   435→        await db.custodyEvent.create({
+   436→   436→          data: {
+   437→   437→            custodyId: id,
+   438→   438→            type: 'NOTE',
+   439→   439→            actorId: user.id,
+   440→   440→            actorName: user.name,
+   441→   441→            actorSide: 'ORG',
+   442→   442→            note: `Road-test incident recorded during ${custody.refCode}.`,
+   443→   443→          },
+   444→   444→        })
+   445→   445→        await notify({
+   446→   446→          userId: custody.customerId,
+   447→   447→          type: 'CUSTODY_UPDATE',
+   448→   448→          title: `Road test incident: ${custody.refCode}`,
+   449→   449→          body: `The garage reported an incident during the road test of your ${custody.vehicleDesc}. See the custody timeline for details.`,
+   450→   450→          link: '/account?tab=protection',
+   451→   451→        })
+   452→   452→      }
+   453→   453→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_ROADTEST_ENDED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, roadTestId: rt.id, incident } })
+   454→   454→      return ok({ custody: { id, refCode: custody.refCode, status: 'WORK_IN_PROGRESS' }, roadTest: { id: rt.id, status: 'COMPLETED' } })
+   455→   455→    }
+   456→   456→
+   457→   457→    // ─────────────────── CUSTOMER: authorize-roadtest ───────────────────
+   458→   458→    case 'authorize-roadtest': {
+   459→   459→      requireCustomer()
+   460→   460→      const rt = await loadRoadTest(body.roadTestId)
+   461→   461→      if (rt.status !== 'REQUESTED') invalid('Only a requested road test can be authorised.')
+   462→   462→      await db.$transaction([
+   463→   463→        db.roadTest.update({ where: { id: rt.id }, data: { status: 'AUTHORISED', authorisedAt: now } }),
+   464→   464→        db.vehicleCustody.update({ where: { id }, data: { status: 'WORK_IN_PROGRESS' } }),
+   465→   465→        db.custodyEvent.create({
+   466→   466→          data: {
+   467→   467→            custodyId: id,
+   468→   468→            type: 'ROAD_TEST',
+   469→   469→            fromStatus: custody.status,
+   470→   470→            toStatus: 'WORK_IN_PROGRESS',
+   471→   471→            actorId: user.id,
+   472→   472→            actorName: user.name,
+   473→   473→            actorSide: 'CUSTOMER',
+   474→   474→            note: 'Customer authorised the road test.',
+   475→   475→          },
+   476→   476→        }),
+   477→   477→      ])
+   478→   478→      await notifyOrgMembers(custody.orgId, {
+   479→   479→        ...orgLink,
+   480→   480→        title: `Road test authorised: ${custody.refCode}`,
+   481→   481→        body: `${user.name} authorised the road test of the ${custody.vehicleDesc}.`,
+   482→   482→      })
+   483→   483→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_ROADTEST_AUTHORISED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, roadTestId: rt.id } })
+   484→   484→      return ok({ custody: { id, refCode: custody.refCode, status: 'WORK_IN_PROGRESS' }, roadTest: { id: rt.id, status: 'AUTHORISED' } })
+   485→   485→    }
+   486→   486→
+   487→   487→    // ─────────────────── CUSTOMER: decline-roadtest ───────────────────
+   488→   488→    case 'decline-roadtest': {
+   489→   489→      requireCustomer()
+   490→   490→      const rt = await loadRoadTest(body.roadTestId)
+   491→   491→      if (rt.status !== 'REQUESTED') invalid('Only a requested road test can be declined.')
+   492→   492→      await db.$transaction([
+   493→   493→        db.roadTest.update({
+   494→   494→          where: { id: rt.id },
+   495→   495→          data: { status: 'DECLINED', notes: body.note ?? undefined },
+   496→   496→        }),
+   497→   497→        db.vehicleCustody.update({ where: { id }, data: { status: 'WORK_IN_PROGRESS' } }),
+   498→   498→        db.custodyEvent.create({
+   499→   499→          data: {
+   500→   500→            custodyId: id,
+   501→   501→            type: 'ROAD_TEST',
+   502→   502→            fromStatus: custody.status,
+   503→   503→            toStatus: 'WORK_IN_PROGRESS',
+   504→   504→            actorId: user.id,
+   505→   505→            actorName: user.name,
+   506→   506→            actorSide: 'CUSTOMER',
+   507→   507→            note: body.note ? `Customer declined the road test: ${body.note}` : 'Customer declined the road test.',
+   508→   508→          },
+   509→   509→        }),
+   510→   510→      ])
+   511→   511→      await notifyOrgMembers(custody.orgId, {
+   512→   512→        ...orgLink,
+   513→   513→        title: `Road test declined: ${custody.refCode}`,
+   514→   514→        body: `${user.name} declined the road test of the ${custody.vehicleDesc}.`,
+   515→   515→      })
+   516→   516→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_ROADTEST_DECLINED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, roadTestId: rt.id } })
+   517→   517→      return ok({ custody: { id, refCode: custody.refCode, status: 'WORK_IN_PROGRESS' }, roadTest: { id: rt.id, status: 'DECLINED' } })
+   518→   518→    }
+   519→   519→
+   520→   520→    // ─────────────────── CUSTOMER: approve-work / decline-work ───────────────
+   521→   521→    // Additional-work approval: the ONLY path out of AWAITING_APPROVAL for the
+   522→   522→    // garage to resume work. The garage cannot self-proceed (enforced in the
+   523→   523→    // 'status' case above).
+   524→   524→    case 'approve-work': {
+   525→   525→      requireCustomer()
+   526→   526→      if (custody.status !== 'AWAITING_APPROVAL') {
+   527→   527→        invalid('There is no work approval pending on this custody record.')
+   528→   528→      }
+   529→   529→      await db.$transaction([
+   530→   530→        db.vehicleCustody.update({ where: { id }, data: { status: 'WORK_IN_PROGRESS' } }),
+   531→   531→        db.custodyEvent.create({
+   532→   532→          data: {
+   533→   533→            custodyId: id,
+   534→   534→            type: 'STATUS_CHANGE',
+   535→   535→            fromStatus: custody.status,
+   536→   536→            toStatus: 'WORK_IN_PROGRESS',
+   537→   537→            actorId: user.id,
+   538→   538→            actorName: user.name,
+   539→   539→            actorSide: 'CUSTOMER',
+   540→   540→            note: body.note ? `Customer approved the additional work: ${body.note}` : 'Customer approved the additional work. Work may proceed at the quoted cost.',
+   541→   541→          },
+   542→   542→        }),
+   543→   543→      ])
+   544→   544→      await notifyOrgMembers(custody.orgId, {
+   545→   545→        ...orgLink,
+   546→   546→        title: `Additional work approved: ${custody.refCode}`,
+   547→   547→        body: `${user.name} approved the quoted work on the ${custody.vehicleDesc}. Work may proceed.`,
+   548→   548→      })
+   549→   549→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_WORK_APPROVED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, costMinor: custody.costMinor } })
+   550→   550→      return ok({ custody: { id, refCode: custody.refCode, status: 'WORK_IN_PROGRESS' } })
+   551→   551→    }
+   552→   552→
+   553→   553→    case 'decline-work': {
+   554→   554→      requireCustomer()
+   555→   555→      if (custody.status !== 'AWAITING_APPROVAL') {
+   556→   556→        invalid('There is no work approval pending on this custody record.')
+   557→   557→      }
+   558→   558→      await db.$transaction([
+   559→   559→        db.vehicleCustody.update({ where: { id }, data: { status: 'INSPECTION' } }),
+   560→   560→        db.custodyEvent.create({
+   561→   561→          data: {
+   562→   562→            custodyId: id,
+   563→   563→            type: 'STATUS_CHANGE',
+   564→   564→            fromStatus: custody.status,
+   565→   565→            toStatus: 'INSPECTION',
+   566→   566→            actorId: user.id,
+   567→   567→            actorName: user.name,
+   568→   568→            actorSide: 'CUSTOMER',
+   569→   569→            note: body.note ? `Customer declined the additional work: ${body.note}` : 'Customer declined the additional work. Continue with the originally authorised scope only.',
+   570→   570→          },
+   571→   571→        }),
+   572→   572→      ])
+   573→   573→      await notifyOrgMembers(custody.orgId, {
+   574→   574→        ...orgLink,
+   575→   575→        title: `Additional work declined: ${custody.refCode}`,
+   576→   576→        body: `${user.name} declined the quoted work on the ${custody.vehicleDesc}. Continue with the originally authorised scope only.`,
+   577→   577→      })
+   578→   578→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_WORK_DECLINED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode } })
+   579→   579→      return ok({ custody: { id, refCode: custody.refCode, status: 'INSPECTION' } })
+   580→   580→    }
+   581→   581→
+   582→   582→    // ─────────────────── CUSTOMER: collect-self ───────────────────
+   583→   583→    case 'collect-self': {
+   584→   584→      requireCustomer()
+   585→   585→      if (custody.status !== 'READY_FOR_COLLECTION') {
+   586→   586→        invalid('The vehicle is not ready for collection yet.')
+   587→   587→      }
+   588→   588→      await db.$transaction([
+   589→   589→        db.vehicleCustody.update({
+   590→   590→          where: { id },
+   591→   591→          data: { status: 'RETURNED', collectedAt: now, collectedByName: user.name, returnedAt: now },
+   592→   592→        }),
+   593→   593→        db.custodyEvent.create({
+   594→   594→          data: {
+   595→   595→            custodyId: id,
+   596→   596→            type: 'COLLECTION',
+   597→   597→            fromStatus: custody.status,
+   598→   598→            toStatus: 'RETURNED',
+   599→   599→            actorId: user.id,
+   600→   600→            actorName: user.name,
+   601→   601→            actorSide: 'CUSTOMER',
+   602→   602→            note: 'Customer collected the vehicle in person.',
+   603→   603→          },
+   604→   604→        }),
+   605→   605→      ])
+   606→   606→      await notifyOrgMembers(custody.orgId, {
+   607→   607→        ...orgLink,
+   608→   608→        title: `Vehicle collected: ${custody.refCode}`,
+   609→   609→        body: `${user.name} collected the ${custody.vehicleDesc}.`,
+   610→   610→      })
+   611→   611→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_COLLECTED_SELF', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode } })
+   612→   612→      return ok({ custody: { id, refCode: custody.refCode, status: 'RETURNED' } })
+   613→   613→    }
+   614→   614→
+   615→   615→    // ─────────────────── CUSTOMER: dispute ───────────────────
+   616→   616→    case 'dispute': {
+   617→   617→      requireCustomer()
+   618→   618→      if (custody.status === 'RETURNED') {
+   619→   619→        invalid('A returned custody record cannot be disputed; contact CARMAZE support instead.')
+   620→   620→      }
+   621→   621→      const incident = await db.securityIncident.create({
+   622→   622→        data: {
+   623→   623→          refCode: refCode('INC-'),
+   624→   624→          category: 'DAMAGE_IN_CUSTODY',
+   625→   625→          reporterId: user.id,
+   626→   626→          reporterSide: 'CUSTOMER',
+   627→   627→          orgId: custody.orgId,
+   628→   628→          custodyId: custody.id,
+   629→   629→          vehicleDesc: custody.vehicleDesc,
+   630→   630→          title: `Custody dispute ${custody.refCode}`,
+   631→   631→          details: body.note,
+   632→   632→          status: 'OPEN',
+   633→   633→        },
+   634→   634→      })
+   635→   635→      await db.incidentEvent.create({
+   636→   636→        data: {
+   637→   637→          incidentId: incident.id,
+   638→   638→          type: 'CREATED',
+   639→   639→          actorId: user.id,
+   640→   640→          actorName: user.name,
+   641→   641→          note: 'Incident opened automatically from a custody dispute.',
+   642→   642→        },
+   643→   643→      })
+   644→   644→      await db.$transaction([
+   645→   645→        db.vehicleCustody.update({ where: { id }, data: { status: 'DISPUTED' } }),
+   646→   646→        db.custodyEvent.create({
+   647→   647→          data: {
+   648→   648→            custodyId: id,
+   649→   649→            type: 'INCIDENT',
+   650→   650→            fromStatus: custody.status,
+   651→   651→            toStatus: 'DISPUTED',
+   652→   652→            actorId: user.id,
+   653→   653→            actorName: user.name,
+   654→   654→            actorSide: 'CUSTOMER',
+   655→   655→            note: `Dispute opened (${incident.refCode}): ${body.note}`,
+   656→   656→          },
+   657→   657→        }),
+   658→   658→      ])
+   659→   659→      const staff = await staffUserIds('ADMIN', 'FOUNDER')
+   660→   660→      await notifyMany(staff, {
+   661→   661→        type: 'INCIDENT_CREATED',
+   662→   662→        title: `Custody dispute: ${custody.refCode}`,
+   663→   663→        body: `${user.name} disputed custody at ${custody.org.name}. Review the incident queue.`,
+   664→   664→        link: '/admin?tab=incidents',
+   665→   665→      })
+   666→   666→      await notifyOrgMembers(custody.orgId, {
+   667→   667→        ...orgLink,
+   668→   668→        title: `Custody dispute opened: ${custody.refCode}`,
+   669→   669→        body: `${user.name} raised a dispute on the ${custody.vehicleDesc}. CARMAZE security has been notified.`,
+   670→   670→      })
+   671→   671→      await audit({ actorId: user.id, actorName: user.name, action: 'CUSTODY_DISPUTED', targetType: 'VEHICLE_CUSTODY', targetId: id, metadata: { refCode: custody.refCode, incidentId: incident.id } })
+   672→   672→      return ok({ custody: { id, refCode: custody.refCode, status: 'DISPUTED' }, incident: { id: incident.id, refCode: incident.refCode } })
+   673→   673→    }
+   674→   674→  }
+   675→   675→})
+   676→   676→

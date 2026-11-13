@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ZodError, ZodType } from 'zod'
+import { Prisma } from '@prisma/client'
 import { getSessionUser, hasRole, SessionUser } from '@/lib/auth'
 import { contextSessionUser, runWithRequestContext } from '@/lib/request-context'
 
@@ -37,6 +38,12 @@ export function route<C = RouteCtx>(handler: (req: NextRequest, ctx: C) => Promi
       }
       if (e instanceof ZodError) {
         return fail(400, 'VALIDATION_ERROR', 'Invalid input', { issues: e.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) })
+      }
+      // A malformed record id (e.g. GET /api/orders/xyz) is a Prisma P2023
+      // validation error, which used to surface as JSON 500 noise from any
+      // low-privilege caller. It is a lookup miss, not a server fault: 404.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2023') {
+        return fail(404, 'NOT_FOUND', 'The requested record does not exist.')
       }
       console.error('[api]', e)
       return fail(500, 'INTERNAL_ERROR', 'Something went wrong. Please try again.')

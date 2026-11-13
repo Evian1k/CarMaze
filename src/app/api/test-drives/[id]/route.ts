@@ -58,7 +58,8 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
 
   const isCustomer = testDrive.customerId === user.id
   if (!isCustomer) {
-    const membership = await db.orgMember.findFirst({ where: { orgId: testDrive.orgId, userId: user.id } })
+    // Org-side actions require an ACTIVE org (suspended showroom cannot act).
+    const membership = await db.orgMember.findFirst({ where: { orgId: testDrive.orgId, userId: user.id, org: { status: 'ACTIVE' } } })
     if (!membership) throw new ApiError(403, 'FORBIDDEN', 'You are not part of this test drive.')
   }
 
