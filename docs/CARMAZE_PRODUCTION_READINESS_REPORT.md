@@ -157,3 +157,23 @@ Triggered by the user's requests to (a) have a demo for every section and
 Known limitations (unchanged, honest): upload malware-scan hook is an honest
 pass-through; M-Pesa/Daraja, SMTP and SMS remain unconfigured (env names in
 `.env.example`); payment success is never simulated.
+
+## 2026-11-13 — Fifth file-loss + permanent self-healing guard
+
+`src/app/api/upload/route.ts` was again the only casualty of a session recycle
+(whole directory removed; every other edit survived). Git forensics show the
+platform's auto-commit snapshots had already recorded the deletion, so git
+alone could no longer restore it. Permanent fix, verified live:
+
+1. `scripts/ensure-critical-files.ts` now runs before every dev-server start
+   (wired into the `dev` script) and restores any missing critical file from a
+   tracked copy under `agent-ctx/critical/`. Restores only when the target is
+   absent (never overwrites live edits); exits non-zero on failure so a broken
+   start is loud.
+2. Both the guard and a second recovery copy are committed to git
+   (e4c4b01), so future snapshots can never lose the recovery path itself.
+3. Guard tested both ways (present → pass-through; deleted → restored, exit 0).
+4. Post-restore verification on a fresh server: unauthenticated upload → 401,
+   authenticated upload → 201 with server-generated name, media read-back →
+   200 image/png, declared-type spoof (PNG bytes as text/plain) → 415, image
+   accepted under kind=document → 201. Home renders clean, dev log clean.
