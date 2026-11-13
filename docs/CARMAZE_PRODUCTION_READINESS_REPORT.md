@@ -177,3 +177,70 @@ alone could no longer restore it. Permanent fix, verified live:
    authenticated upload → 201 with server-generated name, media read-back →
    200 image/png, declared-type spoof (PNG bytes as text/plain) → 415, image
    accepted under kind=document → 201. Home renders clean, dev log clean.
+
+## 2026-11-13 — Full 10-role end-to-end walkthrough (browser-verified)
+
+Every demo role was signed into a real browser and taken through its
+dashboard and signature workflows, plus cross-role state transitions:
+
+1. **Customer (Amina)** — AI car finder returned a real listing; vehicle
+   detail + enquiry ENQ-HL396X sent; shortlist save; My Garage records +
+   reminders; custody dialog read; customizer shared config CRM9DEMO2XK4
+   loaded (Crimson selected), Save & Share reissued the same shareId;
+   membership subscribe created a pending invoice with benefits locked
+   until payment confirmation (no simulated success).
+2. **Private seller (James)** — landed on My Listings; full sell wizard:
+   make/model/body/county, photo upload (201 + media read-back), AI draft
+   description applied, preview, submit → CM-U8TM5X Pending review;
+   offers tab showed 2 seeded offers; accepting Nairobi Auto Hub's offer
+   reserved the listing.
+3. **Showroom owner (David)** — DealerOS overview KPIs + Copilot surfaced
+   the cross-role enquiry; replied to ENQ-HL396X → status Answered;
+   inventory shows Live/Draft/Reserved with per-status actions; buying
+   board shows own + other dealers' requests.
+4. **Showroom staff (Brian)** — Staff and Billing tabs hidden; Copilot
+   shows operational insights only (no subscription/invoice fields);
+   `/api/billing/invoices` → 403, org staff management → 403; enquiry
+   read allowed (2 org enquiries).
+5. **Garage owner (Mary)** — GarageOS KPIs live; customer custody job
+   HC-K7Q2MD visible; procurement workbench + portal (OWNER badge, cart,
+   7 tabs, KES 76K spend, stock alerts).
+6. **Garage staff (Kevin)** — services tab has no edit affordances;
+   supply orders read OK (3), POST → PERMISSION_DENIED; catalogue 200.
+7. **Supplier owner (Peter)** — SupplierOS orders with DISPUTED
+   (funds protected) / COMPLETED / SUBMITTED states; two-step accept flow
+   (click Accept → confirm "Accept order") verified — first click only
+   expands the note form by design; PO-DEMO01 → ACCEPTED via the real
+   endpoint; consumer orders with delivery fees render.
+8. **Logistics owner (Oscar)** — accepted open job (driver + fee) →
+   ASSIGNED; marked picked up → PICKED_UP; seeded IN_TRANSIT job
+   JOB-DEMO02 delivered with the requester's 6-digit code + POD photo →
+   DELIVERED; requester notification confirmed to contain the drop-off
+   code (257629) — verified in DB cross-role.
+9. **Platform support (Halima)** — Control Center Support tab; permitted
+   tabs only; resolved DPO-TPC3NX ticket (Save response & resolve) →
+   RESOLVED via API check.
+10. **Platform admin (restricted demo)** — moderation: approved CM-U8TM5X
+    via two-step publish confirm → listing live on public marketplace;
+    API boundaries verified live: `/api/admin/users` + `/api/admin/audit`
+    → 403, listings/overview → 200, settings PUT → DEMO_SANDBOXED.
+    Customer attempt to open GarageOS procurement → Access denied screen
+    ("This attempt has been recorded").
+
+Also verified cross-role: enquiry reply reached the customer's account;
+customer collect-self completed the custody lifecycle (handover → received
+→ inspection → work → ready → returned); roadside request RSA-663T4R
+created with honest "Requested" status and 999/112 emergency disclaimer.
+
+Environment note: the dev server was OOM-killed once mid-walkthrough
+(next-server RSS had grown to ~1.8 GB across the long session) and was
+restarted via `scripts/start-dev-daemon.py`; sessions survived the
+restart (stable dev fallback secret). No user-facing error resulted —
+the single in-flight POST that was lost (one job acceptance) was retried
+and completed. Hygiene: `bun run lint` clean, `tsc --noEmit` clean, zero
+5xx in dev.log across the entire walkthrough (403s were deliberate RBAC
+checks). Known cosmetic issue: Radix logs a dev-mode-only
+"DialogContent requires a DialogTitle" hint 3× across the whole session;
+static audit confirms every DialogContent file contains a DialogTitle and
+every dialog observed at runtime exposed an accessible name — no
+functional or screen-reader-visible defect identified.
