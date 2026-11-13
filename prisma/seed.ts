@@ -130,9 +130,14 @@ async function main() {
   await db.dispute.deleteMany()
   await db.deliveryEvent.deleteMany()
   await db.delivery.deleteMany()
+  // Settlements (org-referencing, Restrict FK) must be cleared before orgs.
+  await db.settlementEvent.deleteMany()
+  await db.settlement.deleteMany()
   await db.pOEvent.deleteMany()
   await db.pORevision.deleteMany()
   await db.pOItem.deleteMany()
+  // PurchaseOrder.supplierOrgId is a Restrict FK to Org — clear POs before orgs.
+  await db.purchaseOrder.deleteMany()
   await db.paymentAuthorization.deleteMany()
   await db.refund.deleteMany()
   await db.warrantyClaim.deleteMany()

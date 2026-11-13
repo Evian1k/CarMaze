@@ -41,7 +41,7 @@ export const POST = route(async (req: NextRequest) => {
       })
       let stderr = ''
       child.stderr?.on('data', (d: Buffer) => { stderr += String(d).slice(0, 4000) })
-      const timer = setTimeout(() => { try { child.kill('SIGKILL') } catch { /* ignore */ } resolve({ code: null, stderr, timedOut: true }) }, 120_000)
+      const timer = setTimeout(() => { try { child.kill('SIGKILL') } catch { /* ignore */ } resolve({ code: null, stderr, timedOut: true }) }, 420_000)
       child.on('error', (err) => { clearTimeout(timer); resolve({ code: null, stderr: `${stderr}\n${String(err)}`, timedOut: false }) })
       child.on('close', (code) => { clearTimeout(timer); resolve({ code, stderr, timedOut: false }) })
     })
