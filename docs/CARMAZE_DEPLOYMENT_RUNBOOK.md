@@ -229,7 +229,7 @@ bun verification/security-tests.ts                           # 3. from a machine
 |---|---|
 | Fresh DB init (`db:deploy`) | **TESTED** this session on a clean staging DB (5 migrations, exit 0) |
 | Founder bootstrap (`founder:create`) | **TESTED** this session (+ negative tests: second founder / dup email / weak password all refused) |
-| `bun run build` | **TESTED** this session (exit 0) |
+| `bun run build` | **TESTED** (exit 0 in the hardening pass; re-run on the deployment host — the sandbox defers builds to protect the dev server) |
 | Health endpoint | **TESTED** live (honest provider states incl. malware_scanner) |
 | Server provisioning / Caddy TLS / cron / off-site sync | `[NOT RUN HERE]` — requires the real host & provider accounts; commands are exact |
 | Security suite (139 checks) | **TESTED** this session on the dev server; re-run on staging before go-live |
