@@ -53,3 +53,9 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Runtime data: uploads, quarantine, backups (dev artifacts and real user
+# files must never be committed; a clean clone produces a clean production
+# tree — see docs/CARMAZE_DEPLOYMENT_RUNBOOK.md §2)
+/data/
+/backups/
