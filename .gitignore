@@ -59,3 +59,16 @@ server.log
 # tree — see docs/CARMAZE_DEPLOYMENT_RUNBOOK.md §2)
 /data/
 /backups/
+
+# Databases and database artifacts (dev and production data must never be
+# committed — see docs/CARMAZE_DEPLOYMENT_RUNBOOK.md; backups live offsite
+# via scripts/backup-db.sh + scripts/offsite-sync.sh)
+/db/*.db
+/db/*.db-journal
+/db/*.db-wal
+/db/*.db-shm
+/db/*.db.gz
+*.sqlite
+*.sqlite3
+*.db.gz
+*.dump
