@@ -11,10 +11,9 @@ import { verifyWebhookSignature, webhookRejected } from '@/lib/webhook-auth'
  *
  * SECURITY: when MPESA_WEBHOOK_SECRET is configured, callbacks must present it
  * in the x-carmaze-signature header (timing-safe compare). Without the secret
- * the callback is accepted without source validation; a documented limitation
- * mitigated by the fact that a callback can only resolve attempts that were
- * genuinely initiated through stkpush, and every unsigned acceptance is
- * audit-logged.
+ * the callback is REJECTED in production (fail-closed, see src/lib/webhook-auth.ts);
+ * only development/sandbox accepts unsigned callbacks, and every such
+ * acceptance is audit-logged.
  *
  * CONCURRENCY: the attempt transition and the invoice activation run in ONE
  * transaction, and both are conditional updates — the attempt must still be
