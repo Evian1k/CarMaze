@@ -12,11 +12,19 @@ let resetInFlight: { running: boolean; startedAt: number } = { running: false, s
  * POST /api/admin/demo-accounts/reset: restore demo data to its seeded
  * baseline by re-running the idempotent seed.
  *
- * HONESTY: on this deployment the entire database is demo/seed data, so the
- * reset restores the FULL seeded baseline. Every signed-in session ends
- * (users are recreated with fresh ids). The response reports exactly that.
+ * PRODUCTION GUARD (fail-closed): the seed deletes EVERY table before
+ * re-inserting the demo world — on a production database that would destroy
+ * real users, vehicles, invoices, settlements and audit history. In
+ * production (NODE_ENV=production, as the systemd service sets) the reset is
+ * refused outright unless CARMAZE_ALLOW_DEMO_SEED=YES is explicitly set —
+ * which a real production deployment never has. Direct API requests are
+ * covered by the same guard.
  */
 export const POST = route(async (req: NextRequest) => {
+  if (process.env.NODE_ENV === 'production' && process.env.CARMAZE_ALLOW_DEMO_SEED !== 'YES') {
+    return fail(403, 'DEMO_RESET_DISABLED_IN_PRODUCTION', 'Demo data reset is disabled in production: the demo seed deletes all data, including real business records.')
+  }
+
   const user = await requireRole('ADMIN', 'FOUNDER')
   if (user.isDemo) return fail(403, 'DEMO_SANDBOXED', 'Demo mode: resetting demo data is disabled for demo accounts.')
 

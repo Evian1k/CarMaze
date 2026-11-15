@@ -6,12 +6,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+BACKUP_DIR="${CARMAZE_BACKUP_DIR:-backups}"
+
 BACKUP="${1:-}"
 if [ -z "$BACKUP" ]; then
-  BACKUP=$(ls -1t backups/carmaze-*.db.gz 2>/dev/null | head -n 1 || true)
+  BACKUP=$(ls -1t "$BACKUP_DIR"/carmaze-*.db.gz 2>/dev/null | head -n 1 || true)
 fi
 if [ -z "$BACKUP" ] || [ ! -f "$BACKUP" ]; then
-  echo "FAIL: no backup found under backups/ — run scripts/backup-db.sh first" >&2
+  echo "FAIL: no backup found under $BACKUP_DIR/ — run scripts/backup-db.sh first" >&2
   exit 1
 fi
 echo "Restore-testing backup: $BACKUP"

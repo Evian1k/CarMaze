@@ -84,13 +84,12 @@ bun run db:status          # must print: "Database schema is up to date!"
 
 ```bash
 cd /opt/carmaze
-export $(cat > /dev/null << 'EOF'
-FOUNDER_CONFIRM=YES
-FOUNDER_EMAIL=founder@YOUR_DOMAIN
-FOUNDER_NAME="Your Full Name"
-FOUNDER_PASSWORD='…≥12 chars, mixed case + digit + symbol…'
-EOF
-echo) # or export the four variables directly in the shell
+# export the four variables directly in the shell (mind the quoting — the
+# password must contain lower/upper case, a digit and a symbol):
+export FOUNDER_CONFIRM=YES
+export FOUNDER_EMAIL=founder@YOUR_DOMAIN
+export FOUNDER_NAME="Your Full Name"
+read -rs FOUNDER_PASSWORD && export FOUNDER_PASSWORD   # typed silently, never in history
 bun run founder:create     # refuses on: existing founder, duplicate email, demo data in DB, weak password
 unset FOUNDER_PASSWORD
 history -c                 # keep the password out of shell history
@@ -166,14 +165,19 @@ Nothing to install: the in-process scheduler starts with the app (`ENABLE_JOBS` 
 ## 8. Off-site backups `[NOT RUN HERE — exact commands]`
 
 ```bash
-# scripts/backup-db.sh already does: sqlite3 .backup → gzip → timestamped file → 30-copy retention.
+# scripts/backup-db.sh resolves the DB from DATABASE_URL/.env (no hardcoded
+# path) and does: sqlite3 .backup → gzip → timestamped file → 30-copy retention.
 sudo -u carmaze bash /opt/carmaze/scripts/backup-db.sh    # verify one run now
 
 # nightly 02:30 + pre-deploy; then copy OFF-BOX (rclone to S3-compatible, or scp to a second machine)
 sudo -u carmaze crontab -e
   30 2 * * * bash /opt/carmaze/scripts/backup-db.sh && /home/carmaze/.bun/bin/bun /opt/carmaze/scripts/offsite-sync.mjs 2>>/opt/carmaze/backups/sync.log
-# offsite-sync.mjs: rclone copy /opt/carmaze-backups remote:carmaze-backups --max-age 48h
-#   (write this 5-line script when the backup target account exists — the runbook does not invent credentials)
+# offsite-sync.mjs (committed, fail-closed): refuses to run until a backup
+# target exists — run `rclone config` once, then add to /opt/carmaze/.env:
+#   OFFSITE_BACKUP_REMOTE="remote:carmaze-backups"
+# It runs `rclone copy` (never sync/deletes) and exits 1 until configured.
+# NEVER report off-site backups as working until this script has exited 0
+# against the real target and a file has been verified on the target.
 
 # restore drill (weekly): scripts/db-restore-test.sh verifies gunzip → integrity_check against a copy
 ```

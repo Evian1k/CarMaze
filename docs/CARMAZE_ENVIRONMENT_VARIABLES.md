@@ -58,6 +58,9 @@ Copy `.env.example` → `.env` and fill. The application validates the critical 
 ## Not required / optional
 
 - `MPESA_BASE_URL` — override only for testing gateways.
+- `CARMAZE_SCAN_CMD` — custom malware-scan command (`{file}` placeholder; exit 0=clean, 1=infected). When unset, the app auto-uses `clamdscan`/`clamscan` if installed; with no scanner at all, PDF/document/evidence uploads stay quarantined until staff review (fail-closed, audited).
+- `OFFSITE_BACKUP_REMOTE` — rclone target (e.g. `remote:carmaze-backups`) used by `scripts/offsite-sync.mjs`; backups stay local-only until it is set on the host.
+- `CARMAZE_ALLOW_DEMO_SEED` — **NEVER set in production.** Escape hatch that permits the destructive demo seed (`prisma/seed.ts`, `/api/admin/demo-accounts/reset`) while `NODE_ENV=production`; exists only for deliberately demo-seeded staging hosts.
 - Nothing else: the app has no other secret dependencies; unused packages in `package.json` (next-auth, etc.) require no configuration and are inert.
 
 ## Handling rules

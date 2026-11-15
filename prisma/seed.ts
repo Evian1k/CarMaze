@@ -54,6 +54,22 @@ function hoursAgo(h: number): Date {
 }
 
 async function main() {
+  // PRODUCTION GUARD (fail-closed): this seed DESTROYS every table before
+  // re-inserting the demo world. It must never touch a production database —
+  // neither via `bun run db:seed`, nor via POST /api/admin/demo-accounts/reset
+  // (which spawns this script). The systemd production service runs with
+  // NODE_ENV=production, so both paths refuse. The escape hatch
+  // (CARMAZE_ALLOW_DEMO_SEED=YES) exists only for deliberately demo-seeded
+  // staging environments and is never needed in production.
+  if (process.env.NODE_ENV === 'production' && process.env.CARMAZE_ALLOW_DEMO_SEED !== 'YES') {
+    console.error(
+      'REFUSED: NODE_ENV=production. This seed deletes ALL data (including real users, vehicles, invoices, settlements and audit history) ' +
+      'and replaces it with demo accounts. Production databases are initialised with `bun run db:deploy` + `bun run founder:create` — never seeded. ' +
+      'If this is genuinely a demo/staging database running in production mode, set CARMAZE_ALLOW_DEMO_SEED=YES explicitly.'
+    )
+    process.exit(1)
+  }
+
   console.log('Seeding CARMAZE…')
   await db.auditLog.deleteMany()
   await db.demoAccount.deleteMany()
